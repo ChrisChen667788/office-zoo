@@ -55,6 +55,7 @@ import {
 import LottieAsset from '../LottieAsset';
 import { lottie } from '../../constants/lottie';
 import { teamIcons, glyphIcons, Icon } from '../../constants/icons';
+import ShareVideoButton from './ShareVideoButton';
 
 interface WinnerConfig {
   emoji: string;
@@ -562,8 +563,10 @@ export default function HighlightReel() {
                 background: 'rgba(0,0,0,0.25)',
               }}
             >
-              {/* Share cluster */}
-              <div className="flex gap-2">
+              {/* Share cluster — viral video first (the big lever), share
+                  card second (legacy), download last */}
+              <div className="flex gap-2 flex-wrap">
+                <ShareVideoButton />
                 <button
                   onClick={handleCopy}
                   disabled={shareStatus === 'working' || !shareData}
