@@ -1,0 +1,263 @@
+@import "tailwindcss";
+
+/* =======================================================================
+ * Design tokens — kept in sync with src/constants/design.ts.
+ * JS consumers should import from design.ts directly; this mirror exists
+ * so styles in .css / inline style={{ ... var(--token) ... }} share values.
+ * ===================================================================== */
+:root {
+  /* Surfaces */
+  --bg-base: #050510;
+  --bg-elev: #0b0c1e;
+  --bg-surface: #14152a;
+  --bg-overlay: rgba(6, 6, 18, 0.72);
+
+  /* Brand */
+  --brand-neon: #4c9eff;
+  --brand-violet: #7c3aed;
+  --brand-glow: #7fd4ff;
+
+  /* Teams */
+  --team-cat: #4c9eff;
+  --team-dog: #ff3355;
+  --team-neutral: #a855f7;
+
+  /* Semantic */
+  --sem-success: #9cff57;
+  --sem-warn: #ffb84c;
+  --sem-danger: #ff3355;
+  --sem-info: #4c9eff;
+  --sem-ghost: #6ee7b7;
+
+  /* Text on dark */
+  --text-primary: rgba(255, 255, 255, 0.96);
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-tertiary: rgba(255, 255, 255, 0.48);
+  --text-muted: rgba(255, 255, 255, 0.32);
+  --text-faint: rgba(255, 255, 255, 0.18);
+
+  /* Strokes */
+  --stroke-faint: rgba(255, 255, 255, 0.04);
+  --stroke-subtle: rgba(255, 255, 255, 0.08);
+  --stroke-normal: rgba(255, 255, 255, 0.14);
+  --stroke-strong: rgba(255, 255, 255, 0.28);
+
+  /* Radius */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /* Spacing */
+  --s-xs: 4px;
+  --s-sm: 8px;
+  --s-md: 12px;
+  --s-lg: 16px;
+  --s-xl: 24px;
+  --s-x2l: 32px;
+  --s-x3l: 48px;
+  --s-x4l: 64px;
+
+  /* Shadows */
+  --sh-sm: 0 1px 3px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.14);
+  --sh-md: 0 6px 18px rgba(0, 0, 0, 0.38), 0 2px 4px rgba(0, 0, 0, 0.18);
+  --sh-lg: 0 20px 48px rgba(0, 0, 0, 0.5), 0 6px 14px rgba(0, 0, 0, 0.2);
+  --sh-glow-blue:
+    0 0 36px rgba(76, 158, 255, 0.28),
+    0 0 72px rgba(76, 158, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --sh-glow-red:
+    0 0 36px rgba(255, 51, 85, 0.32),
+    0 0 72px rgba(255, 51, 85, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --sh-inset: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  /* Fonts — no web-font download to keep first paint clean. */
+  --font-display:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable", "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC",
+    sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Monaco, "Roboto Mono",
+    monospace;
+}
+
+/* =======================================================================
+ * Reset / base
+ * ===================================================================== */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-feature-settings: "cv11", "ss01", "ss02";
+  font-variant-ligatures: common-ligatures;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+/* Display headings tighter tracking */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+  font-feature-settings: "ss01", "ss02";
+}
+
+/* Selection — brand tint. */
+::selection {
+  background: rgba(76, 158, 255, 0.32);
+  color: #fff;
+}
+
+/* =======================================================================
+ * Scrollbar — thin, low-contrast, hover brightens.
+ * ===================================================================== */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 160ms ease;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+  background-clip: padding-box;
+}
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+/* =======================================================================
+ * Reusable utility classes
+ * ===================================================================== */
+
+/* Frosted glass card. Use for panels/cards that sit on the aurora bg. */
+.glass {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  border: 1px solid var(--stroke-subtle);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: var(--sh-inset), var(--sh-md);
+}
+
+.glass-strong {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.025) 100%
+  );
+  border: 1px solid var(--stroke-normal);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  box-shadow: var(--sh-inset), var(--sh-lg);
+}
+
+/* Subtle grain overlay. Put this on a full-screen ::after to de-digitize
+   gradients. Matches the "film-like" direction of the design brief. */
+.noise::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  z-index: 1;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 160px 160px;
+}
+
+/* Aurora blob — position with top/left/width/height, pass --c for tint. */
+.aurora {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.55;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at center,
+    var(--c, rgba(76, 158, 255, 0.5)) 0%,
+    transparent 65%
+  );
+}
+
+/* Dotted grid background — soft overlay for tech/CRT feel. */
+.grid-dots {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    rgba(255, 255, 255, 0.06) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
+}
+
+/* Brand text gradient. */
+.text-gradient-brand {
+  background: linear-gradient(135deg, #4c9eff 0%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-heat {
+  background: linear-gradient(135deg, #ff3355 0%, #ffb84c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Focus ring — brand neon, keyboard-only. */
+:focus-visible {
+  outline: 2px solid var(--brand-neon);
+  outline-offset: 3px;
+  border-radius: var(--r-xs);
+}
+
+/* Buttons / interactive links without default outline fights. */
+button {
+  font-family: inherit;
+  letter-spacing: inherit;
+}
+
+/* Reduced-motion friendly — respect the user. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

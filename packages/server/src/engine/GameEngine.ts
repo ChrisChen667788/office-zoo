@@ -1,0 +1,838 @@
+import { EventEmitter } from 'events';
+import {
+  type GameState,
+  type GameConfig,
+  type PlayerState,
+  type GameEvent,
+  type SerializedGameState,
+  type SerializedPlayer,
+  GamePhase,
+  Team,
+  WinCondition,
+  Role,
+  ROLE_PRESETS,
+  ROLE_REGISTRY,
+  DEFAULT_GAME_CONFIG,
+  type Personality,
+  assignPersonalities,
+  PERSONALITY_REGISTRY,
+} from '@furball/shared';
+import { TaskManager } from './TaskManager';
+import { BaseAgent } from '../agents/BaseAgent';
+import { logger } from '../utils/logger';
+import { assignRoomActivity, commuteCaption } from './activity';
+// Activity + PlayerTickInfo are new — added separately to keep the diff
+// against the original import block obvious. PlayerState is already imported
+// above as a type, so we don't repeat it here.
+import type { PlayerTickInfo } from '@furball/shared';
+
+const AI_NAMES = [
+  'Tony', 'Lisa', 'Kevin', 'Amy', 'David', 'Frank',
+  'Grace', 'Helen', 'Jack', 'Mike', 'Ruby', 'Oscar',
+  '张总', '李总', '小王', '小陈', '阿强', '老赵',
+  '陈姐', '实习生小明',
+];
+
+const ROOMS = [
+  '开放工区', '茶水间', '会议室', 'HR办公室', '服务器机房',
+  '监控室', '产品部', '老板办公室', '文印室', '电梯间',
+];
+
+function randomRoom(): string {
+  return ROOMS[Math.floor(Math.random() * ROOMS.length)];
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+export class GameEngine extends EventEmitter {
+  readonly state: GameState;
+  /** Wall-clock when this engine was created — used by TTL sweeper. */
+  readonly createdAt: number = Date.now();
+  private agents: Map<string, BaseAgent> = new Map();
+  private taskManager: TaskManager;
+  private timeline: GameEvent[] = [];
+  private running = false;
+  private destroyed = false;
+  private discussionResolver?: () => void;
+  /** Compressed record of last round's discussion — fed into next round's context for memory. */
+  private lastRoundSpeeches: Array<{ name: string; text: string }> = [];
+  /** Child logger bound to this engine's gameId — created lazily. */
+  private _log?: ReturnType<typeof logger.child>;
+  private get log() {
+    if (!this._log) this._log = logger.child({ gameId: this.state.id, component: 'engine' });
+    return this._log;
+  }
+
+  constructor(configOrPlayerCount: Partial<GameConfig> | number = {}) {
+    super();
+    const config: Partial<GameConfig> =
+      typeof configOrPlayerCount === 'number'
+        ? { playerCount: configOrPlayerCount }
+        : configOrPlayerCount;
+    const mergedConfig: GameConfig = { ...DEFAULT_GAME_CONFIG, ...config };
+    this.state = {
+      id: `game_${Date.now()}`,
+      phase: GamePhase.LOBBY,
+      players: [],
+      round: 0,
+      taskProgress: 0,
+      winner: WinCondition.NONE,
+      votes: {},
+      ghostVotes: {},
+      config: mergedConfig,
+    };
+    this.taskManager = new TaskManager(ROOMS);
+  }
+
+  // ---------- Setup ----------
+
+  createPlayers(): void {
+    const count = this.state.config.playerCount;
+    const preset = ROLE_PRESETS[count] ?? ROLE_PRESETS[8];
+    const roles: Role[] = shuffle([...preset.cat, ...preset.dog, ...preset.neutral]);
+    const names = shuffle([...AI_NAMES]).slice(0, count);
+    const personalities = assignPersonalities(count);
+
+    for (let i = 0; i < count; i++) {
+      const role = roles[i];
+      const info = ROLE_REGISTRY[role];
+      const personality = personalities[i];
+      const player: PlayerState = {
+        id: `player_${i}`,
+        name: names[i],
+        role,
+        team: info.team,
+        isAlive: true,
+        position: { x: 0, y: 0, room: '开放工区' },
+        tasks: [],
+        killCooldown: 0,
+        emergencyMeetings: this.state.config.emergencyMeetings,
+        ghostVoteUsed: false,
+        personality,
+      };
+      this.state.players.push(player);
+
+      // Create AI agent for this player (with personality)
+      const agent = new BaseAgent(player.id, player.name, role, info.team, personality as Personality);
+      this.agents.set(player.id, agent);
+    }
+
+    // Assign tasks to cat-team players
+    for (const p of this.state.players) {
+      if (p.team === Team.CAT) {
+        p.tasks = this.taskManager.assignTasks(p.id, this.state.config.taskCount);
+      }
+    }
+  }
+
+  // ---------- Main game loop ----------
+
+  async startGame(): Promise<void> {
+    if (this.running) return;
+    this.running = true;
+
+    this.createPlayers();
+    this.emitState();
+
+    // ROLE_REVEAL
+    await this.setPhase(GamePhase.ROLE_REVEAL);
+    await delay(3000);
+
+    // Main loop
+    while (this.running && this.state.winner === WinCondition.NONE) {
+      this.state.round++;
+
+      // FREE_ROAM
+      await this.setPhase(GamePhase.FREE_ROAM);
+      await this.runFreeRoam();
+
+      if (this.checkWin()) break;
+
+      // MEETING
+      await this.setPhase(GamePhase.MEETING);
+      await delay(2000);
+
+      // DISCUSSION
+      await this.setPhase(GamePhase.DISCUSSION);
+      await this.runDiscussion();
+
+      // VOTING
+      await this.setPhase(GamePhase.VOTING);
+      await this.runVoting();
+
+      // VOTE_RESULT
+      await this.setPhase(GamePhase.VOTE_RESULT);
+      await this.resolveVotes();
+      await delay(3000);
+
+      if (this.checkWin()) break;
+    }
+
+    // GAME_OVER
+    await this.setPhase(GamePhase.GAME_OVER);
+    this.running = false;
+  }
+
+  stop(): void {
+    this.running = false;
+  }
+
+  /**
+   * Fully tear down this engine: stop the main loop, release any pending
+   * discussion awaits, detach all listeners, and drop agent references.
+   * Idempotent — safe to call multiple times (TTL sweep + disconnect cleanup
+   * may race).
+   *
+   * Callers MUST remove the engine from their game Map after calling this,
+   * otherwise the memory it still references (state, timeline) won't be freed.
+   */
+  destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.running = false;
+
+    // Unblock any awaiter in runDiscussion — otherwise the engine's async
+    // stack frame is kept alive by the pending Promise, leaking memory.
+    this.discussionResolver?.();
+    this.discussionResolver = undefined;
+
+    // Drop all EventEmitter listeners (socket handler, future subscribers).
+    this.removeAllListeners();
+
+    // Drop strong refs to agents + timeline so V8 can reclaim them even if
+    // an outer closure retained this engine.
+    this.agents.clear();
+    this.timeline.length = 0;
+    this.lastRoundSpeeches = [];
+  }
+
+  isDestroyed(): boolean {
+    return this.destroyed;
+  }
+
+  // ---------- Phase runners ----------
+
+  /**
+   * Free-roam phase — formerly a single-shot teleport, now a proper tick loop
+   * so the client can animate players walking between rooms and show what
+   * they're doing in each one.
+   *
+   * Loop runs `FREE_ROAM_TICKS` ticks of `TICK_INTERVAL_MS` each (~9s total
+   * by default). Per tick:
+   *   1. Settled players: 30% chance to start a commute to a different room
+   *   2. Commuting players: pathProgress += COMMUTE_STEP; arrive when >= 1.0
+   *   3. Just-arrived players: pick a new activity based on (room, roommates)
+   *   4. Emit `tick` with everyone's `{position, activity, activityText}`
+   *
+   * Kill / task / cooldown / body-discovery logic is preserved verbatim from
+   * the old single-shot implementation, just deferred to after the tick loop.
+   */
+  private async runFreeRoam(): Promise<void> {
+    const TICK_INTERVAL_MS = 1500;
+    const FREE_ROAM_TICKS = 6;            // 6 × 1.5s = 9s of roaming
+    const COMMUTE_START_PROB = 0.3;       // chance per tick a settled player commutes
+    const COMMUTE_STEP = 0.34;            // ~3 ticks to traverse a corridor (1/0.34)
+
+    // Initial settle: bootstrap activities for anyone without one (e.g. first
+    // free_roam after role_reveal). Random initial rooms preserve old game
+    // feel where everyone visibly relocates between rounds.
+    for (const p of this.alivePlayers()) {
+      if (!p.position.room) p.position.room = randomRoom();
+      // Reset commute state from any prior round
+      p.position.pathProgress = undefined;
+      p.position.destination = undefined;
+      const roommates = this.playersInRoom(p.position.room);
+      const a = assignRoomActivity(p, roommates);
+      p.activity = a.activity;
+      p.activityText = a.activityText;
+    }
+    this.emitState(); // baseline state with activities populated
+
+    for (let t = 0; t < FREE_ROAM_TICKS; t++) {
+      if (!this.running || this.destroyed) return;
+
+      for (const p of this.alivePlayers()) {
+        const isCommuting = typeof p.position.pathProgress === 'number';
+        if (isCommuting) {
+          // Advance along corridor.
+          p.position.pathProgress = (p.position.pathProgress ?? 0) + COMMUTE_STEP;
+          if (p.position.pathProgress >= 1.0) {
+            // Arrived — finalise position, drop commute fields, pick activity.
+            p.position.room = p.position.destination ?? p.position.room;
+            p.position.pathProgress = undefined;
+            p.position.destination = undefined;
+            const roommates = this.playersInRoom(p.position.room);
+            const a = assignRoomActivity(p, roommates);
+            p.activity = a.activity;
+            p.activityText = a.activityText;
+          }
+          // Mid-commute — keep activity = commute, caption already set on start
+        } else if (Math.random() < COMMUTE_START_PROB) {
+          // Pick a destination different from current room.
+          const choices = ROOMS.filter((r) => r !== p.position.room);
+          const dest = choices[Math.floor(Math.random() * choices.length)];
+          p.position.destination = dest;
+          p.position.pathProgress = 0;
+          p.activity = { kind: 'commute' };
+          p.activityText = commuteCaption(p, dest);
+        } else {
+          // Stayed put — refresh activity occasionally so captions don't go
+          // stale (10% chance per tick).
+          if (Math.random() < 0.1) {
+            const roommates = this.playersInRoom(p.position.room);
+            const a = assignRoomActivity(p, roommates);
+            p.activity = a.activity;
+            p.activityText = a.activityText;
+          }
+        }
+      }
+
+      // Broadcast the lightweight tick payload for client-side animation.
+      const tickPayload: PlayerTickInfo[] = this.state.players.map((p) => ({
+        id: p.id,
+        position: p.position,
+        activity: p.activity,
+        activityText: p.activityText,
+      }));
+      this.emit('tick', { players: tickPayload, tickAt: Date.now() });
+
+      await delay(TICK_INTERVAL_MS);
+    }
+
+    // ---- Post-roam: original kill / task / body-discovery logic ----
+    // Force everyone to settle (clear in-flight commute) so the kill check
+    // works on real room residency, not "currently mid-corridor".
+    for (const p of this.alivePlayers()) {
+      if (typeof p.position.pathProgress === 'number') {
+        p.position.room = p.position.destination ?? p.position.room;
+        p.position.pathProgress = undefined;
+        p.position.destination = undefined;
+      }
+    }
+
+    // Dogs attempt kills
+    const dogs = this.alivePlayers().filter((p) => p.team === Team.DOG && p.killCooldown <= 0);
+    for (const dog of dogs) {
+      const nearby = this.alivePlayers().filter(
+        (p) => p.id !== dog.id && p.team !== Team.DOG && p.position.room === dog.position.room
+      );
+      if (nearby.length > 0) {
+        const victim = nearby[Math.floor(Math.random() * nearby.length)];
+        victim.isAlive = false;
+        dog.killCooldown = this.state.config.killCooldown;
+        this.state.deadBodyLocation = victim.position.room;
+
+        this.addEvent('kill', `${dog.name} 在 ${victim.position.room} "优化"了 ${victim.name}`);
+        this.emit('kill', {
+          killerId: dog.id,
+          killerName: dog.name,
+          victimId: victim.id,
+          victimName: victim.name,
+          location: victim.position.room,
+        });
+        this.emitState();
+        break; // Only one kill per free-roam
+      }
+    }
+
+    // Cat players do tasks
+    for (const p of this.alivePlayers().filter((pp) => pp.team === Team.CAT)) {
+      this.taskManager.progressTasks(p.id, p.position.room);
+    }
+    this.updateTaskProgress();
+
+    // Reduce kill cooldowns
+    for (const p of this.alivePlayers()) {
+      if (p.killCooldown > 0) p.killCooldown--;
+    }
+
+    // Random body discovery triggers meeting
+    if (this.state.deadBodyLocation) {
+      const discoverer = this.alivePlayers().find(
+        (p) => p.position.room === this.state.deadBodyLocation && p.team !== Team.DOG
+      );
+      if (discoverer) {
+        this.state.meetingCaller = discoverer.id;
+        this.addEvent('body_found', `${discoverer.name} 在 ${this.state.deadBodyLocation} 发现有人被裁了!`);
+      }
+    }
+  }
+
+  /** Return all alive players currently in a given room (excludes commuters). */
+  private playersInRoom(room: string): PlayerState[] {
+    return this.alivePlayers().filter(
+      (p) => p.position.room === room && typeof p.position.pathProgress !== 'number',
+    );
+  }
+
+  private async runDiscussion(): Promise<void> {
+    const alive = this.alivePlayers();
+    const dead = this.deadPlayers();
+    const context = this.buildDiscussionContext();
+
+    // Speakers go in a randomized order so the "first speaker sets the tone" role rotates.
+    const speakingOrder = shuffle(alive);
+
+    // ------------------------------------------------------------------
+    // 2-wave parallelization. The original implementation generated each
+    // speech sequentially so late speakers could react to earlier ones
+    // (cascading debate). That correctness property is worth preserving,
+    // but 8 × ~4s serial ≈ 32 s is unacceptable for UX.
+    //
+    // Compromise: split speakers into two waves (first-half, second-half).
+    // Wave 1 speaks in parallel to set the tone. Wave 2 speaks in parallel
+    // while seeing ALL of Wave 1's speeches as prior context. This keeps
+    // the "responders react to openers" dynamic natural debates already
+    // have, while cutting wall-clock to 2 × ~4s ≈ 8-10s.
+    //
+    // For tiny games (≤3 alive) a single wave is fine — there's not much
+    // back-and-forth to lose.
+    // ------------------------------------------------------------------
+    const WAVE_COUNT = speakingOrder.length <= 3 ? 1 : 2;
+    const waveSize = Math.ceil(speakingOrder.length / WAVE_COUNT);
+    const waves: PlayerState[][] = [];
+    for (let i = 0; i < speakingOrder.length; i += waveSize) {
+      waves.push(speakingOrder.slice(i, i + waveSize));
+    }
+
+    const speeches: Array<{ playerId: string; playerName: string; text: string; role: string; team: Team }> = [];
+
+    for (const wave of waves) {
+      // Snapshot priorSpeeches AT WAVE START so all speakers in this wave see
+      // the same context (deterministic). Speakers within a wave don't react
+      // to each other — they react to the wave(s) before them.
+      const priorSpeeches = speeches.map((s) => ({ name: s.playerName, text: s.text }));
+
+      const waveResults = await Promise.allSettled(
+        wave.map(async (player) => {
+          const agent = this.agents.get(player.id);
+          if (!agent) {
+            return { player, text: this.fallbackSpeech(player) };
+          }
+          // BaseAgent.generateSpeech never throws (callLLMWithTimeout returns
+          // fallback on failure), but wrap anyway — any future change that
+          // lets it throw shouldn't short-circuit the wave.
+          try {
+            const text = await agent.generateSpeech(context, priorSpeeches);
+            return { player, text };
+          } catch {
+            return { player, text: this.fallbackSpeech(player) };
+          }
+        }),
+      );
+
+      // Preserve the speakingOrder sequence inside each wave so the UI shows
+      // speeches in a consistent order (not dependent on which LLM call
+      // returned first).
+      for (let i = 0; i < wave.length; i++) {
+        const r = waveResults[i];
+        const player = wave[i];
+        const text =
+          r.status === 'fulfilled' ? r.value.text : this.fallbackSpeech(player);
+        speeches.push({
+          playerId: player.id,
+          playerName: player.name,
+          text,
+          role: player.role,
+          team: player.team,
+        });
+      }
+    }
+
+    // Remember this round's speeches so future rounds can reference them
+    this.lastRoundSpeeches = speeches.map((s) => ({ name: s.playerName, text: s.text }));
+
+    // Ghost comments (弹幕吐槽) — no cascading reaction needed, fully parallel.
+    if (dead.length > 0) {
+      const ghostResults = await Promise.allSettled(
+        dead.map(async (ghost) => {
+          const agent = this.agents.get(ghost.id);
+          if (!agent) return null;
+          const text = await agent.generateGhostComment(context);
+          return {
+            playerId: ghost.id,
+            playerName: ghost.name,
+            text,
+            role: ghost.role,
+            team: ghost.team,
+          };
+        }),
+      );
+      const ghostComments = ghostResults
+        .filter(
+          (r): r is PromiseFulfilledResult<{
+            playerId: string;
+            playerName: string;
+            text: string;
+            role: string;
+            team: Team;
+          }> => r.status === 'fulfilled' && r.value !== null,
+        )
+        .map((r) => r.value);
+      if (ghostComments.length > 0) {
+        this.emit('ghost_comments', ghostComments);
+      }
+    }
+
+    // Emit all speeches as a batch - socket handler will process sequentially
+    // Wait for socket handler to signal completion via resolveDiscussion()
+    //
+    // Deadlock defense: if the socket handler crashes / all clients disconnect
+    // / processSpeechQueue hangs, we MUST still unblock the game loop or the
+    // whole game halts indefinitely (and eventually runs out of sockets).
+    //
+    // Budget: 8 speeches × ~20s each + buffer ≈ 4 min. Anything beyond that is
+    // pathological — force resolve so the game can advance to voting.
+    const DISCUSSION_HARD_TIMEOUT_MS = 4 * 60 * 1000;
+
+    const waitForPlayback = new Promise<void>((resolve) => {
+      this.discussionResolver = resolve;
+    });
+
+    let hardTimer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<void>((resolve) => {
+      hardTimer = setTimeout(() => {
+        this.log.warn(
+          { timeoutMs: DISCUSSION_HARD_TIMEOUT_MS },
+          'discussion playback exceeded hard timeout — force-resolving',
+        );
+        resolve();
+      }, DISCUSSION_HARD_TIMEOUT_MS);
+    });
+
+    try {
+      this.emit('discussion_speeches', speeches);
+      await Promise.race([waitForPlayback, timeoutPromise]);
+    } finally {
+      if (hardTimer) clearTimeout(hardTimer);
+      // Always clear the resolver — if the timeout won the race, the socket
+      // handler may still invoke resolveDiscussion() later; make it a no-op.
+      this.discussionResolver = undefined;
+    }
+  }
+
+  /** Called by socket handler when all speeches have been played */
+  resolveDiscussion(): void {
+    this.discussionResolver?.();
+    this.discussionResolver = undefined;
+  }
+
+  private async runVoting(): Promise<void> {
+    this.state.votes = {};
+    this.state.ghostVotes = {};
+    const alive = this.alivePlayers();
+    const dead = this.deadPlayers().filter((p) => !p.ghostVoteUsed);
+    const context = this.buildDiscussionContext();
+    const aliveCandidates = alive.map((p) => ({ id: p.id, name: p.name }));
+
+    // All alive players vote simultaneously
+    const votePromises = alive.map(async (player) => {
+      const agent = this.agents.get(player.id);
+      if (!agent) return;
+
+      try {
+        const target = await agent.generateVote(context, aliveCandidates);
+        this.state.votes[player.id] = target;
+      } catch {
+        // Random vote on failure
+        const others = alive.filter((p) => p.id !== player.id);
+        const pick = others[Math.floor(Math.random() * others.length)];
+        this.state.votes[player.id] = pick?.id ?? 'skip';
+      }
+    });
+
+    // Dead players use ghost vote (劳动仲裁投票) - each can only vote once ever
+    const ghostVotePromises = dead.map(async (ghost) => {
+      const agent = this.agents.get(ghost.id);
+      if (!agent) return;
+
+      try {
+        const target = await agent.generateGhostVote(context, aliveCandidates);
+        if (target !== 'pass') {
+          this.state.ghostVotes[ghost.id] = target;
+          ghost.ghostVoteUsed = true;
+          this.addEvent('ghost_vote', `离职员工 ${ghost.name} 发起了劳动仲裁投票!`);
+        }
+      } catch {
+        // Ghost votes default to pass on failure (save for later)
+      }
+    });
+
+    // Use allSettled: a single rejection from Promise.all short-circuits the
+    // remaining voters, but their async writes to state.votes / state.ghostVotes
+    // still land — potentially AFTER resolveVotes() has run, producing phantom
+    // votes. allSettled guarantees every voter has finished writing before we
+    // tally. Inner try/catch should already prevent rejection, but this is the
+    // last line of defense for unexpected sync failures (e.g. corrupted agent).
+    const settled = await Promise.allSettled([...votePromises, ...ghostVotePromises]);
+    const rejections = settled.filter((r) => r.status === 'rejected');
+    if (rejections.length > 0) {
+      this.log.warn(
+        {
+          rejected: rejections.length,
+          total: settled.length,
+          reasons: rejections.map((r) => (r as PromiseRejectedResult).reason),
+        },
+        'vote promises rejected unexpectedly',
+      );
+    }
+  }
+
+  private async resolveVotes(): Promise<void> {
+    const tally: Record<string, number> = {};
+
+    // Count alive player votes (weight: 1)
+    for (const target of Object.values(this.state.votes)) {
+      tally[target] = (tally[target] || 0) + 1;
+    }
+
+    // Count ghost votes (weight: 1 - 劳动仲裁投票与普通投票等权)
+    for (const target of Object.values(this.state.ghostVotes)) {
+      tally[target] = (tally[target] || 0) + 1;
+    }
+
+    // Find highest votes (two-pass to correctly handle 3-way ties)
+    const maxVotes = Object.values(tally).reduce((m, c) => Math.max(m, c), 0);
+    const topCandidates = maxVotes > 0
+      ? Object.entries(tally).filter(([, c]) => c === maxVotes)
+      : [];
+    const eliminated: string | undefined = topCandidates.length === 1
+      ? topCandidates[0][0]
+      : undefined; // Tie (2+ players share max) = no elimination
+
+    let eliminatedRole: string | undefined;
+
+    if (eliminated && eliminated !== 'skip') {
+      const player = this.state.players.find((p) => p.id === eliminated);
+      if (player) {
+        player.isAlive = false;
+        eliminatedRole = player.role;
+        const ghostVoters = Object.keys(this.state.ghostVotes).filter(
+          (gid) => this.state.ghostVotes[gid] === eliminated
+        );
+        const ghostSuffix = ghostVoters.length > 0
+          ? ` (含${ghostVoters.length}票劳动仲裁)`
+          : '';
+        this.addEvent('vote_out', `${player.name} 被投票开除了${ghostSuffix}! 职位: ${ROLE_REGISTRY[player.role as Role]?.displayNameCN ?? player.role}`);
+      }
+    } else {
+      this.addEvent('vote_skip', '投票平局，无人被开除');
+    }
+
+    this.emit('vote_result', {
+      votes: this.state.votes,
+      ghostVotes: this.state.ghostVotes,
+      eliminated,
+      eliminatedRole,
+    });
+
+    this.state.deadBodyLocation = undefined;
+    this.state.meetingCaller = undefined;
+    this.emitState();
+  }
+
+  // ---------- Win condition check ----------
+
+  private checkWin(): boolean {
+    const aliveCats = this.alivePlayers().filter((p) => p.team === Team.CAT).length;
+    const aliveDogs = this.alivePlayers().filter((p) => p.team === Team.DOG).length;
+
+    if (aliveDogs === 0) {
+      this.state.winner = WinCondition.CAT_WIN;
+      this.addEvent('game_over', '资本家全部被赶走，打工人阵营获胜!');
+      this.emit('game_over', { winner: WinCondition.CAT_WIN, reason: '资本家全部被赶走' });
+      return true;
+    }
+
+    if (aliveDogs >= aliveCats) {
+      this.state.winner = WinCondition.DOG_WIN;
+      this.addEvent('game_over', '资本家已控制公司，资本家阵营获胜!');
+      this.emit('game_over', { winner: WinCondition.DOG_WIN, reason: '资本家已控制公司' });
+      return true;
+    }
+
+    // Task victory
+    if (this.state.taskProgress >= 100) {
+      this.state.winner = WinCondition.CAT_WIN;
+      this.addEvent('game_over', '所有OKR已完成，打工人阵营获胜!');
+      this.emit('game_over', { winner: WinCondition.CAT_WIN, reason: '所有OKR已完成' });
+      return true;
+    }
+
+    return false;
+  }
+
+  // ---------- Serialization ----------
+
+  getSerializedState(): SerializedGameState {
+    return {
+      id: this.state.id,
+      phase: this.state.phase,
+      players: this.state.players.map((p): SerializedPlayer => ({
+        id: p.id,
+        name: p.name,
+        isAlive: p.isAlive,
+        position: p.position,
+        // Include free-roam fields when present so the initial state hydrate
+        // already shows everyone's activity — clients don't have to wait for
+        // the first `game:tick` to learn who's doing what.
+        activity: p.activity,
+        activityText: p.activityText,
+        role: p.role,
+        team: p.team,
+        tasksCompleted: p.tasks.filter((t) => t.completed).length,
+        totalTasks: p.tasks.length,
+        ghostVoteUsed: p.ghostVoteUsed,
+        personality: p.personality,
+      })),
+      round: this.state.round,
+      taskProgress: this.state.taskProgress,
+      winner: this.state.winner,
+      votes: this.state.votes,
+      ghostVotes: this.state.ghostVotes,
+    };
+  }
+
+  getTimeline(): GameEvent[] {
+    return [...this.timeline];
+  }
+
+  getState(): GameState {
+    return this.state;
+  }
+
+  // ---------- Helpers ----------
+
+  private alivePlayers(): PlayerState[] {
+    return this.state.players.filter((p) => p.isAlive);
+  }
+
+  private deadPlayers(): PlayerState[] {
+    return this.state.players.filter((p) => !p.isAlive);
+  }
+
+  private async setPhase(phase: GamePhase): Promise<void> {
+    this.state.phase = phase;
+    this.addEvent('phase_change', `阶段切换: ${phase}`);
+    this.emit('phase_change', { phase, round: this.state.round });
+    this.emitState();
+  }
+
+  private emitState(): void {
+    this.emit('state', this.getSerializedState());
+  }
+
+  private addEvent(type: string, description: string): void {
+    this.timeline.push({
+      round: this.state.round,
+      phase: this.state.phase,
+      type,
+      description,
+      timestamp: Date.now(),
+    });
+  }
+
+  private updateTaskProgress(): void {
+    const catPlayers = this.state.players.filter((p) => p.team === Team.CAT);
+    if (catPlayers.length === 0) {
+      this.state.taskProgress = 0;
+      return;
+    }
+    const totalTasks = catPlayers.reduce((sum, p) => sum + p.tasks.length, 0);
+    const completedTasks = catPlayers.reduce(
+      (sum, p) => sum + p.tasks.filter((t) => t.completed).length,
+      0
+    );
+    this.state.taskProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  }
+
+  private buildDiscussionContext(): string {
+    const alive = this.alivePlayers();
+    const playerList = alive.map((p) => `${p.name}(在${p.position.room})`).join('、');
+    const deadPlayers = this.state.players.filter((p) => !p.isAlive);
+    const deadNames = deadPlayers.map((p) => p.name).join('、');
+
+    let ctx = `第${this.state.round}轮全员大会。在职员工: ${playerList}。`;
+    if (deadNames) {
+      ctx += ` 已被裁员: ${deadNames}。`;
+      const ghostVoters = deadPlayers.filter((p) => !p.ghostVoteUsed);
+      if (ghostVoters.length > 0) {
+        ctx += ` 注意: ${ghostVoters.map(p => p.name).join('、')}仍持有劳动仲裁投票权(各1票)!`;
+      }
+    }
+    if (this.state.deadBodyLocation) {
+      ctx += ` 有人在${this.state.deadBodyLocation}被"优化"了!`;
+      const nearBody = alive.filter((p) => p.position.room === this.state.deadBodyLocation);
+      if (nearBody.length > 0) {
+        ctx += ` 事发时在${this.state.deadBodyLocation}附近的人: ${nearBody.map(p => p.name).join('、')}(非常可疑!)。`;
+      }
+    }
+    if (this.state.meetingCaller) {
+      const caller = this.state.players.find((p) => p.id === this.state.meetingCaller);
+      if (caller) ctx += ` 紧急会议由 ${caller.name} 发起。`;
+    }
+
+    const recentEvents = this.timeline.filter(e => e.round === this.state.round);
+    if (recentEvents.length > 0) {
+      ctx += ` 本轮事件: ${recentEvents.map(e => e.description).join('; ')}。`;
+    }
+
+    // Last round's speeches — feed in 3 most memorable lines so feuds carry over
+    if (this.lastRoundSpeeches.length > 0 && this.state.round > 1) {
+      const recap = this.lastRoundSpeeches.slice(-3)
+        .map((s) => `${s.name}上轮说过:"${s.text.slice(0, 60)}${s.text.length > 60 ? '...' : ''}"`)
+        .join(' | ');
+      ctx += ` 上一轮会议记忆: ${recap}。`;
+    }
+
+    ctx += ' 注意:这是一场激烈的职场辩论!要用职场黑话互相质疑、指名道姓、戳穿对方话术,揪出藏在公司里的资本家内鬼。要有针对性地回应前面同事的发言,形成真正的辩论,而不是各说各话!';
+    return ctx;
+  }
+
+  private fallbackSpeech(player: PlayerState): string {
+    if (player.team === Team.DOG) {
+      const lines = [
+        '这个事情的owner到底是谁？我建议大家先对齐一下信息再来甩锅！',
+        '你们有完没完？我OKR都快做完了，凭什么说我摸鱼？拿出数据来！',
+        '笑死了，真正的资本家就在你们身边，你们还在这瞎猜！先看看谁KPI最低！',
+        '我看你才最可疑吧？天天开会不产出，你的工作量经得起审计吗？',
+        '你说我可疑？我上个季度绩效3.75好吧！你呢？连周报都写不好的人有什么资格质疑我！',
+        '行行行，格局打开一点好不好？我觉得我们应该聚焦核心链路，而不是互相甩锅！',
+        '你这是典型的转移视线！越是大声嚷嚷的人越有问题，大家拉齐认知看清楚了！',
+        '我的产出大家有目共睹，你倒是说说你的不在场证明？哑巴了？',
+      ];
+      return lines[Math.floor(Math.random() * lines.length)];
+    }
+    if (player.team === Team.CAT) {
+      const lines = [
+        '别装了！你天天说赋能赋能，你到底干了啥活？大家赶紧投他！',
+        '又画大饼？你倒是先把上次的OKR兑现了啊！说好的年终奖呢？',
+        '你刚才的发言漏洞百出，全是黑话没有干货！你不是内鬼谁是内鬼！',
+        '兄弟们，这种天天开会不干活的，不裁他裁谁？我敢打赌就是他！',
+        '你说你一直在搬砖？那为什么每次有人被裁你都恰好不在现场？',
+        '我已经盯了你好几轮了，你的活动轨迹完全不像在做任务，纯摸鱼！',
+        '别被他PUA了！他每次发言都在试图让我们互相怀疑，经典资本家战术！',
+        '你说的降本增效是不是就是降我的本增你的效？大家醒醒！',
+      ];
+      return lines[Math.floor(Math.random() * lines.length)];
+    }
+    const neutralLines = [
+      '都别吵了，反正都是给资本家打工，谁走不是走，我就看看戏！',
+      '哟，又在团建呢？上次团建完就裁了三个人呢，大家小心啊！',
+      '我倒觉得你们两个都挺可疑的，不如一起开除算了？反正公司不缺人！',
+      '你们吵你们的，我继续摸鱼。不过话说回来，有人注意到某些人一直沉默不语吗？',
+    ];
+    return neutralLines[Math.floor(Math.random() * neutralLines.length)];
+  }
+}

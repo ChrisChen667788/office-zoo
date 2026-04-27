@@ -1,0 +1,24 @@
+{
+  "name": "@furball/server",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx tsx --watch src/index.ts"
+  },
+  "dependencies": {
+    "@furball/shared": "*",
+    "hono": "^4.6.0",
+    "@hono/node-server": "^1.13.0",
+    "socket.io": "^4.8.0",
+    "ai": "^4.0.0",
+    "@ai-sdk/openai": "^1.0.0",
+    "dotenv": "^16.4.0",
+    "pino": "^9.5.0",
+    "nanoid": "^5.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "pino-pretty": "^11.3.0"
+  }
+}
