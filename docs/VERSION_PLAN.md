@@ -211,5 +211,10 @@
 
 ## 当前位置
 
-✅ v0.2.0 已完成并 push 到 GitHub (`16ee0ae`)
-🚧 **下一步: v0.3.0 viral 视频导出 MVP**
+✅ v0.2.0 完成 (清空脱敏 + 公开 baseline)
+✅ v0.3.0 Viral 视频 MVP 已发布
+✅ v0.3.1 LLM 爆款标题
+✅ v0.3.2 Web Share API
+✅ v0.4.0 横版 16:9 + 服务端 ffmpeg 转 mp4
+🎯 **下一组: v0.5.0 / v0.6.0 / v0.7.0** — 实时位置 + 房间家具 + 道具系统
+👉 详细规划见 [`V0.5_REALTIME_MAP_PLAN.md`](./V0.5_REALTIME_MAP_PLAN.md)

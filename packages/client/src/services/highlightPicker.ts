@@ -60,6 +60,9 @@ export interface Highlight {
   body?: string;
   /** Round this happened in (for the "R{n}" ribbon). */
   round?: number;
+  /** v0.3.1+ — LLM-generated punchy short title (≤22 chars). When present
+   *  the video render uses this above the headline as the bigger eye-catcher. */
+  caption?: string;
 }
 
 export interface HighlightPickInput {

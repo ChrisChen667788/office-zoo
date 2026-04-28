@@ -29,9 +29,19 @@ import type { Highlight } from '../services/highlightPicker';
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Vertical 9:16 — natural for TikTok / Douyin / Reels / 小红书 / B 站 vertical. */
-export const VIDEO_WIDTH = 1080;
-export const VIDEO_HEIGHT = 1920;
+/** Aspect orientation. Each maps to a fixed (width, height) the renderer
+ *  positions content against. Vertical is the 抖音/小红书 default; horizontal
+ *  fits B 站 PC / Twitter / YouTube preview thumbnails. */
+export type VideoAspect = 'vertical' | 'horizontal';
+
+export const ASPECT_DIMS: Record<VideoAspect, { w: number; h: number }> = {
+  vertical:   { w: 1080, h: 1920 },  // 9:16
+  horizontal: { w: 1920, h: 1080 },  // 16:9
+};
+
+/** Default — kept for backwards-compat with v0.3.x callers. */
+export const VIDEO_WIDTH = ASPECT_DIMS.vertical.w;
+export const VIDEO_HEIGHT = ASPECT_DIMS.vertical.h;
 export const VIDEO_FPS = 30;
 /** Total duration in seconds. Picked to fit the standard 抖音/小红书 first-pass
  *  attention budget (≤30 s caps the auto-loop, longer tends to drop off). */
@@ -71,6 +81,8 @@ export interface ExportOptions {
   avatarUrls: Record<string, string>;
   /** Final winner team — drives the intro banner colour + label. */
   winner?: string;
+  /** v0.4.0 — output orientation. Defaults to vertical for backwards-compat. */
+  aspect?: VideoAspect;
   /** Called with progress 0..1 every second — wire to a UI spinner. */
   onProgress?: (p: number) => void;
 }
@@ -107,10 +119,13 @@ export async function exportShareVideo(opts: ExportOptions): Promise<ExportResul
     throw new Error('No supported MediaRecorder output codec.');
   }
 
-  // 1. Hidden canvas at video resolution.
+  // 1. Hidden canvas at video resolution. Pull dims from `aspect` so the
+  //    same render pipeline drives both portrait + landscape outputs.
+  const aspect: VideoAspect = opts.aspect ?? 'vertical';
+  const dims = ASPECT_DIMS[aspect];
   const canvas = document.createElement('canvas');
-  canvas.width = VIDEO_WIDTH;
-  canvas.height = VIDEO_HEIGHT;
+  canvas.width = dims.w;
+  canvas.height = dims.h;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context unavailable.');
 
@@ -134,7 +149,7 @@ export async function exportShareVideo(opts: ExportOptions): Promise<ExportResul
     const elapsedSec = elapsedMs / 1000;
     if (elapsedSec >= VIDEO_DURATION_SEC) return;
 
-    drawScene(ctx, elapsedSec, opts, avatarImgs);
+    drawScene(ctx, elapsedSec, opts, avatarImgs, dims);
 
     // Fire progress at 1-second granularity to avoid spamming React renders.
     const wholeSec = Math.floor(elapsedSec);
@@ -162,7 +177,8 @@ export async function exportShareVideo(opts: ExportOptions): Promise<ExportResul
   const blob = new Blob(chunks, { type: mimeType });
   const ext = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
   const datestr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const fileName = `office-zoo-${opts.winner ?? 'share'}-${datestr}.${ext}`;
+  const aspectTag = aspect === 'horizontal' ? 'wide' : 'tall';
+  const fileName = `office-zoo-${aspectTag}-${opts.winner ?? 'share'}-${datestr}.${ext}`;
   const durationMs = performance.now() - startTime;
 
   opts.onProgress?.(1);
@@ -221,11 +237,12 @@ function drawScene(
   t: number,
   opts: ExportOptions,
   avatars: Map<string, HTMLImageElement>,
+  dims: { w: number; h: number },
 ) {
-  drawBackground(ctx);
+  drawBackground(ctx, dims);
 
   if (t < SCENE_INTRO_SEC) {
-    drawIntro(ctx, t / SCENE_INTRO_SEC, opts.winner);
+    drawIntro(ctx, t / SCENE_INTRO_SEC, opts.winner, dims);
     return;
   }
 
@@ -237,25 +254,25 @@ function drawScene(
     const idx = Math.min(slots - 1, Math.floor(tBody / slotSec));
     const slotProgress = (tBody - idx * slotSec) / slotSec; // 0..1 inside this slot
     const h = opts.highlights[idx];
-    if (h) drawHighlight(ctx, h, slotProgress, idx + 1, slots, avatars);
+    if (h) drawHighlight(ctx, h, slotProgress, idx + 1, slots, avatars, dims);
     return;
   }
 
-  drawOutro(ctx, (t - SCENE_INTRO_SEC - SCENES_BODY_SEC) / SCENE_OUTRO_SEC);
+  drawOutro(ctx, (t - SCENE_INTRO_SEC - SCENES_BODY_SEC) / SCENE_OUTRO_SEC, dims);
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D) {
-  const grad = ctx.createLinearGradient(0, 0, 0, VIDEO_HEIGHT);
+function drawBackground(ctx: CanvasRenderingContext2D, dims: { w: number; h: number }) {
+  const grad = ctx.createLinearGradient(0, 0, 0, dims.h);
   grad.addColorStop(0, BG_TOP);
   grad.addColorStop(0.5, BG_MID);
   grad.addColorStop(1, BG_BOT);
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
+  ctx.fillRect(0, 0, dims.w, dims.h);
 
   // Subtle grid dots
   ctx.fillStyle = 'rgba(255,255,255,0.04)';
-  for (let y = 60; y < VIDEO_HEIGHT; y += 60) {
-    for (let x = 60; x < VIDEO_WIDTH; x += 60) {
+  for (let y = 60; y < dims.h; y += 60) {
+    for (let x = 60; x < dims.w; x += 60) {
       ctx.beginPath();
       ctx.arc(x, y, 1.5, 0, Math.PI * 2);
       ctx.fill();
@@ -263,10 +280,21 @@ function drawBackground(ctx: CanvasRenderingContext2D) {
   }
 }
 
-function drawIntro(ctx: CanvasRenderingContext2D, p: number, winner?: string) {
+function drawIntro(
+  ctx: CanvasRenderingContext2D,
+  p: number,
+  winner: string | undefined,
+  dims: { w: number; h: number },
+) {
   const ease = easeOutCubic(Math.min(1, p));
   const opacity = ease;
   const yOffset = (1 - ease) * 80;
+  // Horizontal needs slightly bigger fonts because intro text is shorter
+  // and we have more horizontal real estate.
+  const isWide = dims.w > dims.h;
+  const wordSize = isWide ? 180 : 140;
+  const subSize = isWide ? 60 : 54;
+  const pillSize = isWide ? 96 : 78;
 
   ctx.save();
   ctx.globalAlpha = opacity;
@@ -274,14 +302,14 @@ function drawIntro(ctx: CanvasRenderingContext2D, p: number, winner?: string) {
 
   // Wordmark
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 140px -apple-system, "PingFang SC", sans-serif';
+  ctx.font = `bold ${wordSize}px -apple-system, "PingFang SC", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('OFFICE ZOO', VIDEO_WIDTH / 2, VIDEO_HEIGHT * 0.32);
+  ctx.fillText('OFFICE ZOO', dims.w / 2, dims.h * 0.32);
 
   ctx.fillStyle = 'rgba(255,255,255,0.65)';
-  ctx.font = '54px -apple-system, "PingFang SC", sans-serif';
-  ctx.fillText('0 点的写字楼 · AI 鼠人剧场', VIDEO_WIDTH / 2, VIDEO_HEIGHT * 0.40);
+  ctx.font = `${subSize}px -apple-system, "PingFang SC", sans-serif`;
+  ctx.fillText('0 点的写字楼 · AI 鼠人剧场', dims.w / 2, dims.h * 0.42);
 
   // Winner banner
   if (winner) {
@@ -292,11 +320,10 @@ function drawIntro(ctx: CanvasRenderingContext2D, p: number, winner?: string) {
     : winner === 'neutral' ? '摸鱼党胜利'
     : '本局结束';
 
-    // pill background
-    const pillW = 700;
-    const pillH = 130;
-    const pillX = (VIDEO_WIDTH - pillW) / 2;
-    const pillY = VIDEO_HEIGHT * 0.55;
+    const pillW = isWide ? 900 : 700;
+    const pillH = isWide ? 150 : 130;
+    const pillX = (dims.w - pillW) / 2;
+    const pillY = dims.h * 0.6;
     ctx.fillStyle = `${color}33`;
     roundRect(ctx, pillX, pillY, pillW, pillH, 28);
     ctx.fill();
@@ -305,8 +332,8 @@ function drawIntro(ctx: CanvasRenderingContext2D, p: number, winner?: string) {
     ctx.stroke();
 
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 78px -apple-system, "PingFang SC", sans-serif';
-    ctx.fillText(label, VIDEO_WIDTH / 2, pillY + pillH / 2);
+    ctx.font = `bold ${pillSize}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText(label, dims.w / 2, pillY + pillH / 2);
   }
 
   ctx.restore();
@@ -319,6 +346,7 @@ function drawHighlight(
   idx: number,
   total: number,
   avatars: Map<string, HTMLImageElement>,
+  dims: { w: number; h: number },
 ) {
   // Slide in from the right for the first 0.3 of the slot, hold, slide out
   // last 0.15. Avoid abrupt cuts which read as "buggy" on social.
@@ -333,12 +361,15 @@ function drawHighlight(
   ctx.translate(slideX, 0);
 
   // Top ribbon: index + round + kind tag
-  drawRibbon(ctx, idx, total, h);
+  drawRibbon(ctx, idx, total, h, dims);
 
-  // Avatar circle (centre-ish)
-  const cx = VIDEO_WIDTH / 2;
-  const cy = VIDEO_HEIGHT * 0.42;
-  const r = 240;
+  const isWide = dims.w > dims.h;
+  // In horizontal mode, place avatar on the LEFT half + text on the RIGHT
+  // half so we use the wider canvas naturally. Vertical keeps the original
+  // top-stacked layout.
+  const cx = isWide ? dims.w * 0.28 : dims.w / 2;
+  const cy = isWide ? dims.h * 0.55 : dims.h * 0.42;
+  const r = isWide ? 220 : 240;
   const color = teamColor(h.team);
 
   // outer glow ring
@@ -372,42 +403,57 @@ function drawHighlight(
     ctx.fillText((h.playerName ?? '?').slice(0, 1), cx, cy);
   }
 
-  // Player name + role line
-  const labelY = cy + r + 80;
+  // Player name + role line — placement adjusts for orientation.
+  const labelY = isWide ? cy + r + 60 : cy + r + 80;
+  const labelX = isWide ? cx : cx;
   ctx.fillStyle = '#fff';
   ctx.font = 'bold 86px -apple-system, "PingFang SC", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillText(h.playerName ?? '???', cx, labelY);
+  ctx.fillText(h.playerName ?? '???', labelX, labelY);
 
   if (h.team) {
     const teamTxt = teamLabel(h.team);
     ctx.fillStyle = color;
     ctx.font = '46px -apple-system, "PingFang SC", sans-serif';
-    ctx.fillText(teamTxt, cx, labelY + 100);
+    ctx.fillText(teamTxt, labelX, labelY + 100);
   }
 
-  // Headline
-  drawWrappedText(ctx, h.headline, {
-    x: 80,
-    y: VIDEO_HEIGHT * 0.74,
-    maxW: VIDEO_WIDTH - 160,
-    lineH: 76,
-    font: 'bold 64px -apple-system, "PingFang SC", sans-serif',
+  // v0.3.1: LLM-generated punchy caption gets the eye-catching big slot.
+  // When missing (LLM down / network), fall through to the structured
+  // headline so the video never renders blank.
+  const bigText = (h.caption?.trim()) ? h.caption : h.headline;
+
+  // Caption + sub-line geometry. Vertical: bottom third, centred.
+  // Horizontal: right half from ~1/4 down, left-aligned for legibility.
+  const capX     = isWide ? dims.w * 0.52 : 80;
+  const capY     = isWide ? dims.h * 0.28 : dims.h * 0.72;
+  const capMaxW  = isWide ? dims.w * 0.44 : dims.w - 160;
+  const capLineH = isWide ? 100 : 92;
+  const capAlign: 'left' | 'center' = isWide ? 'left' : 'center';
+
+  drawWrappedText(ctx, bigText, {
+    x: capX,
+    y: capY,
+    maxW: capMaxW,
+    lineH: capLineH,
+    font: 'bold 78px -apple-system, "PingFang SC", sans-serif',
     color: '#fff',
-    align: 'center',
+    align: capAlign,
+    maxLines: 3,
   });
 
-  // Body text (speech / role reveal)
-  if (h.body) {
-    drawWrappedText(ctx, h.body, {
-      x: 80,
-      y: VIDEO_HEIGHT * 0.83,
-      maxW: VIDEO_WIDTH - 160,
+  const subText = h.caption ? h.headline : h.body;
+  if (subText) {
+    drawWrappedText(ctx, subText, {
+      x: capX,
+      y: isWide ? dims.h * 0.55 : dims.h * 0.86,
+      maxW: capMaxW,
       lineH: 60,
       font: '48px -apple-system, "PingFang SC", sans-serif',
       color: 'rgba(255,255,255,0.78)',
-      align: 'center',
+      align: capAlign,
+      maxLines: 3,
     });
   }
 
@@ -419,6 +465,7 @@ function drawRibbon(
   idx: number,
   total: number,
   h: Highlight,
+  dims: { w: number; h: number },
 ) {
   const y = 100;
   const tag =
@@ -452,10 +499,10 @@ function drawRibbon(
   ctx.font = '40px -apple-system, "PingFang SC", sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.82)';
   ctx.textAlign = 'right';
-  ctx.fillText(tag, VIDEO_WIDTH - 80, y + 40);
+  ctx.fillText(tag, dims.w - 80, y + 40);
 }
 
-function drawOutro(ctx: CanvasRenderingContext2D, p: number) {
+function drawOutro(ctx: CanvasRenderingContext2D, p: number, dims: { w: number; h: number }) {
   const ease = easeOutCubic(clamp01(p));
   ctx.save();
   ctx.globalAlpha = ease;
@@ -465,23 +512,23 @@ function drawOutro(ctx: CanvasRenderingContext2D, p: number) {
   ctx.textBaseline = 'middle';
 
   ctx.font = 'bold 80px -apple-system, "PingFang SC", sans-serif';
-  ctx.fillText('想自己生成一局?', VIDEO_WIDTH / 2, VIDEO_HEIGHT * 0.32);
+  ctx.fillText('想自己生成一局?', dims.w / 2, dims.h * 0.30);
 
   ctx.font = '54px -apple-system, "PingFang SC", sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText('GitHub 搜', VIDEO_WIDTH / 2, VIDEO_HEIGHT * 0.42);
+  ctx.fillText('GitHub 搜', dims.w / 2, dims.h * 0.40);
 
   ctx.font = 'bold 90px -apple-system, "PingFang SC", sans-serif';
   ctx.fillStyle = '#7ec8ff';
-  ctx.fillText('ChrisChen667788/office-zoo', VIDEO_WIDTH / 2, VIDEO_HEIGHT * 0.50);
+  ctx.fillText('ChrisChen667788/office-zoo', dims.w / 2, dims.h * 0.50);
 
   // wordmark watermark bottom
   ctx.font = 'bold 64px -apple-system, "PingFang SC", sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.fillText('OFFICE ZOO', VIDEO_WIDTH / 2, VIDEO_HEIGHT * 0.78);
+  ctx.fillText('OFFICE ZOO', dims.w / 2, dims.h * 0.74);
   ctx.font = '40px -apple-system, "PingFang SC", sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText('班味剧场 · MIT 开源', VIDEO_WIDTH / 2, VIDEO_HEIGHT * 0.84);
+  ctx.fillText('班味剧场 · MIT 开源', dims.w / 2, dims.h * 0.82);
 
   ctx.restore();
 }
