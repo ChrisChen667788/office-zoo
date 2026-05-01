@@ -7,13 +7,16 @@ interface PlayerInfo {
   id: string;
   name: string;
   isAlive: boolean;
-  /** Position now includes optional `pathProgress` (0..1 while commuting)
-   *  + `destination` (target room id). Old engine versions don't set them
-   *  → players stay snapped to room centres, same as before. */
+  /** Position. v0.5+ servers fill (x, y) with logical world coords + (vx, vy)
+   *  velocity, which the client uses for dead-reckoning between 250ms ticks.
+   *  Pre-v0.5 servers leave vx/vy undefined and the renderer falls back to
+   *  Catmull-Rom corridor curves on `pathProgress`. */
   position: {
     x: number;
     y: number;
     room: string;
+    vx?: number;
+    vy?: number;
     pathProgress?: number;
     destination?: string;
   };
@@ -24,6 +27,11 @@ interface PlayerInfo {
   role?: string;
   team?: string;
 }
+
+/** Logical world dims — must match `MAP_W` / `MAP_H` in @furball/shared. We
+ *  duplicate locally so this file has no monorepo deps (rootDir hassle). */
+const LOGICAL_W = 1000;
+const LOGICAL_H = 700;
 
 interface GameMapProps {
   players: PlayerInfo[];
@@ -379,6 +387,52 @@ interface AnimSnapshot {
   destination?: string;
 }
 
+/**
+ * v0.5+ — dead-reckoning state per player. We only build/use this when the
+ * server payload includes velocity (vx/vy), which signals the engine is
+ * running the 250 ms tick loop. Pre-v0.5 servers leave it empty and the
+ * renderer falls back to AnimSnapshot lerp + Catmull-Rom corridor curves.
+ */
+interface ReckonState {
+  /** Logical-space position predicted forward from the last server tick.
+   *  Updated every animation frame: `pos += vel * dt`. */
+  predX: number;
+  predY: number;
+  /** Velocity from the last server tick (logical units / second). */
+  velX: number;
+  velY: number;
+  /** Authoritative position from the last server tick — we error-correct
+   *  toward this when it disagrees with our prediction. */
+  serverX: number;
+  serverY: number;
+  /** Timestamp (`performance.now()`) of the last frame we integrated. */
+  lastFrameMs: number;
+  /** Pixel distance accumulated since the last footprint spawn — when this
+   *  crosses FOOTPRINT_INTERVAL_PX we drop a particle. */
+  distSinceFootprint: number;
+}
+
+/** Short-lived ground particles dropped behind moving players. Pure visual
+ *  candy — they fade out over FOOTPRINT_LIFETIME_MS, no game logic. */
+interface Footprint {
+  /** Logical world coordinates (NOT screen) — translated at render time so
+   *  resize / aspect changes don't desync them from the rooms. */
+  worldX: number;
+  worldY: number;
+  /** Spawn time in `performance.now()`. We render age = (now - spawnedAt). */
+  spawnedAt: number;
+  /** Team color for tinting. */
+  team?: string;
+}
+
+const FOOTPRINT_INTERVAL_PX = 32;   // logical units between drops
+const FOOTPRINT_LIFETIME_MS = 700;  // fade-out window
+const FOOTPRINT_MAX = 120;          // ring-buffer cap (prevents unbounded growth)
+/** When dead-reckoning prediction differs from authoritative server position
+ *  by more than this many logical units, smooth-correct over ~250 ms instead
+ *  of snapping. Keeps motion fluid even with packet loss / reordering. */
+const RECONCILE_SOFT_PX = 80;
+
 /** Lerp ease — quintic out for snappy-but-smooth feel. */
 function easeOutQuint(t: number): number {
   return 1 - Math.pow(1 - t, 5);
@@ -430,6 +484,16 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
   const activityImages = useRef<Record<string, HTMLImageElement>>({});
   // Per-player animation state — lerp from prev to current screen position.
   const animState = useRef<Map<string, AnimSnapshot>>(new Map());
+  // v0.5+ dead-reckoning state, keyed by player id. Lazily populated when
+  // the first tick with vx/vy arrives — pre-v0.5 servers never set this and
+  // the renderer falls back to AnimSnapshot lerp.
+  const reckonState = useRef<Map<string, ReckonState>>(new Map());
+  // Footprint particle pool — ring-buffered, oldest entries dropped when full.
+  const footprints = useRef<Footprint[]>([]);
+  // Sticky flag — once we see vx/vy from any player we switch to the v0.5+
+  // dead-reckoning code path for ALL players (even ones whose tick hasn't
+  // arrived yet). Mixing both paths in the same frame causes jitter.
+  const realtimeMode = useRef(false);
   // Latest snapshot of the players prop, kept in a ref so the RAF loop can
   // re-read it without being a dep (which would tear down the loop on every
   // tick). React still re-renders the component when `players` changes, but
@@ -467,6 +531,55 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
       img.src = url;
     }
   }, []);
+
+  /**
+   * v0.5+ tick ingester. Fires whenever the `players` prop changes (i.e.,
+   * every game:tick → applyTick in the store). For each player, refresh
+   * their authoritative server position + velocity. Predicted position
+   * stays whatever it was — the RAF loop will smooth-correct toward
+   * `serverX/serverY` over a few frames so the avatar doesn't jerk.
+   */
+  useEffect(() => {
+    const now = performance.now();
+    let sawVelocity = false;
+    for (const p of players) {
+      const vx = p.position?.vx ?? 0;
+      const vy = p.position?.vy ?? 0;
+      if (typeof p.position?.vx === 'number' || typeof p.position?.vy === 'number') {
+        sawVelocity = true;
+      }
+      const sx = p.position?.x ?? 0;
+      const sy = p.position?.y ?? 0;
+      const cur = reckonState.current.get(p.id);
+      if (!cur) {
+        // First sighting — snap predicted = server.
+        reckonState.current.set(p.id, {
+          predX: sx, predY: sy,
+          velX: vx,  velY: vy,
+          serverX: sx, serverY: sy,
+          lastFrameMs: now,
+          distSinceFootprint: 0,
+        });
+      } else {
+        cur.serverX = sx;
+        cur.serverY = sy;
+        cur.velX = vx;
+        cur.velY = vy;
+        // If server is wildly out of sync (new round teleport, kill snap)
+        // hard-reset the prediction so we don't slow-drift over a long
+        // distance. The RECONCILE_SOFT_PX threshold lets normal jitter
+        // smooth-correct without a visible snap.
+        const dx = sx - cur.predX;
+        const dy = sy - cur.predY;
+        if (dx * dx + dy * dy > (RECONCILE_SOFT_PX * 4) ** 2) {
+          cur.predX = sx;
+          cur.predY = sy;
+          cur.distSinceFootprint = 0;
+        }
+      }
+    }
+    if (sawVelocity) realtimeMode.current = true;
+  }, [players]);
 
   const drawFrame = useCallback(() => {
     const canvas = canvasRef.current;
@@ -529,10 +642,35 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
       settledByRoom.get(roomId)!.push(p);
     }
 
-    /** Resolve (toX, toY) for one player based on commute / room. */
+    /** v0.5+ — project a logical-world (x, y) into the existing isometric
+     *  screen-space the rest of the renderer uses. We piggyback on `toIso`
+     *  by mapping logical coords (0..LOGICAL_W × 0..LOGICAL_H) onto the
+     *  same grid space (0..GRID_COLS × 0..GRID_ROWS) the room defs live in.
+     *  Rough scale only — visual placement, not physics. */
+    function worldToIso(wx: number, wy: number) {
+      const gx = (wx / LOGICAL_W) * 8;   // 8 grid cols ≈ map width
+      const gy = (wy / LOGICAL_H) * 7;   // 7 grid rows ≈ map height
+      return toIso(gx, gy);
+    }
+
+    /** Resolve (toX, toY) for one player based on commute / room.
+     *  v0.5+ takes the dead-reckoned position from `reckonState` when the
+     *  server emits velocities. Pre-v0.5 (no vx/vy) keeps using the
+     *  Catmull-Rom corridor curve from earlier versions for compat. */
     function targetXY(p: PlayerInfo): { sx: number; sy: number; speakerHere: boolean } {
       const speakerHere = !!speakerRef.current && p.id === speakerRef.current;
-      // Commute path → Catmull-Rom along corridor
+
+      // v0.5+ dead-reckoning path. The reckonState predX/predY is updated
+      // each frame in the RAF loop; here we just project to screen space.
+      if (realtimeMode.current) {
+        const rs = reckonState.current.get(p.id);
+        if (rs) {
+          const iso = worldToIso(rs.predX, rs.predY);
+          return { sx: iso.sx, sy: iso.sy - 8, speakerHere };
+        }
+      }
+
+      // Pre-v0.5 commute path → Catmull-Rom along corridor
       if (
         typeof p.position?.pathProgress === 'number' &&
         p.position?.destination
@@ -582,6 +720,32 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
       const offsetX = (col - (cols - 1) / 2) * spacingX;
       const offsetY = (row - (Math.ceil(group.length / cols) - 1) / 2) * spacingY;
       return { sx: centre.sx + offsetX, sy: centre.sy + offsetY - 8, speakerHere };
+    }
+
+    // ── Footprint particles — drawn first so they sit on the floor under
+    //    everything else. Pure visual candy, no game logic. Older v0.4
+    //    clients without `realtimeMode.current` skip this entirely.
+    //    Footprints are timestamped with `performance.now()` (monotonic) so
+    //    we re-fetch it here rather than re-using `now` (Date.now()).
+    if (realtimeMode.current && footprints.current.length > 0) {
+      const nowPerf = performance.now();
+      for (const fp of footprints.current) {
+        const age = nowPerf - fp.spawnedAt;
+        if (age >= FOOTPRINT_LIFETIME_MS) continue;
+        const lifeT = age / FOOTPRINT_LIFETIME_MS;        // 0..1
+        const alpha = (1 - lifeT) * 0.55;
+        const r = 6 + lifeT * 4;                          // expand as it fades
+        const iso = worldToIso(fp.worldX, fp.worldY);
+        // Faint coloured tint by team — falls back to neutral grey.
+        let rgb = '180,180,180';
+        if (fp.team === 'cat') rgb = '47,184,255';
+        else if (fp.team === 'dog') rgb = '255,71,87';
+        else if (fp.team === 'neutral') rgb = '168,85,247';
+        ctx.beginPath();
+        ctx.arc(iso.sx, iso.sy + 4, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${rgb},${alpha.toFixed(3)})`;
+        ctx.fill();
+      }
     }
 
     // ── Speaker pulse — drawn FIRST so it sits behind the player avatar.
@@ -695,9 +859,63 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
   // RAF loop — drives the lerp + pulse animations. Re-uses `drawFrame` which
   // re-reads playersRef.current internally, so we don't need to add it as a
   // RAF dep. A 60 fps loop on this canvas costs ~1.5 ms/frame on M1.
+  //
+  // v0.5+ also integrates the dead-reckoning predictions here: every frame
+  // we advance each player's predicted position by `velocity * dt`, smooth-
+  // correct toward the latest server snapshot, and drop a footprint
+  // particle every FOOTPRINT_INTERVAL_PX of travel.
   useEffect(() => {
     let rafId = 0;
     const tick = () => {
+      const now = performance.now();
+      // 1) Per-player dead-reckoning step (skip when no v0.5 ticks yet)
+      if (realtimeMode.current) {
+        for (const [id, rs] of reckonState.current) {
+          const dt = Math.min(0.1, (now - rs.lastFrameMs) / 1000);
+          rs.lastFrameMs = now;
+          // Predict-forward by velocity
+          let nx = rs.predX + rs.velX * dt;
+          let ny = rs.predY + rs.velY * dt;
+          // Smooth-correct toward server position. Use a 250 ms time-constant
+          // so small jitters disappear gracefully and big jumps still arrive
+          // within ~1 second.
+          const ex = rs.serverX - nx;
+          const ey = rs.serverY - ny;
+          const errSq = ex * ex + ey * ey;
+          if (errSq > 0.5) {
+            const correctionT = Math.min(1, dt / 0.25);
+            nx += ex * correctionT;
+            ny += ey * correctionT;
+          }
+          // Footprint accumulation
+          const dx = nx - rs.predX;
+          const dy = ny - rs.predY;
+          const moved = Math.sqrt(dx * dx + dy * dy);
+          rs.distSinceFootprint += moved;
+          if (rs.distSinceFootprint >= FOOTPRINT_INTERVAL_PX) {
+            rs.distSinceFootprint = 0;
+            const owner = playersRef.current.find((p) => p.id === id);
+            if (owner?.isAlive) {
+              footprints.current.push({
+                worldX: nx,
+                worldY: ny,
+                spawnedAt: now,
+                team: owner.team,
+              });
+              if (footprints.current.length > FOOTPRINT_MAX) {
+                footprints.current.shift();
+              }
+            }
+          }
+          rs.predX = nx;
+          rs.predY = ny;
+        }
+        // 2) Reap expired footprints (cheap linear sweep, MAX cap = 120)
+        const cutoff = now - FOOTPRINT_LIFETIME_MS;
+        while (footprints.current.length && footprints.current[0].spawnedAt < cutoff) {
+          footprints.current.shift();
+        }
+      }
       drawFrame();
       rafId = requestAnimationFrame(tick);
     };

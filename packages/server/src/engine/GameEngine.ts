@@ -16,6 +16,9 @@ import {
   type Personality,
   assignPersonalities,
   PERSONALITY_REGISTRY,
+  roomCenter,
+  MAP_W,
+  MAP_H,
 } from '@furball/shared';
 import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
@@ -224,32 +227,47 @@ export class GameEngine extends EventEmitter {
   // ---------- Phase runners ----------
 
   /**
-   * Free-roam phase — formerly a single-shot teleport, now a proper tick loop
-   * so the client can animate players walking between rooms and show what
-   * they're doing in each one.
+   * Free-roam phase — v0.5+ uses a true real-time loop instead of the old
+   * 1.5 s discrete steps.
    *
-   * Loop runs `FREE_ROAM_TICKS` ticks of `TICK_INTERVAL_MS` each (~9s total
-   * by default). Per tick:
-   *   1. Settled players: 30% chance to start a commute to a different room
-   *   2. Commuting players: pathProgress += COMMUTE_STEP; arrive when >= 1.0
-   *   3. Just-arrived players: pick a new activity based on (room, roommates)
-   *   4. Emit `tick` with everyone's `{position, activity, activityText}`
+   * Loop = `FREE_ROAM_TICKS` ticks of `TICK_INTERVAL_MS` each (default
+   * 36 × 250 ms = 9 s, same total wall-clock as before).
    *
-   * Kill / task / cooldown / body-discovery logic is preserved verbatim from
-   * the old single-shot implementation, just deferred to after the tick loop.
+   * Per tick:
+   *   1. For each alive player:
+   *      a. Integrate position by velocity (px += vx * dt)
+   *      b. If commuting AND close to destination room centre → arrive
+   *      c. If settled, occasionally pick a new destination (commute) OR
+   *         a new in-room micro-target (gentle wander around the room)
+   *   2. Refresh the activity caption every 5th tick (~1.25s) so tooltips
+   *      don't go stale and the LLM isn't being asked every 250 ms
+   *   3. Emit `tick` with positions + velocities; client uses these for
+   *      dead-reckoning between snapshots.
+   *
+   * Kill / task / body-discovery logic is preserved verbatim from the old
+   * loop, just deferred to after the ticks finish.
    */
   private async runFreeRoam(): Promise<void> {
-    const TICK_INTERVAL_MS = 1500;
-    const FREE_ROAM_TICKS = 6;            // 6 × 1.5s = 9s of roaming
-    const COMMUTE_START_PROB = 0.3;       // chance per tick a settled player commutes
-    const COMMUTE_STEP = 0.34;            // ~3 ticks to traverse a corridor (1/0.34)
+    const TICK_INTERVAL_MS = 250;          // 4 Hz, matches the v0.5 plan
+    const FREE_ROAM_TICKS = 36;            // 36 × 250 ms = 9 s
+    const COMMUTE_START_PROB = 0.06;       // per tick (~1.4%/sec aggregate over 9s)
+    /** Commute speed in logical units / second. ROOM_RECTS coords go up to
+     *  1000 × 700, so ~120 px/s gives a ~3-4 s cross-map walk — feels human. */
+    const SPEED_PX_PER_SEC = 140;
+    /** "Arrived" radius in logical units. Larger → less stuttery snap; small
+     *  enough that we still pick a unique room reliably. */
+    const ARRIVE_RADIUS = 24;
+    const dt = TICK_INTERVAL_MS / 1000;
 
-    // Initial settle: bootstrap activities for anyone without one (e.g. first
-    // free_roam after role_reveal). Random initial rooms preserve old game
-    // feel where everyone visibly relocates between rounds.
+    // Initial settle: bootstrap rooms + activities + drop player on the room
+    // centre. Wipes any stale commute state from a prior round.
     for (const p of this.alivePlayers()) {
       if (!p.position.room) p.position.room = randomRoom();
-      // Reset commute state from any prior round
+      const c = roomCenter(p.position.room) ?? { x: MAP_W / 2, y: MAP_H / 2 };
+      p.position.x = c.x;
+      p.position.y = c.y;
+      p.position.vx = 0;
+      p.position.vy = 0;
       p.position.pathProgress = undefined;
       p.position.destination = undefined;
       const roommates = this.playersInRoom(p.position.room);
@@ -263,33 +281,79 @@ export class GameEngine extends EventEmitter {
       if (!this.running || this.destroyed) return;
 
       for (const p of this.alivePlayers()) {
-        const isCommuting = typeof p.position.pathProgress === 'number';
+        // 1. Integrate position by velocity
+        if (p.position.vx || p.position.vy) {
+          p.position.x += (p.position.vx ?? 0) * dt;
+          p.position.y += (p.position.vy ?? 0) * dt;
+        }
+
+        const isCommuting = !!p.position.destination;
         if (isCommuting) {
-          // Advance along corridor.
-          p.position.pathProgress = (p.position.pathProgress ?? 0) + COMMUTE_STEP;
-          if (p.position.pathProgress >= 1.0) {
-            // Arrived — finalise position, drop commute fields, pick activity.
-            p.position.room = p.position.destination ?? p.position.room;
-            p.position.pathProgress = undefined;
-            p.position.destination = undefined;
-            const roommates = this.playersInRoom(p.position.room);
-            const a = assignRoomActivity(p, roommates);
-            p.activity = a.activity;
-            p.activityText = a.activityText;
+          // Arrival check — close enough to dest room centre?
+          const dest = roomCenter(p.position.destination!);
+          if (dest) {
+            const dx = dest.x - p.position.x;
+            const dy = dest.y - p.position.y;
+            const distSq = dx * dx + dy * dy;
+            if (distSq <= ARRIVE_RADIUS * ARRIVE_RADIUS) {
+              // Arrived: snap, finalise room, pick activity
+              p.position.x = dest.x;
+              p.position.y = dest.y;
+              p.position.vx = 0;
+              p.position.vy = 0;
+              p.position.room = p.position.destination!;
+              p.position.destination = undefined;
+              p.position.pathProgress = undefined;
+              const roommates = this.playersInRoom(p.position.room);
+              const a = assignRoomActivity(p, roommates);
+              p.activity = a.activity;
+              p.activityText = a.activityText;
+            } else {
+              // Still en-route — refresh velocity vector (in case dest moved
+              // OR our speed needs a steady-state update; cheap enough to
+              // recompute every tick).
+              const dist = Math.sqrt(distSq);
+              p.position.vx = (dx / dist) * SPEED_PX_PER_SEC;
+              p.position.vy = (dy / dist) * SPEED_PX_PER_SEC;
+              // Keep pathProgress as a 0..1 hint for legacy v0.4 clients.
+              const fromCenter = roomCenter(p.position.room);
+              if (fromCenter) {
+                const totalDx = dest.x - fromCenter.x;
+                const totalDy = dest.y - fromCenter.y;
+                const totalDist = Math.sqrt(totalDx * totalDx + totalDy * totalDy);
+                if (totalDist > 0) {
+                  const traveled = Math.sqrt(
+                    (p.position.x - fromCenter.x) ** 2 +
+                    (p.position.y - fromCenter.y) ** 2
+                  );
+                  p.position.pathProgress = Math.max(0, Math.min(1, traveled / totalDist));
+                }
+              }
+            }
           }
-          // Mid-commute — keep activity = commute, caption already set on start
         } else if (Math.random() < COMMUTE_START_PROB) {
-          // Pick a destination different from current room.
+          // Pick a different room to walk to.
           const choices = ROOMS.filter((r) => r !== p.position.room);
-          const dest = choices[Math.floor(Math.random() * choices.length)];
-          p.position.destination = dest;
-          p.position.pathProgress = 0;
-          p.activity = { kind: 'commute' };
-          p.activityText = commuteCaption(p, dest);
+          const destRoom = choices[Math.floor(Math.random() * choices.length)];
+          const dest = roomCenter(destRoom);
+          if (dest) {
+            p.position.destination = destRoom;
+            p.position.pathProgress = 0;
+            const dx = dest.x - p.position.x;
+            const dy = dest.y - p.position.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            p.position.vx = (dx / dist) * SPEED_PX_PER_SEC;
+            p.position.vy = (dy / dist) * SPEED_PX_PER_SEC;
+            p.activity = { kind: 'commute' };
+            p.activityText = commuteCaption(p, destRoom);
+          }
         } else {
-          // Stayed put — refresh activity occasionally so captions don't go
-          // stale (10% chance per tick).
-          if (Math.random() < 0.1) {
+          // Stayed put. Damp any residual velocity (shouldn't happen but
+          // belt-and-braces against stale data) and refresh activity caption
+          // every ~5 ticks (1.25 s) so the tooltip stays alive.
+          p.position.vx = 0;
+          p.position.vy = 0;
+          if (t % 5 === 4) {
             const roommates = this.playersInRoom(p.position.room);
             const a = assignRoomActivity(p, roommates);
             p.activity = a.activity;
@@ -298,7 +362,7 @@ export class GameEngine extends EventEmitter {
         }
       }
 
-      // Broadcast the lightweight tick payload for client-side animation.
+      // Broadcast the lightweight tick payload for client-side dead-reckoning.
       const tickPayload: PlayerTickInfo[] = this.state.players.map((p) => ({
         id: p.id,
         position: p.position,
@@ -311,13 +375,20 @@ export class GameEngine extends EventEmitter {
     }
 
     // ---- Post-roam: original kill / task / body-discovery logic ----
-    // Force everyone to settle (clear in-flight commute) so the kill check
-    // works on real room residency, not "currently mid-corridor".
+    // Force everyone to settle on their target room so the kill check works
+    // on real room residency, not "currently mid-corridor".
     for (const p of this.alivePlayers()) {
-      if (typeof p.position.pathProgress === 'number') {
-        p.position.room = p.position.destination ?? p.position.room;
-        p.position.pathProgress = undefined;
+      if (p.position.destination) {
+        const dest = roomCenter(p.position.destination);
+        p.position.room = p.position.destination;
+        if (dest) {
+          p.position.x = dest.x;
+          p.position.y = dest.y;
+        }
         p.position.destination = undefined;
+        p.position.pathProgress = undefined;
+        p.position.vx = 0;
+        p.position.vy = 0;
       }
     }
 

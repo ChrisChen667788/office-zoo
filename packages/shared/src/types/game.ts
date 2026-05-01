@@ -42,14 +42,81 @@ export type Activity =
   | { kind: 'meeting' }                   // 全员会议
   | { kind: 'commute' };                  // 在走廊路上
 
-export interface PlayerPosition {
+// ---------------------------------------------------------------------------
+// World map definition — single source of truth for both server (movement
+// integration / arrival detection) and client (canvas placement). v0.5+ uses
+// these to project (x, y) into screen space. Logical coords; the client
+// scales to its actual canvas size.
+// ---------------------------------------------------------------------------
+export const MAP_W = 1000;
+export const MAP_H = 700;
+
+export interface RoomRect {
+  id: string;
+  /** Top-left in logical coords */
   x: number;
   y: number;
+  /** Width / height in logical coords */
+  w: number;
+  h: number;
+}
+
+/** 10 rooms placed across the 1000×700 map. Origin top-left. The exact
+ *  layout matches the client's earlier isometric grid 1:1 (0-7 grid units →
+ *  scaled into logical coords) so existing renders still look right. */
+export const ROOM_RECTS: RoomRect[] = [
+  { id: '茶水间',     x: 40,  y: 40,  w: 200, h: 180 },
+  { id: '电梯间',     x: 250, y: 40,  w: 200, h: 100 },
+  { id: '会议室',     x: 460, y: 40,  w: 200, h: 180 },
+  { id: 'HR办公室',   x: 700, y: 80,  w: 240, h: 180 },
+  { id: '服务器机房', x: 40,  y: 250, w: 220, h: 180 },
+  { id: '开放工区',   x: 280, y: 240, w: 360, h: 220 },
+  { id: '监控室',     x: 700, y: 290, w: 240, h: 170 },
+  { id: '产品部',     x: 40,  y: 470, w: 240, h: 200 },
+  { id: '老板办公室', x: 320, y: 490, w: 320, h: 180 },
+  { id: '文印室',     x: 700, y: 490, w: 240, h: 180 },
+];
+
+/** Lookup helper — keeps server + client logic identical. Returns the room
+ *  centre, which is the canonical "settled" position when a player arrives
+ *  somewhere with no in-room target chosen yet. */
+export function roomCenter(roomId: string): { x: number; y: number } | null {
+  const r = ROOM_RECTS.find((rr) => rr.id === roomId);
+  if (!r) return null;
+  return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+}
+
+/** Inverse lookup — used by the client when the user clicks somewhere on
+ *  the map (future v0.6+) to figure out which room is under the cursor. */
+export function roomAt(x: number, y: number): string | null {
+  for (const r of ROOM_RECTS) {
+    if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) return r.id;
+  }
+  return null;
+}
+
+export interface PlayerPosition {
+  /** Logical world coordinates in a 0..MAP_W × 0..MAP_H plane. The client
+   *  maps these into its isometric/screen space. v0.5+ uses these as the
+   *  single source of truth for movement; earlier versions only filled
+   *  them with the room centre and let the client offset by an in-room grid. */
+  x: number;
+  y: number;
+  /** Logical room id the player currently occupies (or is leaving). Used
+   *  for room-scoped logic (kills only count when same room, body discovery,
+   *  task progress, ROOM_FURNITURE lookup). Updated on arrival. */
   room: string;
-  /** 0..1 — interpolation progress along the corridor when `commute`-ing.
-   *  Undefined when the player is settled in a room. */
+  /** v0.5+ — velocity in logical units / second. Server integrates each
+   *  tick (`x += vx * dt`); client uses these for dead-reckoning between
+   *  ticks so motion looks 60 fps even though server only emits at 4 Hz. */
+  vx?: number;
+  vy?: number;
+  /** 0..1 — kept for backwards-compat with v0.4 clients that interpolate
+   *  along a Catmull-Rom corridor curve. New clients use vx/vy directly
+   *  and ignore pathProgress. */
   pathProgress?: number;
-  /** Where the player is heading (set when commute begins, cleared on arrive). */
+  /** Where the player is heading (set when commute begins, cleared on arrive).
+   *  Used for both UI captions ("正前往 X") and the server arrival check. */
   destination?: string;
 }
 
