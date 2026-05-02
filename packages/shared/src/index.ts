@@ -4,3 +4,4 @@ export * from './types/events';
 export * from './types/personality';
 export * from './data/jargon';
 export * from './data/fired';
+export * from './data/talkshow';

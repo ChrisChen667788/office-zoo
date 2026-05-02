@@ -6,6 +6,7 @@ import Result from './routes/Result';
 import FiredLanding from './routes/FiredLanding';
 import FiredChat from './routes/FiredChat';
 import FiredResult from './routes/FiredResult';
+import Talkshow from './routes/Talkshow';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
       <Route path="/fired" element={<FiredLanding />} />
       <Route path="/fired/chat" element={<FiredChat />} />
       <Route path="/fired/result" element={<FiredResult />} />
+      <Route path="/talkshow" element={<Talkshow />} />
     </Routes>
   );
 }

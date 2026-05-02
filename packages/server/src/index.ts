@@ -22,6 +22,7 @@ import { ttsRoutes } from './routes/tts';
 import { mediaRoutes } from './routes/media';
 import { firedRouter } from './routes/fired';
 import { shareRoutes } from './routes/share';
+import { talkshowRoutes } from './routes/talkshow';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
 
@@ -36,6 +37,7 @@ app.route('/api/tts', ttsRoutes);
 app.route('/api/media', mediaRoutes);
 app.route('/api/fired', firedRouter);
 app.route('/api/share', shareRoutes);
+app.route('/api/talkshow', talkshowRoutes);
 
 // Serve generated avatars + icons as static PNGs.
 // Two near-identical routes share a helper — not worth abstracting further

@@ -10,6 +10,9 @@ import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
 import PredictionBar from '../components/game/PredictionBar';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
+import KillFlashOverlay from '../components/game/KillFlashOverlay';
+import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
+import EmergencyMeetingTransition from '../components/game/EmergencyMeetingTransition';
 import HighlightReel from '../components/game/HighlightReel';
 import LottieAsset from '../components/LottieAsset';
 import { ROLE_LABELS, teamForRole } from '../constants/roles';
@@ -675,6 +678,14 @@ export default function Immersive() {
 
       {/* Dramatic elimination moment — 3s fullscreen on every kill/vote-out */}
       <EliminationReveal latest={lastElim} />
+
+      {/* v0.5.1 punchy animation pack — same wiring as Classic.tsx. */}
+      <KillFlashOverlay triggerId={lastElim?.type === 'kill' ? lastElim.id : 0} />
+      <VoteEjectAnimation
+        triggerId={lastElim?.type === 'vote' ? lastElim.id : 0}
+        playerName={lastElim?.type === 'vote' ? lastElim.playerName : undefined}
+      />
+      <EmergencyMeetingTransition phase={phase} />
 
       {/* End-of-game recap — replaces the old winner banner */}
       <HighlightReel />

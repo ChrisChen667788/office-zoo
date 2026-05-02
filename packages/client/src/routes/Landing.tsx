@@ -24,7 +24,7 @@ import { lottie } from '../constants/lottie';
 import { modeIcons, Icon } from '../constants/icons';
 
 const PLAYER_COUNTS = [6, 8, 10] as const;
-type GameMode = 'classic' | 'immersive' | 'fired';
+type GameMode = 'classic' | 'immersive' | 'fired' | 'talkshow';
 
 interface ModeSpec {
   key: GameMode;
@@ -71,6 +71,19 @@ const MODES: ModeSpec[] = [
     features: ['真法条撑腰', '四维打分', '多结局演完'],
     accent: colors.semantic.danger,
     accent2: colors.semantic.warn,
+  },
+  {
+    key: 'talkshow',
+    // No dedicated icon in modeIcons yet — emoji fallback carries it for v0.7.0.
+    // v0.7.1 will add a Minimax-generated mic-with-snark sticker.
+    icon: '',
+    iconFallback: '🎤',
+    badge: '04',
+    title: '班味单口',
+    tagline: 'AI 鼠人脱口秀 · 30 段暴论',
+    features: ['真人音色播报', '8 种人格切换', '段子库每周更新'],
+    accent: '#ff5588',
+    accent2: '#7c3aed',
   },
 ];
 
@@ -120,6 +133,7 @@ export default function Landing() {
     pendingModeRef.current = target;
     primeAudio();            // unlock <audio> playback now, while we have a gesture
     if (target === 'fired')     { navigate('/fired'); return; }
+    if (target === 'talkshow')  { navigate('/talkshow'); return; }
     if (target === 'immersive') { navigate('/immersive/new'); return; }
     setIsCreating(true);
     socket.emit('game:create', { playerCount, mode: target });
@@ -272,7 +286,9 @@ export default function Landing() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
+            {/* v0.7.0 — bumped to 4 columns so 班味单口 fits without
+                wrapping the 经典/全程开麦/裁了么 trio onto two rows. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
               {MODES.map((m, i) => (
                 <ModeBento
                   key={m.key}

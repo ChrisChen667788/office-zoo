@@ -14,6 +14,9 @@ import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
 import PredictionBar from '../components/game/PredictionBar';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
+import KillFlashOverlay from '../components/game/KillFlashOverlay';
+import EmergencyMeetingTransition from '../components/game/EmergencyMeetingTransition';
+import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
 import HighlightReel from '../components/game/HighlightReel';
 import { ROLE_LABELS, teamForRole } from '../constants/roles';
 import { uid } from '../utils/uid';
@@ -597,6 +600,21 @@ export default function Classic() {
 
       {/* Dramatic elimination moment — fullscreen 3s overlay */}
       <EliminationReveal latest={lastElim} />
+
+      {/* v0.5.1-A: kill flash hits ~250ms before EliminationReveal — strictly
+          a `kill` event triggers the red overlay; vote ejections route to
+          the vote-eject animation in the EliminationReveal layer instead. */}
+      <KillFlashOverlay triggerId={lastElim?.type === 'kill' ? lastElim.id : 0} />
+
+      {/* v0.5.1-B: vote-eject orbit + bottom banner. Fires only on vote
+          eliminations (kill events route to KillFlashOverlay above). */}
+      <VoteEjectAnimation
+        triggerId={lastElim?.type === 'vote' ? lastElim.id : 0}
+        playerName={lastElim?.type === 'vote' ? lastElim.playerName : undefined}
+      />
+
+      {/* v0.5.1-C: meeting alert — fires whenever phase flips to 'meeting'. */}
+      <EmergencyMeetingTransition phase={phase} />
 
       {/* End-of-game recap — appears on phase === 'game_over' with a winner */}
       <HighlightReel />
