@@ -158,10 +158,12 @@ export class BaseAgent {
    · 不要用【】[]包裹标签或类型说明
 8. 【开口即炸】第一个字就要是攻击或阴阳,别铺垫
 9. 【一次性输出】只输出最终发言文本本身,不要前置说明、不要后置补充、不要多版本对比`,
-      // 480 tokens ≈ 600+ Chinese chars, comfortably above the 60-120 char
-      // target. Was 340 — caught us truncating mid-sentence on verbose
-      // models like MiniMax-M2 that don't fully respect length hints.
-      maxTokens: 480,
+      // 720 tokens ≈ 900+ Chinese chars. Was 340 → 480 → 720 because some
+      // M2 outputs include a trailing meta line ("如需更狠版本可改为...") that
+      // sanitizeSpeech truncates AFTER the model has burned tokens generating
+      // it. With higher cap the speech body itself never gets cut even when
+      // the meta tail eats 200+ tokens before sanitiser arrives.
+      maxTokens: 720,
       temperature: 1.0,
     });
 
@@ -402,16 +404,43 @@ function sanitizeSpeech(raw: string): string {
   // 2. Cut at the FIRST meta-commentary marker (parenthetical or naked).
   //    Patterns intentionally exclude legitimate in-speech parenthesis like
   //    "(冷笑)" — we only target ones starting with "以下/以上/注/PS/版本/补充".
+  //
+  //    Pattern 4 ("如需/想要/可改为/...") is the dangerous one — those words
+  //    appear in normal speech all the time. So we ONLY treat them as meta
+  //    cues when they:
+  //      a) start a NEW sentence (preceded by 。!?\n) AND
+  //      b) are followed by a meta tail like "更...版本", "...可改为", colon
+  //    That way "你想要的就是裁人" inside a sentence stays intact, but
+  //    "...派来卧底的!如需更夸张版本可改为：..." cleanly cuts at "如需".
   const cutPatterns: RegExp[] = [
     /[（(]\s*(?:以下|以上|注|注释|PS|另外|另一种|另一版本|更|另一|补充|附|说明|对了|备注)[^)）]*[)）]\s*$/,
     /[（(]\s*(?:以下|以上|注|注释|PS|另外|另一)[^)）]*$/, // unclosed paren at end
     /\n+(?:以下|以上|注|注释|另一种|更狠|另一版本|说明|备注)[:：][\s\S]*$/i,
-    /\s*(?:如需|如果需要|想要|可以再|可改为)[\s\S]*$/,
+    // Anchored to sentence boundary + must include explicit meta tail —
+    // protects against mid-sentence false positives that ate real content
+    // in v0.5.0 ("一看就是资本家派来" → cut at "派来卧底!如需更狠..." → lost "卧底").
+    /(?:^|[。!?！？\n])\s*(?:如需|如果需要|可改为|可以再换|要不要再来|想要更|想要换)[\s\S]*?(?:版本|说法|改|换|来|尝试)[\s\S]*$/,
   ];
-  for (const re of cutPatterns) {
+  for (let i = 0; i < cutPatterns.length; i++) {
+    const re = cutPatterns[i];
     const m = out.match(re);
     if (m && m.index !== undefined) {
+      const before = out;
       out = out.slice(0, m.index).trim();
+      // Loud diagnostic when a cut happens — if we ever truncate good
+      // content again the log will show exactly which pattern + what was
+      // trimmed, so we can tighten the regex without guesswork.
+      const removed = before.slice(m.index);
+      // Suppress the noise when removal is < 6 chars (probably just a
+      // trailing parenthetical that wasn't worth keeping anyway).
+      if (removed.length >= 6) {
+        agentLog.debug({
+          kind: 'sanitize',
+          patternIdx: i,
+          removed: removed.slice(0, 80),
+          kept: out.slice(-40),
+        }, 'sanitizeSpeech trimmed tail');
+      }
     }
   }
 
