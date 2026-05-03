@@ -41,17 +41,21 @@
 - ⚡ **多层降级** — 三层 LLM、四层 TTS、五层图像生成,断哪一层都不哑火
 - 🏗️ **代码全开源** — MIT 协议,fork 改装搞自家版本(996 IT 公司版 / 银行金融版 / 国企版)
 
-## 截图
+## 📸 截图
 
-```
-              ┌──────────┐  ┌──────────┐  ┌──────────┐
-              │ 🏢 鼠人公司│ │ 🎤 全程开麦│  │ ⚖️ 裁了么 │
-              │ 自由摸鱼  │  │ 戏精剧场  │  │ 闯关斗 HR│
-              │ [进入 →] │  │ [进入 →] │  │ [进入 →] │
-              └──────────┘  └──────────┘  └──────────┘
-```
+> 每次发版会同步真机截图到 `assets/screenshots/`,见 [`docs/RELEASE_PROCESS.md`](./docs/RELEASE_PROCESS.md) 流程。
 
-> 真截图录屏 GIF 即将上传,先用占位图演示三大卡片布局。
+![首页 4 模式](./assets/screenshots/01-landing.png)
+
+| 模式 | 截图 |
+|:---:|:---:|
+| 🎤 班味单口段子库 | `assets/screenshots/02-talkshow-list.png` _(待截)_ |
+| 🏢 经典模式 2.5D 写字楼 | `assets/screenshots/04-classic-game.png` _(待截)_ |
+| 🎤 沉浸模式圆桌 | `assets/screenshots/05-immersive-game.png` _(待截)_ |
+| ⚖️ 裁了么闯关进度 | `assets/screenshots/06-fired-landing.png` _(待截)_ |
+| 🎬 一键下载竖版战报视频 | `assets/screenshots/08-share-video.png` _(待截)_ |
+
+> 占位图标位的会在每个版本发布时按 [`RELEASE_PROCESS.md`](./docs/RELEASE_PROCESS.md) 的"截图三连" 补齐。
 
 ## 30 秒跑起来
 

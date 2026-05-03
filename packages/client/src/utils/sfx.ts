@@ -72,6 +72,25 @@ class SfxPlayer {
     return this.muted;
   }
 
+  /**
+   * Force-create + resume the AudioContext from inside a user gesture.
+   * Called by audioUnlock.primeAudio() so a single click on "进入" unlocks
+   * BOTH the HTMLAudioElement (for TTS) AND the AudioContext (for SFX).
+   * Without this call, every later sfx.play*() before any other in-gesture
+   * audio activity would silently fail on Safari because resume() outside a
+   * gesture is rejected.
+   */
+  unlock(): void {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      // Safari + Chrome both honour resume() inside a gesture; the catch is
+      // only there to swallow the "user gesture required" error if somehow
+      // we hit this code path outside one.
+      try { void ctx.resume(); } catch { /* noop */ }
+    }
+  }
+
   // ── Primitives ────────────────────────────────────────────────────────
 
   /** Single-oscillator tone with attack/release envelope. */
@@ -250,6 +269,27 @@ class SfxPlayer {
     const t = ctx.currentTime;
     this.tone(800, t, 0.08, { type: 'sine', peak: 0.2 });
     this.tone(1200, t + 0.01, 0.05, { type: 'sine', peak: 0.12 });
+  }
+
+  /**
+   * v0.5.1-C — emergency meeting siren. Two-tone klaxon (high → low → high)
+   * over ~600 ms, then a low rumbling tail. Sits well under the 1.4 s
+   * EmergencyMeetingTransition cinematic so the headline lands on the
+   * "all clear" downbeat.
+   */
+  playAlert() {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    // Klaxon — three sweeps
+    this.tone(880, t,        0.25, { type: 'sawtooth', peak: 0.42, sweepTo: 440 });
+    this.tone(880, t + 0.20, 0.25, { type: 'sawtooth', peak: 0.42, sweepTo: 440 });
+    this.tone(880, t + 0.40, 0.25, { type: 'sawtooth', peak: 0.42, sweepTo: 440 });
+    // Bass rumble underneath the klaxon
+    this.tone(80,  t,        0.95, { type: 'sine',     peak: 0.32 });
+    this.tone(120, t,        0.95, { type: 'triangle', peak: 0.18 });
+    // Hiss tail — radio-static feel
+    this.noise(t + 0.05, 0.55, { peak: 0.18, filter: 1500, type: 'bandpass', q: 2 });
   }
 }
 

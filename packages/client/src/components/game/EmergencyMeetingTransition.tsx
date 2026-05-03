@@ -19,6 +19,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { sfx } from '../../utils/sfx';
 
 interface Props {
   phase: string;
@@ -31,6 +32,9 @@ export default function EmergencyMeetingTransition({ phase }: Props) {
   useEffect(() => {
     if (phase === 'meeting' && lastPhaseRef.current !== 'meeting') {
       setTickId((n) => n + 1);
+      // Klaxon klakson + bass rumble timed to land on the headline downbeat
+      // (~700 ms into the 1.4 s cinematic). v0.5.1-C complete.
+      try { sfx.playAlert(); } catch { /* sfx not unlocked yet — silent */ }
     }
     lastPhaseRef.current = phase;
   }, [phase]);

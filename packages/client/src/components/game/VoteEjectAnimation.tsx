@@ -35,6 +35,10 @@ export default function VoteEjectAnimation({ triggerId, playerName }: Props) {
     if (!triggerId || triggerId === lastIdRef.current || !playerName) return;
     lastIdRef.current = triggerId;
     setActive({ id: triggerId, name: playerName });
+    // Note: SFX intentionally NOT fired here. EliminationReveal's vote
+    // path already calls sfx.playVote() (gavel + ceremonial chord) in
+    // lockstep with this overlay, so doubling up here would echo. We
+    // own the visuals; EliminationReveal owns the audio for vote events.
     const t = setTimeout(() => setActive(null), ANIM_DURATION_MS);
     return () => clearTimeout(t);
   }, [triggerId, playerName]);

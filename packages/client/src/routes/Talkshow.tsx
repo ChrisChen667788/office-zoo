@@ -276,18 +276,28 @@ function PlayerView({
   onBack: () => void;
 }) {
   const [revealedChars, setRevealedChars] = useState(0);
-  const [audioState, setAudioState] = useState<'loading' | 'playing' | 'done' | 'failed'>('loading');
-  const startedRef = useRef(false);
+  // 'fetching' = TTS request in flight; 'ready' = audio fetched but waiting
+  // for a user click (Safari autoplay rejected the fetched-then-played
+  // path); 'playing' = audio rolling; 'failed' = TTS pipeline returned
+  // null (no Minimax key / quota / network); 'done' = audio finished.
+  const [audioState, setAudioState] = useState<
+    'fetching' | 'ready' | 'playing' | 'done' | 'failed'
+  >('fetching');
+  const fetchedRef = useRef(false);
+  const blobUrlRef = useRef<string | null>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
   const personaCfg = PERSONA_LABELS[script.persona] ?? { emoji: '🎤', label: script.persona };
   const tagCfg = TAG_LABELS[script.tag] ?? { label: script.tag, color: '#888' };
 
-  // Kick off TTS fetch + playback once on mount. Built into the gesture
-  // chain via primeAudio() in the parent so Safari lets it play.
+  // Step 1: fetch TTS once on mount. Doesn't try to play yet — Safari kills
+  // play() called in an async-resolved promise that started inside a gesture.
+  // We stash the blob URL and ALWAYS attempt autoplay first; if it gets
+  // rejected we surface a "点击播放" button that retries inside a fresh click
+  // (a guaranteed gesture).
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
     let cancelled = false;
-    let audioUrl: string | null = null;
     (async () => {
       try {
         const resp = await fetch('/api/talkshow/tts', {
@@ -298,19 +308,45 @@ function PlayerView({
         if (!resp.ok) throw new Error(`tts ${resp.status}`);
         const blob = await resp.blob();
         if (cancelled) return;
-        audioUrl = URL.createObjectURL(blob);
-        const ok = await playTtsFromUrl(audioUrl);
-        if (!cancelled) setAudioState(ok ? 'playing' : 'failed');
-      } catch {
+        const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
+        // Try autoplay first (works when shared audio element was unlocked
+        // by the earlier primeAudio() in the click handler — most cases).
+        const ok = await playTtsFromUrl(url);
+        if (cancelled) return;
+        if (ok) {
+          setAudioState('playing');
+          // Hand the shared element to a local ref so we can hook 'ended'
+          // and flip to 'done' for the subtitle finalisation.
+          // (Shared element from audioUnlock is opaque to us — we re-poll
+          //  by listening for the audio's natural end via timer below.)
+        } else {
+          // Autoplay denied. Surface an explicit play button.
+          setAudioState('ready');
+        }
+      } catch (err) {
+        console.warn('[talkshow] tts fetch failed', err);
         if (!cancelled) setAudioState('failed');
       }
     })();
     return () => {
       cancelled = true;
       stopTts();
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
     };
   }, [script.id]);
+
+  // Step 2: explicit click-to-play retry. Runs inside a guaranteed user
+  // gesture so Safari can't refuse this time around.
+  const handleManualPlay = async () => {
+    if (!blobUrlRef.current) return;
+    primeAudio();
+    const ok = await playTtsFromUrl(blobUrlRef.current);
+    setAudioState(ok ? 'playing' : 'failed');
+  };
 
   // Cheap subtitle reveal: ~7 chars/sec while the audio is playing. Not
   // word-accurate, but good enough that captions feel synced on first watch.
@@ -387,8 +423,26 @@ function PlayerView({
         </motion.div>
       </div>
 
-      {audioState === 'loading' && (
+      {audioState === 'fetching' && (
         <div className="text-center text-white/55 mb-4">⏳ 正在生成真人音色…</div>
+      )}
+      {audioState === 'ready' && (
+        <div className="text-center mb-4">
+          <button
+            onClick={handleManualPlay}
+            className="px-5 py-2.5 rounded-xl text-sm font-bold tracking-wide"
+            style={{
+              background: 'linear-gradient(135deg,#ff5588,#7c3aed)',
+              color: '#fff',
+              boxShadow: '0 6px 18px rgba(255,85,136,0.45)',
+            }}
+          >
+            🔊 点击播放
+          </button>
+          <div className="text-[11px] text-white/50 mt-2">
+            浏览器拦了自动播放,点一下就好
+          </div>
+        </div>
       )}
       {audioState === 'failed' && (
         <div className="text-center text-amber-400 mb-4">
@@ -405,11 +459,19 @@ function PlayerView({
           backdropFilter: 'blur(8px)',
         }}
       >
-        {visibleText}
-        {audioState === 'playing' && revealedChars < script.text.length && (
-          <span className="inline-block w-0.5 h-5 bg-white/70 ml-0.5 animate-pulse align-middle" />
+        {/* Reveal-as-you-listen when audio is rolling. On 'failed' or
+            'ready' (autoplay-blocked) we just dump the full text so users
+            can read regardless of whether TTS works. */}
+        {audioState === 'playing' ? (
+          <>
+            {visibleText}
+            {revealedChars < script.text.length && (
+              <span className="inline-block w-0.5 h-5 bg-white/70 ml-0.5 animate-pulse align-middle" />
+            )}
+          </>
+        ) : (
+          script.text
         )}
-        {audioState === 'failed' && script.text}
       </div>
     </motion.main>
   );

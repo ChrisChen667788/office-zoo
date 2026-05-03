@@ -46,8 +46,23 @@ function getShared(): HTMLAudioElement | null {
 /**
  * Attempt an in-gesture unlock. Safe to call repeatedly; no-ops after the first
  * successful unlock. Should be invoked inside a click/tap/keydown handler.
+ *
+ * Also nudges the AudioContext-based SFX module to wake up — Safari requires
+ * BOTH the HTMLAudioElement AND the AudioContext to be unlocked inside a
+ * user gesture, and they're separate code paths. Doing both here means a
+ * single click on "进入" unlocks both for the rest of the session, so the
+ * later kill / vote / meeting animations get their SFX without extra wiring.
  */
 export function primeAudio(): void {
+  // Wake the SFX AudioContext too — fire-and-forget so we don't block the
+  // HTMLAudioElement unlock below. Dynamic import to avoid sfx → audioUnlock
+  // cycles (audioUnlock is imported from many low-level utilities).
+  if (typeof window !== 'undefined') {
+    import('./sfx').then(({ sfx }) => {
+      try { sfx.unlock?.(); } catch { /* sfx may not export unlock yet */ }
+    }).catch(() => { /* sfx module unavailable — degrade silently */ });
+  }
+
   if (unlocked) return;
   const el = getShared();
   if (!el) return;
