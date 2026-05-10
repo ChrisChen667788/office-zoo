@@ -1,4 +1,4 @@
-import { GamePhase, WinCondition, Activity, PlayerPosition } from './game';
+import { GamePhase, WinCondition, Activity, PlayerPosition, CarriedItem } from './game';
 
 // Serialized player state sent to client (includes role/team for rendering)
 export interface SerializedPlayer {
@@ -14,6 +14,9 @@ export interface SerializedPlayer {
   activity?: Activity;
   /** Pre-formatted activity caption — optional for the same reason. */
   activityText?: string;
+  /** v0.6.2 — what the player is currently holding (cup / folder / etc).
+   *  Optional → null when empty-handed. Old clients ignore. */
+  carrying?: CarriedItem | null;
   role?: string;
   team?: string;
   tasksCompleted: number;
@@ -32,6 +35,8 @@ export interface PlayerTickInfo {
   position: PlayerPosition;
   activity?: Activity;
   activityText?: string;
+  /** v0.6.2 — carried item, refreshed each tick. */
+  carrying?: CarriedItem | null;
 }
 
 export interface SerializedGameState {

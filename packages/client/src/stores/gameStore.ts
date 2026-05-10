@@ -37,6 +37,13 @@ export interface ActivityInfo {
   targetId?: string;
 }
 
+/** v0.6.2 — items players can be holding. Mirrors shared.ItemKind. */
+export type ItemKindInfo = 'cup' | 'folder' | 'recorder' | 'badge' | 'paper' | 'mug';
+export interface CarriedItemInfo {
+  kind: ItemKindInfo;
+  sourceFurnitureId?: string;
+}
+
 export interface GamePlayer {
   id: string;
   name: string;
@@ -55,6 +62,8 @@ export interface GamePlayer {
   activity?: ActivityInfo;
   /** Pre-formatted activity caption, e.g. "Frank 在 茶水间 倒第三杯咖啡". */
   activityText?: string;
+  /** v0.6.2 — what the player is currently holding. Null when empty-handed. */
+  carrying?: CarriedItemInfo | null;
   role?: string;
   team?: string;
   tasksCompleted: number;
@@ -130,6 +139,7 @@ interface GameActions {
       position: GamePlayer['position'];
       activity?: ActivityInfo;
       activityText?: string;
+      carrying?: CarriedItemInfo | null;
     }>;
     tickAt: number;
   }) => void;
@@ -310,6 +320,8 @@ export const useGameStore = create<GameStore>((set) => ({
             position: t.position,
             activity: t.activity,
             activityText: t.activityText,
+            // v0.6.2 — keep `carrying` in sync (null = empty hands).
+            carrying: t.carrying ?? null,
           };
         });
         return { players: next };

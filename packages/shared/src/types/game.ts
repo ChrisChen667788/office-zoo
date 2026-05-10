@@ -120,6 +120,28 @@ export interface PlayerPosition {
   destination?: string;
 }
 
+/**
+ * v0.6.2 — pickup-able items players carry. Tied to activity:
+ *   - 咖啡杯 (cup) appears when activity is `chat` near a coffee_machine
+ *   - 文件夹 (folder) appears when work happens near a printer
+ *   - 录音笔 (recorder) for sneaking dogs near other players
+ *   - 工牌 (badge) is the persistent "still employed" marker
+ *   - 打印纸 (paper) for printer work
+ *   - 咖啡 (mug) generic kitchen idle prop
+ *
+ * Server picks an item up when the player arrives at a matching anchor;
+ * drops it (item = null) when the activity changes to something
+ * incompatible. Pure visual layer in v0.6.2 — no inventory mechanics yet.
+ */
+export type ItemKind = 'cup' | 'folder' | 'recorder' | 'badge' | 'paper' | 'mug';
+
+export interface CarriedItem {
+  kind: ItemKind;
+  /** Where the item came from, for future "borrowed your printer paper"
+   *  social moments. Null for badge (always-on persistent items). */
+  sourceFurnitureId?: string;
+}
+
 export interface PlayerState {
   id: string;
   name: string;
@@ -127,6 +149,9 @@ export interface PlayerState {
   team: Team;
   isAlive: boolean;
   position: PlayerPosition;
+  /** v0.6.2 — what the player is currently holding. Null = empty hands.
+   *  Only one slot for now (no inventory); future v0.6.3 may add a stack. */
+  carrying?: CarriedItem | null;
   /** Current activity — drives the per-room icon + tooltip text. The engine
    *  sets it every tick during free_roam; falls back to `{ kind: 'idle' }`
    *  in all other phases. */

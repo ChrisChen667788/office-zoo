@@ -114,6 +114,19 @@ export const furnitureIcons = {
 } as const;
 export type FurnitureIconKey = keyof typeof furnitureIcons;
 
+// --- v0.6.2 carried items — small stickers shown next to the player avatar
+// when they're holding something (cup at coffee machine, folder at desk,
+// recorder while sneaking, etc). Keys mirror shared.ItemKind.
+export const itemIcons = {
+  cup:      url('item_cup'),
+  folder:   url('item_folder'),
+  recorder: url('item_recorder'),
+  badge:    url('item_badge'),
+  paper:    url('item_paper'),
+  mug:      url('item_mug'),
+} as const;
+export type ItemIconKey = keyof typeof itemIcons;
+
 export type ModeIconKey = keyof typeof modeIcons;
 export type PersonalityIconKey = keyof typeof personalityIcons;
 export type PhaseIconKey = keyof typeof phaseIcons;

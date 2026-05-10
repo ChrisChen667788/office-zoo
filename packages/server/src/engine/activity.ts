@@ -15,7 +15,7 @@
  *  - Captions are short — one short Chinese verb phrase that fits in a
  *    tooltip. The full snark belongs in speeches, not here.
  */
-import type { Activity, FurnitureItem, FurnitureKind, PlayerState } from '@furball/shared';
+import type { Activity, CarriedItem, FurnitureItem, FurnitureKind, ItemKind, PlayerState } from '@furball/shared';
 import { Team, FURNITURE_TYPES, ROOM_FURNITURE, nearestFurniture, labelFor } from '@furball/shared';
 
 // ---------------------------------------------------------------------------
@@ -150,6 +150,47 @@ const ACTIVITY_TO_FURNITURE: Record<string, FurnitureAffinity> = {
   'meeting': { kinds: ['meeting_table', 'chair'], offsetDx: 0, offsetDy: 24 },
 };
 
+/**
+ * v0.6.2 — what item should the player be holding given their activity +
+ * the furniture they're anchored to?
+ *
+ *   - Near coffee_machine doing chat/idle  → cup
+ *   - Near printer doing work              → paper
+ *   - sneak                                → recorder
+ *   - meeting_table doing meeting/work     → folder
+ *   - default work / idle                  → folder | mug | null
+ *
+ * Returns null when the player should be empty-handed (e.g., commute).
+ * Cheap to compute every tick — just a small lookup.
+ */
+export function pickCarriedItem(
+  activity: Activity,
+  anchorKind: FurnitureKind | null,
+): CarriedItem | null {
+  if (activity.kind === 'commute') return null; // hands free while walking
+
+  // Furniture-specific items first — they're the strongest visual signal.
+  if (anchorKind === 'coffee_machine') {
+    return { kind: 'cup' as ItemKind };
+  }
+  if (anchorKind === 'printer') {
+    return { kind: 'paper' as ItemKind };
+  }
+  if (anchorKind === 'meeting_table') {
+    return { kind: 'folder' as ItemKind };
+  }
+
+  // Activity-driven defaults
+  switch (activity.kind) {
+    case 'sneak':   return { kind: 'recorder' as ItemKind };
+    case 'work':    return { kind: 'folder' as ItemKind };
+    case 'idle':    return Math.random() < 0.5 ? { kind: 'mug' as ItemKind } : null;
+    case 'chat':    return { kind: 'cup' as ItemKind };
+    case 'meeting': return { kind: 'folder' as ItemKind };
+  }
+  return null;
+}
+
 /** Pick a target furniture inside the room that fits the activity, with
  *  a per-room hash on player.id so the same player tends to pick the
  *  same desk repeatedly (consistency reads as "Frank's desk" naturally).
@@ -160,7 +201,7 @@ const ACTIVITY_TO_FURNITURE: Record<string, FurnitureAffinity> = {
 export function pickAnchor(
   player: PlayerState,
   activity: Activity,
-): { x: number; y: number; furnitureId: string } | null {
+): { x: number; y: number; furnitureId: string; kind: FurnitureKind } | null {
   const room = player.position.room;
   const affinity = ACTIVITY_TO_FURNITURE[activity.kind];
   if (!affinity) return null;
@@ -185,5 +226,6 @@ export function pickAnchor(
     x: item.x + def.w / 2 + affinity.offsetDx,
     y: item.y + def.h / 2 + affinity.offsetDy,
     furnitureId: item.id,
+    kind: item.kind,
   };
 }

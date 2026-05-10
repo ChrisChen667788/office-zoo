@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback } from 'react';
-import { activityIcons, furnitureIcons } from '../../constants/icons';
+import { activityIcons, furnitureIcons, itemIcons } from '../../constants/icons';
 import { ROOM_FURNITURE, FURNITURE_TYPES, type FurnitureKind } from '@furball/shared';
 
 /* ---------- Types ---------- */
@@ -488,6 +488,10 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
   // render layers (furniture sits on the floor; activities float beside
   // the player).
   const furnitureImages = useRef<Record<string, HTMLImageElement>>({});
+  // v0.6.2 — pre-loaded carried-item stickers, keyed by ItemKind. Same
+  // sticker style as activity badges, drawn on the LEFT of the avatar so
+  // they don't fight for the same space as the activity icon.
+  const itemImages = useRef<Record<string, HTMLImageElement>>({});
   // Per-player animation state — lerp from prev to current screen position.
   const animState = useRef<Map<string, AnimSnapshot>>(new Map());
   // v0.5+ dead-reckoning state, keyed by player id. Lazily populated when
@@ -547,6 +551,19 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
       img.crossOrigin = 'anonymous';
       img.onload = () => { furnitureImages.current[key] = img; };
       img.onerror = () => { /* fallback colored rect */ };
+      img.src = url;
+    }
+  }, []);
+
+  // v0.6.2 — pre-load carried-item stickers (6 PNGs). Soft-fail on 404 →
+  // the carried-item badge just doesn't render that frame, no warnings.
+  useEffect(() => {
+    for (const [key, url] of Object.entries(itemIcons)) {
+      if (itemImages.current[key]) continue;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { itemImages.current[key] = img; };
+      img.onerror = () => { /* skip badge */ };
       img.src = url;
     }
   }, []);
@@ -915,6 +932,34 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
           ctx.arc(bx, by, 9, 0, Math.PI * 2);
           ctx.strokeStyle = 'rgba(255,255,255,0.25)';
           ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+
+      // v0.6.2 — carried item badge, drawn LEFT of the avatar (mirror of
+      // the activity badge on the right). Only when the player is alive
+      // and actually holding something. Uses the same circular-clipped
+      // sticker style as activity badges for visual consistency.
+      const carrying = (p as { carrying?: { kind: string } | null }).carrying;
+      if (p.isAlive && carrying?.kind) {
+        const itemImg = itemImages.current[carrying.kind];
+        const ix = sx - 14;
+        const iy = sy + 12;
+        if (itemImg) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(ix, iy, 10, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(15,14,46,0.92)';
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(ix, iy, 10, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(itemImg, ix - 9, iy - 9, 18, 18);
+          ctx.restore();
+          ctx.beginPath();
+          ctx.arc(ix, iy, 10, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255,184,76,0.5)';   // amber rim
+          ctx.lineWidth = 1.2;
           ctx.stroke();
         }
       }

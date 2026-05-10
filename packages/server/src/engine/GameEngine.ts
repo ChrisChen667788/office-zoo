@@ -23,7 +23,7 @@ import {
 import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
 import { logger } from '../utils/logger';
-import { assignRoomActivity, commuteCaption, pickAnchor } from './activity';
+import { assignRoomActivity, commuteCaption, pickAnchor, pickCarriedItem } from './activity';
 // Activity + PlayerTickInfo are new — added separately to keep the diff
 // against the original import block obvious. PlayerState is already imported
 // above as a type, so we don't repeat it here.
@@ -320,12 +320,15 @@ export class GameEngine extends EventEmitter {
                 const adist = Math.sqrt(adx * adx + ady * ady) || 1;
                 p.position.vx = (adx / adist) * SPEED_PX_PER_SEC * 0.6;
                 p.position.vy = (ady / adist) * SPEED_PX_PER_SEC * 0.6;
+                // v0.6.2 — pick a carried item that fits this furniture.
+                p.carrying = pickCarriedItem(a.activity, anchor.kind);
               } else {
                 // No furniture matched — sit at room centre as before.
                 p.position.x = dest.x;
                 p.position.y = dest.y;
                 p.position.vx = 0;
                 p.position.vy = 0;
+                p.carrying = pickCarriedItem(a.activity, null);
               }
             } else {
               // Still en-route — refresh velocity vector (in case dest moved
@@ -395,6 +398,10 @@ export class GameEngine extends EventEmitter {
             p.position.vy = (dy / dist) * SPEED_PX_PER_SEC;
             p.activity = { kind: 'commute' };
             p.activityText = commuteCaption(p, destRoom);
+            // v0.6.2 — drop whatever they were holding before walking off
+            // (no carrying-while-walking; future v0.6.3 may keep persistent
+            // items like 工牌 on a permanent slot).
+            p.carrying = null;
           }
         } else {
           // Settled at anchor (or never picked one). Activity caption
@@ -429,6 +436,8 @@ export class GameEngine extends EventEmitter {
         position: p.position,
         activity: p.activity,
         activityText: p.activityText,
+        // v0.6.2 — carried item refreshed every tick.
+        carrying: p.carrying ?? null,
       }));
       this.emit('tick', { players: tickPayload, tickAt: Date.now() });
 
@@ -821,6 +830,8 @@ export class GameEngine extends EventEmitter {
         // the first `game:tick` to learn who's doing what.
         activity: p.activity,
         activityText: p.activityText,
+        // v0.6.2 — carried item, optional. Old clients ignore.
+        carrying: p.carrying ?? null,
         role: p.role,
         team: p.team,
         tasksCompleted: p.tasks.filter((t) => t.completed).length,

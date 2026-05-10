@@ -115,6 +115,15 @@ export const ICON_DETAILS: Record<string, IconSpec> = {
   furniture_plant:           { subject: 'an isometric small office monstera plant in a white round pot, 3/4 view', accent: '#66bb6a', bgStyle: 'transparent' },
   furniture_elevator:        { subject: 'an isometric pair of closed metallic elevator doors with a glowing up/down arrow panel beside them, 3/4 view', accent: '#7c3aed', bgStyle: 'transparent' },
 
+  // --- v0.6.2 carried items -- tiny stickers floated next to the player
+  // Drawn at ~20px alongside the avatar to telegraph what they're holding.
+  item_cup:      { subject: 'a tiny disposable paper coffee cup with a heat sleeve and steam wisp, sticker style', accent: '#8d6e63', bgStyle: 'transparent' },
+  item_folder:   { subject: 'a tiny manila folder with papers sticking out, sticker style', accent: '#fbbf24', bgStyle: 'transparent' },
+  item_recorder: { subject: 'a tiny black voice recorder with a glowing red record dot, sticker style', accent: '#ef4444', bgStyle: 'transparent' },
+  item_badge:    { subject: 'a tiny employee ID badge on a blue lanyard with a small headshot square, sticker style', accent: '#4c9eff', bgStyle: 'transparent' },
+  item_paper:    { subject: 'a tiny stack of printed A4 paper sheets slightly fanned, sticker style', accent: '#e0e0e0', bgStyle: 'transparent' },
+  item_mug:      { subject: 'a tiny ceramic coffee mug with a curly steam wisp, sticker style', accent: '#a07555', bgStyle: 'transparent' },
+
   // --- Prediction / timeline / recap glyphs -----------------------------
   prediction_target: { subject: 'a red-and-white bullseye target sticker', accent: '#FF3355', bgStyle: 'solid' },
   prediction_correct: { subject: 'a bold green checkmark sticker with a sparkle', accent: '#00D26A', bgStyle: 'solid' },
