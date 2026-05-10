@@ -223,9 +223,12 @@ async function tryMinimaxV2(
     if (data.base_resp && data.base_resp.status_code !== 0) {
       console.error(`[TTS/Minimax-v2] API error ${data.base_resp.status_code}: ${data.base_resp.status_msg}`);
       // 2061 = "current token plan not support model" → permanent for this run
-      // 1008 = "insufficient balance" → permanent for this run
-      // 2013 = "invalid params"   → likely model/endpoint mismatch, mark dead
-      if ([2061, 1008, 2013].includes(data.base_resp.status_code ?? 0)) minimaxV2Dead = true;
+      // 1008 = "insufficient balance"                  → permanent for this run
+      // 2013 = "invalid params"                        → model/endpoint mismatch
+      // 2056 = "usage limit exceeded"                  → daily/monthly quota hit
+      // All four are NON-recoverable for the rest of the process — mark dead
+      // so we don't burn 25s per call timing out repeatedly.
+      if ([2061, 1008, 2013, 2056].includes(data.base_resp.status_code ?? 0)) minimaxV2Dead = true;
       return null;
     }
 
@@ -304,8 +307,10 @@ async function tryMinimaxPro(
         console.error(`[TTS/Minimax-pro ${model}] ${code}: ${msg}`);
         // 2013 "not have model" → try next model in loop, don't kill provider
         if (code === 2013 && /not have model/i.test(msg)) continue;
-        // Insufficient balance / token plan unsupported → permanent for run
-        if ([1008, 2061].includes(code)) { minimaxProDead = true; return null; }
+        // Insufficient balance / token plan unsupported / usage limit hit
+        // → permanent for the rest of the process. Marking dead avoids 25s
+        //   timeout per request when the wallet is empty.
+        if ([1008, 2061, 2056].includes(code)) { minimaxProDead = true; return null; }
         return null;
       }
 

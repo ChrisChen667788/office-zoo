@@ -21,6 +21,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   primeAudio,
   playTtsFromUrl,
+  speakViaBrowserTTS,
+  hasBrowserTTS,
   stopTts,
 } from '../utils/audioUnlock';
 
@@ -48,13 +50,13 @@ const TAG_LABELS: Record<string, { label: string; color: string }> = {
   meta:     { label: '🪞 自嘲', color: '#90caf9' },
 };
 
-const PERSONA_LABELS: Record<string, { emoji: string; label: string }> = {
-  shaonv:   { emoji: '👧', label: '少女音' },
-  yujie:    { emoji: '💃', label: '御姐音' },
-  qingse:   { emoji: '🧑', label: '青涩男' },
-  jingying: { emoji: '🧔', label: '精英男' },
-  badao:    { emoji: '👨‍💼', label: '霸道男' },
-  qingnian: { emoji: '👤', label: '青年音' },
+const PERSONA_LABELS: Record<string, { emoji: string; label: string; gender: 'female' | 'male' }> = {
+  shaonv:   { emoji: '👧', label: '少女音',   gender: 'female' },
+  yujie:    { emoji: '💃', label: '御姐音',   gender: 'female' },
+  qingse:   { emoji: '🧑', label: '青涩男',   gender: 'male'   },
+  jingying: { emoji: '🧔', label: '精英男',   gender: 'male'   },
+  badao:    { emoji: '👨‍💼', label: '霸道男', gender: 'male'   },
+  qingnian: { emoji: '👤', label: '青年音',   gender: 'male'   },
 };
 
 export default function Talkshow() {
@@ -276,24 +278,61 @@ function PlayerView({
   onBack: () => void;
 }) {
   const [revealedChars, setRevealedChars] = useState(0);
-  // 'fetching' = TTS request in flight; 'ready' = audio fetched but waiting
-  // for a user click (Safari autoplay rejected the fetched-then-played
-  // path); 'playing' = audio rolling; 'failed' = TTS pipeline returned
-  // null (no Minimax key / quota / network); 'done' = audio finished.
+  // 'fetching' = TTS request in flight; 'ready' = blob fetched but waiting
+  // for a user click (Safari autoplay denial); 'playing' = audio rolling
+  // (server MP3); 'browser' = playing via Web Speech API fallback (server
+  // chain exhausted or 502); 'done' = audio finished; 'failed' = even the
+  // browser fallback is unavailable (no SpeechSynthesis support).
   const [audioState, setAudioState] = useState<
-    'fetching' | 'ready' | 'playing' | 'done' | 'failed'
+    'fetching' | 'ready' | 'playing' | 'browser' | 'done' | 'failed'
   >('fetching');
   const fetchedRef = useRef(false);
   const blobUrlRef = useRef<string | null>(null);
-  const audioElRef = useRef<HTMLAudioElement | null>(null);
-  const personaCfg = PERSONA_LABELS[script.persona] ?? { emoji: '🎤', label: script.persona };
+  /** End-of-audio timer for the server MP3 path — we don't have a direct
+   *  'ended' hook on the shared element so we approximate using durationSec.
+   *  Cleared on unmount / replay so we don't fire stale flips. */
+  const endTimerRef = useRef<number | null>(null);
+  const personaCfg = PERSONA_LABELS[script.persona]
+    ?? { emoji: '🎤', label: script.persona, gender: 'male' as const };
   const tagCfg = TAG_LABELS[script.tag] ?? { label: script.tag, color: '#888' };
+
+  const armEndTimer = (seconds: number) => {
+    if (endTimerRef.current) window.clearTimeout(endTimerRef.current);
+    endTimerRef.current = window.setTimeout(() => {
+      setAudioState((s) => (s === 'playing' ? 'done' : s));
+    }, Math.max(2000, seconds * 1000 + 800));
+  };
+
+  /** Fall back to the browser's Web Speech API. Returns the audioState we
+   *  should land in: 'browser' on success, 'failed' if even SpeechSynthesis
+   *  isn't supported (older browsers, certain in-app webviews). The voice
+   *  picker uses the persona's gender hint so 御姐音 doesn't come out as a
+   *  male system voice. */
+  const speakBrowser = async () => {
+    if (!hasBrowserTTS()) {
+      setAudioState('failed');
+      return;
+    }
+    setAudioState('browser');
+    try {
+      await speakViaBrowserTTS(script.text, {
+        genderHint: personaCfg.gender,
+        // Slightly faster than default — talkshow bits read better quickly,
+        // and the browser voice tends to sound robotic when slow.
+        rate: 1.15,
+      });
+      setAudioState('done');
+    } catch {
+      setAudioState('failed');
+    }
+  };
 
   // Step 1: fetch TTS once on mount. Doesn't try to play yet — Safari kills
   // play() called in an async-resolved promise that started inside a gesture.
-  // We stash the blob URL and ALWAYS attempt autoplay first; if it gets
-  // rejected we surface a "点击播放" button that retries inside a fresh click
-  // (a guaranteed gesture).
+  // We stash the blob URL and ALWAYS attempt autoplay first; if autoplay is
+  // rejected we surface a "点击播放" button that retries inside a fresh click.
+  // If the SERVER chain is exhausted (502 / network error), we silently fall
+  // back to Web Speech so users still get a voice instead of a silent screen.
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
@@ -305,54 +344,75 @@ function PlayerView({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ scriptId: script.id }),
         });
-        if (!resp.ok) throw new Error(`tts ${resp.status}`);
+        if (!resp.ok) {
+          // Server-side TTS chain exhausted (502) or some other error.
+          // Don't throw — degrade to browser TTS so the UX still has audio.
+          console.warn(`[talkshow] server tts ${resp.status} — falling back to Web Speech`);
+          if (!cancelled) await speakBrowser();
+          return;
+        }
         const blob = await resp.blob();
         if (cancelled) return;
         const url = URL.createObjectURL(blob);
         blobUrlRef.current = url;
-        // Try autoplay first (works when shared audio element was unlocked
-        // by the earlier primeAudio() in the click handler — most cases).
+        // Try autoplay first (works when the shared audio element was
+        // unlocked by primeAudio() during the earlier click).
         const ok = await playTtsFromUrl(url);
         if (cancelled) return;
         if (ok) {
           setAudioState('playing');
-          // Hand the shared element to a local ref so we can hook 'ended'
-          // and flip to 'done' for the subtitle finalisation.
-          // (Shared element from audioUnlock is opaque to us — we re-poll
-          //  by listening for the audio's natural end via timer below.)
+          armEndTimer(script.durationSec);
         } else {
           // Autoplay denied. Surface an explicit play button.
           setAudioState('ready');
         }
       } catch (err) {
-        console.warn('[talkshow] tts fetch failed', err);
-        if (!cancelled) setAudioState('failed');
+        console.warn('[talkshow] tts fetch errored — falling back to Web Speech', err);
+        if (!cancelled) await speakBrowser();
       }
     })();
     return () => {
       cancelled = true;
       stopTts();
+      if (endTimerRef.current) {
+        window.clearTimeout(endTimerRef.current);
+        endTimerRef.current = null;
+      }
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = null;
       }
     };
+    // speakBrowser captures personaCfg/script.text but is stable per render
+    // and we WANT this effect to fire only on script.id change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [script.id]);
 
   // Step 2: explicit click-to-play retry. Runs inside a guaranteed user
-  // gesture so Safari can't refuse this time around.
+  // gesture so Safari can't refuse this time around. If even THIS retry
+  // fails we drop into Web Speech.
   const handleManualPlay = async () => {
-    if (!blobUrlRef.current) return;
     primeAudio();
-    const ok = await playTtsFromUrl(blobUrlRef.current);
-    setAudioState(ok ? 'playing' : 'failed');
+    if (blobUrlRef.current) {
+      const ok = await playTtsFromUrl(blobUrlRef.current);
+      if (ok) {
+        setAudioState('playing');
+        armEndTimer(script.durationSec);
+        return;
+      }
+    }
+    // No blob (server failed) or playback still blocked → browser fallback.
+    await speakBrowser();
   };
 
-  // Cheap subtitle reveal: ~7 chars/sec while the audio is playing. Not
-  // word-accurate, but good enough that captions feel synced on first watch.
-  // v0.7.1 will swap this for a real audio analyser.
+  // Cheap subtitle reveal: ~7 chars/sec while ANY audio is playing (server
+  // MP3 or browser fallback). Not word-accurate, but good enough that
+  // captions feel synced on first watch. v0.7.x will swap this for a real
+  // audio analyser. Reset when state flips to a new playback start so a
+  // replay re-runs the reveal cleanly.
   useEffect(() => {
-    if (audioState !== 'playing') return;
+    if (audioState !== 'playing' && audioState !== 'browser') return;
+    setRevealedChars(0);
     const total = script.text.length;
     const charPerSec = total / Math.max(8, script.durationSec);
     const tickMs = 60;
@@ -404,15 +464,20 @@ function PlayerView({
         {script.title}
       </h2>
 
-      {/* Avatar — placeholder static emoji disc. v0.7.1 → AI image, v0.7.2 → Veo. */}
+      {/* Avatar — placeholder static emoji disc. v0.7.x → AI image / Veo.
+          Pulses on either real-audio or browser-TTS playback so the visual
+          beat matches whichever channel is actually speaking. */}
       <div className="flex justify-center mb-6">
         <motion.div
           animate={
-            audioState === 'playing'
+            (audioState === 'playing' || audioState === 'browser')
               ? { scale: [1, 1.04, 1] }
               : { scale: 1 }
           }
-          transition={{ duration: 0.8, repeat: audioState === 'playing' ? Infinity : 0 }}
+          transition={{
+            duration: 0.8,
+            repeat: (audioState === 'playing' || audioState === 'browser') ? Infinity : 0,
+          }}
           className="w-40 h-40 rounded-full flex items-center justify-center text-7xl"
           style={{
             background: 'linear-gradient(135deg,#ff5588,#7c3aed)',
@@ -444,13 +509,34 @@ function PlayerView({
           </div>
         </div>
       )}
+      {audioState === 'browser' && (
+        <div className="text-center text-cyan-300/80 text-[11px] mb-4">
+          🤖 真人音色配额用完了,临时用浏览器系统音替播
+        </div>
+      )}
+      {audioState === 'done' && (
+        <div className="text-center mb-4">
+          <button
+            onClick={handleManualPlay}
+            className="px-4 py-2 rounded-xl text-xs font-semibold tracking-wide text-white/80"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.12)',
+            }}
+          >
+            ↻ 再听一遍
+          </button>
+        </div>
+      )}
       {audioState === 'failed' && (
-        <div className="text-center text-amber-400 mb-4">
-          ⚠️ TTS 暂时不可用,纯文字模式
+        <div className="text-center text-amber-400 mb-4 text-sm">
+          ⚠️ 音色和系统音都不可用 · 纯文字模式
         </div>
       )}
 
-      {/* Subtitle bubble */}
+      {/* Subtitle bubble — reveal-as-you-listen during ANY active playback
+          (server MP3 or browser TTS). On 'failed', 'ready', 'fetching', or
+          'done' we just dump the full text so users can always read. */}
       <div
         className="rounded-2xl p-5 md:p-6 text-base md:text-lg leading-relaxed text-white/90 min-h-[140px]"
         style={{
@@ -459,10 +545,7 @@ function PlayerView({
           backdropFilter: 'blur(8px)',
         }}
       >
-        {/* Reveal-as-you-listen when audio is rolling. On 'failed' or
-            'ready' (autoplay-blocked) we just dump the full text so users
-            can read regardless of whether TTS works. */}
-        {audioState === 'playing' ? (
+        {(audioState === 'playing' || audioState === 'browser') ? (
           <>
             {visibleText}
             {revealedChars < script.text.length && (
