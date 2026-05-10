@@ -23,7 +23,7 @@ import {
 import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
 import { logger } from '../utils/logger';
-import { assignRoomActivity, commuteCaption } from './activity';
+import { assignRoomActivity, commuteCaption, pickAnchor } from './activity';
 // Activity + PlayerTickInfo are new — added separately to keep the diff
 // against the original import block obvious. PlayerState is already imported
 // above as a type, so we don't repeat it here.
@@ -296,11 +296,10 @@ export class GameEngine extends EventEmitter {
             const dy = dest.y - p.position.y;
             const distSq = dx * dx + dy * dy;
             if (distSq <= ARRIVE_RADIUS * ARRIVE_RADIUS) {
-              // Arrived: snap, finalise room, pick activity
-              p.position.x = dest.x;
-              p.position.y = dest.y;
-              p.position.vx = 0;
-              p.position.vy = 0;
+              // Arrived at room centre: finalise room + pick activity, then
+              // (v0.6.1) immediately walk toward a furniture anchor that
+              // matches the activity. Player visibly drifts to a desk /
+              // sofa / coffee machine instead of clustering at the centre.
               p.position.room = p.position.destination!;
               p.position.destination = undefined;
               p.position.pathProgress = undefined;
@@ -308,6 +307,26 @@ export class GameEngine extends EventEmitter {
               const a = assignRoomActivity(p, roommates);
               p.activity = a.activity;
               p.activityText = a.activityText;
+              const anchor = pickAnchor(p, a.activity);
+              if (anchor) {
+                // Aim velocity at the furniture anchor; the next few ticks
+                // will integrate toward it. Once close enough we treat that
+                // as the new "settled" position via the in-room arrival
+                // check below (the if (isCommuting) branch only fires when
+                // destination is set, so we use vx/vy with no destination
+                // → the in-room movement is its own micro-state).
+                const adx = anchor.x - p.position.x;
+                const ady = anchor.y - p.position.y;
+                const adist = Math.sqrt(adx * adx + ady * ady) || 1;
+                p.position.vx = (adx / adist) * SPEED_PX_PER_SEC * 0.6;
+                p.position.vy = (ady / adist) * SPEED_PX_PER_SEC * 0.6;
+              } else {
+                // No furniture matched — sit at room centre as before.
+                p.position.x = dest.x;
+                p.position.y = dest.y;
+                p.position.vx = 0;
+                p.position.vy = 0;
+              }
             } else {
               // Still en-route — refresh velocity vector (in case dest moved
               // OR our speed needs a steady-state update; cheap enough to
@@ -331,6 +350,36 @@ export class GameEngine extends EventEmitter {
               }
             }
           }
+        } else if (p.position.vx || p.position.vy) {
+          // v0.6.1 — in-room walk toward a furniture anchor (set on
+          // arrival above). Reuse the same arrival check at a tighter
+          // radius so the player snaps cleanly to the anchor instead of
+          // overshooting on a fast tick. No room change.
+          const ANCHOR_ARRIVE_RADIUS = 10;
+          // Re-derive the anchor target from the activity so we're not
+          // chasing stale coordinates if the activity changed mid-walk.
+          const anchor = pickAnchor(p, p.activity ?? { kind: 'idle' });
+          if (!anchor) {
+            // Affinity gone — kill velocity, settle in place.
+            p.position.vx = 0;
+            p.position.vy = 0;
+          } else {
+            const adx = anchor.x - p.position.x;
+            const ady = anchor.y - p.position.y;
+            const adistSq = adx * adx + ady * ady;
+            if (adistSq <= ANCHOR_ARRIVE_RADIUS * ANCHOR_ARRIVE_RADIUS) {
+              // Snap + stop. Subsequent ticks fall through to the settled
+              // branch and stay put until COMMUTE_START_PROB fires.
+              p.position.x = anchor.x;
+              p.position.y = anchor.y;
+              p.position.vx = 0;
+              p.position.vy = 0;
+            } else {
+              const adist = Math.sqrt(adistSq);
+              p.position.vx = (adx / adist) * SPEED_PX_PER_SEC * 0.6;
+              p.position.vy = (ady / adist) * SPEED_PX_PER_SEC * 0.6;
+            }
+          }
         } else if (Math.random() < COMMUTE_START_PROB) {
           // Pick a different room to walk to.
           const choices = ROOMS.filter((r) => r !== p.position.room);
@@ -348,16 +397,28 @@ export class GameEngine extends EventEmitter {
             p.activityText = commuteCaption(p, destRoom);
           }
         } else {
-          // Stayed put. Damp any residual velocity (shouldn't happen but
-          // belt-and-braces against stale data) and refresh activity caption
-          // every ~5 ticks (1.25 s) so the tooltip stays alive.
-          p.position.vx = 0;
-          p.position.vy = 0;
+          // Settled at anchor (or never picked one). Activity caption
+          // refresh + occasional anchor-shuffle when the activity changes.
           if (t % 5 === 4) {
             const roommates = this.playersInRoom(p.position.room);
             const a = assignRoomActivity(p, roommates);
+            const oldKind = p.activity?.kind;
             p.activity = a.activity;
             p.activityText = a.activityText;
+            // If activity kind changed, pick a new anchor (may walk to a
+            // different desk / sofa / coffee machine in the same room).
+            if (oldKind !== a.activity.kind) {
+              const newAnchor = pickAnchor(p, a.activity);
+              if (newAnchor) {
+                const ndx = newAnchor.x - p.position.x;
+                const ndy = newAnchor.y - p.position.y;
+                const ndist = Math.sqrt(ndx * ndx + ndy * ndy);
+                if (ndist > 12) {
+                  p.position.vx = (ndx / ndist) * SPEED_PX_PER_SEC * 0.5;
+                  p.position.vy = (ndy / ndist) * SPEED_PX_PER_SEC * 0.5;
+                }
+              }
+            }
           }
         }
       }

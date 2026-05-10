@@ -15,8 +15,8 @@
  *  - Captions are short — one short Chinese verb phrase that fits in a
  *    tooltip. The full snark belongs in speeches, not here.
  */
-import type { Activity, PlayerState } from '@furball/shared';
-import { Team, nearestFurniture, labelFor } from '@furball/shared';
+import type { Activity, FurnitureItem, FurnitureKind, PlayerState } from '@furball/shared';
+import { Team, FURNITURE_TYPES, ROOM_FURNITURE, nearestFurniture, labelFor } from '@furball/shared';
 
 // ---------------------------------------------------------------------------
 // Per-room activity menus. Each entry is a `(work-subject)` candidate that
@@ -115,4 +115,75 @@ export function commuteCaption(
 function pick<T>(arr?: T[]): T | undefined {
   if (!arr || arr.length === 0) return undefined;
   return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// ---------------------------------------------------------------------------
+// v0.6.1 — furniture anchoring
+//
+// Map an Activity to the kinds of furniture that satisfy it, with a per-kind
+// "where on the sprite does the player stand" offset. Desks are the canonical
+// "sit IN FRONT of"; coffee machines are "stand RIGHT NEXT to"; sofas place
+// the player on top.
+// ---------------------------------------------------------------------------
+
+interface FurnitureAffinity {
+  /** Furniture kinds that satisfy this activity, in preference order. */
+  kinds: FurnitureKind[];
+  /** Offset relative to the furniture centre, in logical units. dx=0/dy=10
+   *  reads as "just below the item" → renders as the player standing/sitting
+   *  in front of it on the iso floor. */
+  offsetDx: number;
+  offsetDy: number;
+}
+
+const ACTIVITY_TO_FURNITURE: Record<string, FurnitureAffinity> = {
+  // Generic work — desks first, server racks (for engineers), printers,
+  // CCTV (for monitor room "checking footage" reads as work).
+  'work': { kinds: ['desk', 'server_rack', 'printer', 'cctv'], offsetDx: 0, offsetDy: 22 },
+  // Chat — sofa, water dispenser, coffee machine (gather points)
+  'chat': { kinds: ['sofa', 'water_dispenser', 'coffee_machine'], offsetDx: 0, offsetDy: 18 },
+  // Sneak — stand near a plant or against a wall (we approximate with plant)
+  'sneak': { kinds: ['plant', 'whiteboard'], offsetDx: 16, offsetDy: 12 },
+  // Idle — sofas first, otherwise water dispenser ("摸鱼")
+  'idle': { kinds: ['sofa', 'plant', 'water_dispenser'], offsetDx: 0, offsetDy: 18 },
+  // Meeting — meeting tables / chairs around them
+  'meeting': { kinds: ['meeting_table', 'chair'], offsetDx: 0, offsetDy: 24 },
+};
+
+/** Pick a target furniture inside the room that fits the activity, with
+ *  a per-room hash on player.id so the same player tends to pick the
+ *  same desk repeatedly (consistency reads as "Frank's desk" naturally).
+ *
+ *  Returns null when no eligible furniture exists in the room — callers
+ *  should fall back to roomCenter() for placement.
+ */
+export function pickAnchor(
+  player: PlayerState,
+  activity: Activity,
+): { x: number; y: number; furnitureId: string } | null {
+  const room = player.position.room;
+  const affinity = ACTIVITY_TO_FURNITURE[activity.kind];
+  if (!affinity) return null;
+
+  const candidates: FurnitureItem[] = [];
+  for (const kind of affinity.kinds) {
+    const matches = ROOM_FURNITURE.filter((f) => f.roomId === room && f.kind === kind);
+    if (matches.length > 0) {
+      candidates.push(...matches);
+      break; // honour preference order — first kind with matches wins
+    }
+  }
+  if (candidates.length === 0) return null;
+
+  // Stable hash: same player id consistently picks the same item index so
+  // re-arrivals between rounds don't re-shuffle who sits where.
+  let hash = 0;
+  for (let i = 0; i < player.id.length; i++) hash = (hash * 31 + player.id.charCodeAt(i)) | 0;
+  const item = candidates[Math.abs(hash) % candidates.length];
+  const def = FURNITURE_TYPES[item.kind];
+  return {
+    x: item.x + def.w / 2 + affinity.offsetDx,
+    y: item.y + def.h / 2 + affinity.offsetDy,
+    furnitureId: item.id,
+  };
 }
