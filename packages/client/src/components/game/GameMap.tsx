@@ -106,25 +106,11 @@ function roomCenter(room: RoomDef): { sx: number; sy: number } {
 
 /* ---------- Drawing ---------- */
 
-function drawIsoGrid(ctx: CanvasRenderingContext2D, cols: number, rows: number) {
-  ctx.strokeStyle = 'rgba(47,184,255,0.03)';
-  ctx.lineWidth = 0.5;
-  for (let x = 0; x <= cols; x++) {
-    const a = toIso(x, 0);
-    const b = toIso(x, rows);
-    ctx.beginPath();
-    ctx.moveTo(a.sx, a.sy);
-    ctx.lineTo(b.sx, b.sy);
-    ctx.stroke();
-  }
-  for (let y = 0; y <= rows; y++) {
-    const a = toIso(0, y);
-    const b = toIso(cols, y);
-    ctx.beginPath();
-    ctx.moveTo(a.sx, a.sy);
-    ctx.lineTo(b.sx, b.sy);
-    ctx.stroke();
-  }
+function drawIsoGrid(_ctx: CanvasRenderingContext2D, _cols: number, _rows: number) {
+  // v0.6.4 — grid intentionally disabled. The 0.03-α cyan lines added
+  // graph-paper noise behind every room and made the map look like a
+  // designer mockup. Rooms now provide their own floor texture, so the
+  // global grid is no longer needed for spatial reference.
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -132,44 +118,29 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(c >> 16) & 0xff, (c >> 8) & 0xff, c & 0xff];
 }
 
+/** Mix two RGB triplets — `t` 0..1, 0 = a, 1 = b. */
+function mix(a: [number, number, number], b: [number, number, number], t: number): [number, number, number] {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+  ];
+}
+
 function drawIsoRoom(ctx: CanvasRenderingContext2D, room: RoomDef) {
   const { gridX: gx, gridY: gy, width: w, height: h, color, label } = room;
   const [r, g, b] = hexToRgb(color);
 
-  // Four corners of the floor
-  const tl = toIso(gx, gy);
-  const tr = toIso(gx + w, gy);
+  // Floor corners in iso screen space
+  const tl = toIso(gx,         gy);
+  const tr = toIso(gx + w,     gy);
   const br = toIso(gx + w, gy + h);
-  const bl = toIso(gx, gy + h);
+  const bl = toIso(gx,     gy + h);
 
-  // ---- Left wall — dark translucent ----
-  ctx.fillStyle = `rgba(${Math.max(0, r - 60)},${Math.max(0, g - 60)},${Math.max(0, b - 60)},0.6)`;
-  ctx.beginPath();
-  ctx.moveTo(tl.sx, tl.sy);
-  ctx.lineTo(bl.sx, bl.sy);
-  ctx.lineTo(bl.sx, bl.sy + WALL_H);
-  ctx.lineTo(tl.sx, tl.sy + WALL_H);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = `rgba(${r},${g},${b},0.15)`;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // ---- Right wall — slightly brighter ----
-  ctx.fillStyle = `rgba(${Math.max(0, r - 40)},${Math.max(0, g - 40)},${Math.max(0, b - 40)},0.5)`;
-  ctx.beginPath();
-  ctx.moveTo(bl.sx, bl.sy);
-  ctx.lineTo(br.sx, br.sy);
-  ctx.lineTo(br.sx, br.sy + WALL_H);
-  ctx.lineTo(bl.sx, bl.sy + WALL_H);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = `rgba(${r},${g},${b},0.15)`;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // ---- Floor (top face) — glassmorphic translucent ----
-  ctx.fillStyle = `rgba(${r},${g},${b},0.2)`;
+  // ── Floor base — desaturated wash of the team colour, much darker than
+  //    the v0.6.3 0.2-α flat fill. Wood/stone floors live on top.
+  const baseRgb = mix([r, g, b], [12, 14, 32], 0.55); // pulled toward bg
+  ctx.fillStyle = `rgba(${baseRgb[0]},${baseRgb[1]},${baseRgb[2]},0.95)`;
   ctx.beginPath();
   ctx.moveTo(tl.sx, tl.sy);
   ctx.lineTo(tr.sx, tr.sy);
@@ -178,45 +149,124 @@ function drawIsoRoom(ctx: CanvasRenderingContext2D, room: RoomDef) {
   ctx.closePath();
   ctx.fill();
 
-  // Glowing border
-  ctx.strokeStyle = `rgba(${r},${g},${b},0.45)`;
-  ctx.lineWidth = 1.5;
+  // ── Iso tile pattern — diamond plates (one per grid cell), each shaded
+  //    with a tiny gradient so the floor reads as polished stone instead
+  //    of a flat painted block. Costs ~w*h fills/room — cheap.
+  for (let i = 0; i < w; i++) {
+    for (let j = 0; j < h; j++) {
+      const a = toIso(gx + i,     gy + j);
+      const b2 = toIso(gx + i + 1, gy + j);
+      const c = toIso(gx + i + 1, gy + j + 1);
+      const d = toIso(gx + i,     gy + j + 1);
+      // Checker brightness — every other tile a touch brighter
+      const checker = (i + j) % 2 === 0 ? 1.05 : 0.92;
+      const tileRgb = mix(baseRgb, [255, 255, 255], 0.04);
+      ctx.fillStyle = `rgba(${Math.min(255, tileRgb[0] * checker)},${Math.min(255, tileRgb[1] * checker)},${Math.min(255, tileRgb[2] * checker)},0.55)`;
+      ctx.beginPath();
+      ctx.moveTo(a.sx, a.sy);
+      ctx.lineTo(b2.sx, b2.sy);
+      ctx.lineTo(c.sx, c.sy);
+      ctx.lineTo(d.sx, d.sy);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // ── Soft inset vignette — radial dark gradient toward the room centre
+  //    edges. Gives the floor depth without per-pixel SSAO.
+  const cx = (tl.sx + tr.sx + br.sx + bl.sx) / 4;
+  const cy = (tl.sy + tr.sy + br.sy + bl.sy) / 4;
+  const radius = Math.max(Math.abs(tr.sx - tl.sx), Math.abs(bl.sy - tl.sy)) * 0.7;
+  const vign = ctx.createRadialGradient(cx, cy, radius * 0.35, cx, cy, radius);
+  vign.addColorStop(0, 'rgba(0,0,0,0)');
+  vign.addColorStop(1, 'rgba(0,0,0,0.32)');
+  ctx.fillStyle = vign;
+  ctx.beginPath();
+  ctx.moveTo(tl.sx, tl.sy);
+  ctx.lineTo(tr.sx, tr.sy);
+  ctx.lineTo(br.sx, br.sy);
+  ctx.lineTo(bl.sx, bl.sy);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Glow border — team-coloured, slightly brighter than v0.6.3
+  ctx.strokeStyle = `rgba(${r},${g},${b},0.55)`;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(tl.sx, tl.sy);
+  ctx.lineTo(tr.sx, tr.sy);
+  ctx.lineTo(br.sx, br.sy);
+  ctx.lineTo(bl.sx, bl.sy);
+  ctx.closePath();
   ctx.stroke();
 
-  // ---- Floor inner lines (subtle grid) ----
-  ctx.strokeStyle = `rgba(${r},${g},${b},0.08)`;
-  ctx.lineWidth = 0.5;
-  for (let i = 1; i < w; i++) {
-    const a = toIso(gx + i, gy);
-    const b2 = toIso(gx + i, gy + h);
-    ctx.beginPath();
-    ctx.moveTo(a.sx, a.sy);
-    ctx.lineTo(b2.sx, b2.sy);
-    ctx.stroke();
-  }
-  for (let j = 1; j < h; j++) {
-    const a = toIso(gx, gy + j);
-    const b2 = toIso(gx + w, gy + j);
-    ctx.beginPath();
-    ctx.moveTo(a.sx, a.sy);
-    ctx.lineTo(b2.sx, b2.sy);
-    ctx.stroke();
-  }
+  // ── Glass back walls — taller (WALL_H × 1.3) with a vertical gradient
+  //    from team-tinted base to near-transparent top, so they don't block
+  //    the view of furniture inside but still give "a room exists here".
+  const wallH = WALL_H * 1.3;
+  // Left back wall (along the y-axis edge of the floor at gx)
+  const lwGrad = ctx.createLinearGradient(0, tl.sy - wallH, 0, tl.sy);
+  lwGrad.addColorStop(0, `rgba(${r},${g},${b},0.05)`);
+  lwGrad.addColorStop(1, `rgba(${r},${g},${b},0.32)`);
+  ctx.fillStyle = lwGrad;
+  ctx.beginPath();
+  ctx.moveTo(tl.sx, tl.sy);
+  ctx.lineTo(tr.sx, tr.sy);
+  ctx.lineTo(tr.sx, tr.sy - wallH);
+  ctx.lineTo(tl.sx, tl.sy - wallH);
+  ctx.closePath();
+  ctx.fill();
+  // Right back wall (along the x-axis edge at gy)
+  const rwGrad = ctx.createLinearGradient(0, tl.sy - wallH, 0, bl.sy);
+  rwGrad.addColorStop(0, `rgba(${r},${g},${b},0.05)`);
+  rwGrad.addColorStop(1, `rgba(${r},${g},${b},0.42)`);
+  ctx.fillStyle = rwGrad;
+  ctx.beginPath();
+  ctx.moveTo(tl.sx, tl.sy);
+  ctx.lineTo(bl.sx, bl.sy);
+  ctx.lineTo(bl.sx, bl.sy - wallH);
+  ctx.lineTo(tl.sx, tl.sy - wallH);
+  ctx.closePath();
+  ctx.fill();
 
-  // ---- Label on floor ----
-  const centre = roomCenter(room);
-  ctx.fillStyle = `rgba(${Math.min(255, r + 80)},${Math.min(255, g + 80)},${Math.min(255, b + 80)},0.85)`;
-  ctx.font = 'bold 13px sans-serif';
-  ctx.textAlign = 'center';
+  // Wall edge highlights — single hairline along the top of each wall
+  ctx.strokeStyle = `rgba(${Math.min(255, r + 60)},${Math.min(255, g + 60)},${Math.min(255, b + 60)},0.55)`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(tl.sx, tl.sy - wallH);
+  ctx.lineTo(tr.sx, tr.sy - wallH);
+  ctx.moveTo(tl.sx, tl.sy - wallH);
+  ctx.lineTo(bl.sx, bl.sy - wallH);
+  ctx.stroke();
+
+  // ── Room label — small glass tag pinned to the back-LEFT corner of the
+  //    room (top-left in iso) so it never overlaps avatars or furniture.
+  //    Old version painted it on the floor centre, which got covered by
+  //    settled players.
+  const labelText = label;
+  ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, centre.sx, centre.sy);
+  const labelW = ctx.measureText(labelText).width + 14;
+  const labelH = 16;
+  const labelX = tl.sx + 4;
+  const labelY = tl.sy - wallH + 4;
+  ctx.fillStyle = `rgba(${baseRgb[0]},${baseRgb[1]},${baseRgb[2]},0.9)`;
+  ctx.beginPath();
+  ctx.roundRect(labelX, labelY, labelW, labelH, 4);
+  ctx.fill();
+  ctx.strokeStyle = `rgba(${Math.min(255, r + 60)},${Math.min(255, g + 60)},${Math.min(255, b + 60)},0.65)`;
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+  ctx.fillStyle = '#f4f4ff';
+  ctx.fillText(labelText, labelX + 7, labelY + labelH / 2 + 0.5);
 }
 
-function drawCorridors(ctx: CanvasRenderingContext2D) {
+function drawCorridors(ctx: CanvasRenderingContext2D, t: number) {
+  // v0.6.4 — corridors are now flowing dashed cyan paths with the dash
+  // offset animated by `t`. Reads as "data flow" rather than static lines.
   const roomMap = new Map(ROOMS.map((r) => [r.id, r]));
-
-  ctx.lineWidth = 3;
-  ctx.setLineDash([8, 8]);
+  const dashOffset = -(t * 24) % 24;        // 24px loop, ~1.5s per cycle
 
   for (const [fromId, toId] of CORRIDORS) {
     const from = roomMap.get(fromId);
@@ -226,17 +276,20 @@ function drawCorridors(ctx: CanvasRenderingContext2D) {
     const a = roomCenter(from);
     const b = roomCenter(to);
 
-    // Glow effect
-    ctx.strokeStyle = 'rgba(47,184,255,0.08)';
-    ctx.lineWidth = 6;
+    // Soft outer glow
+    ctx.strokeStyle = 'rgba(47,184,255,0.06)';
+    ctx.lineWidth = 7;
+    ctx.setLineDash([]);
     ctx.beginPath();
     ctx.moveTo(a.sx, a.sy);
     ctx.lineTo(b.sx, b.sy);
     ctx.stroke();
 
-    // Main line
-    ctx.strokeStyle = 'rgba(47,184,255,0.2)';
-    ctx.lineWidth = 2;
+    // Main animated dash
+    ctx.strokeStyle = 'rgba(120,200,255,0.42)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([10, 14]);
+    ctx.lineDashOffset = dashOffset;
     ctx.beginPath();
     ctx.moveTo(a.sx, a.sy);
     ctx.lineTo(b.sx, b.sy);
@@ -244,6 +297,7 @@ function drawCorridors(ctx: CanvasRenderingContext2D) {
   }
 
   ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
 }
 
 function drawPlayer(
@@ -641,19 +695,25 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
     // Clear
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // Background - match glassmorphism theme
-    const bgGrad = ctx.createLinearGradient(0, 0, CANVAS_W, CANVAS_H);
-    bgGrad.addColorStop(0, '#0a0a1e');
-    bgGrad.addColorStop(0.5, '#0f0e2e');
-    bgGrad.addColorStop(1, '#0d0b25');
-    ctx.fillStyle = bgGrad;
+    // ── v0.6.4 background — radial light from upper-centre simulating a
+    //    skylight, plus a deep purple vignette in the corners. Gives the
+    //    map theatrical depth without baked lightmaps.
+    const bgRad = ctx.createRadialGradient(CANVAS_W / 2, 0, 60, CANVAS_W / 2, CANVAS_H, CANVAS_W * 0.85);
+    bgRad.addColorStop(0,    '#1a1d3a');
+    bgRad.addColorStop(0.45, '#10112a');
+    bgRad.addColorStop(1,    '#06061a');
+    ctx.fillStyle = bgRad;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // Subtle grid
+    // Time in seconds — used by corridors / dust / furniture animations.
+    // performance.now() is monotonic (immune to system clock jumps).
+    const tSec = performance.now() / 1000;
+
+    // Subtle grid (v0.6.4: no-op — kept for API stability)
     drawIsoGrid(ctx, 10, 8);
 
-    // Corridors behind rooms
-    drawCorridors(ctx);
+    // Corridors behind rooms — animated dashed cyan paths
+    drawCorridors(ctx, tSec);
 
     // Sort rooms back-to-front (ascending gridX + gridY for painter's algorithm)
     const sortedRooms = [...ROOMS].sort(
@@ -688,8 +748,10 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
       return { f, sx: c.sx, sy: c.sy, scale };
     }).sort((a, b) => a.sy - b.sy);
 
+    // tSec already defined at top of drawFrame — used here for LED blink,
+    // coffee steam, CCTV scan-line, elevator arrow pulse.
     for (const { f, sx, sy, scale } of furniturePlaced) {
-      drawFurnitureSprite(ctx, f.kind, sx, sy, scale);
+      drawFurnitureSprite(ctx, f.kind, sx, sy, scale, tSec);
     }
 
     // ── Player layout pass ────────────────────────────────────────────
@@ -711,6 +773,53 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
       const roomId = p.position?.room || '开放工区';
       if (!settledByRoom.has(roomId)) settledByRoom.set(roomId, []);
       settledByRoom.get(roomId)!.push(p);
+    }
+
+    // ── v0.6.4 anti-stacking — when the server emits the same (or very
+    //    close) position for multiple players (lobby state, shared anchor,
+    //    pre-game spawn), they collapse into a single dot in dead-reckon
+    //    mode. We cluster by 22-px iso cells and assign each player in a
+    //    cluster a deterministic radial offset around the cluster centre.
+    //    Stable hash by id keeps each player in the same slot frame-to-frame
+    //    so they don't shimmer.
+    const ANTI_STACK_CELL = 22;
+    const ANTI_STACK_RADIUS = 18;
+    /** clusterMap: cell key → [players, ...]  (only populated for cells
+     *  with > 1 player). Computed once per frame from the v0.5 dead-
+     *  reckoning predictions, and used inside targetXY to displace
+     *  collisions. */
+    const stackClusters = new Map<string, string[]>();
+    if (realtimeMode.current) {
+      for (const p of players) {
+        const rs = reckonState.current.get(p.id);
+        if (!rs) continue;
+        const iso = (() => {
+          const gx = (rs.predX / LOGICAL_W) * 8;
+          const gy = (rs.predY / LOGICAL_H) * 7;
+          return toIso(gx, gy);
+        })();
+        const cell = `${Math.round(iso.sx / ANTI_STACK_CELL)},${Math.round(iso.sy / ANTI_STACK_CELL)}`;
+        if (!stackClusters.has(cell)) stackClusters.set(cell, []);
+        stackClusters.get(cell)!.push(p.id);
+      }
+    }
+    /** Returns a small (dx, dy) offset for `playerId` if it shares an
+     *  iso cell with other players. Distributes them on a circle whose
+     *  radius scales with the cluster size; the angle is deterministic
+     *  by the player's index in the (sorted) cluster array. */
+    function antiStackOffset(playerId: string, cellKey: string): { dx: number; dy: number } {
+      const peers = stackClusters.get(cellKey);
+      if (!peers || peers.length < 2) return { dx: 0, dy: 0 };
+      const sorted = [...peers].sort();             // stable order across frames
+      const idx = sorted.indexOf(playerId);
+      if (idx < 0) return { dx: 0, dy: 0 };
+      const angle = (idx / peers.length) * Math.PI * 2 - Math.PI / 2;
+      // Radius grows with cluster count up to ~26px, then plateaus
+      const r = Math.min(ANTI_STACK_RADIUS + peers.length * 1.5, 26);
+      return {
+        dx: Math.cos(angle) * r,
+        dy: Math.sin(angle) * r * 0.55,             // squish vertically for iso
+      };
     }
 
     /** v0.5+ — project a logical-world (x, y) into the existing isometric
@@ -737,7 +846,12 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
         const rs = reckonState.current.get(p.id);
         if (rs) {
           const iso = worldToIso(rs.predX, rs.predY);
-          return { sx: iso.sx, sy: iso.sy - 8, speakerHere };
+          // v0.6.4 — apply anti-stacking offset if this player shares an
+          // iso cell with peers. Avoids the 5-avatars-stacked-into-one-dot
+          // failure mode visible in the lobby and shared-anchor cases.
+          const cell = `${Math.round(iso.sx / ANTI_STACK_CELL)},${Math.round(iso.sy / ANTI_STACK_CELL)}`;
+          const off = antiStackOffset(p.id, cell);
+          return { sx: iso.sx + off.dx, sy: iso.sy - 8 + off.dy, speakerHere };
         }
       }
 
@@ -960,6 +1074,46 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
           ctx.stroke();
         }
       }
+    }
+
+    // ── v0.6.4 ambient atmosphere — drawn LAST, on top of everything,
+    //    very low alpha so it's pure mood. Two layers:
+    //    1) Floating dust motes (40 deterministic specks) — tiny stars
+    //       that drift up-and-right with a slow sine wobble, recycled
+    //       when they exit the canvas. Reads as "this is a real space
+    //       with air in it" instead of "this is a flat diagram".
+    //    2) Edge vignette — soft black gradient on the canvas border
+    //       that pulls focus to the centre. Helps small avatars read.
+    {
+      // dust motes — generated from a deterministic seed, no per-frame
+      // RNG so they don't shimmer between frames.
+      const N = 40;
+      ctx.save();
+      for (let i = 0; i < N; i++) {
+        const seedX = (i * 73.2) % CANVAS_W;
+        const seedY = (i * 41.7) % CANVAS_H;
+        // drift up-right at ~6 px/sec, wrap around canvas
+        const driftX = (seedX + tSec * 6 + Math.sin(tSec * 0.5 + i) * 8) % (CANVAS_W + 40) - 20;
+        const driftY = (seedY - tSec * 4 + Math.cos(tSec * 0.4 + i * 1.2) * 6) % (CANVAS_H + 40);
+        const wrappedY = driftY < 0 ? driftY + CANVAS_H + 40 : driftY;
+        const tw = (Math.sin(tSec * 1.4 + i * 2.1) + 1) * 0.5;   // 0..1
+        const radius = 0.6 + (i % 3) * 0.4;                       // 0.6..1.4
+        ctx.fillStyle = `rgba(180,200,255,${(0.15 + tw * 0.20).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(driftX, wrappedY, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // edge vignette — radial gradient from transparent centre to dark edge
+      const vGrad = ctx.createRadialGradient(
+        CANVAS_W / 2, CANVAS_H / 2, Math.min(CANVAS_W, CANVAS_H) * 0.35,
+        CANVAS_W / 2, CANVAS_H / 2, Math.max(CANVAS_W, CANVAS_H) * 0.7,
+      );
+      vGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      vGrad.addColorStop(1, 'rgba(0,0,0,0.55)');
+      ctx.fillStyle = vGrad;
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
     }
   }, [players, avatarUrls, currentSpeakerId]);
 
