@@ -15,6 +15,7 @@ build/
 .env
 .env.local
 .env.*.local
+.env.bak.*
 
 # Editor
 .idea/
@@ -57,3 +58,6 @@ PRD.md
 DEVELOPMENT_PLAN.md
 OPTIMIZATION_ROADMAP.md
 test_engine.ts
+
+# v0.7.4 — user-generated talkshow bits (instance-local state, not source)
+packages/server/data/

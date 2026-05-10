@@ -32,11 +32,20 @@ interface ScriptSummary {
   tag: string;
   persona: string;
   durationSec: number;
+  /** v0.7.4 — 'seed' = hand-curated by us, 'user' = LLM-written from a
+   *  user prompt. Drives the ✨ badge on the card so users can tell the
+   *  fresh community bits from the curated catalogue. */
+  source?: 'seed' | 'user';
 }
 
 interface ScriptFull extends ScriptSummary {
   text: string;
 }
+
+type Persona = 'shaonv' | 'yujie' | 'qingse' | 'jingying' | 'badao' | 'qingnian';
+type Tag =
+  | 'overtime' | 'kpi' | 'pua' | 'age' | 'slacking'
+  | 'jargon' | 'hr' | 'boss' | 'meta';
 
 const TAG_LABELS: Record<string, { label: string; color: string }> = {
   overtime: { label: '🌙 加班', color: '#ff5588' },
@@ -67,14 +76,25 @@ export default function Talkshow() {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   /** When non-null, we're in player view for this script. */
   const [active, setActive] = useState<ScriptFull | null>(null);
+  /** v0.7.4 — when true, the create-bit modal is open. */
+  const [creatorOpen, setCreatorOpen] = useState(false);
 
-  // Fetch list once on mount.
+  // Fetch list — extracted so we can call it again after a create completes.
+  const reloadList = useRef<() => Promise<void>>();
   useEffect(() => {
-    fetch('/api/talkshow/list')
-      .then((r) => r.json())
-      .then((d) => setScripts(d.scripts ?? []))
-      .catch((e) => setLoadErr(e.message ?? '加载失败'));
-    return () => stopTts();
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch('/api/talkshow/list');
+        const d = await r.json();
+        if (!cancelled) setScripts(d.scripts ?? []);
+      } catch (e) {
+        if (!cancelled) setLoadErr((e as Error).message ?? '加载失败');
+      }
+    };
+    reloadList.current = load;
+    load();
+    return () => { cancelled = true; stopTts(); };
   }, []);
 
   // Deeplink — `?id=bit-001` auto-opens the player. Also keeps the URL in
@@ -232,6 +252,15 @@ export default function Talkshow() {
               <div className="text-center text-red-400 py-12">{loadErr}</div>
             ) : (
               <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* v0.7.4 creator card — sticky first slot. Tapping opens
+                    the modal editor; on success the new bit shows up at
+                    the top of the grid AND auto-opens in PlayerView. */}
+                <CreateBitCard
+                  onOpen={() => {
+                    primeAudio();           // gesture-window unlock for later TTS
+                    setCreatorOpen(true);
+                  }}
+                />
                 {visible.map((s) => (
                   <ScriptCard
                     key={s.id}
@@ -255,6 +284,25 @@ export default function Talkshow() {
               </div>
             )}
           </motion.main>
+        )}
+      </AnimatePresence>
+
+      {/* Creator modal — mounted at the route root so it overlays both
+          the grid AND the player view (in case someone hits "create" from
+          deeper in the flow later). Closed by default; opens via the
+          ✨-card and via the future header CTA. */}
+      <AnimatePresence>
+        {creatorOpen && (
+          <CreateBitModal
+            onCancel={() => setCreatorOpen(false)}
+            onCreated={async (full) => {
+              setCreatorOpen(false);
+              // Pull fresh list so the new bit shows up + auto-open it
+              // in the player. Both branches survive a list refetch fail.
+              if (reloadList.current) await reloadList.current();
+              setActive(full);
+            }}
+          />
         )}
       </AnimatePresence>
     </div>
@@ -294,6 +342,7 @@ function Chip({
 function ScriptCard({ script, onSelect }: { script: ScriptSummary; onSelect: () => void }) {
   const tagCfg = TAG_LABELS[script.tag] ?? { label: script.tag, color: '#888' };
   const personaCfg = PERSONA_LABELS[script.persona] ?? { emoji: '🎤', label: script.persona };
+  const isUser = script.source === 'user';
   return (
     <motion.button
       onClick={onSelect}
@@ -301,8 +350,12 @@ function ScriptCard({ script, onSelect }: { script: ScriptSummary; onSelect: () 
       whileTap={{ scale: 0.98 }}
       className="text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[140px]"
       style={{
-        background: 'rgba(255,255,255,0.025)',
-        border: '1px solid rgba(255,255,255,0.06)',
+        // User-generated bits get a faint amber rim so they're visually
+        // distinguishable from seed bits without an in-your-face badge.
+        background: isUser
+          ? 'linear-gradient(135deg, rgba(255,184,76,0.08), rgba(255,255,255,0.02))'
+          : 'rgba(255,255,255,0.025)',
+        border: `1px solid ${isUser ? 'rgba(255,184,76,0.28)' : 'rgba(255,255,255,0.06)'}`,
       }}
     >
       <div className="flex items-center justify-between text-[10px]">
@@ -316,7 +369,22 @@ function ScriptCard({ script, onSelect }: { script: ScriptSummary; onSelect: () 
         >
           {tagCfg.label}
         </span>
-        <span className="text-white/35 tabular-nums">{script.durationSec}s</span>
+        <div className="flex items-center gap-2">
+          {isUser && (
+            <span
+              className="px-1.5 py-0.5 rounded-full font-bold tracking-wide text-[9px]"
+              style={{
+                color: '#ffb84c',
+                background: 'rgba(255,184,76,0.15)',
+                border: '1px solid rgba(255,184,76,0.4)',
+              }}
+              title="社区创作"
+            >
+              ✨ 用户
+            </span>
+          )}
+          <span className="text-white/35 tabular-nums">{script.durationSec}s</span>
+        </div>
       </div>
       <div className="text-sm font-bold text-white/90 line-clamp-3 leading-snug">
         {script.title}
@@ -327,6 +395,248 @@ function ScriptCard({ script, onSelect }: { script: ScriptSummary; onSelect: () 
         <span className="text-white/30 ml-auto">▶ 播放</span>
       </div>
     </motion.button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// v0.7.4 — Creator card + modal
+// ---------------------------------------------------------------------------
+
+function CreateBitCard({ onOpen }: { onOpen: () => void }) {
+  return (
+    <motion.button
+      onClick={onOpen}
+      whileHover={{ y: -2, scale: 1.005 }}
+      whileTap={{ scale: 0.98 }}
+      className="text-left rounded-2xl p-4 transition flex flex-col items-center justify-center gap-2 min-h-[140px] cursor-pointer"
+      style={{
+        background:
+          'radial-gradient(circle at 20% 0%, rgba(255,85,136,0.18), rgba(124,58,237,0.10) 60%, transparent), rgba(255,255,255,0.03)',
+        border: '1px dashed rgba(255,85,136,0.45)',
+        boxShadow: '0 8px 24px -12px rgba(255,85,136,0.4)',
+      }}
+    >
+      <div className="text-3xl mb-1">✍️</div>
+      <div className="text-sm font-bold text-white/90">自己写一段</div>
+      <div className="text-[11px] text-white/55 text-center">
+        给个话题 · 选个口音 · AI 替你编出爆款
+      </div>
+    </motion.button>
+  );
+}
+
+const CREATE_TAGS: Array<{ key: Tag; label: string; color: string }> = [
+  { key: 'overtime', label: '🌙 加班',  color: '#ff5588' },
+  { key: 'kpi',      label: '📊 KPI',    color: '#4c9eff' },
+  { key: 'pua',      label: '🌀 PUA',    color: '#a855f7' },
+  { key: 'age',      label: '🪪 35岁',   color: '#ffb84c' },
+  { key: 'slacking', label: '🛋️ 摸鱼',  color: '#6ee7b7' },
+  { key: 'jargon',   label: '🗣️ 黑话',  color: '#7c3aed' },
+  { key: 'hr',       label: '🧑‍💼 HR',  color: '#42a5f5' },
+  { key: 'boss',     label: '👔 老板',   color: '#ff4757' },
+  { key: 'meta',     label: '🪞 自嘲',   color: '#90caf9' },
+];
+
+const CREATE_PERSONAS: Array<{ key: Persona; emoji: string; label: string }> = [
+  { key: 'shaonv',   emoji: '👧', label: '少女音' },
+  { key: 'yujie',    emoji: '💃', label: '御姐音' },
+  { key: 'qingse',   emoji: '🧑', label: '青涩男' },
+  { key: 'jingying', emoji: '🧔', label: '精英男' },
+  { key: 'badao',    emoji: '👨‍💼', label: '霸道男' },
+  { key: 'qingnian', emoji: '👤', label: '青年音' },
+];
+
+const CREATE_SAMPLES = [
+  '我老板让我把"死线"翻译成"目标节点"',
+  '入职第一天 HR 让我签了个"自愿加班同意书"',
+  '35 岁那年我开始研究公积金提取',
+  '我妈不懂为什么我每天 11 点才下班',
+  '同事在群里 @ 全员说"求大佬看一眼"已经第三次了',
+];
+
+function CreateBitModal({
+  onCancel,
+  onCreated,
+}: {
+  onCancel: () => void;
+  onCreated: (full: ScriptFull) => void;
+}) {
+  const [topic, setTopic] = useState('');
+  const [persona, setPersona] = useState<Persona>('qingse');
+  const [tag, setTag] = useState<Tag>('overtime');
+  const [submitting, setSubmitting] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const sample = useMemo(
+    () => CREATE_SAMPLES[Math.floor(Math.random() * CREATE_SAMPLES.length)],
+    [],
+  );
+
+  // Autofocus + Esc to close.
+  useEffect(() => {
+    inputRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel, submitting]);
+
+  const canSubmit = topic.trim().length >= 4 && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setErrMsg(null);
+    try {
+      const resp = await fetch('/api/talkshow/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: topic.trim(), persona, tag }),
+      });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.error ?? `生成失败 (${resp.status})`);
+      }
+      const full = (await resp.json()) as ScriptFull;
+      onCreated(full);
+    } catch (e) {
+      setErrMsg((e as Error).message ?? '生成失败,稍后再试');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: 'rgba(8,6,24,0.78)', backdropFilter: 'blur(6px)' }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !submitting) onCancel();
+      }}
+    >
+      <motion.div
+        initial={{ y: 20, scale: 0.96, opacity: 0 }}
+        animate={{ y: 0,  scale: 1,    opacity: 1 }}
+        exit={{    y: 20, scale: 0.96, opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+        style={{
+          background: 'linear-gradient(180deg,#15122e,#0d0b25)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+        }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-black text-white">✍️ 写一段班味单口</h3>
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="text-white/45 hover:text-white/85 transition text-xl leading-none disabled:opacity-30"
+            aria-label="关闭"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Topic */}
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5">
+          话题（一句话越具体越好,4-200 字）
+        </label>
+        <textarea
+          ref={inputRef}
+          value={topic}
+          onChange={(e) => setTopic(e.target.value.slice(0, 200))}
+          disabled={submitting}
+          rows={3}
+          placeholder={`比如:${sample}`}
+          className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/30 outline-none focus:ring-2 focus:ring-pink-400/40 transition resize-none"
+          style={{
+            background: 'rgba(0,0,0,0.35)',
+            border: '1px solid rgba(255,255,255,0.10)',
+          }}
+        />
+        <div className="text-right text-[10px] text-white/35 mt-1 tabular-nums">
+          {topic.length}/200
+        </div>
+
+        {/* Persona */}
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5 mt-3">叙述者口音</label>
+        <div className="grid grid-cols-3 gap-1.5">
+          {CREATE_PERSONAS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPersona(p.key)}
+              disabled={submitting}
+              className="rounded-lg py-2 text-xs font-semibold transition flex flex-col items-center gap-0.5"
+              style={{
+                background: persona === p.key
+                  ? 'linear-gradient(135deg,rgba(255,85,136,0.25),rgba(124,58,237,0.18))'
+                  : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${persona === p.key ? 'rgba(255,85,136,0.55)' : 'rgba(255,255,255,0.08)'}`,
+                color: persona === p.key ? '#fff' : 'rgba(255,255,255,0.6)',
+              }}
+            >
+              <span className="text-base leading-none">{p.emoji}</span>
+              <span>{p.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Tag */}
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5 mt-3">话题分类</label>
+        <div className="flex flex-wrap gap-1.5">
+          {CREATE_TAGS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTag(t.key)}
+              disabled={submitting}
+              className="px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide transition"
+              style={{
+                color: tag === t.key ? '#fff' : 'rgba(255,255,255,0.55)',
+                background: tag === t.key ? `${t.color}30` : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${tag === t.key ? `${t.color}88` : 'rgba(255,255,255,0.08)'}`,
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {errMsg && (
+          <div className="mt-3 text-[12px] text-amber-300/90">⚠️ {errMsg}</div>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="px-4 py-2 rounded-xl text-xs font-semibold tracking-wide text-white/65 transition disabled:opacity-40"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}
+          >
+            取消
+          </button>
+          <button
+            onClick={submit}
+            disabled={!canSubmit}
+            className="px-5 py-2 rounded-xl text-xs font-bold tracking-wide text-white transition disabled:opacity-40"
+            style={{
+              background: 'linear-gradient(135deg,#ff5588,#7c3aed)',
+              boxShadow: '0 6px 18px rgba(255,85,136,0.45)',
+            }}
+          >
+            {submitting ? '✍️ AI 编写中…' : '✨ 生成段子'}
+          </button>
+        </div>
+
+        <div className="mt-3 text-[10px] text-white/35 leading-relaxed">
+          生成的段子会进入"全部"列表的最前面,带 ✨ 标。所有人都能看到+收听+分享。请勿输入真人姓名 / 真公司名。
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
