@@ -26,7 +26,12 @@ const SCORE_DIMENSIONS: Array<{ key: keyof FiredScores; label: string; shortLabe
 /*  API helpers                                                        */
 /* ------------------------------------------------------------------ */
 
-const API_BASE = `http://${window.location.hostname}:3100/api/fired`;
+// Relative URL — Vite proxies /api → :3100 in dev (vite.config.ts), and
+// in prod the server serves the static client from the same origin so no
+// cross-port traffic happens. Was previously hardcoded to
+// `http://${hostname}:3100/api/fired` which broke HTTPS deploys (mixed
+// content) and any reverse-proxied setup that doesn't expose port 3100.
+const API_BASE = '/api/fired';
 const REQUEST_TIMEOUT_MS = 30000;
 const MAX_ROUNDS = 10;
 
