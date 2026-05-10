@@ -93,6 +93,27 @@ export const activityIcons = {
 } as const;
 export type ActivityIconKey = keyof typeof activityIcons;
 
+// --- v0.6.0 Room furniture stickers -------------------------------------
+// Keys must match `FURNITURE_TYPES[*].iconKey` in shared/data/furniture.ts.
+// 12 isometric mini-stickers placed inside each room — see GameMap render.
+// Soft-fail on 404: if a sticker is mid-regen the renderer falls back to a
+// solid colored rectangle of the same footprint so the layout doesn't pop.
+export const furnitureIcons = {
+  desk:            url('furniture_desk'),
+  chair:           url('furniture_chair'),
+  meeting_table:   url('furniture_meeting_table'),
+  whiteboard:      url('furniture_whiteboard'),
+  coffee_machine:  url('furniture_coffee_machine'),
+  water_dispenser: url('furniture_water_dispenser'),
+  printer:         url('furniture_printer'),
+  server_rack:     url('furniture_server_rack'),
+  cctv:            url('furniture_cctv'),
+  sofa:            url('furniture_sofa'),
+  plant:           url('furniture_plant'),
+  elevator_door:   url('furniture_elevator'),
+} as const;
+export type FurnitureIconKey = keyof typeof furnitureIcons;
+
 export type ModeIconKey = keyof typeof modeIcons;
 export type PersonalityIconKey = keyof typeof personalityIcons;
 export type PhaseIconKey = keyof typeof phaseIcons;

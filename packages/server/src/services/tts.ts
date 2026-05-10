@@ -120,6 +120,11 @@ export async function generateTTSAudio(text: string, role?: string): Promise<Buf
   const voice = getVoiceConfig(role);
   const env = getEnv();
 
+  // Diagnostic — surfaces why a provider was skipped (regression hunt
+  // after several "Minimax should have been first but Qingyun ran first"
+  // reports). Strips key body, only logs presence + dead flag.
+  console.log(`[TTS gate] minimaxKey=${env.minimaxKey ? 'set' : 'missing'} v2Dead=${minimaxV2Dead} proDead=${minimaxProDead} qingyunDead=${qingyunDead}`);
+
   // ---- 1. Minimax t2a_v2 with speech-2.8-hd (the supported model) ----
   if (env.minimaxKey && !minimaxV2Dead) {
     const buf = await tryMinimaxV2(text, voice, env);

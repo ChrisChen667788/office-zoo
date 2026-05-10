@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
-import { activityIcons } from '../../constants/icons';
+import { activityIcons, furnitureIcons } from '../../constants/icons';
+import { ROOM_FURNITURE, FURNITURE_TYPES, type FurnitureKind } from '@furball/shared';
 
 /* ---------- Types ---------- */
 
@@ -482,6 +483,11 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
   const loadedImages = useRef<Record<string, HTMLImageElement>>({});
   // Pre-loaded activity icon images, keyed by activityIcons key (work/chat/...).
   const activityImages = useRef<Record<string, HTMLImageElement>>({});
+  // v0.6.0 — pre-loaded furniture stickers, keyed by FurnitureKind. Lives
+  // separately from activityImages because they have different sizes +
+  // render layers (furniture sits on the floor; activities float beside
+  // the player).
+  const furnitureImages = useRef<Record<string, HTMLImageElement>>({});
   // Per-player animation state — lerp from prev to current screen position.
   const animState = useRef<Map<string, AnimSnapshot>>(new Map());
   // v0.5+ dead-reckoning state, keyed by player id. Lazily populated when
@@ -528,6 +534,19 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
       img.crossOrigin = 'anonymous';
       img.onload = () => { activityImages.current[key] = img; };
       img.onerror = () => { /* leave undefined → emoji fallback in draw */ };
+      img.src = url;
+    }
+  }, []);
+
+  // v0.6.0 — pre-load furniture stickers once (12 PNGs). Soft-fail on
+  // 404 (sticker mid-regen) → drawFurniture falls back to a colored rect.
+  useEffect(() => {
+    for (const [key, url] of Object.entries(furnitureIcons)) {
+      if (furnitureImages.current[key]) continue;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { furnitureImages.current[key] = img; };
+      img.onerror = () => { /* fallback colored rect */ };
       img.src = url;
     }
   }, []);
@@ -619,6 +638,52 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
     // Draw rooms
     for (const room of sortedRooms) {
       drawIsoRoom(ctx, room);
+    }
+
+    // ── v0.6.0 furniture layer ────────────────────────────────────────
+    //   Painted AFTER rooms (so it sits on the floor, not behind walls)
+    //   but BEFORE players (so it doesn't occlude character heads).
+    //   Sort by Y so back rows of desks render behind front rows.
+    const furniturePlaced = ROOM_FURNITURE.map((f) => {
+      const def = FURNITURE_TYPES[f.kind as FurnitureKind];
+      // Logical world (x,y) → isometric screen via worldToIso; def.w/h in
+      // logical units, scaled to a comfortable on-screen size by the
+      // worldToIso projection itself.
+      const cx = f.x + def.w / 2;
+      const cy = f.y + def.h / 2;
+      const c = worldToIso(cx, cy);
+      // Approximate sprite size in screen px — derive from the iso-projected
+      // diagonal of the furniture footprint so larger items (sofas) render
+      // visibly bigger than chairs without manual per-kind tuning.
+      const cornerNW = worldToIso(f.x, f.y);
+      const cornerSE = worldToIso(f.x + def.w, f.y + def.h);
+      const screenW = Math.abs(cornerSE.sx - cornerNW.sx) + 12;
+      const screenH = Math.abs(cornerSE.sy - cornerNW.sy) + 22;
+      return { f, def, sx: c.sx, sy: c.sy, screenW, screenH };
+    }).sort((a, b) => a.sy - b.sy);
+
+    for (const { f, def, sx, sy, screenW, screenH } of furniturePlaced) {
+      const img = furnitureImages.current[f.kind];
+      if (img) {
+        // Draw sprite centred on its footprint, anchored slightly higher
+        // so the bottom of the sprite touches the floor convincingly.
+        ctx.drawImage(img, sx - screenW / 2, sy - screenH * 0.7, screenW, screenH);
+      } else {
+        // Soft fallback while the sticker is mid-regen — a colored disc
+        // hint at the footprint so the layout doesn't pop later.
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, screenW * 0.32, screenH * 0.18, 0, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,0.06)`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255,255,255,0.15)`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(def.cnLabel, sx, sy);
+      }
     }
 
     // ── Player layout pass ────────────────────────────────────────────

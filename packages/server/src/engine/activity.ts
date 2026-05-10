@@ -16,7 +16,7 @@
  *    tooltip. The full snark belongs in speeches, not here.
  */
 import type { Activity, PlayerState } from '@furball/shared';
-import { Team } from '@furball/shared';
+import { Team, nearestFurniture, labelFor } from '@furball/shared';
 
 // ---------------------------------------------------------------------------
 // Per-room activity menus. Each entry is a `(work-subject)` candidate that
@@ -83,13 +83,18 @@ export function assignRoomActivity(
     };
   }
 
-  // Default: a room-themed work subject.
+  // Default: a room-themed work subject. v0.6.0 — try to anchor the
+  // caption on the nearest furniture item ("Frank 在 工位 3 改 PPT")
+  // instead of the generic room name. Falls back to the room name when
+  // there's no furniture within 60 logical px.
   const subjects = ROOM_WORK_SUBJECTS[room];
   if (subjects && subjects.length > 0) {
     const subject = subjects[Math.floor(Math.random() * subjects.length)];
+    const nf = nearestFurniture(room, player.position.x, player.position.y, 80);
+    const where = nf ? `${room} ${labelFor(nf)}` : room;
     return {
       activity: { kind: 'work', subject },
-      activityText: `${player.name} 在 ${room} ${subject}`,
+      activityText: `${player.name} 在 ${where} ${subject}`,
     };
   }
 

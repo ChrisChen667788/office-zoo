@@ -98,6 +98,23 @@ export const ICON_DETAILS: Record<string, IconSpec> = {
   activity_coffee:  { subject: 'a steaming coffee mug sticker with a tiny heart', accent: '#8d6e63', bgStyle: 'solid' },
   activity_print:   { subject: 'a tiny printer with a sheet of paper coming out sticker', accent: '#90caf9', bgStyle: 'solid' },
 
+  // --- v0.6.0 Room furniture stickers -----------------------------------
+  // Top-down isometric mini stickers, drawn at 1024x1024 then downscaled
+  // to ~50x50 in-room. Match the iso angle of the GameMap rooms so they
+  // sit naturally on the floor instead of looking pasted-on.
+  furniture_desk:            { subject: 'an isometric tiny office desk with a glowing monitor and keyboard, top-down view', detail: 'modern minimalist, dark wood top, pixel-art-friendly', accent: '#7c3aed', bgStyle: 'transparent' },
+  furniture_chair:           { subject: 'an isometric tiny black office swivel chair, top-down 3/4 view', detail: 'minimalist, no person on it', accent: '#666666', bgStyle: 'transparent' },
+  furniture_meeting_table:   { subject: 'an isometric long oval meeting table with subtle wood grain, top-down view', detail: 'no chairs around it', accent: '#a07555', bgStyle: 'transparent' },
+  furniture_whiteboard:      { subject: 'an isometric whiteboard on a wall mount with messy red and blue marker writing, 3/4 view', accent: '#4c9eff', bgStyle: 'transparent' },
+  furniture_coffee_machine:  { subject: 'an isometric espresso coffee machine with a tiny cup, glossy chrome and black, 3/4 view', accent: '#8d6e63', bgStyle: 'transparent' },
+  furniture_water_dispenser: { subject: 'an isometric office water dispenser with a big blue water bottle on top, 3/4 view', accent: '#4cb5ff', bgStyle: 'transparent' },
+  furniture_printer:         { subject: 'an isometric office laser printer with a sheet of paper sticking out the top, 3/4 view', accent: '#90caf9', bgStyle: 'transparent' },
+  furniture_server_rack:     { subject: 'an isometric tall server rack with blinking blue and green LEDs, 3/4 view', accent: '#00ced1', bgStyle: 'transparent' },
+  furniture_cctv:            { subject: 'an isometric wall of CCTV monitors showing 4 grid camera feeds, 3/4 view', accent: '#546e7a', bgStyle: 'transparent' },
+  furniture_sofa:            { subject: 'an isometric tiny grey three-seat office sofa with two cushions, 3/4 view', accent: '#9e9e9e', bgStyle: 'transparent' },
+  furniture_plant:           { subject: 'an isometric small office monstera plant in a white round pot, 3/4 view', accent: '#66bb6a', bgStyle: 'transparent' },
+  furniture_elevator:        { subject: 'an isometric pair of closed metallic elevator doors with a glowing up/down arrow panel beside them, 3/4 view', accent: '#7c3aed', bgStyle: 'transparent' },
+
   // --- Prediction / timeline / recap glyphs -----------------------------
   prediction_target: { subject: 'a red-and-white bullseye target sticker', accent: '#FF3355', bgStyle: 'solid' },
   prediction_correct: { subject: 'a bold green checkmark sticker with a sparkle', accent: '#00D26A', bgStyle: 'solid' },
