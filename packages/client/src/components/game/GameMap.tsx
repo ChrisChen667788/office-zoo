@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react';
-import { activityIcons, furnitureIcons, itemIcons } from '../../constants/icons';
+import { activityIcons, itemIcons } from '../../constants/icons';
 import { ROOM_FURNITURE, FURNITURE_TYPES, type FurnitureKind } from '@furball/shared';
+import { drawFurnitureSprite } from './drawFurniture';
 
 /* ---------- Types ---------- */
 
@@ -252,17 +253,24 @@ function drawPlayer(
   cy: number,
   avatarImg?: HTMLImageElement | null,
 ) {
-  const radius = 16;
+  // v0.6.3 — radius bumped 16 → 18 so faces are readable next to furniture,
+  // and the team ring is now a hairline + soft outer glow rather than a
+  // flat 2 px stroke (the old version looked like a sticker outline).
+  const radius = 18;
 
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  // Soft floor shadow — wide ellipse, low alpha so multiple players in the
+  // same room don't form a black smudge.
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.42)';
+  ctx.filter = 'blur(1.5px)';
   ctx.beginPath();
-  ctx.ellipse(cx, cy + 6, radius + 3, 6, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy + radius - 2, radius + 2, 5, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
 
   if (!player.isAlive) {
-    // Dead: ghostly semi-transparent avatar or X mark
-    ctx.globalAlpha = 0.35;
+    // Dead: ghostly semi-transparent avatar with red X.
+    ctx.globalAlpha = 0.32;
     if (avatarImg) {
       ctx.save();
       ctx.beginPath();
@@ -270,45 +278,53 @@ function drawPlayer(
       ctx.clip();
       ctx.drawImage(avatarImg, cx - radius, cy - radius, radius * 2, radius * 2);
       ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#3a3a4a';
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    // Red X over dead player
     ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(cx - 8, cy - 8);
-    ctx.lineTo(cx + 8, cy + 8);
-    ctx.moveTo(cx + 8, cy - 8);
-    ctx.lineTo(cx - 8, cy + 8);
+    ctx.moveTo(cx - 9, cy - 9);
+    ctx.lineTo(cx + 9, cy + 9);
+    ctx.moveTo(cx + 9, cy - 9);
+    ctx.lineTo(cx - 9, cy + 9);
     ctx.stroke();
     ctx.lineCap = 'butt';
 
-    // Name
-    ctx.fillStyle = '#666';
-    ctx.font = '10px sans-serif';
+    // Muted name tag for dead players.
+    ctx.fillStyle = 'rgba(180,180,200,0.75)';
+    ctx.font = '10px ui-sans-serif, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(player.name, cx, cy - radius - 4);
+    ctx.fillText(player.name, cx, cy - radius - 6);
     return;
   }
 
-  // Team colour
-  let color = '#fdd835'; // neutral/default
-  let glowColor = 'rgba(253,216,53,0.4)';
-  if (player.team === 'cat') { color = '#2fb8ff'; glowColor = 'rgba(47,184,255,0.5)'; }
-  if (player.team === 'dog') { color = '#ff4757'; glowColor = 'rgba(255,71,87,0.5)'; }
+  // Team palette — fill, ring, glow.
+  let color = '#fdd835';
+  let glow = 'rgba(253,216,53,0.45)';
+  if (player.team === 'cat') { color = '#2fb8ff'; glow = 'rgba(47,184,255,0.5)'; }
+  if (player.team === 'dog') { color = '#ff4757'; glow = 'rgba(255,71,87,0.5)'; }
 
-  // Outer glow ring
+  // Outer halo — wide blurred glow that gives the avatar visual weight on
+  // dark rooms without competing with the speaker pulse (which is amber).
+  ctx.save();
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 14;
   ctx.beginPath();
-  ctx.arc(cx, cy, radius + 3, 0, Math.PI * 2);
-  ctx.strokeStyle = glowColor;
-  ctx.lineWidth = 2;
+  ctx.arc(cx, cy, radius + 1, 0, Math.PI * 2);
+  ctx.strokeStyle = glow;
+  ctx.lineWidth = 1;
   ctx.stroke();
+  ctx.restore();
 
   if (avatarImg) {
-    // Draw circular avatar image
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -316,51 +332,56 @@ function drawPlayer(
     ctx.drawImage(avatarImg, cx - radius, cy - radius, radius * 2, radius * 2);
     ctx.restore();
 
-    // Border ring
+    // Crisp 1.5 px team ring, plus an inner highlight arc for that
+    // glossy "polished glass" feel.
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  } else {
-    // Fallback: colored circle with highlight
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
-
-    // Inner highlight
     ctx.beginPath();
-    ctx.arc(cx - 4, cy - 4, 5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.arc(cx, cy, radius - 1, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  } else {
+    // Fallback: gradient-filled circle with subtle highlight.
+    const fill = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, radius);
+    fill.addColorStop(0, 'rgba(255,255,255,0.55)');
+    fill.addColorStop(0.4, color);
+    fill.addColorStop(1, color);
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
   }
 
-  // Name label with glassmorphism badge
-  ctx.font = 'bold 10px sans-serif';
+  // Name label — glass pill above the avatar. Keeps a tight 9 px font so it
+  // doesn't compete with the avatar at typical zoom; team colour bleeds
+  // into the bottom border for at-a-glance team ID.
+  ctx.font = '600 9.5px ui-sans-serif, system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const nameWidth = ctx.measureText(player.name).width;
-  const badgeW = nameWidth + 10;
-  const badgeH = 16;
+  const badgeW = nameWidth + 12;
+  const badgeH = 15;
   const badgeX = cx - badgeW / 2;
-  const badgeY = cy - radius - 20;
+  const badgeY = cy - radius - 19;
 
-  // Badge background
-  ctx.fillStyle = 'rgba(15,14,46,0.75)';
+  // Glass background (slightly translucent, soft border).
+  ctx.fillStyle = 'rgba(15,14,46,0.78)';
   ctx.beginPath();
-  ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+  ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 7);
   ctx.fill();
-  ctx.strokeStyle = `${color}60`;
+  ctx.strokeStyle = `${color}70`;
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Name text
-  ctx.fillStyle = '#fff';
-  ctx.fillText(player.name, cx, badgeY + badgeH / 2);
+  ctx.fillStyle = '#f4f4ff';
+  ctx.fillText(player.name, cx, badgeY + badgeH / 2 + 0.5);
 }
 
 /* ---------- Component ---------- */
@@ -483,11 +504,6 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
   const loadedImages = useRef<Record<string, HTMLImageElement>>({});
   // Pre-loaded activity icon images, keyed by activityIcons key (work/chat/...).
   const activityImages = useRef<Record<string, HTMLImageElement>>({});
-  // v0.6.0 — pre-loaded furniture stickers, keyed by FurnitureKind. Lives
-  // separately from activityImages because they have different sizes +
-  // render layers (furniture sits on the floor; activities float beside
-  // the player).
-  const furnitureImages = useRef<Record<string, HTMLImageElement>>({});
   // v0.6.2 — pre-loaded carried-item stickers, keyed by ItemKind. Same
   // sticker style as activity badges, drawn on the LEFT of the avatar so
   // they don't fight for the same space as the activity icon.
@@ -542,18 +558,10 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
     }
   }, []);
 
-  // v0.6.0 — pre-load furniture stickers once (12 PNGs). Soft-fail on
-  // 404 (sticker mid-regen) → drawFurniture falls back to a colored rect.
-  useEffect(() => {
-    for (const [key, url] of Object.entries(furnitureIcons)) {
-      if (furnitureImages.current[key]) continue;
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => { furnitureImages.current[key] = img; };
-      img.onerror = () => { /* fallback colored rect */ };
-      img.src = url;
-    }
-  }, []);
+  // v0.6.3 — furniture is now drawn from canvas primitives in drawFurniture.ts
+  // instead of preloaded PNG sprites. The Minimax-generated stickers were
+  // JPEG-with-white-background and looked like trading cards stuck on the
+  // dark map; primitives composite cleanly. See drawFurniture.ts.
 
   // v0.6.2 — pre-load carried-item stickers (6 PNGs). Soft-fail on 404 →
   // the carried-item badge just doesn't render that frame, no warnings.
@@ -657,50 +665,31 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
       drawIsoRoom(ctx, room);
     }
 
-    // ── v0.6.0 furniture layer ────────────────────────────────────────
-    //   Painted AFTER rooms (so it sits on the floor, not behind walls)
-    //   but BEFORE players (so it doesn't occlude character heads).
-    //   Sort by Y so back rows of desks render behind front rows.
+    // ── v0.6.3 furniture layer (canvas-drawn) ─────────────────────────
+    //   Replaces the v0.6.0 PNG sticker approach which had two problems:
+    //   (1) Minimax JPEG-with-white-bg looked like trading cards on the
+    //   dark map; (2) sprites were ~110px each → cluttered. Now each kind
+    //   is hand-drawn from primitives in drawFurniture.ts at ~30px scale,
+    //   matching the iso/glass aesthetic of the rooms.
+    //   Painted AFTER rooms (sits on the floor, not behind walls) but
+    //   BEFORE players (doesn't occlude character heads). Sort by Y so
+    //   back rows of desks render behind front rows.
     const furniturePlaced = ROOM_FURNITURE.map((f) => {
       const def = FURNITURE_TYPES[f.kind as FurnitureKind];
-      // Logical world (x,y) → isometric screen via worldToIso; def.w/h in
-      // logical units, scaled to a comfortable on-screen size by the
-      // worldToIso projection itself.
-      const cx = f.x + def.w / 2;
-      const cy = f.y + def.h / 2;
-      const c = worldToIso(cx, cy);
-      // Approximate sprite size in screen px — derive from the iso-projected
-      // diagonal of the furniture footprint so larger items (sofas) render
-      // visibly bigger than chairs without manual per-kind tuning.
-      const cornerNW = worldToIso(f.x, f.y);
-      const cornerSE = worldToIso(f.x + def.w, f.y + def.h);
-      const screenW = Math.abs(cornerSE.sx - cornerNW.sx) + 12;
-      const screenH = Math.abs(cornerSE.sy - cornerNW.sy) + 22;
-      return { f, def, sx: c.sx, sy: c.sy, screenW, screenH };
+      // Anchor on the FRONT-CENTRE of the furniture footprint (highest Y
+      // edge) so canvas drawers can paint upward from the ground. Visually
+      // reads as "object sitting on the floor" instead of "floating above".
+      const groundCx = f.x + def.w / 2;
+      const groundCy = f.y + def.h;            // bottom edge in logical coords
+      const c = worldToIso(groundCx, groundCy);
+      // Visual scale derives from logical footprint width — chairs end up
+      // smaller than sofas naturally without per-kind manual tuning.
+      const scale = Math.max(0.65, Math.min(1.4, def.w / 36));
+      return { f, sx: c.sx, sy: c.sy, scale };
     }).sort((a, b) => a.sy - b.sy);
 
-    for (const { f, def, sx, sy, screenW, screenH } of furniturePlaced) {
-      const img = furnitureImages.current[f.kind];
-      if (img) {
-        // Draw sprite centred on its footprint, anchored slightly higher
-        // so the bottom of the sprite touches the floor convincingly.
-        ctx.drawImage(img, sx - screenW / 2, sy - screenH * 0.7, screenW, screenH);
-      } else {
-        // Soft fallback while the sticker is mid-regen — a colored disc
-        // hint at the footprint so the layout doesn't pop later.
-        ctx.beginPath();
-        ctx.ellipse(sx, sy, screenW * 0.32, screenH * 0.18, 0, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,0.06)`;
-        ctx.fill();
-        ctx.strokeStyle = `rgba(255,255,255,0.15)`;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(255,255,255,0.45)';
-        ctx.font = '9px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(def.cnLabel, sx, sy);
-      }
+    for (const { f, sx, sy, scale } of furniturePlaced) {
+      drawFurnitureSprite(ctx, f.kind, sx, sy, scale);
     }
 
     // ── Player layout pass ────────────────────────────────────────────
@@ -810,21 +799,23 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
     //    Footprints are timestamped with `performance.now()` (monotonic) so
     //    we re-fetch it here rather than re-using `now` (Date.now()).
     if (realtimeMode.current && footprints.current.length > 0) {
+      // v0.6.3 — toned down: smaller radius (was 6→10, now 3→5) and lower
+      // peak alpha (was 0.55, now 0.22). The old version drew big disco
+      // dots that competed with the furniture sprites for visual weight.
       const nowPerf = performance.now();
       for (const fp of footprints.current) {
         const age = nowPerf - fp.spawnedAt;
         if (age >= FOOTPRINT_LIFETIME_MS) continue;
         const lifeT = age / FOOTPRINT_LIFETIME_MS;        // 0..1
-        const alpha = (1 - lifeT) * 0.55;
-        const r = 6 + lifeT * 4;                          // expand as it fades
+        const alpha = (1 - lifeT) * 0.22;
+        const r = 3 + lifeT * 2;
         const iso = worldToIso(fp.worldX, fp.worldY);
-        // Faint coloured tint by team — falls back to neutral grey.
         let rgb = '180,180,180';
         if (fp.team === 'cat') rgb = '47,184,255';
         else if (fp.team === 'dog') rgb = '255,71,87';
         else if (fp.team === 'neutral') rgb = '168,85,247';
         ctx.beginPath();
-        ctx.arc(iso.sx, iso.sy + 4, r, 0, Math.PI * 2);
+        ctx.arc(iso.sx, iso.sy + 6, r, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${rgb},${alpha.toFixed(3)})`;
         ctx.fill();
       }
@@ -936,30 +927,36 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
         }
       }
 
-      // v0.6.2 — carried item badge, drawn LEFT of the avatar (mirror of
-      // the activity badge on the right). Only when the player is alive
-      // and actually holding something. Uses the same circular-clipped
-      // sticker style as activity badges for visual consistency.
+      // v0.6.2/v0.6.3 — carried-item badge, mirror of the activity badge.
+      // Only drawn when:
+      //   • player is alive AND holding something (carrying.kind set), AND
+      //   • player is SETTLED (not in commute) — moving avatars are too
+      //     small/jittery for a side sticker to read cleanly, and the
+      //     carrying field is null during commute on the server anyway,
+      //     but we double-gate on activity here so dead-reckoned in-room
+      //     micro-walks (work/coffee) still show the item.
       const carrying = (p as { carrying?: { kind: string } | null }).carrying;
-      if (p.isAlive && carrying?.kind) {
+      const isCommuting = p.activity?.kind === 'commute';
+      if (p.isAlive && carrying?.kind && !isCommuting) {
         const itemImg = itemImages.current[carrying.kind];
-        const ix = sx - 14;
-        const iy = sy + 12;
         if (itemImg) {
+          const ix = sx - 16;
+          const iy = sy + 10;
+          const r = 8;
           ctx.save();
           ctx.beginPath();
-          ctx.arc(ix, iy, 10, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(15,14,46,0.92)';
+          ctx.arc(ix, iy, r, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(15,14,46,0.88)';
           ctx.fill();
           ctx.beginPath();
-          ctx.arc(ix, iy, 10, 0, Math.PI * 2);
+          ctx.arc(ix, iy, r, 0, Math.PI * 2);
           ctx.clip();
-          ctx.drawImage(itemImg, ix - 9, iy - 9, 18, 18);
+          ctx.drawImage(itemImg, ix - r + 1, iy - r + 1, (r - 1) * 2, (r - 1) * 2);
           ctx.restore();
           ctx.beginPath();
-          ctx.arc(ix, iy, 10, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(255,184,76,0.5)';   // amber rim
-          ctx.lineWidth = 1.2;
+          ctx.arc(ix, iy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+          ctx.lineWidth = 1;
           ctx.stroke();
         }
       }
