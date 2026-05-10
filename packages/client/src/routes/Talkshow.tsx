@@ -16,7 +16,7 @@
  * generated B-roll.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   primeAudio,
@@ -61,6 +61,7 @@ const PERSONA_LABELS: Record<string, { emoji: string; label: string; gender: 'fe
 
 export default function Talkshow() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
@@ -75,6 +76,44 @@ export default function Talkshow() {
       .catch((e) => setLoadErr(e.message ?? '加载失败'));
     return () => stopTts();
   }, []);
+
+  // Deeplink — `?id=bit-001` auto-opens the player. Also keeps the URL in
+  // sync as the user navigates between bits, so refresh / share preserves
+  // the current bit.
+  useEffect(() => {
+    const id = searchParams.get('id');
+    if (!id) return;
+    if (active && active.id === id) return;
+    let cancelled = false;
+    fetch(`/api/talkshow/script/${id}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((full: ScriptFull) => {
+        if (!cancelled) {
+          // Prime audio in case the deeplink open is the user's first
+          // gesture this session — Safari only unlocks audio inside one.
+          primeAudio();
+          setActive(full);
+        }
+      })
+      .catch(() => { /* invalid id — silently ignore, keep grid view */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Mirror player navigation back to the URL so the back/forward button
+  // and a fresh refresh both land on the same bit.
+  useEffect(() => {
+    if (active) {
+      if (searchParams.get('id') !== active.id) {
+        setSearchParams({ id: active.id }, { replace: true });
+      }
+    } else {
+      if (searchParams.get('id')) {
+        setSearchParams({}, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
 
   const visible = useMemo(
     () => (tagFilter ? scripts.filter((s) => s.tag === tagFilter) : scripts),
@@ -115,7 +154,28 @@ export default function Talkshow() {
       {/* Player view — slides in over the list */}
       <AnimatePresence mode="wait">
         {active ? (
-          <PlayerView key="player" script={active} onBack={() => setActive(null)} />
+          <PlayerView
+            key="player"
+            script={active}
+            onBack={() => setActive(null)}
+            onNavigate={async (direction) => {
+              // Find the active script in the visible list and jump to the
+              // next/previous one. Loops at the boundaries so users can keep
+              // tapping ▶ without hitting a dead-end.
+              const idx = visible.findIndex((s) => s.id === active.id);
+              if (idx < 0 || visible.length <= 1) return;
+              const next = direction === 'next'
+                ? visible[(idx + 1) % visible.length]
+                : visible[(idx - 1 + visible.length) % visible.length];
+              try {
+                const resp = await fetch(`/api/talkshow/script/${next.id}`);
+                const full = (await resp.json()) as ScriptFull;
+                setActive(full);
+              } catch {
+                setActive({ ...next, text: '(脚本加载失败)' });
+              }
+            }}
+          />
         ) : (
           <motion.main
             key="list"
@@ -273,9 +333,14 @@ function ScriptCard({ script, onSelect }: { script: ScriptSummary; onSelect: () 
 function PlayerView({
   script,
   onBack,
+  onNavigate,
 }: {
   script: ScriptFull;
   onBack: () => void;
+  /** Jump to the previous / next script in the currently-visible (filtered)
+   *  list. Loops at the boundaries. Lets users binge through the bits
+   *  without going back to the grid every time. */
+  onNavigate: (direction: 'prev' | 'next') => void;
 }) {
   const [revealedChars, setRevealedChars] = useState(0);
   // 'fetching' = TTS request in flight; 'ready' = blob fetched but waiting
@@ -429,6 +494,56 @@ function PlayerView({
 
   const visibleText = script.text.slice(0, revealedChars);
 
+  /** Web Share API where supported (mobile + Safari macOS); falls back to
+   *  copying a deeplink to clipboard with a one-shot toast. */
+  const handleShare = async () => {
+    const url = `${window.location.origin}/talkshow?id=${script.id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `班味单口 · ${script.title}`,
+          text: script.text.slice(0, 80) + '…',
+          url,
+        });
+        return;
+      }
+    } catch {
+      /* user cancelled — fall through to clipboard */
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      // Lightweight toast — no need to wire a global system for one button.
+      const toast = document.createElement('div');
+      toast.textContent = '✓ 链接已复制';
+      toast.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:rgba(15,14,46,0.95);color:#fff;padding:10px 18px;border-radius:9999px;font-size:13px;z-index:9999;border:1px solid rgba(255,255,255,0.15);box-shadow:0 8px 24px rgba(0,0,0,0.5)';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 1800);
+    } catch {
+      /* clipboard blocked too — silent fail, share is optional */
+    }
+  };
+
+  // ── Keyboard shortcuts ───────────────────────────────────────────────
+  // ← prev bit · → next bit · Esc back to grid · Space replay (when done)
+  // Only bind when the player view is mounted; auto-cleanup on unmount.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Ignore when an input/textarea has focus (user is typing)
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); onNavigate('prev'); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); onNavigate('next'); }
+      if (e.key === 'Escape')     { e.preventDefault(); onBack(); }
+      if (e.key === ' ' && audioState === 'done') {
+        e.preventDefault();
+        handleManualPlay();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioState, script.id]);
+
   return (
     <motion.main
       initial={{ opacity: 0, scale: 0.98 }}
@@ -437,13 +552,46 @@ function PlayerView({
       transition={{ duration: 0.25 }}
       className="relative z-10 px-4 md:px-10 pb-12 max-w-3xl mx-auto"
     >
-      <button
-        onClick={onBack}
-        className="text-xs tracking-wider text-white/55 hover:text-white/90 transition px-3 py-1.5 rounded mb-6"
-        style={{ background: 'rgba(255,255,255,0.05)' }}
-      >
-        ← 返回段子库
-      </button>
+      {/* Transport bar: back · share · prev/next. Single row on desktop,
+          wraps tight on mobile. Keyboard shortcuts mirror these (←/→/Esc). */}
+      <div className="flex items-center justify-between mb-6 gap-2">
+        <button
+          onClick={onBack}
+          className="text-xs tracking-wider text-white/55 hover:text-white/90 transition px-3 py-1.5 rounded"
+          style={{ background: 'rgba(255,255,255,0.05)' }}
+          title="Esc"
+        >
+          ← 返回段子库
+        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onNavigate('prev')}
+            className="text-xs text-white/55 hover:text-white/90 transition px-3 py-1.5 rounded"
+            style={{ background: 'rgba(255,255,255,0.05)' }}
+            title="← 上一段"
+            aria-label="上一段"
+          >
+            ← 上一段
+          </button>
+          <button
+            onClick={handleShare}
+            className="text-xs text-white/55 hover:text-white/90 transition px-3 py-1.5 rounded"
+            style={{ background: 'rgba(255,255,255,0.05)' }}
+            title="分享"
+          >
+            🔗 分享
+          </button>
+          <button
+            onClick={() => onNavigate('next')}
+            className="text-xs text-white/55 hover:text-white/90 transition px-3 py-1.5 rounded"
+            style={{ background: 'rgba(255,255,255,0.05)' }}
+            title="→ 下一段"
+            aria-label="下一段"
+          >
+            下一段 →
+          </button>
+        </div>
+      </div>
 
       <div className="flex items-center gap-2 mb-3 text-[10px]">
         <span
@@ -515,16 +663,28 @@ function PlayerView({
         </div>
       )}
       {audioState === 'done' && (
-        <div className="text-center mb-4">
+        <div className="flex justify-center gap-2 mb-4">
           <button
             onClick={handleManualPlay}
-            className="px-4 py-2 rounded-xl text-xs font-semibold tracking-wide text-white/80"
+            className="px-4 py-2 rounded-xl text-xs font-semibold tracking-wide text-white/80 transition"
             style={{
               background: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.12)',
             }}
+            title="Space"
           >
             ↻ 再听一遍
+          </button>
+          <button
+            onClick={() => onNavigate('next')}
+            className="px-5 py-2 rounded-xl text-xs font-bold tracking-wide text-white shadow-lg"
+            style={{
+              background: 'linear-gradient(135deg,#ff5588,#7c3aed)',
+              boxShadow: '0 6px 18px rgba(255,85,136,0.4)',
+            }}
+            title="→"
+          >
+            下一段 →
           </button>
         </div>
       )}
