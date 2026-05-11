@@ -1,3 +1,41 @@
+// 0. v0.9.0 — UGC pack types (a "pack" = 5 user-curated scenarios bundled
+//    as a chapter sequence). Lives here in shared so client + server agree
+//    on the wire shape; persistence is server-side via packStore.ts.
+// ---------------------------------------------------------------------------
+
+export type FiredPersonalityId = 'rookie' | 'veteran' | 'demon';
+
+export interface PackSlot {
+  /** Either a seed scenario id (e.g. 'probation-fire') or a user-generated
+   *  one ('fired-u-…'). The server validates existence at create time. */
+  scenarioId: string;
+  /** Difficulty of the HR opponent for THIS slot. Lets the creator ramp
+   *  up: rookie → veteran → demon across the 5 slots if they want a
+   *  proper boss-fight curve. */
+  personalityId: FiredPersonalityId;
+}
+
+export interface FiredPack {
+  /** `pack-u-XXXXXX` namespace, parallel to bit-u-… and fired-u-…. */
+  id: string;
+  /** Pack name shown on the FiredLanding card. Cap at 32 chars. */
+  title: string;
+  /** Short description — 1-2 sentences explaining the theme. */
+  description: string;
+  /** User-picked emoji for the pack thumbnail. */
+  emoji: string;
+  /** Exactly 5 (slot, personality) pairs. v1 is fixed-length; future
+   *  versions might allow shorter packs ("3-关短篇") but 5 is a clean
+   *  default that matches the existing FIRED_LEVELS chapter count. */
+  slots: PackSlot[];
+  /** Pseudonymous creator id (X-User-Id header). Powers "我的闯关包". */
+  createdBy?: string;
+  /** Unix ms when persisted. */
+  createdAt?: number;
+  /** Community heart count, mirrors scenarios + bits. */
+  likes?: number;
+}
+
 // 1. SCENARIOS — 12 realistic layoff scenarios
 // ---------------------------------------------------------------------------
 

@@ -100,6 +100,28 @@ export const FIRED_LEVELS: FiredLevel[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// v0.9.0 — UGC pack progress. Independent of the chapter `stars` map.
+// Tracks per-(packId, slotIndex) clear state so the FiredPack view can
+// render a sequential unlock cascade.
+// ---------------------------------------------------------------------------
+
+/** Per-slot completion record. `ratio` is compensationMonths / maxPossible
+ *  so the UI can render a 1-3 star bar without consulting the level def. */
+export interface PackSlotProgress {
+  ts: number;
+  ratio: number;
+  outcome: 'win' | 'partial' | 'lose';
+}
+
+/** Per-pack state — slotIndex (0-4) → progress record. Slot 0 is always
+ *  unlocked; slot N+1 unlocks when slot N has any non-lose progress
+ *  recorded, mirroring the chapter unlock rule. */
+export interface PackProgress {
+  /** sparse: slotIndex → progress. Missing entries = unplayed/unbeaten. */
+  cleared: Record<number, PackSlotProgress>;
+}
+
+// ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 interface FiredProgressStore {
@@ -107,10 +129,21 @@ interface FiredProgressStore {
   stars: Record<number, 0 | 1 | 2 | 3>;
   lastClearedLevel: number;
 
+  /** v0.9.0 — per-pack progress, keyed by packId. */
+  packProgress: Record<string, PackProgress>;
+
   // Actions
   /** Compute stars from an outcome, persist them, and unlock the next level. */
   awardLevel: (
     level: number,
+    outcome: { compensationMonths: number; maxPossible: number } | null,
+  ) => void;
+  /** v0.9.0 — record a pack-slot completion. Called from FiredResult after
+   *  a pack-launched round wins or partial-wins. Lose outcomes are NOT
+   *  recorded so the slot stays available to retry. */
+  recordPackSlot: (
+    packId: string,
+    slotIndex: number,
     outcome: { compensationMonths: number; maxPossible: number } | null,
   ) => void;
   /** Reset all progress — exposed for a "重新开始" debug button. */
@@ -137,6 +170,36 @@ export const useFiredProgress = create<FiredProgressStore>()(
       unlockedLevels: [1],
       stars: {},
       lastClearedLevel: 0,
+      packProgress: {},
+
+      recordPackSlot: (packId, slotIndex, outcome) => {
+        if (!outcome || outcome.maxPossible <= 0) return;
+        const ratio = Math.max(0, Math.min(1, outcome.compensationMonths / outcome.maxPossible));
+        const result: 'win' | 'partial' | 'lose' =
+          ratio >= 0.8 ? 'win'
+        : ratio >= 0.4 ? 'partial'
+        :                'lose';
+        // Lose → don't record; player can retry without losing the
+        // unlock-chain integrity (slot stays "next to clear").
+        if (result === 'lose') return;
+        set((s) => {
+          const prev = s.packProgress[packId] ?? { cleared: {} };
+          // Best-of: keep the higher ratio if the same slot was already cleared.
+          const existing = prev.cleared[slotIndex];
+          if (existing && existing.ratio >= ratio) return s;
+          return {
+            packProgress: {
+              ...s.packProgress,
+              [packId]: {
+                cleared: {
+                  ...prev.cleared,
+                  [slotIndex]: { ts: Date.now(), ratio, outcome: result },
+                },
+              },
+            },
+          };
+        });
+      },
 
       awardLevel: (level, outcome) => {
         const earned = computeStars(outcome);
@@ -157,7 +220,12 @@ export const useFiredProgress = create<FiredProgressStore>()(
         });
       },
 
-      resetProgress: () => set({ unlockedLevels: [1], stars: {}, lastClearedLevel: 0 }),
+      resetProgress: () => set({
+        unlockedLevels: [1],
+        stars: {},
+        lastClearedLevel: 0,
+        packProgress: {},
+      }),
     }),
     {
       name: STORAGE_KEY,

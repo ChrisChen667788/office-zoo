@@ -6,6 +6,7 @@ import Result from './routes/Result';
 import FiredLanding from './routes/FiredLanding';
 import FiredChat from './routes/FiredChat';
 import FiredResult from './routes/FiredResult';
+import FiredPack from './routes/FiredPack';
 import Talkshow from './routes/Talkshow';
 
 export default function App() {
@@ -19,6 +20,8 @@ export default function App() {
       <Route path="/fired" element={<FiredLanding />} />
       <Route path="/fired/chat" element={<FiredChat />} />
       <Route path="/fired/result" element={<FiredResult />} />
+      {/* v0.9.0 — UGC pack play view (5 sequential scenarios). */}
+      <Route path="/fired/pack/:packId" element={<FiredPack />} />
       <Route path="/talkshow" element={<Talkshow />} />
     </Routes>
   );

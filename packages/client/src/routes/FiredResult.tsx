@@ -216,6 +216,31 @@ export default function FiredResult() {
     try { sessionStorage.removeItem('office-zoo.active-level'); } catch { /* noop */ }
   }, [activeLevelInfo, outcome, awardLevel]);
 
+  // v0.9.0 — if this round was launched from a pack, read the stashed
+  // (packId, slotIndex) from sessionStorage and record completion into
+  // the per-pack progress map. Then offer a "back to pack" button so the
+  // user keeps their flow.
+  const recordPackSlot = useFiredProgress((s) => s.recordPackSlot);
+  const packContext = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem('office-zoo.active-pack');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { packId?: string; slotIndex?: number };
+      if (typeof parsed?.packId !== 'string' || typeof parsed?.slotIndex !== 'number') return null;
+      return { packId: parsed.packId, slotIndex: parsed.slotIndex };
+    } catch { return null; }
+  }, []);
+  const packRecordedRef = useRef(false);
+  useEffect(() => {
+    if (packRecordedRef.current) return;
+    if (!packContext || !outcome) return;
+    packRecordedRef.current = true;
+    recordPackSlot(packContext.packId, packContext.slotIndex, outcome);
+    // One-shot — clear so a subsequent non-pack play doesn't think it's
+    // still inside the pack.
+    try { sessionStorage.removeItem('office-zoo.active-pack'); } catch { /* noop */ }
+  }, [packContext, outcome, recordPackSlot]);
+
   // v0.8.2 — record this round into the user's memory store so HR
   // pre-empts these tactics next time the same scenario is played.
   // One-shot via ref-guard, fires only when we have an outcome AND a
@@ -565,8 +590,18 @@ export default function FiredResult() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.2, duration: 0.5 }}
         >
+          {/* v0.9.0 — when this round was launched from a pack, the
+              primary CTA is "下一关" (jump back to the pack view); the
+              "再来一局" replay button is demoted to a secondary action. */}
           <motion.button
-            onClick={handleReplay}
+            onClick={() => {
+              reset();
+              if (packContext) {
+                navigate(`/fired/pack/${packContext.packId}`);
+              } else {
+                handleReplay();
+              }
+            }}
             className="relative flex-1 overflow-hidden py-4 rounded-2xl text-sm font-semibold tracking-wide"
             style={{
               background: 'linear-gradient(135deg, #ff3355 0%, #ff8a4c 100%)',
@@ -583,7 +618,9 @@ export default function FiredResult() {
               animate={{ x: ['-110%', '210%'] }}
               transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut', repeatDelay: 2.5 }}
             />
-            <span className="relative z-10">再来一局 →</span>
+            <span className="relative z-10">
+              {packContext ? '回到闯关包 →' : '再来一局 →'}
+            </span>
           </motion.button>
           <motion.button
             onClick={() => { reset(); navigate('/'); }}

@@ -11,7 +11,13 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFiredStore, type PersonalityId } from '../stores/firedStore';
 import { useFiredProgress, FIRED_LEVELS, totalStars } from '../stores/firedProgress';
-import { SCENARIOS as SHARED_SCENARIOS, type FiredScenario } from '@furball/shared';
+import {
+  SCENARIOS as SHARED_SCENARIOS,
+  type FiredScenario,
+  type FiredPack,
+  type FiredPersonalityId,
+  type PackSlot,
+} from '@furball/shared';
 import SfxToggle from '../components/game/SfxToggle';
 import { colors } from '../constants/design';
 import { getUserId } from '../utils/userId';
@@ -30,7 +36,7 @@ type ScenarioWithSource = FiredScenario & {
 /** v0.8.1 — sort modes for the scenario grid, mirroring talkshow's. */
 type FiredSortMode = 'default' | 'hot' | 'new';
 
-type EntryMode = 'chapters' | 'custom';
+type EntryMode = 'chapters' | 'custom' | 'packs';
 
 interface Personality {
   id: PersonalityId;
@@ -80,6 +86,7 @@ export default function FiredLanding() {
     () => SHARED_SCENARIOS.map((s) => ({ ...s, source: 'seed' as const })),
   );
   const [creatorOpen, setCreatorOpen] = useState(false);
+  const [packCreatorOpen, setPackCreatorOpen] = useState(false);
   // v0.8.1 — sort mode for the scenario grid + per-IP liked-set + mine filter
   const [sortMode, setSortMode] = useState<FiredSortMode>('default');
   const [mineOnly, setMineOnly] = useState(false);
@@ -338,7 +345,7 @@ export default function FiredLanding() {
                   border: '1px solid rgba(255,255,255,0.08)',
                 }}
               >
-                {(['chapters', 'custom'] as EntryMode[]).map((m) => (
+                {(['chapters', 'custom', 'packs'] as EntryMode[]).map((m) => (
                   <button
                     key={m}
                     onClick={() => setEntryMode(m)}
@@ -351,7 +358,9 @@ export default function FiredLanding() {
                       boxShadow: entryMode === m ? '0 4px 14px rgba(255,51,85,0.35)' : 'none',
                     }}
                   >
-                    {m === 'chapters' ? '🎯 闯关模式' : '⚙️ 自由练习'}
+                    {m === 'chapters' ? '🎯 闯关模式'
+                   : m === 'custom'   ? '⚙️ 自由练习'
+                   :                    '📦 闯关包'}
                   </button>
                 ))}
               </div>
@@ -792,6 +801,16 @@ export default function FiredLanding() {
             </motion.section>
           </motion.div>
           )}
+
+          {/* v0.9.0 — UGC pack browse + create */}
+          {entryMode === 'packs' && (
+            <PacksTab
+              key="packs"
+              scenarios={scenarios}
+              myId={myId}
+              onCreateOpen={() => setPackCreatorOpen(true)}
+            />
+          )}
           </AnimatePresence>
         </div>
       </main>
@@ -809,6 +828,20 @@ export default function FiredLanding() {
               // the user just has to pick a personality and hit Start.
               setEntryMode('custom');
               setSelectedScenario(scenario.id);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* v0.9.0 — UGC pack creator modal. */}
+      <AnimatePresence>
+        {packCreatorOpen && (
+          <CreatePackModal
+            scenarios={scenarios}
+            onCancel={() => setPackCreatorOpen(false)}
+            onCreated={(pack) => {
+              setPackCreatorOpen(false);
+              navigate(`/fired/pack/${pack.id}`);
             }}
           />
         )}
@@ -1068,5 +1101,558 @@ function FiredChip({
     >
       {children}
     </button>
+  );
+}
+
+// ===========================================================================
+// v0.9.0 — UGC packs (browse + create)
+// ===========================================================================
+
+type PackSortMode = 'default' | 'hot' | 'new';
+
+interface PackWithMeta extends FiredPack {
+  slotCount?: number;
+}
+
+function PacksTab({
+  scenarios,
+  myId,
+  onCreateOpen,
+}: {
+  scenarios: ScenarioWithSource[];
+  myId: string;
+  onCreateOpen: () => void;
+}) {
+  const navigate = useNavigate();
+  const scenarioById = useMemo(
+    () => new Map(scenarios.map((s) => [s.id, s])),
+    [scenarios],
+  );
+  const [packs, setPacks] = useState<PackWithMeta[]>([]);
+  const [sortMode, setSortMode] = useState<PackSortMode>('default');
+  const [mineOnly, setMineOnly] = useState(false);
+  const [likedPacks, setLikedPacks] = useState<Set<string>>(new Set());
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+
+  // Load packs for the chosen sort mode + this IP's hearted set.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const url = sortMode === 'default'
+          ? '/api/fired/packs'
+          : `/api/fired/packs?sort=${sortMode}`;
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`packs ${r.status}`);
+        const d = await r.json() as { packs: PackWithMeta[] };
+        if (cancelled) return;
+        const next = d.packs ?? [];
+        setPacks(next);
+        const ids = next.map((p) => p.id).join(',');
+        if (ids) {
+          fetch(`/api/fired/packs/like-state?ids=${encodeURIComponent(ids)}`)
+            .then((r2) => r2.json())
+            .then((d2: { liked?: string[] }) => {
+              if (!cancelled && Array.isArray(d2.liked)) setLikedPacks(new Set(d2.liked));
+            })
+            .catch(() => { /* soft-fail */ });
+        }
+      } catch (e) {
+        if (!cancelled) setLoadErr((e as Error).message ?? '加载失败');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sortMode]);
+
+  const togglePackLike = async (id: string) => {
+    const wasLiked = likedPacks.has(id);
+    setLikedPacks((prev) => {
+      const next = new Set(prev);
+      if (wasLiked) next.delete(id); else next.add(id);
+      return next;
+    });
+    setPacks((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, likes: Math.max(0, (p.likes ?? 0) + (wasLiked ? -1 : 1)) } : p,
+      ),
+    );
+    try {
+      const r = await fetch('/api/fired/packs/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packId: id, liked: !wasLiked }),
+      });
+      if (!r.ok) throw new Error(`like ${r.status}`);
+      const d = await r.json() as { likes: number };
+      setPacks((prev) => prev.map((p) => (p.id === id ? { ...p, likes: d.likes } : p)));
+    } catch {
+      setLikedPacks((prev) => {
+        const next = new Set(prev);
+        if (wasLiked) next.add(id); else next.delete(id);
+        return next;
+      });
+      setPacks((prev) =>
+        prev.map((p) =>
+          p.id === id ? { ...p, likes: Math.max(0, (p.likes ?? 0) + (wasLiked ? 1 : -1)) } : p,
+        ),
+      );
+    }
+  };
+
+  const visiblePacks = useMemo(
+    () => mineOnly ? packs.filter((p) => p.createdBy === myId) : packs,
+    [packs, mineOnly, myId],
+  );
+  const minePackCount = useMemo(
+    () => packs.filter((p) => p.createdBy === myId).length,
+    [packs, myId],
+  );
+
+  return (
+    <motion.div
+      key="packs"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-4"
+    >
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="text-xs tracking-[0.25em] uppercase text-white/45">
+          <span style={{ color: '#ff5588' }}>📦</span> · 闯关包
+        </h2>
+        <span className="text-[10px] tracking-[0.2em] uppercase text-white/30">
+          {packs.length} packs
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        <FiredChip active={sortMode === 'default' && !mineOnly}
+          onClick={() => { setSortMode('default'); setMineOnly(false); }}
+          color="#ffffff">✨ 推荐</FiredChip>
+        <FiredChip active={sortMode === 'hot' && !mineOnly}
+          onClick={() => { setSortMode('hot'); setMineOnly(false); }}
+          color="#ff5588">🔥 最热</FiredChip>
+        <FiredChip active={sortMode === 'new' && !mineOnly}
+          onClick={() => { setSortMode('new'); setMineOnly(false); }}
+          color="#4c9eff">🆕 最新</FiredChip>
+        {minePackCount > 0 && (
+          <FiredChip active={mineOnly}
+            onClick={() => setMineOnly((v) => !v)}
+            color="#ffb84c">
+            👤 我的闯关包 · {minePackCount}
+          </FiredChip>
+        )}
+      </div>
+
+      {loadErr && (
+        <div className="text-center text-red-400 py-6">{loadErr}</div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {!mineOnly && (
+          <CreatePackCard onOpen={onCreateOpen} />
+        )}
+        {visiblePacks.length === 0 && !loadErr && (
+          <div className="col-span-full text-center text-white/45 text-sm py-8">
+            {mineOnly
+              ? '你还没创建过闯关包,去 ✍️ 造一个吧。'
+              : '还没有闯关包,做第一个开拓者?'}
+          </div>
+        )}
+        {visiblePacks.map((pack) => {
+          const isMine = pack.createdBy === myId;
+          const liked = likedPacks.has(pack.id);
+          // Build a tiny preview of the 5 slot scenarios (emoji row).
+          const slotEmojis = pack.slots.map(
+            (s) => scenarioById.get(s.scenarioId)?.emoji ?? '⚖️',
+          );
+          return (
+            <motion.button
+              key={pack.id}
+              onClick={() => navigate(`/fired/pack/${pack.id}`)}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.985 }}
+              className="text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[180px] relative overflow-hidden"
+              style={{
+                background: isMine
+                  ? 'linear-gradient(135deg, rgba(255,184,76,0.10), rgba(255,255,255,0.02))'
+                  : 'linear-gradient(135deg, rgba(255,85,136,0.06), rgba(124,58,237,0.04))',
+                border: `1px solid ${isMine ? 'rgba(255,184,76,0.32)' : 'rgba(255,85,136,0.25)'}`,
+              }}
+            >
+              <div className="flex items-start justify-between">
+                <div className="text-3xl">{pack.emoji}</div>
+                {isMine && (
+                  <span className="px-1.5 py-0.5 rounded-full font-bold tracking-wide text-[9px]"
+                    style={{
+                      color: '#ffb84c',
+                      background: 'rgba(255,184,76,0.15)',
+                      border: '1px solid rgba(255,184,76,0.4)',
+                    }}>
+                    ✨ 我的
+                  </span>
+                )}
+              </div>
+              <div>
+                <div className="text-base font-bold text-white/95 leading-snug mb-1">
+                  {pack.title}
+                </div>
+                <div className="text-[12px] text-white/55 line-clamp-2 leading-relaxed">
+                  {pack.description}
+                </div>
+              </div>
+              <div className="mt-auto flex items-center gap-2 text-[11px]">
+                <div className="flex gap-0.5">
+                  {slotEmojis.map((em, i) => (
+                    <span key={i} className="opacity-80">{em}</span>
+                  ))}
+                </div>
+                <span className="text-white/35 ml-auto">{pack.slots.length} 关</span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); togglePackLike(pack.id); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      togglePackLike(pack.id);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full cursor-pointer transition"
+                  style={{
+                    color: liked ? '#ff5588' : 'rgba(255,255,255,0.55)',
+                    background: liked ? 'rgba(255,85,136,0.12)' : 'rgba(0,0,0,0.25)',
+                    border: `1px solid ${liked ? 'rgba(255,85,136,0.45)' : 'rgba(255,255,255,0.10)'}`,
+                  }}
+                >
+                  <span>{liked ? '❤' : '♡'}</span>
+                  <span className="tabular-nums">{pack.likes ?? 0}</span>
+                </span>
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+function CreatePackCard({ onOpen }: { onOpen: () => void }) {
+  return (
+    <motion.button
+      onClick={onOpen}
+      whileHover={{ y: -2, scale: 1.005 }}
+      whileTap={{ scale: 0.98 }}
+      className="text-left rounded-2xl p-5 transition flex flex-col items-center justify-center gap-2 min-h-[180px] cursor-pointer"
+      style={{
+        background:
+          'radial-gradient(circle at 20% 0%, rgba(255,85,136,0.18), rgba(124,58,237,0.10) 60%, transparent), rgba(255,255,255,0.03)',
+        border: '1px dashed rgba(255,85,136,0.45)',
+        boxShadow: '0 8px 24px -12px rgba(255,85,136,0.4)',
+      }}
+    >
+      <div className="text-3xl mb-1">📦</div>
+      <div className="text-base font-bold text-white/90">造一个闯关包</div>
+      <div className="text-[12px] text-white/55 text-center px-2 leading-relaxed">
+        挑 5 个剧本 + 难度<br/>朋友拿到链接就能挑战
+      </div>
+    </motion.button>
+  );
+}
+
+const PACK_EMOJI_PALETTE = ['📦', '🎯', '🔥', '💼', '⚖️', '🪪', '🌪️', '🧨', '🐉', '👹', '👻', '🩸'];
+const PACK_PERSONALITIES: Array<{ id: FiredPersonalityId; label: string; color: string }> = [
+  { id: 'rookie',  label: '😊 菜鸟',   color: '#6ee7b7' },
+  { id: 'veteran', label: '😏 老油条', color: '#ffb84c' },
+  { id: 'demon',   label: '👿 魔鬼',   color: '#ff4757' },
+];
+
+function CreatePackModal({
+  scenarios,
+  onCancel,
+  onCreated,
+}: {
+  scenarios: ScenarioWithSource[];
+  onCancel: () => void;
+  onCreated: (pack: FiredPack) => void;
+}) {
+  const [title, setTitle]             = useState('');
+  const [description, setDescription] = useState('');
+  const [emoji, setEmoji]             = useState(PACK_EMOJI_PALETTE[0]);
+  /** Slots is an array of (scenarioId, personalityId) — null until the
+   *  user picks. Default personality = 'veteran' (middle difficulty). */
+  const [slots, setSlots] = useState<Array<PackSlot | null>>(
+    () => Array.from({ length: 5 }, () => null),
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [errMsg, setErrMsg]         = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel, submitting]);
+
+  const allFilled = slots.every((s) => s !== null);
+  const canSubmit = title.trim().length >= 2 && description.trim().length >= 4 && allFilled && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setErrMsg(null);
+    try {
+      const r = await fetch('/api/fired/packs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': getUserId(),
+        },
+        body: JSON.stringify({
+          title:       title.trim(),
+          description: description.trim(),
+          emoji,
+          slots: slots.filter((s): s is PackSlot => s !== null),
+        }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.message ?? body.error ?? `创建失败 (${r.status})`);
+      }
+      const pack = await r.json() as FiredPack;
+      onCreated(pack);
+    } catch (e) {
+      setErrMsg((e as Error).message ?? '创建失败,稍后再试');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: 'rgba(8,6,24,0.78)', backdropFilter: 'blur(6px)' }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !submitting) onCancel();
+      }}
+    >
+      <motion.div
+        initial={{ y: 20, scale: 0.96, opacity: 0 }}
+        animate={{ y: 0,  scale: 1,    opacity: 1 }}
+        exit={{    y: 20, scale: 0.96, opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="w-full max-w-2xl rounded-2xl p-6 max-h-[92vh] overflow-y-auto"
+        style={{
+          background: 'linear-gradient(180deg,#1a0d2e,#0d0a25)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+        }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-black text-white">📦 造一个闯关包</h3>
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="text-white/45 hover:text-white/85 transition text-xl leading-none disabled:opacity-30"
+            aria-label="关闭"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Title */}
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5">
+          闯关包名字 (2-32 字)
+        </label>
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value.slice(0, 32))}
+          disabled={submitting}
+          placeholder="比如:大厂裁员实战 5 关"
+          className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/30 outline-none focus:ring-2 focus:ring-rose-400/40 transition mb-3"
+          style={{
+            background: 'rgba(0,0,0,0.35)',
+            border: '1px solid rgba(255,255,255,0.10)',
+          }}
+        />
+
+        {/* Description */}
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5">
+          一句话介绍 (4-140 字)
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value.slice(0, 140))}
+          disabled={submitting}
+          rows={2}
+          placeholder="写给玩家看的:这组关卡讲什么主题、为什么值得打"
+          className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/30 outline-none focus:ring-2 focus:ring-rose-400/40 transition resize-none"
+          style={{
+            background: 'rgba(0,0,0,0.35)',
+            border: '1px solid rgba(255,255,255,0.10)',
+          }}
+        />
+        <div className="text-right text-[10px] text-white/35 mt-1 tabular-nums mb-3">
+          {description.length}/140
+        </div>
+
+        {/* Emoji picker */}
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5">封面 emoji</label>
+        <div className="grid grid-cols-6 gap-1.5 mb-4">
+          {PACK_EMOJI_PALETTE.map((e) => (
+            <button
+              key={e}
+              onClick={() => setEmoji(e)}
+              disabled={submitting}
+              className="aspect-square rounded-lg text-lg transition"
+              style={{
+                background: emoji === e
+                  ? 'linear-gradient(135deg,rgba(255,85,136,0.25),rgba(124,58,237,0.18))'
+                  : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${emoji === e ? 'rgba(255,85,136,0.55)' : 'rgba(255,255,255,0.08)'}`,
+              }}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+
+        {/* 5 slots */}
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5">
+          5 关排序(从易到难推荐:菜鸟 → 老油条 → 魔鬼)
+        </label>
+        <div className="space-y-2 mb-4">
+          {slots.map((slot, idx) => (
+            <PackSlotPicker
+              key={idx}
+              index={idx}
+              slot={slot}
+              scenarios={scenarios}
+              disabled={submitting}
+              onChange={(next) => {
+                setSlots((prev) => prev.map((s, i) => (i === idx ? next : s)));
+              }}
+            />
+          ))}
+        </div>
+
+        {errMsg && (
+          <div className="text-[12px] text-amber-300/90 mb-3">⚠️ {errMsg}</div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="px-4 py-2 rounded-xl text-xs font-semibold tracking-wide text-white/65 transition disabled:opacity-40"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}
+          >
+            取消
+          </button>
+          <button
+            onClick={submit}
+            disabled={!canSubmit}
+            className="px-5 py-2 rounded-xl text-xs font-bold tracking-wide text-white transition disabled:opacity-40"
+            style={{
+              background: 'linear-gradient(135deg,#ff5588,#7c3aed)',
+              boxShadow: '0 6px 18px rgba(255,85,136,0.45)',
+            }}
+          >
+            {submitting ? '🛠️ 打包中…' : '✨ 创建闯关包'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function PackSlotPicker({
+  index,
+  slot,
+  scenarios,
+  disabled,
+  onChange,
+}: {
+  index: number;
+  slot: PackSlot | null;
+  scenarios: ScenarioWithSource[];
+  disabled: boolean;
+  onChange: (next: PackSlot) => void;
+}) {
+  const sc = slot ? scenarios.find((s) => s.id === slot.scenarioId) : null;
+  return (
+    <div
+      className="rounded-xl p-3 flex items-center gap-3"
+      style={{
+        background: slot ? 'rgba(255,85,136,0.06)' : 'rgba(255,255,255,0.02)',
+        border: `1px solid ${slot ? 'rgba(255,85,136,0.25)' : 'rgba(255,255,255,0.06)'}`,
+      }}
+    >
+      <div
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0"
+        style={{
+          background: 'rgba(255,85,136,0.12)',
+          color: '#ff8aa6',
+          border: '1px solid rgba(255,85,136,0.3)',
+        }}
+      >
+        {index + 1}
+      </div>
+      <div className="flex-1 grid grid-cols-2 gap-2">
+        <select
+          value={slot?.scenarioId ?? ''}
+          disabled={disabled}
+          onChange={(e) => {
+            const id = e.target.value;
+            if (!id) return;
+            onChange({ scenarioId: id, personalityId: slot?.personalityId ?? 'veteran' });
+          }}
+          className="rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:ring-1 focus:ring-rose-400/40 transition truncate"
+          style={{
+            background: 'rgba(0,0,0,0.45)',
+            border: '1px solid rgba(255,255,255,0.10)',
+          }}
+        >
+          <option value="" style={{ background: '#1a0d2e' }}>选剧本…</option>
+          {scenarios.map((s) => (
+            <option key={s.id} value={s.id} style={{ background: '#1a0d2e' }}>
+              {s.emoji} {s.title}
+            </option>
+          ))}
+        </select>
+        <div className="flex gap-1">
+          {PACK_PERSONALITIES.map((p) => {
+            const active = slot?.personalityId === p.id;
+            return (
+              <button
+                key={p.id}
+                disabled={disabled || !slot}
+                onClick={() => slot && onChange({ ...slot, personalityId: p.id })}
+                className="flex-1 px-1 py-1 rounded-md text-[10px] font-bold transition disabled:opacity-40"
+                style={{
+                  color: active ? '#fff' : 'rgba(255,255,255,0.5)',
+                  background: active ? `${p.color}30` : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${active ? p.color + '88' : 'rgba(255,255,255,0.06)'}`,
+                }}
+                title={p.label}
+              >
+                {p.label.split(' ')[0]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {sc && (
+        <div className="text-[10px] text-white/45 flex-shrink-0 hidden md:block">
+          {sc.emoji}
+        </div>
+      )}
+    </div>
   );
 }

@@ -25,6 +25,22 @@ import {
   recordMemory,
 } from '../services/memoryStore';
 import { summarizeTactic } from '../services/tacticSummarizer';
+import {
+  listPacks,
+  findPack,
+  addPack,
+  incrementPackLike,
+  decrementPackLike,
+  mintPackId,
+} from '../services/packStore';
+import type { FiredPack } from '@furball/shared';
+
+// v0.9.0 — pack creation gets the same 5/hr cap as scenario gen because
+// it's UGC that other users will see. Like + browse are unlimited.
+const packCreateLimiter = createRateLimiter({ windowMs: 3600_000, max: 5 });
+
+// Per-IP dedup for pack hearts (parallel to scriptStore + scenarioStore).
+const packLikedByIp = new Set<string>();
 
 // v0.8.0 — same 5/hour/IP cap as talkshow's /generate. Scenario gen is even
 // more expensive (1400 maxTokens vs talkshow's 480) so the limit matters
@@ -823,4 +839,161 @@ firedRouter.get('/memory/me', async (c) => {
   if (!userId) return c.json({ stats: {} });
   const stats = await listScenarioStats(userId);
   return c.json({ stats });
+});
+
+// ---------------------------------------------------------------------------
+// v0.9.0 — UGC packs
+// ---------------------------------------------------------------------------
+
+const PackSlotSchema = z.object({
+  scenarioId:    z.string().min(1).max(64),
+  personalityId: z.enum(['rookie', 'veteran', 'demon']),
+});
+const PackCreateSchema = z.object({
+  title:       z.string().min(2).max(32),
+  description: z.string().min(4).max(140),
+  emoji:       z.string().min(1).max(4),
+  // v1 is fixed-length 5; enforced strictly so the play view's slot
+  // grid can be statically laid out.
+  slots:       z.array(PackSlotSchema).length(5),
+});
+
+/** GET /api/fired/packs — merged pack catalogue with sort.
+ *  ?sort=hot|new|default (default = recency). No seed packs in v0.9.0
+ *  yet; we'll bootstrap a few curated examples later if the long-tail
+ *  is too thin. Each pack returns with `slotCount` (always 5 for v1)
+ *  for symmetry with future variable-length packs. */
+firedRouter.get('/packs', async (c) => {
+  const sort = c.req.query('sort') ?? 'default';
+  const packs = await listPacks();
+
+  type Wire = FiredPack & { slotCount: number };
+  let sorted: FiredPack[];
+  if (sort === 'hot') {
+    sorted = [...packs].sort(
+      (a, b) => (b.likes ?? 0) - (a.likes ?? 0)
+              || (b.createdAt ?? 0) - (a.createdAt ?? 0),
+    );
+  } else if (sort === 'new') {
+    sorted = [...packs].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  } else {
+    sorted = [...packs].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  }
+
+  const wire: Wire[] = sorted.map((p) => ({
+    ...p,
+    slotCount: p.slots?.length ?? 0,
+  }));
+  return c.json({ packs: wire });
+});
+
+/** POST /api/fired/packs — create a new pack. Validates that every
+ *  scenarioId in slots actually exists (in seeds OR user-generated)
+ *  before persisting, so the play view doesn't crash on a typo. */
+firedRouter.post('/packs', async (c) => {
+  const ip = ipFromHono(c);
+  const limit = packCreateLimiter.check(ip);
+  if (!limit.ok) {
+    return c.json({
+      error: 'rate limited',
+      message: `每小时最多 5 个闯关包,${Math.ceil(limit.retryAfterSec / 60)} 分钟后再试`,
+      retryAfterSec: limit.retryAfterSec,
+    }, 429, { 'Retry-After': String(limit.retryAfterSec) });
+  }
+
+  const v = await validateBody(c, PackCreateSchema);
+  if (!v.ok) return v.response;
+  const { title, description, emoji, slots } = v.data;
+
+  // Validate every scenarioId exists. One round-trip per slot to getScenario;
+  // bail early on first miss. With 5 slots this is fast even when half hit
+  // the file-backed user store.
+  for (const slot of slots) {
+    const found = await getScenario(slot.scenarioId);
+    if (!found) {
+      return c.json({
+        error: 'scenario not found',
+        message: `闯关包里有一关找不到了:${slot.scenarioId}`,
+      }, 400);
+    }
+  }
+
+  const createdBy = (c.req.header('x-user-id') ?? '').slice(0, 64) || undefined;
+  const pack: FiredPack = {
+    id: mintPackId(),
+    title:       title.trim(),
+    description: description.trim(),
+    emoji,
+    slots,
+    createdBy,
+    createdAt: Date.now(),
+    likes: 0,
+  };
+  await addPack(pack);
+  routeLog.info('Pack created', {
+    id: pack.id,
+    slots: slots.length,
+    createdBy: createdBy ? createdBy.slice(0, 8) + '…' : 'anon',
+  });
+  return c.json(pack);
+});
+
+/** POST /api/fired/packs/like — toggle a pack's heart for THIS IP.
+ *  Same dedup pattern as /like and /talkshow/like. */
+const PackLikeSchema = z.object({
+  packId: z.string().min(1).max(64),
+  liked:  z.boolean().optional(),
+});
+firedRouter.post('/packs/like', async (c) => {
+  const v = await validateBody(c, PackLikeSchema);
+  if (!v.ok) return v.response;
+  const { packId } = v.data;
+  const ip = ipFromHono(c);
+  const dedupKey = `${ip}::${packId}`;
+  const liked = v.data.liked ?? !packLikedByIp.has(dedupKey);
+
+  const pack = await findPack(packId);
+  if (!pack) return c.json({ error: 'pack not found' }, 404);
+
+  const wasLiked = packLikedByIp.has(dedupKey);
+  if (liked === wasLiked) {
+    return c.json({ packId, liked, likes: pack.likes ?? 0 });
+  }
+
+  let likes: number | null;
+  if (liked) {
+    packLikedByIp.add(dedupKey);
+    likes = await incrementPackLike(packId);
+  } else {
+    packLikedByIp.delete(dedupKey);
+    likes = await decrementPackLike(packId);
+  }
+  return c.json({ packId, liked, likes: likes ?? 0 });
+});
+
+/** GET /api/fired/packs/like-state?ids=… — bulk per-IP liked check
+ *  (mirrors /like-state for scenarios). Hearts paint correctly on
+ *  first frame without N round-trips.
+ *
+ *  IMPORTANT: this route MUST be registered BEFORE the catch-all
+ *  /packs/:id below or Hono will match `like-state` as the dynamic
+ *  segment and 404 every request (regression discovered in v0.9.0
+ *  e2e probe — "pack not found" instead of like list). */
+firedRouter.get('/packs/like-state', (c) => {
+  const idsParam = c.req.query('ids') ?? '';
+  if (!idsParam) return c.json({ liked: [] });
+  const ip = ipFromHono(c);
+  const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 200);
+  const liked = ids.filter((id) => packLikedByIp.has(`${ip}::${id}`));
+  return c.json({ liked });
+});
+
+/** GET /api/fired/packs/:id — full pack record. Registered LAST among
+ *  the /packs/* routes so the literal paths (/like, /like-state) win
+ *  the dispatcher race. Hono matches in registration order. */
+firedRouter.get('/packs/:id', async (c) => {
+  const id = c.req.param('id');
+  const pack = await findPack(id);
+  if (!pack) return c.json({ error: 'pack not found' }, 404);
+  return c.json(pack);
 });
