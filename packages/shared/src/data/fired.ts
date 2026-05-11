@@ -34,6 +34,10 @@ export interface FiredPack {
   createdAt?: number;
   /** Community heart count, mirrors scenarios + bits. */
   likes?: number;
+  /** v0.9.2 — total times the pack play view was opened. Drives the
+   *  monthly leaderboard alongside likes. Backfilled to 0 for legacy
+   *  entries by the loader. */
+  plays?: number;
 }
 
 // 1. SCENARIOS — 12 realistic layoff scenarios

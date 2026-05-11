@@ -29,6 +29,7 @@ import {
   addUserScript,
   incrementLike,
   decrementLike,
+  incrementScriptPlay,
 } from '../services/scriptStore';
 import { validateBody } from '../utils/validate';
 import { createRateLimiter } from '../utils/rateLimit';
@@ -60,6 +61,8 @@ function ipFrom(c: { req: { header: (k: string) => string | undefined } }): stri
 // number we care about is on user bits. If we ever want persistent seed
 // likes, promote SEED_SCRIPTS into scriptStore on first boot.
 const seedLikes = new Map<string, number>();
+/** v0.9.2 — same in-mem-only treatment for seed play counts. */
+const seedPlays = new Map<string, number>();
 
 // Persona → role hint string. The /api/tts pipeline reads role to look up
 // a Minimax voice_id; we map our talkshow personas onto the equivalent
@@ -75,21 +78,24 @@ const PERSONA_TO_ROLE_HINT: Record<TalkshowPersona, string> = {
 
 // ---------- /list ----------------------------------------------------------
 
+/** v0.9.2 — last-30-day window for the "monthly" leaderboard. Calendar
+ *  month boundaries would create empty-state spikes on day 1; rolling
+ *  30 days dodges that. Shared across all 3 list endpoints. */
+const MONTHLY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 talkshowRoutes.get('/list', async (c) => {
   // v0.7.4 — merge user-generated bits with seeds.
   // v0.7.5 — supports ?sort=hot|new|default
-  //   default: user bits first (recency), then seeds (curated order)
-  //   hot:     all bits sorted by likes desc, ties broken by recency
-  //   new:     all bits sorted by createdAt desc (seeds get a synthetic
-  //            old timestamp via load-time backfill, so they sink)
+  // v0.9.2 — adds ?sort=monthly (last 30 days, ranked by likes×3 + plays)
   // Both pools strip `text` (full body fetched via /script/:id on tap).
   const sort = c.req.query('sort') ?? 'default';
   const userScripts = await listUserScripts();
 
-  // Project both pools to the same wire shape with `source` + `likes`.
+  // Project both pools to the same wire shape with `source` + `likes` + `plays`.
   type Wire = Omit<TalkshowScript, 'text'> & {
     source: 'user' | 'seed';
     likes: number;
+    plays: number;
     /** Unix ms — used by the hot/new sorts, not displayed in the UI. */
     createdAt: number;
     /** v0.8.1 — surfaced so the client can render "我的创作" filter
@@ -100,17 +106,18 @@ talkshowRoutes.get('/list', async (c) => {
     ...rest,
     source:    'user',
     likes:     rest.likes ?? 0,
+    plays:     rest.plays ?? 0,
     createdAt: rest.createdAt ?? 0,
     createdBy: rest.createdBy,
   }));
-  // Seeds get likes=0 + a fixed-low createdAt so they always sort below
-  // user bits in 'new', and don't compete with real likes in 'hot' until
-  // someone hearts them. Seeds CAN be liked (likes are tracked in the
-  // route layer too — see /like below).
+  // Seeds get in-memory likes + plays + a fixed-low createdAt so they
+  // always sort below user bits in 'new'. They can be liked + played, so
+  // a popular seed CAN make the monthly leaderboard.
   const seedWire: Wire[] = SEED_SCRIPTS.map(({ text: _t, ...rest }, i) => ({
     ...rest,
     source:    'seed',
     likes:     seedLikes.get(rest.id) ?? 0,
+    plays:     seedPlays.get(rest.id) ?? 0,
     createdAt: i,                                   // fixed, monotonic, < real ms
   }));
 
@@ -123,6 +130,26 @@ talkshowRoutes.get('/list', async (c) => {
     summary = [...userWire, ...seedWire].sort(
       (a, b) => b.createdAt - a.createdAt,
     );
+  } else if (sort === 'monthly') {
+    // v0.9.2 — last 30 days filter + ranking by community engagement.
+    // Score = likes × 3 + plays. Likes are scarcer (active vote of approval),
+    // plays are abundant (passive consumption); 3:1 ratio biases the
+    // leaderboard toward genuinely loved content rather than just "got
+    // shared once and listened to 10 times".
+    // Seed bits skip the window filter (their synthetic createdAt is < 100,
+    // so otherwise they'd never appear) — they qualify by their in-memory
+    // plays/likes which DID happen this month.
+    const now = Date.now();
+    const cutoff = now - MONTHLY_WINDOW_MS;
+    const eligible = [
+      ...userWire.filter((w) => w.createdAt >= cutoff),
+      ...seedWire,            // seeds always eligible; their plays gate inclusion
+    ];
+    summary = eligible.sort((a, b) => {
+      const sa = a.likes * 3 + a.plays;
+      const sb = b.likes * 3 + b.plays;
+      return sb - sa || b.createdAt - a.createdAt;
+    });
   } else {
     // default: user bits first by recency, then seeds in their curated order
     summary = [
@@ -190,6 +217,18 @@ talkshowRoutes.post('/tts', async (c) => {
   if (!audio) {
     return c.json({ error: 'TTS generation failed' }, 502);
   }
+
+  // v0.9.2 — bump play count when TTS succeeds for a known scriptId.
+  // Fire-and-forget so a slow disk write never blocks the audio response.
+  // Inline-text TTS calls (no scriptId, used by editor preview) skip this.
+  if (scriptId) {
+    if (isUserGenerated) {
+      void incrementScriptPlay(scriptId);
+    } else {
+      seedPlays.set(scriptId, (seedPlays.get(scriptId) ?? 0) + 1);
+    }
+  }
+
   return new Response(new Uint8Array(audio), {
     headers: {
       'Content-Type': 'audio/mpeg',

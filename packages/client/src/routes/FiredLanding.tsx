@@ -31,10 +31,12 @@ type ScenarioWithSource = FiredScenario & {
   source?: 'seed' | 'user';
   likes?: number;
   createdBy?: string;
+  /** v0.9.2 — total chat sessions opened on this scenario. */
+  plays?: number;
 };
 
-/** v0.8.1 — sort modes for the scenario grid, mirroring talkshow's. */
-type FiredSortMode = 'default' | 'hot' | 'new';
+/** v0.8.1/v0.9.2 — sort modes for the scenario grid, mirroring talkshow. */
+type FiredSortMode = 'default' | 'hot' | 'new' | 'monthly';
 
 type EntryMode = 'chapters' | 'custom' | 'packs';
 
@@ -517,6 +519,9 @@ export default function FiredLanding() {
                 <FiredChip active={sortMode === 'new' && !mineOnly}
                   onClick={() => { setSortMode('new'); setMineOnly(false); }}
                   color="#4c9eff">🆕 最新</FiredChip>
+                <FiredChip active={sortMode === 'monthly' && !mineOnly}
+                  onClick={() => { setSortMode('monthly'); setMineOnly(false); }}
+                  color="#ffb84c">🏆 月度榜</FiredChip>
                 {mineCountFired > 0 && (
                   <FiredChip active={mineOnly}
                     onClick={() => setMineOnly((v) => !v)}
@@ -532,8 +537,12 @@ export default function FiredLanding() {
                     list reloads and the user is auto-selected on the new
                     one so they can pick a personality + start the round. */}
                 {!mineOnly && <CreateScenarioCard onOpen={() => setCreatorOpen(true)} />}
-                {visibleScenarios.map((scenario) => {
+                {visibleScenarios.map((scenario, idx) => {
                   const active = selectedScenario === scenario.id;
+                  // v0.9.2 — top 3 cards in monthly mode get a 🥇🥈🥉 badge.
+                  const medalGlyph = sortMode === 'monthly' && !mineOnly && idx < 3
+                    ? (idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉')
+                    : null;
                   return (
                     <motion.button
                       key={scenario.id}
@@ -542,17 +551,32 @@ export default function FiredLanding() {
                       whileTap={{ scale: 0.985 }}
                       className="relative overflow-hidden rounded-2xl p-5 text-left transition min-h-[168px]"
                       style={{
-                        background: active
-                          ? 'linear-gradient(155deg, rgba(255,51,85,0.14) 0%, rgba(255,138,76,0.08) 100%)'
-                          : 'rgba(255,255,255,0.025)',
-                        border: active
-                          ? '1px solid rgba(255,51,85,0.55)'
-                          : '1px solid rgba(255,255,255,0.06)',
-                        boxShadow: active
-                          ? '0 10px 36px rgba(255,51,85,0.2), inset 0 1px 0 rgba(255,255,255,0.06)'
-                          : 'inset 0 1px 0 rgba(255,255,255,0.03)',
+                        background: medalGlyph
+                          ? 'linear-gradient(155deg, rgba(255,184,76,0.20) 0%, rgba(255,85,136,0.06) 100%)'
+                          : active
+                            ? 'linear-gradient(155deg, rgba(255,51,85,0.14) 0%, rgba(255,138,76,0.08) 100%)'
+                            : 'rgba(255,255,255,0.025)',
+                        border: medalGlyph
+                          ? '1px solid rgba(255,184,76,0.55)'
+                          : active
+                            ? '1px solid rgba(255,51,85,0.55)'
+                            : '1px solid rgba(255,255,255,0.06)',
+                        boxShadow: medalGlyph
+                          ? '0 10px 36px rgba(255,184,76,0.22), inset 0 1px 0 rgba(255,255,255,0.06)'
+                          : active
+                            ? '0 10px 36px rgba(255,51,85,0.2), inset 0 1px 0 rgba(255,255,255,0.06)'
+                            : 'inset 0 1px 0 rgba(255,255,255,0.03)',
                       }}
                     >
+                      {medalGlyph && (
+                        <div
+                          className="absolute top-2 left-2 text-2xl leading-none select-none z-20"
+                          style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))' }}
+                          aria-label={`月度榜第 ${idx + 1} 名`}
+                        >
+                          {medalGlyph}
+                        </div>
+                      )}
                       {active && (
                         <motion.div
                           aria-hidden
@@ -666,6 +690,20 @@ export default function FiredLanding() {
                           >
                             <span className="leading-none">{likedIds.has(scenario.id) ? '❤' : '♡'}</span>
                             <span className="tabular-nums">{scenario.likes ?? 0}</span>
+                          </span>
+                        )}
+                        {/* v0.9.2 — play count badge, only when > 0. */}
+                        {(scenario.plays ?? 0) > 0 && (
+                          <span
+                            className="absolute bottom-3 left-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] tabular-nums"
+                            style={{
+                              color: 'rgba(255,255,255,0.55)',
+                              background: 'rgba(0,0,0,0.25)',
+                              border: '1px solid rgba(255,255,255,0.10)',
+                            }}
+                            title="累计开局次数"
+                          >
+                            ▶ {scenario.plays ?? 0}
                           </span>
                         )}
                       </div>
@@ -1108,7 +1146,7 @@ function FiredChip({
 // v0.9.0 — UGC packs (browse + create)
 // ===========================================================================
 
-type PackSortMode = 'default' | 'hot' | 'new';
+type PackSortMode = 'default' | 'hot' | 'new' | 'monthly';
 
 interface PackWithMeta extends FiredPack {
   slotCount?: number;
@@ -1236,6 +1274,9 @@ function PacksTab({
         <FiredChip active={sortMode === 'new' && !mineOnly}
           onClick={() => { setSortMode('new'); setMineOnly(false); }}
           color="#4c9eff">🆕 最新</FiredChip>
+        <FiredChip active={sortMode === 'monthly' && !mineOnly}
+          onClick={() => { setSortMode('monthly'); setMineOnly(false); }}
+          color="#ffb84c">🏆 月度榜</FiredChip>
         {minePackCount > 0 && (
           <FiredChip active={mineOnly}
             onClick={() => setMineOnly((v) => !v)}
@@ -1260,9 +1301,14 @@ function PacksTab({
               : '还没有闯关包,做第一个开拓者?'}
           </div>
         )}
-        {visiblePacks.map((pack) => {
+        {visiblePacks.map((pack, idx) => {
           const isMine = pack.createdBy === myId;
           const liked = likedPacks.has(pack.id);
+          const playCount = pack.plays ?? 0;
+          // v0.9.2 — top-3 monthly leaderboard medals.
+          const medalGlyph = sortMode === 'monthly' && !mineOnly && idx < 3
+            ? (idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉')
+            : null;
           // Build a tiny preview of the 5 slot scenarios (emoji row).
           const slotEmojis = pack.slots.map(
             (s) => scenarioById.get(s.scenarioId)?.emoji ?? '⚖️',
@@ -1275,14 +1321,28 @@ function PacksTab({
               whileTap={{ scale: 0.985 }}
               className="text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[180px] relative overflow-hidden"
               style={{
-                background: isMine
-                  ? 'linear-gradient(135deg, rgba(255,184,76,0.10), rgba(255,255,255,0.02))'
-                  : 'linear-gradient(135deg, rgba(255,85,136,0.06), rgba(124,58,237,0.04))',
-                border: `1px solid ${isMine ? 'rgba(255,184,76,0.32)' : 'rgba(255,85,136,0.25)'}`,
+                background: medalGlyph
+                  ? 'linear-gradient(135deg, rgba(255,184,76,0.16), rgba(255,85,136,0.06))'
+                  : isMine
+                    ? 'linear-gradient(135deg, rgba(255,184,76,0.10), rgba(255,255,255,0.02))'
+                    : 'linear-gradient(135deg, rgba(255,85,136,0.06), rgba(124,58,237,0.04))',
+                border: `1px solid ${medalGlyph
+                  ? 'rgba(255,184,76,0.55)'
+                  : isMine ? 'rgba(255,184,76,0.32)' : 'rgba(255,85,136,0.25)'}`,
+                boxShadow: medalGlyph ? '0 6px 24px rgba(255,184,76,0.25)' : undefined,
               }}
             >
+              {medalGlyph && (
+                <div
+                  className="absolute top-2 left-2 text-2xl leading-none select-none z-20"
+                  style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))' }}
+                  aria-label={`月度榜第 ${idx + 1} 名`}
+                >
+                  {medalGlyph}
+                </div>
+              )}
               <div className="flex items-start justify-between">
-                <div className="text-3xl">{pack.emoji}</div>
+                <div className={`text-3xl ${medalGlyph ? 'pl-9' : ''}`}>{pack.emoji}</div>
                 {isMine && (
                   <span className="px-1.5 py-0.5 rounded-full font-bold tracking-wide text-[9px]"
                     style={{
@@ -1308,6 +1368,14 @@ function PacksTab({
                     <span key={i} className="opacity-80">{em}</span>
                   ))}
                 </div>
+                {/* v0.9.2 — play count badge, only when > 0. Sits in the
+                    same line as slot count + heart so the metadata row
+                    stays compact. */}
+                {playCount > 0 && (
+                  <span className="text-white/40 tabular-nums" title="累计开包次数">
+                    ▶ {playCount}
+                  </span>
+                )}
                 <span className="text-white/35 ml-auto">{pack.slots.length} 关</span>
                 <span
                   role="button"

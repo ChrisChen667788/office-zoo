@@ -16,6 +16,7 @@ import {
   addUserScenario,
   incrementScenarioLike,
   decrementScenarioLike,
+  incrementScenarioPlay,
 } from '../services/scenarioStore';
 import { generateFiredScenario } from '../services/firedScenarioGenerator';
 import { createRateLimiter } from '../utils/rateLimit';
@@ -31,6 +32,7 @@ import {
   addPack,
   incrementPackLike,
   decrementPackLike,
+  incrementPackPlay,
   mintPackId,
 } from '../services/packStore';
 import type { FiredPack } from '@furball/shared';
@@ -58,6 +60,9 @@ function ipFromHono(c: { req: { header: (k: string) => string | undefined } }): 
  *  scenarios get an in-memory like counter; user scenarios persist to disk. */
 const scenarioLikedByIp = new Set<string>();
 const seedScenarioLikes = new Map<string, number>();
+/** v0.9.2 — same in-mem-only treatment for seed plays. */
+const seedScenarioPlays = new Map<string, number>();
+const seedPackPlays     = new Map<string, number>(); // unused for now (no seed packs); placeholder for symmetry
 
 const routeLog = logger.child({ component: 'fired' });
 
@@ -262,6 +267,19 @@ firedRouter.post('/chat', async (c) => {
     const userTurnCount = messages.filter((m) => m.role === 'user').length;
     // forceOver=true after the player has spoken MAX_ROUNDS times
     const forceOver = userTurnCount >= MAX_ROUNDS;
+
+    // v0.9.2 — bump play count when this is a fresh chat session.
+    // Fire-and-forget so a slow disk write never blocks LLM call below.
+    // Counts a "play" when the chat opens (isInit), not per turn — that
+    // way a 10-round game = 1 play, not 10.
+    if (isInit) {
+      const isUserScenario = !FIRED_SCENARIOS.some((s) => s.id === scenarioId);
+      if (isUserScenario) {
+        void incrementScenarioPlay(scenarioId);
+      } else {
+        seedScenarioPlays.set(scenarioId, (seedScenarioPlays.get(scenarioId) ?? 0) + 1);
+      }
+    }
 
     const hrPrompt = isInit
       ? `你是HR，现在把员工叫到会议室，开始这场裁员谈判。请说出你的开场白（2-3句话，符合你的性格特点和场景设定）。`
@@ -592,8 +610,9 @@ function clampScore(val: unknown): number {
 
 /** GET /api/fired/scenarios — merged seed + user-generated catalogue.
  *  v0.8.1 supports `?sort=hot|new|default`, mirroring talkshow's /list.
- *  Each scenario carries `likes` and `createdAt` (synthetic-monotonic for
- *  seeds so they sink in 'new'). */
+ *  v0.9.2 adds `?sort=monthly` (last 30 days, ranked by likes×3 + plays).
+ *  Each scenario carries `likes`, `plays`, and `createdAt` (synthetic-
+ *  monotonic for seeds so they sink in 'new'). */
 firedRouter.get('/scenarios', async (c) => {
   const sort = c.req.query('sort') ?? 'default';
   const userScenarios = await listUserScenarios();
@@ -601,6 +620,7 @@ firedRouter.get('/scenarios', async (c) => {
   type Wire = FiredScenario & {
     source: 'seed' | 'user';
     likes: number;
+    plays: number;
     createdAt: number;
     /** v0.8.1 — surfaced so the client can render "我的创作" filter
      *  without a second round-trip. */
@@ -610,6 +630,7 @@ firedRouter.get('/scenarios', async (c) => {
     ...s,
     source:    'user',
     likes:     s.likes ?? 0,
+    plays:     s.plays ?? 0,
     createdAt: s.createdAt ?? 0,
     createdBy: s.createdBy,
   }));
@@ -617,6 +638,7 @@ firedRouter.get('/scenarios', async (c) => {
     ...s,
     source:    'seed',
     likes:     seedScenarioLikes.get(s.id) ?? 0,
+    plays:     seedScenarioPlays.get(s.id) ?? 0,
     createdAt: i,                                    // fixed, monotonic, < real ms
   }));
 
@@ -629,6 +651,21 @@ firedRouter.get('/scenarios', async (c) => {
     scenarios = [...userWire, ...seedWire].sort(
       (a, b) => b.createdAt - a.createdAt,
     );
+  } else if (sort === 'monthly') {
+    // v0.9.2 — same monthly leaderboard rules as talkshow /list.
+    // Score = likes × 3 + plays; user-content gated by 30-day window;
+    // seeds always eligible (qualified by current-month plays/likes).
+    const now = Date.now();
+    const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+    const eligible = [
+      ...userWire.filter((w) => w.createdAt >= cutoff),
+      ...seedWire,
+    ];
+    scenarios = eligible.sort((a, b) => {
+      const sa = a.likes * 3 + a.plays;
+      const sb = b.likes * 3 + b.plays;
+      return sb - sa || b.createdAt - a.createdAt;
+    });
   } else {
     scenarios = [
       ...userWire.sort((a, b) => b.createdAt - a.createdAt),
@@ -859,10 +896,9 @@ const PackCreateSchema = z.object({
 });
 
 /** GET /api/fired/packs — merged pack catalogue with sort.
- *  ?sort=hot|new|default (default = recency). No seed packs in v0.9.0
- *  yet; we'll bootstrap a few curated examples later if the long-tail
- *  is too thin. Each pack returns with `slotCount` (always 5 for v1)
- *  for symmetry with future variable-length packs. */
+ *  ?sort=hot|new|monthly|default. v0.9.2 adds monthly: last-30-day
+ *  filter + score = likes×3 + plays. Each pack returns with `slotCount`
+ *  (always 5 for v1) for symmetry with future variable-length packs. */
 firedRouter.get('/packs', async (c) => {
   const sort = c.req.query('sort') ?? 'default';
   const packs = await listPacks();
@@ -876,12 +912,24 @@ firedRouter.get('/packs', async (c) => {
     );
   } else if (sort === 'new') {
     sorted = [...packs].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  } else if (sort === 'monthly') {
+    // v0.9.2 — last-30-day window + community engagement score (likes×3 + plays).
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    sorted = packs
+      .filter((p) => (p.createdAt ?? 0) >= cutoff)
+      .sort((a, b) => {
+        const sa = (a.likes ?? 0) * 3 + (a.plays ?? 0);
+        const sb = (b.likes ?? 0) * 3 + (b.plays ?? 0);
+        return sb - sa || (b.createdAt ?? 0) - (a.createdAt ?? 0);
+      });
   } else {
     sorted = [...packs].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
   }
 
   const wire: Wire[] = sorted.map((p) => ({
     ...p,
+    likes:     p.likes ?? 0,
+    plays:     p.plays ?? 0,
     slotCount: p.slots?.length ?? 0,
   }));
   return c.json({ packs: wire });
@@ -990,10 +1038,12 @@ firedRouter.get('/packs/like-state', (c) => {
 
 /** GET /api/fired/packs/:id — full pack record. Registered LAST among
  *  the /packs/* routes so the literal paths (/like, /like-state) win
- *  the dispatcher race. Hono matches in registration order. */
+ *  the dispatcher race. Hono matches in registration order.
+ *  v0.9.2 — bumps play count on each load (fire-and-forget). */
 firedRouter.get('/packs/:id', async (c) => {
   const id = c.req.param('id');
   const pack = await findPack(id);
   if (!pack) return c.json({ error: 'pack not found' }, 404);
+  void incrementPackPlay(id);
   return c.json(pack);
 });

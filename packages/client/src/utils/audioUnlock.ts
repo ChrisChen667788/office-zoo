@@ -94,6 +94,27 @@ export function primeAudio(): void {
  * Returns a promise that resolves true on success, false if playback was
  * blocked. Callers can use `false` to surface a "tap to unmute" UI.
  */
+/** v0.9.2 — current playback speed for the shared TTS element. Applied
+ *  to every subsequent playTtsFromUrl, persists across calls. Default 1.0. */
+let currentTtsSpeed = 1.0;
+
+/** v0.9.2 — set the playback speed for FUTURE plays AND any currently
+ *  playing track. Range clamped to [0.5, 2.0] which is the safe HTMLMedia
+ *  range across modern browsers. Persisted in-memory only — pages can
+ *  re-init their default rate per route. */
+export function setTtsPlaybackSpeed(rate: number): void {
+  currentTtsSpeed = Math.max(0.5, Math.min(2.0, rate));
+  if (sharedAudio) {
+    try { sharedAudio.playbackRate = currentTtsSpeed; } catch { /* noop */ }
+  }
+}
+
+/** Read the current speed (for UI selectors that need to highlight
+ *  the active option). */
+export function getTtsPlaybackSpeed(): number {
+  return currentTtsSpeed;
+}
+
 export async function playTtsFromUrl(url: string): Promise<boolean> {
   const el = getShared();
   if (!el) return false;
@@ -109,6 +130,9 @@ export async function playTtsFromUrl(url: string): Promise<boolean> {
   try {
     el.src = url;
     el.currentTime = 0;
+    // v0.9.2 — apply the most recently chosen playback speed so a user's
+    // 1.25× preference sticks across bit changes within the binge flow.
+    el.playbackRate = currentTtsSpeed;
     await el.play();
     unlocked = true;
     return true;

@@ -41,6 +41,10 @@ export interface StoredScript extends TalkshowScript {
   createdAt?: number;
   /** v0.8.1 — pseudonymous user id from X-User-Id header. */
   createdBy?: string;
+  /** v0.9.2 — total times this bit's TTS has been generated (= played).
+   *  Surfaces on cards as "▶ N" + drives the monthly leaderboard
+   *  alongside likes. Backfilled to 0 for legacy entries. */
+  plays?: number;
 }
 
 interface StoreShape {
@@ -57,13 +61,14 @@ async function loadFromDisk(): Promise<StoreShape> {
     if (!parsed.scripts || !Array.isArray(parsed.scripts)) {
       return { scripts: [] };
     }
-    // v0.7.5 backfill: pre-likes entries get likes=0, pre-createdAt entries
-    // get a synthetic timestamp by index so sort-by-recency stays stable
-    // across the rollout. Persisted on next mutation.
+    // v0.7.5/v0.9.2 backfill: pre-versioned entries get likes=0, plays=0,
+    // and synthetic monotonic createdAt timestamps so sort-by-recency
+    // stays stable across rollouts. Persisted on next mutation.
     const now = Date.now();
     const scripts = parsed.scripts.map((s, idx) => ({
       ...s,
       likes:     typeof s.likes === 'number' ? s.likes : 0,
+      plays:     typeof s.plays === 'number' ? s.plays : 0,
       // older = smaller. Cap at 0 (epoch) so synthetic ts never exceeds real ones.
       createdAt: typeof s.createdAt === 'number' ? s.createdAt : (now - (parsed.scripts!.length - idx) * 1000),
     }));
@@ -162,6 +167,16 @@ export async function decrementLike(id: string): Promise<number | null> {
   s.scripts[idx].likes = Math.max(0, (s.scripts[idx].likes ?? 0) - 1);
   await persist(s);
   return s.scripts[idx].likes!;
+}
+
+/** v0.9.2 — bump the play counter. No-op when the id is missing
+ *  (caller is fire-and-forget so we don't want to throw). */
+export async function incrementScriptPlay(id: string): Promise<void> {
+  const s = await ensureLoaded();
+  const idx = s.scripts.findIndex((x) => x.id === id);
+  if (idx < 0) return;
+  s.scripts[idx].plays = (s.scripts[idx].plays ?? 0) + 1;
+  await persist(s);
 }
 
 /** Mint a unique id with the `bit-u-XXXXXX` namespace (the `u` distinguishes

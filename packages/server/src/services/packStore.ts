@@ -39,12 +39,13 @@ async function loadFromDisk(): Promise<StoreShape> {
     if (!parsed.packs || !Array.isArray(parsed.packs)) {
       return { packs: [] };
     }
-    // Backfill likes/createdAt for any pre-versioned entries (won't fire
-    // for fresh stores but keeps us robust if the format ever changes).
+    // Backfill likes/plays/createdAt for any pre-versioned entries (won't
+    // fire for fresh stores but keeps us robust if the format ever changes).
     const now = Date.now();
     const packs = parsed.packs.map((p, idx) => ({
       ...p,
       likes:     typeof p.likes === 'number' ? p.likes : 0,
+      plays:     typeof p.plays === 'number' ? p.plays : 0,
       createdAt: typeof p.createdAt === 'number'
         ? p.createdAt
         : (now - (parsed.packs!.length - idx) * 1000),
@@ -127,6 +128,15 @@ export async function decrementPackLike(id: string): Promise<number | null> {
   s.packs[idx].likes = Math.max(0, (s.packs[idx].likes ?? 0) - 1);
   await persist(s);
   return s.packs[idx].likes!;
+}
+
+/** v0.9.2 — bump play counter (called from GET /packs/:id). Soft-fails. */
+export async function incrementPackPlay(id: string): Promise<void> {
+  const s = await ensureLoaded();
+  const idx = s.packs.findIndex((p) => p.id === id);
+  if (idx < 0) return;
+  s.packs[idx].plays = (s.packs[idx].plays ?? 0) + 1;
+  await persist(s);
 }
 
 /** Mint a unique id with `pack-u-XXXXXX` namespace (parallel to bit-u-…

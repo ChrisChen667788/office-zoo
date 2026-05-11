@@ -36,6 +36,9 @@ export interface StoredScenario extends FiredScenario {
    *  cryptographic identity; just a uuid the client stashes in
    *  localStorage on first visit. Powers the "我的创作" filter. */
   createdBy?: string;
+  /** v0.9.2 — total chat sessions opened on this scenario. Drives
+   *  monthly leaderboard alongside likes. */
+  plays?: number;
 }
 
 interface StoreShape {
@@ -56,6 +59,7 @@ async function loadFromDisk(): Promise<StoreShape> {
     const scenarios = parsed.scenarios.map((s, idx) => ({
       ...s,
       likes:     typeof s.likes === 'number' ? s.likes : 0,
+      plays:     typeof s.plays === 'number' ? s.plays : 0,
       createdAt: typeof s.createdAt === 'number'
         ? s.createdAt
         : (now - (parsed.scenarios!.length - idx) * 1000),
@@ -144,6 +148,16 @@ export async function decrementScenarioLike(id: string): Promise<number | null> 
   s.scenarios[idx].likes = Math.max(0, (s.scenarios[idx].likes ?? 0) - 1);
   await persist(s);
   return s.scenarios[idx].likes!;
+}
+
+/** v0.9.2 — bump play counter (called when /chat opens this scenario
+ *  for the first message of a session). Soft-fails on missing id. */
+export async function incrementScenarioPlay(id: string): Promise<void> {
+  const s = await ensureLoaded();
+  const idx = s.scenarios.findIndex((x) => x.id === id);
+  if (idx < 0) return;
+  s.scenarios[idx].plays = (s.scenarios[idx].plays ?? 0) + 1;
+  await persist(s);
 }
 
 /** Mint a unique id with the `fired-u-XXXXXX` namespace (parallel to

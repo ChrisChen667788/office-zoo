@@ -24,6 +24,8 @@ import {
   speakViaBrowserTTS,
   hasBrowserTTS,
   stopTts,
+  setTtsPlaybackSpeed,
+  getTtsPlaybackSpeed,
 } from '../utils/audioUnlock';
 import { getUserId } from '../utils/userId';
 
@@ -43,13 +45,16 @@ interface ScriptSummary {
   /** v0.8.1 — pseudonymous creator id (matches localStorage). Powers the
    *  "我的创作" filter chip. */
   createdBy?: string;
+  /** v0.9.2 — total times this bit's TTS has been generated. Drives the
+   *  "▶ N" play-count badge + monthly leaderboard ranking. */
+  plays?: number;
 }
 
 interface ScriptFull extends ScriptSummary {
   text: string;
 }
 
-type SortMode = 'default' | 'hot' | 'new';
+type SortMode = 'default' | 'hot' | 'new' | 'monthly';
 
 type Persona = 'shaonv' | 'yujie' | 'qingse' | 'jingying' | 'badao' | 'qingnian';
 type Tag =
@@ -350,6 +355,13 @@ export default function Talkshow() {
               >
                 🆕 最新
               </Chip>
+              <Chip
+                active={sortMode === 'monthly' && !mineOnly}
+                onClick={() => { setSortMode('monthly'); setMineOnly(false); }}
+                color="#ffb84c"
+              >
+                🏆 月度榜
+              </Chip>
               {mineCount > 0 && (
                 <Chip
                   active={mineOnly}
@@ -398,12 +410,15 @@ export default function Talkshow() {
                     setCreatorOpen(true);
                   }}
                 />
-                {visible.map((s) => (
+                {visible.map((s, idx) => (
                   <ScriptCard
                     key={s.id}
                     script={s}
                     liked={likedIds.has(s.id)}
                     onLikeToggle={() => toggleLike(s.id)}
+                    /* v0.9.2 — show 🥇🥈🥉 medals on top 3 cards, but only
+                       in monthly mode (otherwise the medals are noise). */
+                    medal={sortMode === 'monthly' && idx < 3 ? (idx as 0 | 1 | 2) : undefined}
                     onSelect={async () => {
                       // Prime audio inside the click gesture so Safari
                       // autoplay policy lets us play TTS later.
@@ -483,6 +498,7 @@ function ScriptCard({
   onSelect,
   liked,
   onLikeToggle,
+  medal,
 }: {
   script: ScriptSummary;
   onSelect: () => void;
@@ -490,25 +506,44 @@ function ScriptCard({
    *  surfaced via /like-state batch fetch). Drives heart fill. */
   liked: boolean;
   onLikeToggle: () => void;
+  /** v0.9.2 — 0/1/2 = 🥇/🥈/🥉 medal in monthly leaderboard. */
+  medal?: 0 | 1 | 2;
 }) {
   const tagCfg = TAG_LABELS[script.tag] ?? { label: script.tag, color: '#888' };
   const personaCfg = PERSONA_LABELS[script.persona] ?? { emoji: '🎤', label: script.persona };
   const isUser = script.source === 'user';
   const likeCount = script.likes ?? 0;
+  const playCount = script.plays ?? 0;
+  const medalGlyph = medal === 0 ? '🥇' : medal === 1 ? '🥈' : medal === 2 ? '🥉' : null;
   return (
     <motion.button
       onClick={onSelect}
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.98 }}
-      className="text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[140px] relative"
+      className="text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[140px] relative overflow-hidden"
       style={{
-        background: isUser
-          ? 'linear-gradient(135deg, rgba(255,184,76,0.08), rgba(255,255,255,0.02))'
-          : 'rgba(255,255,255,0.025)',
-        border: `1px solid ${isUser ? 'rgba(255,184,76,0.28)' : 'rgba(255,255,255,0.06)'}`,
+        background: medalGlyph
+          ? 'linear-gradient(135deg, rgba(255,184,76,0.16), rgba(255,85,136,0.05))'
+          : isUser
+            ? 'linear-gradient(135deg, rgba(255,184,76,0.08), rgba(255,255,255,0.02))'
+            : 'rgba(255,255,255,0.025)',
+        border: `1px solid ${medalGlyph
+          ? 'rgba(255,184,76,0.55)'
+          : isUser ? 'rgba(255,184,76,0.28)' : 'rgba(255,255,255,0.06)'}`,
+        boxShadow: medalGlyph ? '0 6px 24px rgba(255,184,76,0.25)' : undefined,
       }}
     >
-      <div className="flex items-center justify-between text-[10px]">
+      {/* v0.9.2 medal — corner badge in monthly leaderboard top 3. */}
+      {medalGlyph && (
+        <div
+          className="absolute top-2 left-2 text-2xl leading-none select-none"
+          style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))' }}
+          aria-label={`榜单第 ${(medal ?? 0) + 1} 名`}
+        >
+          {medalGlyph}
+        </div>
+      )}
+      <div className={`flex items-center justify-between text-[10px] ${medalGlyph ? 'pl-9' : ''}`}>
         <span
           className="px-2 py-0.5 rounded-full font-bold tracking-wide"
           style={{
@@ -542,6 +577,14 @@ function ScriptCard({
       <div className="text-[11px] text-white/55 mt-auto flex items-center gap-1.5">
         <span>{personaCfg.emoji}</span>
         <span>{personaCfg.label}</span>
+        {/* v0.9.2 play count — only shows when > 0 to dodge 0/0/0 noise on
+            fresh seeds. tabular-nums + same color as persona label keeps it
+            quiet. */}
+        {playCount > 0 && (
+          <span className="text-white/40 tabular-nums" title="播放次数">
+            · ▶ {playCount}
+          </span>
+        )}
         {/* Heart pill — stops click bubbling so tapping the heart doesn't
             also navigate into the player. Slightly bumped opacity when
             liked so the count reads at-a-glance from across the grid. */}
@@ -841,6 +884,10 @@ function PlayerView({
   onLikeToggle: () => void;
 }) {
   const [revealedChars, setRevealedChars] = useState(0);
+  /** v0.9.2 — TTS playback speed (0.85 / 1.0 / 1.25). Initialized from
+   *  audioUnlock module so the user's last-chosen speed survives bit
+   *  navigation within the binge flow. */
+  const [speed, setSpeed] = useState<number>(() => getTtsPlaybackSpeed());
   // 'fetching' = TTS request in flight; 'ready' = blob fetched but waiting
   // for a user click (Safari autoplay denial); 'playing' = audio rolling
   // (server MP3); 'browser' = playing via Web Speech API fallback (server
@@ -1111,6 +1158,30 @@ function PlayerView({
             下一段 →
           </button>
         </div>
+      </div>
+
+      {/* v0.9.2 — TTS speed picker. Persists across bit changes (state lives
+          in the audioUnlock module so a 1.25× preference holds for the
+          whole binge session). */}
+      <div className="flex items-center justify-end gap-1.5 mb-3 text-[10px]">
+        <span className="text-white/40 mr-1">语速</span>
+        {([0.85, 1.0, 1.25] as const).map((rate) => (
+          <button
+            key={rate}
+            onClick={() => { setTtsPlaybackSpeed(rate); setSpeed(rate); }}
+            className="px-2 py-0.5 rounded font-bold tracking-wide transition tabular-nums"
+            style={{
+              color: speed === rate ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: speed === rate
+                ? 'linear-gradient(135deg, rgba(255,85,136,0.25), rgba(124,58,237,0.18))'
+                : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${speed === rate ? 'rgba(255,85,136,0.55)' : 'rgba(255,255,255,0.08)'}`,
+            }}
+            title={rate === 1.0 ? '正常' : rate < 1 ? '慢一点' : '快一点'}
+          >
+            {rate === 1.0 ? '1×' : `${rate}×`}
+          </button>
+        ))}
       </div>
 
       <div className="flex items-center gap-2 mb-3 text-[10px]">
