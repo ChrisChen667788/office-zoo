@@ -28,6 +28,9 @@ import {
   getTtsPlaybackSpeed,
 } from '../utils/audioUnlock';
 import { getUserId } from '../utils/userId';
+import { SkeletonCard } from '../components/ui/SkeletonCard';
+import { EmptyState }   from '../components/ui/EmptyState';
+import { WaveformBars } from '../components/ui/WaveformBars';
 
 interface ScriptSummary {
   id: string;
@@ -398,7 +401,13 @@ export default function Talkshow() {
 
             {/* Grid */}
             {loadErr ? (
-              <div className="text-center text-red-400 py-12">{loadErr}</div>
+              <EmptyState
+                emoji="⚠️"
+                title="段子库一时打不开"
+                body={loadErr}
+                cta={{ label: '↻ 重试', onClick: () => window.location.reload() }}
+                glow="rgba(255,184,76,0.18)"
+              />
             ) : (
               <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {/* v0.7.4 creator card — sticky first slot. Tapping opens
@@ -410,6 +419,24 @@ export default function Talkshow() {
                     setCreatorOpen(true);
                   }}
                 />
+                {/* v0.9.2.1 — first-load skeleton row. Renders only while
+                    the initial /list fetch is in flight (scripts empty +
+                    no error). 5 placeholders fill the typical above-fold
+                    grid (the +1 creator card already takes slot 0). */}
+                {scripts.length === 0 && !loadErr && (
+                  <SkeletonCard variant="compact" count={5} />
+                )}
+                {/* Empty state — happens when the user is on "我的创作"
+                    filter with zero authored bits. Default sort always has
+                    seeds, so this only fires for the mine-filter dead-end. */}
+                {scripts.length > 0 && visible.length === 0 && (
+                  <EmptyState
+                    emoji="✍️"
+                    title="还没有你写的段子"
+                    body="点上面的「✨ 自己写一段」试试,AI 帮你把吐槽编成段子"
+                    cta={{ label: '✨ 写第一段', onClick: () => setCreatorOpen(true) }}
+                  />
+                )}
                 {visible.map((s, idx) => (
                   <ScriptCard
                     key={s.id}
@@ -520,7 +547,7 @@ function ScriptCard({
       onClick={onSelect}
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.98 }}
-      className="text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[140px] relative overflow-hidden"
+      className="hover-sheen frost-card text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[140px] relative overflow-hidden"
       style={{
         background: medalGlyph
           ? 'linear-gradient(135deg, rgba(255,184,76,0.16), rgba(255,85,136,0.05))'
@@ -533,11 +560,11 @@ function ScriptCard({
         boxShadow: medalGlyph ? '0 6px 24px rgba(255,184,76,0.25)' : undefined,
       }}
     >
-      {/* v0.9.2 medal — corner badge in monthly leaderboard top 3. */}
+      {/* v0.9.2 medal — corner badge in monthly leaderboard top 3.
+          v0.9.2.1 adds the .medal-pulse class for an ambient glow breath. */}
       {medalGlyph && (
         <div
-          className="absolute top-2 left-2 text-2xl leading-none select-none"
-          style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))' }}
+          className="medal-pulse absolute top-2 left-2 text-2xl leading-none select-none z-10"
           aria-label={`榜单第 ${(medal ?? 0) + 1} 名`}
         >
           {medalGlyph}
@@ -1203,32 +1230,102 @@ function PlayerView({
         {script.title}
       </h2>
 
-      {/* Avatar — placeholder static emoji disc. v0.7.x → AI image / Veo.
-          Pulses on either real-audio or browser-TTS playback so the visual
-          beat matches whichever channel is actually speaking. */}
+      {/* v0.9.2.1 — Avatar treatment redesigned for premium player feel:
+          - Two outer rings that bloom outward in opposite phase during
+            playback (Spotify-like radial pulse, but slower + more cinematic)
+          - Inner gradient disc with glassy specular highlight on top
+          - 5-bar EQ overlay below the emoji during active playback
+          - When fetching, an indeterminate progress arc spins around the
+            outer ring instead of bland "⏳" text
+          v0.7.x will swap the emoji for an AI portrait, but the framing
+          stays. */}
       <div className="flex justify-center mb-6">
-        <motion.div
-          animate={
-            (audioState === 'playing' || audioState === 'browser')
-              ? { scale: [1, 1.04, 1] }
-              : { scale: 1 }
-          }
-          transition={{
-            duration: 0.8,
-            repeat: (audioState === 'playing' || audioState === 'browser') ? Infinity : 0,
-          }}
-          className="w-40 h-40 rounded-full flex items-center justify-center text-7xl"
-          style={{
-            background: 'linear-gradient(135deg,#ff5588,#7c3aed)',
-            boxShadow: '0 0 40px rgba(255,85,136,0.45)',
-          }}
-        >
-          {personaCfg.emoji}
-        </motion.div>
+        <div className="relative w-44 h-44 grid place-items-center">
+          {/* Bloom rings — opposite phase so the glow "breathes" continuously. */}
+          {(audioState === 'playing' || audioState === 'browser') && (
+            <>
+              <motion.div
+                aria-hidden
+                className="absolute inset-0 rounded-full"
+                animate={{ scale: [1, 1.18, 1], opacity: [0.55, 0, 0.55] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeOut' }}
+                style={{
+                  background:
+                    'radial-gradient(circle at center, rgba(255,85,136,0.30) 0%, rgba(124,58,237,0.10) 55%, transparent 70%)',
+                }}
+              />
+              <motion.div
+                aria-hidden
+                className="absolute inset-0 rounded-full"
+                animate={{ scale: [1, 1.32, 1], opacity: [0, 0.42, 0] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeOut', delay: 1.2 }}
+                style={{
+                  background:
+                    'radial-gradient(circle at center, rgba(255,85,136,0.25) 0%, transparent 60%)',
+                }}
+              />
+            </>
+          )}
+
+          {/* Indeterminate spinner ring during fetching — replaces the
+              emoji-pulse loading affordance with something that says
+              "we're generating your voice right now". */}
+          {audioState === 'fetching' && (
+            <motion.div
+              aria-hidden
+              className="absolute inset-0 rounded-full"
+              style={{
+                border: '2px solid rgba(255,85,136,0.18)',
+                borderTopColor: '#ff5588',
+                borderRightColor: 'rgba(124,58,237,0.55)',
+              }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
+            />
+          )}
+
+          {/* Avatar disc — a touch bigger (128 → 144) and richer gradient.
+              The inner specular highlight (top-left arc) gives it glass
+              depth. Subtle "floaty" drift when idle so the screen never
+              feels frozen. */}
+          <motion.div
+            animate={
+              (audioState === 'playing' || audioState === 'browser')
+                ? { scale: [1, 1.04, 1], y: 0 }
+                : audioState === 'fetching'
+                  ? { scale: 0.92, y: 0 }
+                  : { scale: 1, y: [0, -3, 0] }
+            }
+            transition={{
+              duration: (audioState === 'playing' || audioState === 'browser') ? 0.9 : 4.5,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+            className="relative w-36 h-36 rounded-full flex items-center justify-center text-6xl select-none"
+            style={{
+              background:
+                'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.35), transparent 35%), linear-gradient(135deg, #ff5588 0%, #7c3aed 100%)',
+              boxShadow:
+                '0 0 50px rgba(255,85,136,0.45), inset 0 2px 0 rgba(255,255,255,0.18), inset 0 -8px 24px rgba(0,0,0,0.18)',
+            }}
+          >
+            {personaCfg.emoji}
+            {/* EQ bars overlay — bottom-center, sits inside the disc so
+                it reads as "the avatar is the source of the sound". */}
+            {(audioState === 'playing' || audioState === 'browser') && (
+              <span className="absolute bottom-3.5 left-1/2 -translate-x-1/2">
+                <WaveformBars active={true} count={5} height={14} />
+              </span>
+            )}
+          </motion.div>
+        </div>
       </div>
 
       {audioState === 'fetching' && (
-        <div className="text-center text-white/55 mb-4">⏳ 正在生成真人音色…</div>
+        <div className="text-center text-white/65 mb-4 text-sm flex items-center justify-center gap-2">
+          <WaveformBars active={true} count={3} height={12} />
+          <span>正在生成真人音色…</span>
+        </div>
       )}
       {audioState === 'ready' && (
         <div className="text-center mb-4">

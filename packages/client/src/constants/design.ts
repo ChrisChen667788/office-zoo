@@ -119,6 +119,78 @@ export const gradients = {
   /** Moody aurora used on Landing. */
   pageBg:
     'radial-gradient(ellipse at 15% -10%, rgba(124,58,237,0.22) 0%, transparent 55%), radial-gradient(ellipse at 85% 0%, rgba(76,158,255,0.18) 0%, transparent 45%), radial-gradient(ellipse at 50% 110%, rgba(236,72,153,0.12) 0%, transparent 50%), linear-gradient(180deg, #050510 0%, #070818 100%)',
+  // ── v0.9.2.1 — per-UGC-mode card backgrounds. Subtle gradient washes
+  //    that sit at ~6-12% alpha so they tint glass cards without
+  //    dominating the content. Each mode gets its own emotional tone:
+  //      talkshow = creative pink/violet
+  //      fired    = urgent red/amber
+  //      pack     = collectible gold/pink
+  cardTalkshow:
+    'linear-gradient(135deg, rgba(255,85,136,0.08) 0%, rgba(124,58,237,0.06) 50%, rgba(76,158,255,0.04) 100%)',
+  cardFired:
+    'linear-gradient(135deg, rgba(255,51,85,0.08) 0%, rgba(255,138,76,0.05) 100%)',
+  cardPack:
+    'linear-gradient(135deg, rgba(255,184,76,0.10) 0%, rgba(255,85,136,0.05) 100%)',
+  /** v0.9.2.1 — leaderboard winner card (top 3 monthly). Stronger
+   *  amber wash + pink kiss to feel "podium". */
+  cardMedal:
+    'linear-gradient(135deg, rgba(255,184,76,0.18) 0%, rgba(255,85,136,0.08) 50%, rgba(124,58,237,0.05) 100%)',
+} as const;
+
+// ──────────────────────────────────────────────────────────────────────────
+// v0.9.2.1 — Motion tokens. Same idea as `radius` / `shadow`: single source
+// of truth for all easings + durations so micro-interactions feel consistent.
+// Names match the framer-motion `transition` shape so they drop in directly.
+// ──────────────────────────────────────────────────────────────────────────
+export const motion = {
+  /** Snappy — for hover lifts, button presses (≤200 ms). */
+  snap:    { duration: 0.16, ease: [0.32, 0.72, 0, 1] as [number, number, number, number] },
+  /** Standard — default for state changes (~300 ms). */
+  smooth:  { duration: 0.30, ease: [0.32, 0.72, 0, 1] as [number, number, number, number] },
+  /** Cinematic — page entrances, hero reveals (~500 ms). */
+  cinema:  { duration: 0.50, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+  /** Slow loop — for breathing pulses (≥800 ms). */
+  breathe: { duration: 1.2, ease: 'easeInOut' as const },
+} as const;
+
+// ──────────────────────────────────────────────────────────────────────────
+// v0.9.2.1 — Card archetypes. Inline-style objects ready to spread into a
+// `style={{...}}`. Each is a triple of (background, border, boxShadow) that
+// composes the look. Subset is enough for 90% of UGC card surfaces — for
+// fully custom cards, fall back to inline styles + token references.
+// ──────────────────────────────────────────────────────────────────────────
+export const cardStyle = {
+  /** Default frost — quiet, used as the resting state for grid cards. */
+  frost: {
+    background: 'rgba(255,255,255,0.025)',
+    border: `1px solid ${colors.stroke.subtle}`,
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  },
+  /** "你创造的" amber rim — used on user-generated content the current
+   *  visitor authored (matches the "我的" filter chip color). */
+  mine: {
+    background: gradients.cardPack,
+    border: '1px solid rgba(255,184,76,0.32)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+  },
+  /** Top-3 monthly leaderboard medal card. */
+  medal: {
+    background: gradients.cardMedal,
+    border: '1px solid rgba(255,184,76,0.55)',
+    boxShadow: '0 10px 36px rgba(255,184,76,0.22), inset 0 1px 0 rgba(255,255,255,0.08)',
+  },
+  /** Talkshow content card (creative gradient). */
+  talkshow: {
+    background: gradients.cardTalkshow,
+    border: '1px solid rgba(255,85,136,0.20)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  },
+  /** Fired (urgent) content card. */
+  fired: {
+    background: gradients.cardFired,
+    border: '1px solid rgba(255,51,85,0.25)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  },
 } as const;
 
 /**

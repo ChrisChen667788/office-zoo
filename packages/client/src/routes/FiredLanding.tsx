@@ -21,6 +21,8 @@ import {
 import SfxToggle from '../components/game/SfxToggle';
 import { colors } from '../constants/design';
 import { getUserId } from '../utils/userId';
+import { SkeletonCard } from '../components/ui/SkeletonCard';
+import { EmptyState } from '../components/ui/EmptyState';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
  *  same fields plus a `source` flag distinguishing seed catalogue from
@@ -549,7 +551,7 @@ export default function FiredLanding() {
                       onClick={() => setSelectedScenario(scenario.id)}
                       whileHover={{ y: -2 }}
                       whileTap={{ scale: 0.985 }}
-                      className="relative overflow-hidden rounded-2xl p-5 text-left transition min-h-[168px]"
+                      className="hover-sheen frost-card relative overflow-hidden rounded-2xl p-5 text-left transition min-h-[168px]"
                       style={{
                         background: medalGlyph
                           ? 'linear-gradient(155deg, rgba(255,184,76,0.20) 0%, rgba(255,85,136,0.06) 100%)'
@@ -570,8 +572,7 @@ export default function FiredLanding() {
                     >
                       {medalGlyph && (
                         <div
-                          className="absolute top-2 left-2 text-2xl leading-none select-none z-20"
-                          style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))' }}
+                          className="medal-pulse absolute top-2 left-2 text-2xl leading-none select-none z-20"
                           aria-label={`月度榜第 ${idx + 1} 名`}
                         >
                           {medalGlyph}
@@ -1287,19 +1288,36 @@ function PacksTab({
       </div>
 
       {loadErr && (
-        <div className="text-center text-red-400 py-6">{loadErr}</div>
+        <EmptyState emoji="⚠️" title="闯关包加载失败" body={loadErr}
+          cta={{ label: '↻ 重试', onClick: () => window.location.reload() }}
+          glow="rgba(255,184,76,0.18)" />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {!mineOnly && (
           <CreatePackCard onOpen={onCreateOpen} />
         )}
+        {/* v0.9.2.1 — empty state instead of bland text. Different copy
+            depending on filter: 'mine' = encourage create; otherwise =
+            "be the first" pioneer hook. Plus there's the create card
+            in slot 0 already, so the empty state focuses on context. */}
         {visiblePacks.length === 0 && !loadErr && (
-          <div className="col-span-full text-center text-white/45 text-sm py-8">
-            {mineOnly
-              ? '你还没创建过闯关包,去 ✍️ 造一个吧。'
-              : '还没有闯关包,做第一个开拓者?'}
-          </div>
+          mineOnly ? (
+            <EmptyState
+              emoji="📦"
+              title="你还没造过闯关包"
+              body="挑 5 个剧本组合,朋友拿到链接就能挑战同一组"
+              cta={{ label: '✨ 造第一个', onClick: onCreateOpen }}
+            />
+          ) : (
+            <EmptyState
+              emoji="🎯"
+              title="还没有闯关包"
+              body="做第一个开拓者?5 关组合,通关后链接分享给朋友"
+              cta={{ label: '✨ 造第一个', onClick: onCreateOpen }}
+              glow="rgba(255,85,136,0.18)"
+            />
+          )
         )}
         {visiblePacks.map((pack, idx) => {
           const isMine = pack.createdBy === myId;
@@ -1319,7 +1337,7 @@ function PacksTab({
               onClick={() => navigate(`/fired/pack/${pack.id}`)}
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.985 }}
-              className="text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[180px] relative overflow-hidden"
+              className="hover-sheen frost-card text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[180px] relative overflow-hidden"
               style={{
                 background: medalGlyph
                   ? 'linear-gradient(135deg, rgba(255,184,76,0.16), rgba(255,85,136,0.06))'
@@ -1334,8 +1352,7 @@ function PacksTab({
             >
               {medalGlyph && (
                 <div
-                  className="absolute top-2 left-2 text-2xl leading-none select-none z-20"
-                  style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))' }}
+                  className="medal-pulse absolute top-2 left-2 text-2xl leading-none select-none z-20"
                   aria-label={`月度榜第 ${idx + 1} 名`}
                 >
                   {medalGlyph}

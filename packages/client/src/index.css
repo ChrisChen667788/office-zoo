@@ -261,3 +261,110 @@ button {
     scroll-behavior: auto !important;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────
+   v0.9.2.1 — Visual polish utilities
+   Reusable across cards / modals / loading / empty states. Keep these
+   as plain CSS (not framer/JS) so they don't pay React re-render cost.
+   ────────────────────────────────────────────────────────────────────── */
+
+/* Shimmer skeleton — drop on a placeholder block while real data loads.
+   Animates a subtle highlight band sweeping left-to-right at 1.4s/cycle.
+   Set the element's background separately (or use one of the .skel-* sizes). */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--r-md);
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 35%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.06) 65%,
+    transparent 100%
+  );
+  animation: shimmer-sweep 1.4s ease-in-out infinite;
+}
+@keyframes shimmer-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Hover sheen — diagonal light streak that sweeps across a card on hover.
+   Apply to `.hover-sheen`, ensure parent has `position: relative; overflow: hidden`. */
+.hover-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.hover-sheen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.10) 48%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.10) 52%,
+    transparent 70%
+  );
+  transform: translateX(-110%);
+  transition: transform 0.7s cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+  opacity: 0;
+}
+.hover-sheen:hover::before {
+  transform: translateX(110%);
+  opacity: 1;
+}
+
+/* Medal pulse — subtle glow breath for the 🥇🥈🥉 monthly leaderboard
+   corner badges. Slow (3s) loop so it reads as ambient, not jittery. */
+.medal-pulse {
+  animation: medal-glow 3s ease-in-out infinite;
+}
+@keyframes medal-glow {
+  0%, 100% { filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 4px rgba(255, 184, 76, 0.55)); }
+  50%      { filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 14px rgba(255, 184, 76, 0.95)); }
+}
+
+/* Frost card — glass surface used as the default card chrome. Pairs with
+   `cardStyle.frost` from design.ts but lets us add the backdrop-filter
+   without a per-component style prop. */
+.frost-card {
+  backdrop-filter: blur(8px) saturate(115%);
+  -webkit-backdrop-filter: blur(8px) saturate(115%);
+}
+
+/* Equalizer bars — animated TTS waveform. Each bar individually delayed so
+   they read as a music-app visualizer. Pure CSS, no JS RAF cost.
+   Bar count is set in markup; this rule only handles the animation. */
+.eq-bar {
+  display: inline-block;
+  width: 3px;
+  margin: 0 1.5px;
+  background: linear-gradient(180deg, #ff5588, #7c3aed);
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: eq-bounce 1.2s ease-in-out infinite;
+}
+@keyframes eq-bounce {
+  0%, 100% { transform: scaleY(0.35); opacity: 0.55; }
+  50%      { transform: scaleY(1.0);  opacity: 1; }
+}
+
+/* Floating accent — subtle drift used on hero badges + persona discs. */
+.floaty {
+  animation: floaty-drift 5.5s ease-in-out infinite;
+}
+@keyframes floaty-drift {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-4px); }
+}
