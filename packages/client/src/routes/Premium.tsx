@@ -29,38 +29,42 @@ import {
   type Entitlement,
   type PremiumPlan,
 } from '../utils/entitlement';
-import { useT } from '../utils/i18n';
+import { useT, type DictKey } from '../utils/i18n';
 
-const FEATURES: Array<{ emoji: string; title: string; body: string; status: 'live' | 'soon' }> = [
-  {
-    emoji: '🌍',
-    title: '海外大厂场景包',
-    body: 'Twitter Purge / Meta 效率裁员 / Amazon RTO / Apple PM / Google reorg / startup cliff dump — 6 个真实事件改编,英美劳动法规则切换',
-    status: 'live',
-  },
-  {
-    emoji: '🎙️',
-    title: '高级 voice clone',
-    body: '上传你老板 30 秒录音,AI 用他的声音念出"咱们一起拼一下"。回家放给爸妈听,他们终于知道你为啥天天加班',
-    status: 'soon',
-  },
-  {
-    emoji: '⚖️',
-    title: '律师真人咨询入口',
-    body: '已签约 2 家劳动法律所。Premium 用户每月 1 次 30 分钟免费咨询,过审后可继续 ¥299/小时(对比市价 ¥800-1500)',
-    status: 'soon',
-  },
-  {
-    emoji: '🎬',
-    title: '历史回放无限存储',
-    body: '免费版只保留最近 10 局短视频; Premium 永久保留 + 4K 导出 + 去水印 + 自定义封面文字',
-    status: 'soon',
-  },
+// v1.2.1 — feature card data carries dict keys, not raw zh-CN strings.
+// Resolved at render time inside the component (after useT() runs).
+const FEATURES: Array<{
+  emoji: string;
+  titleKey: DictKey;
+  bodyKey:  DictKey;
+  status:   'live' | 'soon';
+}> = [
+  { emoji: '🌍', titleKey: 'premium.feature.faang.title',  bodyKey: 'premium.feature.faang.body',  status: 'live' },
+  { emoji: '🎙️', titleKey: 'premium.feature.voice.title',  bodyKey: 'premium.feature.voice.body',  status: 'soon' },
+  { emoji: '⚖️', titleKey: 'premium.feature.lawyer.title', bodyKey: 'premium.feature.lawyer.body', status: 'soon' },
+  { emoji: '🎬', titleKey: 'premium.feature.replay.title', bodyKey: 'premium.feature.replay.body', status: 'soon' },
 ];
 
-const PRICING: Record<PremiumPlan, { label: string; price: string; per: string; saving?: string }> = {
-  monthly: { label: '月度', price: '¥39',  per: '/月', },
-  annual:  { label: '年度', price: '¥299', per: '/年', saving: '省 35%' },
+// v1.2.1 — pricing data via dict lookup. Per-locale prices live in i18n
+// dict (premium.priceMonthly etc). The component pulls them through t().
+interface PricingMeta {
+  labelKey: DictKey;
+  priceKey: DictKey;
+  perKey:   DictKey;
+  savingKey?: DictKey;
+}
+const PRICING: Record<PremiumPlan, PricingMeta> = {
+  monthly: {
+    labelKey: 'premium.monthLabel',
+    priceKey: 'premium.priceMonthly',
+    perKey:   'premium.perMonth',
+  },
+  annual: {
+    labelKey:  'premium.yearLabel',
+    priceKey:  'premium.priceAnnual',
+    perKey:    'premium.perYear',
+    savingKey: 'premium.yearSaving',
+  },
 };
 
 export default function Premium() {
@@ -131,11 +135,12 @@ export default function Premium() {
           />
         )}
 
-        {/* Feature matrix */}
+        {/* Feature matrix — v1.2.1 reads through t() so cards adapt
+            language without a reload. */}
         <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-3">
           {FEATURES.map((f) => (
             <div
-              key={f.title}
+              key={f.titleKey}
               className="frost-card rounded-2xl p-5 flex gap-4"
               style={{
                 background: 'linear-gradient(135deg, rgba(255,184,76,0.06), rgba(124,58,237,0.04))',
@@ -145,7 +150,7 @@ export default function Premium() {
               <div className="text-3xl flex-shrink-0">{f.emoji}</div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="text-sm font-bold text-white/95">{f.title}</div>
+                  <div className="text-sm font-bold text-white/95">{t(f.titleKey)}</div>
                   <span
                     className="text-[9px] px-1.5 py-0.5 rounded-full font-bold tracking-wide"
                     style={{
@@ -158,10 +163,10 @@ export default function Premium() {
                         : 'rgba(255,184,76,0.32)'}`,
                     }}
                   >
-                    {f.status === 'live' ? '已上线' : '即将上线'}
+                    {t(f.status === 'live' ? 'premium.featureStatus.live' : 'premium.featureStatus.soon')}
                   </span>
                 </div>
-                <div className="text-[12px] text-white/60 leading-relaxed">{f.body}</div>
+                <div className="text-[12px] text-white/60 leading-relaxed">{t(f.bodyKey)}</div>
               </div>
             </div>
           ))}
@@ -176,10 +181,8 @@ export default function Premium() {
             color: 'rgba(255,255,255,0.65)',
           }}
         >
-          <strong className="text-white/80">⚠️ Demo 模式说明</strong><br/>
-          v1.0.0 当前还没接 Stripe / 支付宝 / 微信支付。点"立即升级"会本地激活
-          Premium(只在你这台浏览器有效),不会真的扣款。这是给体验设计 + 反馈用的预览版本。<br/>
-          后端真实支付集成进入 v1.0.1 / v1.0.2 路线图。
+          <strong className="text-white/80">{t('premium.demoNotice.title')}</strong><br/>
+          {t('premium.demoNotice.body')}
         </div>
       </main>
 
@@ -214,6 +217,7 @@ function PricingCard({
   onCheckout: () => void;
 }) {
   const cfg = PRICING[plan];
+  const { t } = useT();
   return (
     <div className="max-w-md mx-auto">
       {/* Plan toggle */}
@@ -226,6 +230,7 @@ function PricingCard({
       >
         {(['monthly', 'annual'] as PremiumPlan[]).map((p) => {
           const active = plan === p;
+          const meta = PRICING[p];
           return (
             <button
               key={p}
@@ -239,9 +244,9 @@ function PricingCard({
                 boxShadow: active ? '0 4px 14px rgba(255,184,76,0.35)' : 'none',
               }}
             >
-              {PRICING[p].label}
-              {p === 'annual' && (
-                <span className="ml-1.5 text-[9px] opacity-75">{PRICING.annual.saving}</span>
+              {t(meta.labelKey)}
+              {p === 'annual' && meta.savingKey && (
+                <span className="ml-1.5 text-[9px] opacity-75">{t(meta.savingKey)}</span>
               )}
             </button>
           );
@@ -268,16 +273,16 @@ function PricingCard({
               WebkitTextFillColor: 'transparent',
             }}
           >
-            {cfg.price}
+            {t(cfg.priceKey)}
           </span>
-          <span className="text-base text-white/55">{cfg.per}</span>
+          <span className="text-base text-white/55">{t(cfg.perKey)}</span>
         </div>
         <ul className="text-[12px] text-white/70 space-y-1.5 mb-6 text-left max-w-xs mx-auto">
-          <li>✅ 6 个海外大厂剧本(立即可玩)</li>
-          <li>✅ 律师真人咨询入口(签约中)</li>
-          <li>✅ 高级 voice clone(开发中)</li>
-          <li>✅ 历史回放无限存储 + 4K 导出</li>
-          <li>✅ 所有未来 Premium 功能持续解锁</li>
+          <li>{t('premium.feat.faang')}</li>
+          <li>{t('premium.feat.lawyer')}</li>
+          <li>{t('premium.feat.voice')}</li>
+          <li>{t('premium.feat.replay')}</li>
+          <li>{t('premium.feat.future')}</li>
         </ul>
         <button
           onClick={onCheckout}
@@ -287,9 +292,9 @@ function PricingCard({
             boxShadow: '0 10px 32px rgba(255,85,136,0.45), inset 0 1px 0 rgba(255,255,255,0.18)',
           }}
         >
-          <span className="relative z-10">✨ 立即升级 Premium</span>
+          <span className="relative z-10">{t('premium.cta')}</span>
         </button>
-        <div className="mt-3 text-[10px] text-white/45">7 天内不满意全额退款 · 任意时间取消</div>
+        <div className="mt-3 text-[10px] text-white/45">{t('premium.refund')}</div>
       </motion.div>
     </div>
   );
@@ -302,7 +307,14 @@ function SubscribedPanel({
   entitlement: Entitlement;
   onCancel: () => void;
 }) {
+  const { t, locale } = useT();
   const since = new Date(entitlement.since);
+  // Locale-aware date formatting via the matching Intl tag.
+  const localeTag =
+    locale === 'zh-CN' ? 'zh-CN'
+  : locale === 'en-US' ? 'en-US'
+  : locale === 'ja-JP' ? 'ja-JP'
+  :                      'ko-KR';
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -316,21 +328,22 @@ function SubscribedPanel({
     >
       <div className="text-5xl mb-2">👑</div>
       <div className="text-lg font-black text-white mb-1">
-        Premium 已激活 {entitlement.demoMode && '(Demo)'}
+        {t('premium.activated')} {entitlement.demoMode && t('premium.demoTag')}
       </div>
       <div className="text-[12px] text-white/60 mb-4">
-        计划:{entitlement.plan === 'annual' ? '年度' : '月度'} ·
-        激活时间:{since.toLocaleDateString('zh-CN')}
+        {t('premium.subscribed.planLabel')}: {t(entitlement.plan === 'annual' ? 'premium.yearLabel' : 'premium.monthLabel')}
+        {' · '}
+        {t('premium.subscribed.activatedLabel')}: {since.toLocaleDateString(localeTag)}
       </div>
       <div className="text-[11px] text-white/45 mb-5 leading-relaxed">
-        所有 Premium 功能已解锁。海外大厂剧本会在剧本库里以"👑"标识显示。
+        {t('premium.subscribed.body')}
       </div>
       <button
         onClick={onCancel}
         className="text-[11px] text-white/45 hover:text-white/75 transition px-3 py-1.5 rounded"
         style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
       >
-        重置为免费用户(debug)
+        {t('premium.cancelBtn')}
       </button>
     </motion.div>
   );
@@ -346,6 +359,7 @@ function CheckoutModal({
   onConfirm: () => void;
 }) {
   const cfg = PRICING[plan];
+  const { t } = useT();
   const [submitting, setSubmitting] = useState(false);
 
   // Auto-focus + Esc to close.
@@ -387,7 +401,7 @@ function CheckoutModal({
         }}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-black text-white">确认订阅 Premium</h3>
+          <h3 className="text-base font-black text-white">{t('premium.checkout.title')}</h3>
           <button
             onClick={onCancel}
             disabled={submitting}
@@ -397,7 +411,7 @@ function CheckoutModal({
           </button>
         </div>
 
-        {/* Order summary */}
+        {/* Order summary — t('premium.checkout.lineItem') uses {plan} placeholder. */}
         <div className="rounded-xl p-4 mb-4"
           style={{
             background: 'rgba(255,184,76,0.06)',
@@ -405,8 +419,10 @@ function CheckoutModal({
           }}
         >
           <div className="flex items-center justify-between text-sm">
-            <span className="text-white/85">班味 Pro · {cfg.label}订阅</span>
-            <span className="text-white font-bold tabular-nums">{cfg.price}{cfg.per}</span>
+            <span className="text-white/85">
+              {t('premium.checkout.lineItem').replace('{plan}', t(cfg.labelKey))}
+            </span>
+            <span className="text-white font-bold tabular-nums">{t(cfg.priceKey)}{t(cfg.perKey)}</span>
           </div>
         </div>
 
@@ -419,10 +435,8 @@ function CheckoutModal({
             color: 'rgba(255,255,255,0.78)',
           }}
         >
-          <strong className="text-rose-300">🧪 Demo 模式</strong><br/>
-          这一次"升级"<strong>不会真的扣款</strong>,只在你这台浏览器
-          本地把 Premium flag 打开。点击下面按钮等于体验"如果真付款会怎样"。
-          后续可以在 Premium 页面随时重置。
+          <strong className="text-rose-300">{t('premium.checkout.demoTitle')}</strong><br/>
+          {t('premium.checkout.demoBody')}
         </div>
 
         <div className="flex gap-2">
@@ -432,7 +446,7 @@ function CheckoutModal({
             className="flex-1 px-4 py-2.5 rounded-xl text-xs font-semibold tracking-wide text-white/65 transition disabled:opacity-40"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             onClick={confirmDemo}
@@ -443,7 +457,7 @@ function CheckoutModal({
               boxShadow: '0 6px 18px rgba(255,184,76,0.45)',
             }}
           >
-            {submitting ? '⏳ 处理中…' : '✨ 确认升级 (Demo)'}
+            {submitting ? t('premium.checkout.processing') : t('premium.checkout.confirmDemo')}
           </button>
         </div>
       </motion.div>

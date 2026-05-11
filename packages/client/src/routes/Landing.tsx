@@ -21,7 +21,7 @@ import LottieAsset from '../components/LottieAsset';
 import { primeAudio } from '../utils/audioUnlock';
 import { colors } from '../constants/design';
 import { lottie } from '../constants/lottie';
-import { useT, setLocale } from '../utils/i18n';
+import { useT, setLocale, LOCALE_OPTIONS, type Locale, type DictKey } from '../utils/i18n';
 import { modeIcons, Icon } from '../constants/icons';
 
 const PLAYER_COUNTS = [6, 8, 10] as const;
@@ -32,8 +32,12 @@ interface ModeSpec {
   icon: string;        // AI-generated icon URL (from constants/icons.ts)
   iconFallback: string; // emoji shown briefly while the PNG loads or on 404
   badge: string;
-  title: string;
-  tagline: string;
+  /** v1.2.1 — title/tagline now reference i18n dict keys instead of hard-
+   *  coded zh-CN strings. Resolved at render time via t(). The features
+   *  list stays untranslated for v1.2.1 (3 chips, low risk; v1.2.3
+   *  will localize them when we expand the dict). */
+  titleKey: DictKey;
+  taglineKey: DictKey;
   features: string[];
   accent: string; // used for active-state tint & bullet dots
   accent2: string; // secondary tint for inner glow
@@ -45,8 +49,8 @@ const MODES: ModeSpec[] = [
     icon: modeIcons.classic,
     iconFallback: '🏢',
     badge: '01',
-    title: '鼠人公司',
-    tagline: '2.5D 写字楼 · 自由摸鱼',
+    titleKey:   'mode.classic.title',
+    taglineKey: 'mode.classic.body',
     features: ['AI 员工内卷', '分房间互怼', '暗线下黑手'],
     accent: colors.brand.neon,
     accent2: colors.brand.violet,
@@ -56,8 +60,8 @@ const MODES: ModeSpec[] = [
     icon: modeIcons.immersive,
     iconFallback: '🎤',
     badge: '02',
-    title: '全程开麦',
-    tagline: 'AI 真人语音 · 戏精剧场',
+    titleKey:   'mode.immersive.title',
+    taglineKey: 'mode.immersive.body',
     features: ['8 名鼠人开口', '人设全程在线', '阴阳怪气合集'],
     accent: '#a855f7',
     accent2: colors.brand.neon,
@@ -67,21 +71,19 @@ const MODES: ModeSpec[] = [
     icon: modeIcons.fired,
     iconFallback: '⚖️',
     badge: '03',
-    title: '裁了么',
-    tagline: '1v1 怼 HR · 现场仲裁',
+    titleKey:   'mode.fired.title',
+    taglineKey: 'mode.fired.body',
     features: ['真法条撑腰', '四维打分', '多结局演完'],
     accent: colors.semantic.danger,
     accent2: colors.semantic.warn,
   },
   {
     key: 'talkshow',
-    // No dedicated icon in modeIcons yet — emoji fallback carries it for v0.7.0.
-    // v0.7.1 will add a Minimax-generated mic-with-snark sticker.
     icon: '',
     iconFallback: '🎤',
     badge: '04',
-    title: '班味单口',
-    tagline: 'AI 鼠人脱口秀 · 30 段暴论',
+    titleKey:   'mode.talkshow.title',
+    taglineKey: 'mode.talkshow.body',
     features: ['真人音色播报', '8 种人格切换', '段子库每周更新'],
     accent: '#ff5588',
     accent2: '#7c3aed',
@@ -213,32 +215,11 @@ export default function Landing() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* v1.2.0 — locale toggle. 2-position pill, persists in localStorage. */}
-          <button
-            onClick={() => setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN')}
-            className="hidden sm:inline-flex items-center gap-0.5 text-[10px] font-bold tracking-wide rounded-full transition overflow-hidden"
-            style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.10)',
-            }}
-            title={t('locale.switchHint')}
-            aria-label="Switch language"
-          >
-            <span
-              className="px-2 py-1.5 transition"
-              style={{
-                color: locale === 'zh-CN' ? '#fff' : 'rgba(255,255,255,0.45)',
-                background: locale === 'zh-CN' ? 'rgba(76,158,255,0.25)' : 'transparent',
-              }}
-            >中</span>
-            <span
-              className="px-2 py-1.5 transition"
-              style={{
-                color: locale === 'en-US' ? '#fff' : 'rgba(255,255,255,0.45)',
-                background: locale === 'en-US' ? 'rgba(76,158,255,0.25)' : 'transparent',
-              }}
-            >EN</span>
-          </button>
+          {/* v1.2.2 — locale dropdown. Was a 2-button pill in v1.2.0; with
+              4 locales (zh/en/ja/ko) the pill no longer fits mobile, so
+              flipped to a single button + popover. Native names render
+              inside (简体中文 / English / 日本語 / 한국어). */}
+          <LocaleDropdown locale={locale} />
           {/* v1.1.0 — B 端 SaaS 入口 (律所/HR培训采购) */}
           <button
             onClick={() => navigate('/b2b')}
@@ -411,8 +392,15 @@ export default function Landing() {
                 here: each mode card already has its own "进入 →" pill. */}
             <div className="mt-6 md:mt-8 flex items-center justify-between flex-wrap gap-3 text-[11px] tracking-wider uppercase text-white/45">
               <div>
-                当前 · {activeSpec.title} ·{' '}
-                {mode === 'classic' ? `${playerCount} 名鼠人` : mode === 'immersive' ? '8 名鼠人' : '1v1 仲裁'}
+                {locale === 'zh-CN' ? '当前' : locale === 'en-US' ? 'Active' : locale === 'ja-JP' ? '現在' : '현재'} · {t(activeSpec.titleKey)} ·{' '}
+                {mode === 'classic'
+                  ? (locale === 'zh-CN' ? `${playerCount} 名鼠人`
+                     : locale === 'en-US' ? `${playerCount} agents`
+                     : locale === 'ja-JP' ? `AI ${playerCount}名`
+                     : `AI ${playerCount}명`)
+                  : mode === 'immersive'
+                    ? (locale === 'zh-CN' ? '8 名鼠人' : locale === 'en-US' ? '8 agents' : locale === 'ja-JP' ? 'AI 8名' : 'AI 8명')
+                    : (locale === 'zh-CN' ? '1v1 仲裁' : locale === 'en-US' ? '1v1 arbitration' : locale === 'ja-JP' ? '1対1 仲裁' : '1대1 중재')}
               </div>
               <button
                 onClick={() => setRulesOpen(true)}
@@ -468,6 +456,10 @@ interface ModeBentoProps {
 // to happen when setMode() changed mid-handshake.
 function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tall }: ModeBentoProps) {
   const [pressed, setPressed] = useState(false);
+  // v1.2.1 — resolve title + tagline from i18n dict.
+  const { t: tt } = useT();
+  const title   = tt(spec.titleKey);
+  const tagline = tt(spec.taglineKey);
   const padCls = tall ? 'p-7 md:p-8' : 'p-5';
   const minH   = tall ? 'min-h-[320px] md:min-h-[360px]' : 'min-h-[210px]';
   const iconBox = tall ? 'w-16 h-16' : 'w-11 h-11';
@@ -515,7 +507,7 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
         type="button"
         onClick={onSelect}
         className="absolute inset-0 z-0 w-full h-full cursor-pointer"
-        aria-label={`preview ${spec.title}`}
+        aria-label={`preview ${title}`}
       />
 
       {/* Top row — icon tile + numeric badge */}
@@ -529,7 +521,7 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
             border: `1px solid ${active ? spec.accent + '55' : 'rgba(255,255,255,0.06)'}`,
           }}
         >
-          <Icon src={spec.icon} emoji={spec.iconFallback} size={iconSize} alt={spec.title} />
+          <Icon src={spec.icon} emoji={spec.iconFallback} size={iconSize} alt={title} />
         </div>
         <div
           className={`${tall ? 'text-[12px]' : 'text-[10px]'} font-mono tracking-[0.2em]`}
@@ -545,9 +537,9 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
           className={`${titleCls} font-black mb-1.5 tracking-tight`}
           style={{ color: active ? '#fff' : 'rgba(255,255,255,0.92)' }}
         >
-          {spec.title}
+          {title}
         </h3>
-        <p className={`${taglineCls} text-white/55 ${tall ? 'mb-5' : 'mb-3'} leading-relaxed`}>{spec.tagline}</p>
+        <p className={`${taglineCls} text-white/55 ${tall ? 'mb-5' : 'mb-3'} leading-relaxed`}>{tagline}</p>
 
         <ul className={`flex flex-col gap-1.5 ${tall ? 'mb-6' : 'mb-4'}`}>
           {spec.features.map((f) => (
@@ -610,5 +602,76 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
         />
       )}
     </motion.div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// v1.2.2 — Locale dropdown menu.
+// ───────────────────────────────────────────────────────────────────────
+function LocaleDropdown({ locale }: { locale: Locale }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const active = LOCALE_OPTIONS.find((o) => o.code === locale);
+
+  // Click-outside to close.
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
+        style={{
+          color: 'rgba(255,255,255,0.78)',
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.10)',
+        }}
+        aria-label="Switch language"
+        aria-expanded={open}
+      >
+        🌐 {active?.label ?? locale}
+        <span className="text-[8px] opacity-65">▾</span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.12 }}
+            className="absolute right-0 top-full mt-1.5 z-40 rounded-xl py-1 min-w-[150px]"
+            style={{
+              background: 'linear-gradient(180deg, #15122e, #0d0b25)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              boxShadow: '0 14px 32px rgba(0,0,0,0.55)',
+            }}
+          >
+            {LOCALE_OPTIONS.map((o) => (
+              <button
+                key={o.code}
+                onClick={() => { setLocale(o.code); setOpen(false); }}
+                className="w-full text-left px-3 py-2 text-[12px] transition flex items-center justify-between gap-2"
+                style={{
+                  color: o.code === locale ? '#fff' : 'rgba(255,255,255,0.7)',
+                  background: o.code === locale ? 'rgba(76,158,255,0.12)' : 'transparent',
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = o.code === locale ? 'rgba(76,158,255,0.12)' : 'transparent'; }}
+              >
+                <span>{o.label}</span>
+                {o.code === locale && <span className="text-[10px] opacity-70">✓</span>}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
