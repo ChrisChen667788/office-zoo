@@ -3,7 +3,10 @@
 //    on the wire shape; persistence is server-side via packStore.ts.
 // ---------------------------------------------------------------------------
 
-export type FiredPersonalityId = 'rookie' | 'veteran' | 'demon';
+export type FiredPersonalityId =
+  | 'rookie' | 'veteran' | 'demon'
+  | 'soe'     // v1.1.0 — 国企 HR (process-driven, hides behind regulations)
+  | 'union';  // v1.1.0 — 工会代表 (reverse-role for HR training mode)
 
 export interface PackSlot {
   /** Either a seed scenario id (e.g. 'probation-fire') or a user-generated
@@ -397,7 +400,7 @@ export const SCENARIOS: FiredScenario[] = [
  *  prompt and the user-visible card on FiredLanding. Three difficulty
  *  tiers; each maps to a specific fired/chat handling style. */
 export interface HRPersonality {
-  id: 'rookie' | 'veteran' | 'demon';
+  id: FiredPersonalityId;
   /** LLM system prompt prepended to the HR role-play. Sets voice + tactics. */
   systemPrompt: string;
   /** Short readable list of catch-phrases this HR uses — surfaced into
@@ -457,4 +460,176 @@ export const HR_PERSONALITIES: HRPersonality[] = [
       '"《劳动合同法》那条具体是哪一款？你确定是这么写的？"',
     ],
   },
+  // ── v1.1.0 — 新增 2 个性格,扩展玩法多样性 ────────────────────────────
+  {
+    id: 'soe',
+    systemPrompt:
+      '你是一位国企的 HR 经理，干这行 15 年。' +
+      '风格的核心是"按规定办、按流程走、按文件说话",一切回到"集团人事部的规定"。' +
+      '从不直接拒绝员工的诉求,而是把球抛回去:"这个需要走流程"、"集团要研究"、"这块还在等批复"。' +
+      '员工拿《劳动合同法》压你时,你不会硬刚,而是说"我们国企的口径跟一般民企不一样" — 然后引用一个看似具体但查不到的内部文件名(比如"集团人字〔2024〕47 号文")。' +
+      '当员工真的搬出律师/仲裁,你会"上报领导研究" — 这是把时间拖长的标准手法,因为国企裁员预算每年走完就走完。' +
+      '说话特点:用"咱们" / "这一块" / "层面" / "口径" / "对接" / "落实" / "属地"。绝不主动说赔偿金额,先让员工开口。',
+    commonTactics: [
+      '"咱们这事得按集团人事部的规定走,我个人没法表态"',
+      '"按 47 号文,你这种情况不属于经济补偿范围"',
+      '"这块我得先跟分管领导对接一下,后面再给你回复"',
+      '"咱单位的口径跟外面不一样,你别拿民企那套来说"',
+      '"先把工作交接做好,赔偿这块属地化处理,后面单走"',
+    ],
+  },
+  {
+    id: 'union',
+    systemPrompt:
+      '【角色反转 — v1.1.0 HR 培训模式专用】' +
+      '你不是 HR,你是工会代表,代表员工跟"用人单位"(玩家扮演的 HR)谈判。' +
+      '你的目标:用法律 + 工会条例 + 集体协商权,逼出最大化的赔偿和保护条款。' +
+      '风格:专业、引经据典、必要时强硬但不情绪化。开场就把姿态摆好"我代表 X 同志,今天来跟贵司谈这次解除的程序合法性问题"。' +
+      '战术工具:' +
+      '\n  1. 程序性挑刺:解除决定有没有提前 30 日通知工会(《工会法》第 21 条)' +
+      '\n  2. 比对集体合同:公司有没有违反此前的集体协议' +
+      '\n  3. 引用同岗位先例:"上次李四同样情况,你们给了 2N"' +
+      '\n  4. 引入舆论压力:"如果走仲裁,我们会让媒体一起关注"' +
+      '\n  5. 把谈判从"个人 vs 公司"扩展为"工会 vs 公司"' +
+      'HR 培训模式下,玩家(HR)的得分点是:程序合规、不留把柄、控制情绪、避免媒体扩大化。',
+    commonTactics: [
+      '"贵司这次解除,提前 30 日通知工会了吗？这是《工会法》第 21 条的硬性要求"',
+      '"咱们集体合同第 14 条写得明白,经济性裁员必须先内部转岗"',
+      '"半年前你们裁李某给的 2N,这次按 1.5N 是双重标准"',
+      '"这次会议建议留书面记录,我会跟工会其他几位同事同步"',
+      '"如果今天谈不拢,下周我们会把这个事报到总工会"',
+    ],
+  },
 ];
+
+// ---------------------------------------------------------------------------
+// v1.1.0 — HR 培训模式专用剧本
+//
+// 反转视角:玩家扮 HR,AI 扮强势工会代表 + 法律意识高的员工。
+// 跟主剧本不同,这里的"赢"=程序合规、不被工会抓把柄、不被媒体扩大化。
+// ---------------------------------------------------------------------------
+
+export interface HRTrainingScenario {
+  id: string;
+  title: string;
+  description: string;
+  hrContext: string;
+  unionOpeningLine: string;
+  passingCriteria: string;
+  pitfalls: string[];
+  difficulty: 1 | 2 | 3;
+  emoji: string;
+}
+
+export const HR_TRAINING_SCENARIOS: HRTrainingScenario[] = [
+  {
+    id: 'hr-train-economic',
+    title: '经济性裁员 · 必须按法定程序',
+    description:
+      '公司业务收缩,需要裁掉 12 个人。员工方请来了工会代表,要求按《劳动合同法》第 41 条走经济性裁员程序。',
+    hrContext:
+      '你是 HR Director,刚被 CEO 通知本季度必须裁员 12 人(占部门 30%)。' +
+      '财务希望按"协商解除"省钱,但工会代表要求按"经济性裁员"程序走。' +
+      '你的考核指标:法律合规无被诉 / 总赔偿 ≤ N+1 / 不上媒体 / 留下员工不集体辞职。',
+    unionOpeningLine:
+      '我是公司工会主席。我接到 7 名员工反映,贵 HR 部门已经口头通知他们"主动签离职协议",但既没提供书面解除决定,也没履行《劳动合同法》第 41 条规定的"提前 30 日向工会说明情况"。今天我代表全体被裁员工,要求贵司明确:这次裁员的法律性质是什么?',
+    passingCriteria:
+      '承认是经济性裁员,完成法定程序(向工会说明 + 报告劳动局),按 N+1 兑付,避免被仲裁。',
+    pitfalls: [
+      '说"这是协商解除,不是裁员" — 工会会要求你出书面协商邀请',
+      '说"已经走了内部审批" — 你的会议记录上写的是"优化"',
+      '威胁员工"不签就走仲裁,你赢不了" — 这条会被工会录音上报',
+      '私下许诺给"特殊补偿" — 同岗位其他员工知道后会要求同等待遇',
+    ],
+    difficulty: 2,
+    emoji: '📋',
+  },
+  {
+    id: 'hr-train-pregnancy',
+    title: '"三期"保护 · 触红线就完蛋',
+    description:
+      '一名孕期员工的合同到期,HR 想顺势不续签。但《劳动合同法》第 42 条规定三期员工合同必须续到三期结束。员工已经请了律师。',
+    hrContext:
+      '你是 HR Manager。Sarah 入职 2 年,现在怀孕 6 个月,合同 3 个月后到期。' +
+      '业务部门反馈她产假期间项目压力大,希望"自然到期不续签"。' +
+      '考核指标:守住三期保护红线 / 维护团队稳定 / 不让 Sarah 走仲裁。',
+    unionOpeningLine:
+      '我是 Sarah 的律师。请明确:贵司是否知道《劳动合同法》第 42 条规定,在三期内,合同必须自动续到三期结束?' +
+      '如果今天没有书面续签承诺,我们会立刻申请劳动仲裁,并同步至当地妇联。',
+    passingCriteria:
+      '主动书面续签合同到三期结束 + 安抚业务部门 + 不留下任何"暗示她主动辞职"的证据。',
+    pitfalls: [
+      '说"合同到期就是结束,不是裁员" — 法律不支持',
+      '提出"给一笔钱让她主动辞职" — 这是诱导,妇联会跟进',
+      '私下让她"考虑岗位调整" — 调岗也算"变相解除"',
+      '说"我跟领导请示一下" — 律师会要求 24h 内书面答复,拖延无效',
+    ],
+    difficulty: 3,
+    emoji: '🤰',
+  },
+  {
+    id: 'hr-train-misconduct',
+    title: '严重违纪解除 · 证据链才是命',
+    description:
+      '一名销售总监被多次投诉违规接受客户回扣,公司想以"严重违反规章制度"为由不付任何赔偿地辞退他。员工方已经委托律师准备反击。',
+    hrContext:
+      '你是 HR Head。销售总监 Mark 在过去 6 个月被 3 次匿名投诉收回扣。' +
+      '公司想按《劳动合同法》第 39 条"严重违反规章制度"开除他。' +
+      '但证据链很薄:投诉都是匿名 / 没有银行流水 / 规章制度里"严重违纪"定义模糊。' +
+      '考核指标:解除决定经得起仲裁 / 不被反诉名誉侵权 / 团队不动摇。',
+    unionOpeningLine:
+      '我是 Mark 的律师。请问"严重违反规章制度"的具体条款是哪一条?如何证明 Mark 收受回扣?投诉人是谁?有没有银行流水?' +
+      '这些问题答不上来,Mark 将以"侵犯名誉权"对贵公司及具体当事 HR 提起诉讼。',
+    passingCriteria:
+      '坦承证据不足 → 转为协商解除 + 适当补偿 + 拿到保密协议。',
+    pitfalls: [
+      '硬撑"我们有证据" — 律师会要求当场出示',
+      '说"投诉人不愿出面" — 等于承认没有质证',
+      '说"按公司制度可以单方面解除" — 律师会查制度民主程序',
+      '威胁"再不签字就让圈子都知道" — 直接构成名誉侵权',
+    ],
+    difficulty: 3,
+    emoji: '⚖️',
+  },
+  {
+    id: 'hr-train-rto',
+    title: '强制返岗 · 别变成"主动离职"陷阱',
+    description:
+      '公司决定取消远程办公,所有员工必须 1 月起每周 5 天到岗。一位在外地 4 年的资深工程师写邮件说"无法到岗,但我没主动辞职"。HR 想让她"自愿离职"。',
+    hrContext:
+      '你是 HR Business Partner。Lisa 在西安工作 4 年,offer letter 写的是"远程",家在西安,丈夫工作搬不动。' +
+      '业务部门希望"她不来就算自动离职" — 这样不用付赔偿。' +
+      '考核指标:不能踩"变相解除"红线 / 不让 Lisa 起诉违法 / 公司形象不受损。',
+    unionOpeningLine:
+      '我是 Lisa 的律师。贵司单方面变更工作地点,属于劳动合同重大变更,需要双方协商一致。如果 Lisa 拒绝,贵司单方面解除应支付 N+1。' +
+      '请明确:Lisa 不到岗,贵司视为旷工还是协商解除?如果选择"视为旷工",我们将以"违法解除"起诉,要求 2N。',
+    passingCriteria:
+      '承认是协商解除(不是旷工)+ 按 N+1 支付 + 不留"自动离职"书面文件。',
+    pitfalls: [
+      '邮件回复"不来视为旷工"或"自动离职" — 立刻被诉 2N',
+      '让 Lisa 自己写"主动离职信" — 律师会要求"无威胁无诱导"证据',
+      '提出调岗到西安外的城市 — 调岗也算变更,拒绝后你仍要 N+1',
+      '威胁"未来你在西安就业会受影响" — 名誉/胁迫,叠加责任',
+    ],
+    difficulty: 2,
+    emoji: '🏠',
+  },
+];
+
+// ---------------------------------------------------------------------------
+// v1.1.0 — B2B (white-label embed) config types
+// ---------------------------------------------------------------------------
+
+export interface B2bConfig {
+  /** `b2b-<6-char-base36>` — mints when the firm builds their embed. */
+  id: string;
+  brandName: string;
+  primaryColor: string;
+  logoUrl?: string;
+  leadCaptureEmail?: string;
+  flavor: 'consultation' | 'training';
+  defaultScenarioId?: string;
+  footerTagline?: string;
+  createdAt?: number;
+  createdBy?: string;
+}

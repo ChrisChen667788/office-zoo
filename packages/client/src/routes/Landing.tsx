@@ -210,6 +210,19 @@ export default function Landing() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* v1.1.0 — B 端 SaaS 入口 (律所/HR培训采购) */}
+          <button
+            onClick={() => navigate('/b2b')}
+            className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
+            style={{
+              color: 'rgba(255,255,255,0.75)',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.10)',
+            }}
+            title="律所白标 embed / HR 培训沙盘"
+          >
+            🏢 B 端
+          </button>
           {/* v1.0.0 — Premium chip in header. Tasteful amber gradient
               that doesn't shout. Routes to /premium paywall page. */}
           <button

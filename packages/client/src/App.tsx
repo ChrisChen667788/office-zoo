@@ -10,6 +10,8 @@ import FiredPack from './routes/FiredPack';
 import FiredRoom from './routes/FiredRoom';
 import Talkshow from './routes/Talkshow';
 import Premium from './routes/Premium';
+import B2bBuilder from './routes/B2bBuilder';
+import B2bEmbed from './routes/B2bEmbed';
 
 export default function App() {
   return (
@@ -30,6 +32,9 @@ export default function App() {
       <Route path="/talkshow" element={<Talkshow />} />
       {/* v1.0.0 — Premium paywall + demo checkout. */}
       <Route path="/premium" element={<Premium />} />
+      {/* v1.1.0 — B2B white-label builder + iframe embed target. */}
+      <Route path="/b2b" element={<B2bBuilder />} />
+      <Route path="/embed/:configId" element={<B2bEmbed />} />
     </Routes>
   );
 }

@@ -108,6 +108,68 @@ export const font = {
     'ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Monaco, "Roboto Mono", monospace',
 } as const;
 
+// ──────────────────────────────────────────────────────────────────────────
+// v1.1.0 — Executive theme palette
+//
+// The consumer surface uses a neon-violet aesthetic (brand.neon + brand.violet
+// + pink kiss) that reads as "young, irreverent, after-hours". For the B2B
+// white-label embed, that's the wrong message — law firms and HR training
+// vendors need something that signals "corporate-credible, premium, serious".
+//
+// Decision points:
+//   - Base palette: deep navy (#0c1024) instead of #050510. Slightly warmer,
+//     less goth, reads as "Bloomberg terminal at dusk" rather than "discord".
+//   - Primary accent: muted gold (#c89a4e) instead of the neon cyan. Gold
+//     carries the legal-trust connotation (gavel, scales, wax seal) without
+//     being literal about it.
+//   - Secondary: pewter (#7a8197) for chrome / dividers — neutral, lets the
+//     embedded customer logo dominate.
+//   - Banned: pink, violet gradients, glow halos, sheen sweeps. All consumer-
+//     mode hover affordances get muted to plain `:hover` lift + 1px ring.
+// ──────────────────────────────────────────────────────────────────────────
+export const executiveColors = {
+  bg: {
+    base: '#0c1024',
+    elev: '#141a36',
+    surface: '#1d2549',
+    overlay: 'rgba(12, 16, 36, 0.86)',
+  },
+  /** Muted gold + steel-blue. Used on CTAs, focus rings, accent bars. */
+  brand: {
+    gold:   '#c89a4e',
+    steel:  '#5b6585',
+    glow:   '#e6b86b',     // brighter highlight for hover states
+  },
+  semantic: {
+    success: '#5fa57a',    // muted forest (not lime)
+    warn:    '#d99e3e',    // amber, not yellow
+    danger:  '#c0524b',    // brick, not neon red
+    info:    '#7a8197',
+  },
+  text: {
+    primary:   'rgba(255,255,255,0.94)',
+    secondary: 'rgba(255,255,255,0.70)',
+    tertiary:  'rgba(255,255,255,0.46)',
+    muted:     'rgba(255,255,255,0.28)',
+  },
+  stroke: {
+    subtle: 'rgba(200,154,78,0.10)',   // subtle gold tint instead of grey
+    normal: 'rgba(200,154,78,0.22)',
+    strong: 'rgba(200,154,78,0.42)',
+  },
+} as const;
+
+/** Per-embed-flavor gradient hint. Theme generator on the client picks one
+ *  of these as the base then overlays the customer's primaryColor. */
+export const executiveGradients = {
+  /** Consultation embed — gold over deep navy. */
+  consultation:
+    'radial-gradient(ellipse at 80% 0%, rgba(200,154,78,0.14) 0%, transparent 55%), linear-gradient(180deg, #0c1024 0%, #141a36 100%)',
+  /** Training embed — steel-blue, slightly cooler. */
+  training:
+    'radial-gradient(ellipse at 20% 0%, rgba(91,101,133,0.18) 0%, transparent 55%), linear-gradient(180deg, #0c1024 0%, #11173b 100%)',
+} as const;
+
 /** Shared gradient recipes — keep in one place so they read consistently. */
 export const gradients = {
   brand: 'linear-gradient(135deg, #4c9eff 0%, #7c3aed 100%)',
