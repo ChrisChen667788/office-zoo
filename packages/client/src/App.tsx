@@ -7,6 +7,7 @@ import FiredLanding from './routes/FiredLanding';
 import FiredChat from './routes/FiredChat';
 import FiredResult from './routes/FiredResult';
 import FiredPack from './routes/FiredPack';
+import FiredRoom from './routes/FiredRoom';
 import Talkshow from './routes/Talkshow';
 
 export default function App() {
@@ -22,6 +23,9 @@ export default function App() {
       <Route path="/fired/result" element={<FiredResult />} />
       {/* v0.9.0 — UGC pack play view (5 sequential scenarios). */}
       <Route path="/fired/pack/:packId" element={<FiredPack />} />
+      {/* v0.9.3 — PvP room (worker vs human-HR). roomId="new" + ?scenarioId
+          spawns a fresh room; existing rooms join via ?role=worker|hr. */}
+      <Route path="/fired/room/:roomId" element={<FiredRoom />} />
       <Route path="/talkshow" element={<Talkshow />} />
     </Routes>
   );

@@ -18,6 +18,7 @@ import { Server as SocketServer } from 'socket.io';
 import { createServer } from 'http';
 import { cors } from 'hono/cors';
 import { setupSocketHandler, getServerStats } from './socket/socketHandler';
+import { setupFiredRoomHandler } from './socket/firedRoomHandler';
 import { ttsRoutes } from './routes/tts';
 import { mediaRoutes } from './routes/media';
 import { firedRouter } from './routes/fired';
@@ -138,6 +139,10 @@ const io = new SocketServer(httpServer, {
 });
 
 setupSocketHandler(io);
+// v0.9.3 — PvP room (worker vs human-HR) layered onto the same io
+// instance. Uses `room:*` event namespace to stay clearly separate
+// from `game:*` events that the main social-deduction engine owns.
+setupFiredRoomHandler(io);
 
 httpServer.listen(wsPort, () => {
   logger.info({ wsPort }, 'WebSocket server listening');

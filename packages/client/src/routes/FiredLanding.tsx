@@ -836,6 +836,25 @@ export default function FiredLanding() {
                     {selectedScenario ? '进入谈判室 →' : '选择剧本后解锁'}
                   </span>
                 </motion.button>
+                {/* v0.9.3 — alternative entry: real human plays HR via PvP
+                    room. Only meaningful once a scenario is picked. Subtle
+                    secondary button to avoid stealing focus from the
+                    primary AI-HR flow. */}
+                {selectedScenario && (
+                  <button
+                    onClick={() => navigate(`/fired/room/new?scenarioId=${selectedScenario}`)}
+                    className="hover-sheen mt-2.5 w-full py-2.5 rounded-xl text-[12px] font-semibold tracking-wide transition relative overflow-hidden"
+                    style={{
+                      color: '#fff',
+                      background:
+                        'linear-gradient(135deg, rgba(124,58,237,0.20), rgba(255,85,136,0.16))',
+                      border: '1px solid rgba(124,58,237,0.45)',
+                    }}
+                    title="跟你朋友 PvP — 他扮 HR,你跟他谈判"
+                  >
+                    🤝 邀请朋友扮 HR (PvP)
+                  </button>
+                )}
               </div>
             </motion.section>
           </motion.div>
