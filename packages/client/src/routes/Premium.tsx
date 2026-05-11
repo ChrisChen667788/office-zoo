@@ -29,6 +29,7 @@ import {
   type Entitlement,
   type PremiumPlan,
 } from '../utils/entitlement';
+import { useT } from '../utils/i18n';
 
 const FEATURES: Array<{ emoji: string; title: string; body: string; status: 'live' | 'soon' }> = [
   {
@@ -64,6 +65,7 @@ const PRICING: Record<PremiumPlan, { label: string; price: string; per: string; 
 
 export default function Premium() {
   const navigate = useNavigate();
+  const { t } = useT();
   const [plan, setPlan] = useState<PremiumPlan>('annual');
   const [entitlement, setEntitlement] = useState<Entitlement>(() => getEntitlement());
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -87,7 +89,7 @@ export default function Premium() {
           className="text-xs tracking-wider text-white/55 hover:text-white/90 transition px-3 py-1.5 rounded"
           style={{ background: 'rgba(255,255,255,0.05)' }}
         >
-          ← 返回首页
+          {t('header.backHome')}
         </button>
         <span className="text-[11px] uppercase tracking-[0.28em] text-white/55">
           👑 Premium
@@ -108,11 +110,10 @@ export default function Premium() {
               letterSpacing: '0.02em',
             }}
           >
-            Premium · 班味 Pro
+            {t('premium.title')}
           </h1>
           <p className="text-white/65 text-sm md:text-base max-w-2xl mx-auto leading-relaxed">
-            把"被 HR 优化"这件事玩到极致。<br/>
-            海外大厂剧本,真人律师,定制声音,所有局永久回放。
+            {t('premium.subtitle')}
           </p>
         </div>
 

@@ -21,6 +21,7 @@ import LottieAsset from '../components/LottieAsset';
 import { primeAudio } from '../utils/audioUnlock';
 import { colors } from '../constants/design';
 import { lottie } from '../constants/lottie';
+import { useT, setLocale } from '../utils/i18n';
 import { modeIcons, Icon } from '../constants/icons';
 
 const PLAYER_COUNTS = [6, 8, 10] as const;
@@ -89,6 +90,8 @@ const MODES: ModeSpec[] = [
 
 export default function Landing() {
   const navigate = useNavigate();
+  // v1.2.0 — i18n. `t()` for translations, `locale` re-renders on toggle.
+  const { t, locale } = useT();
   const [mode, setMode] = useState<GameMode>('classic');
   const [playerCount, setPlayerCount] = useState<number>(8);
   const [isCreating, setIsCreating] = useState(false);
@@ -204,12 +207,38 @@ export default function Landing() {
             ZOO
           </div>
           <div className="hidden md:flex flex-col leading-none">
-            <span className="text-[12px] font-black tracking-[0.18em] text-white/80">OFFICE ZOO</span>
-            <span className="text-[10px] text-white/40 mt-1">AI 鼠人 24h 营业</span>
+            <span className="text-[12px] font-black tracking-[0.18em] text-white/80">{t('brand.wordmark')}</span>
+            <span className="text-[10px] text-white/40 mt-1">{t('brand.tagline')}</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* v1.2.0 — locale toggle. 2-position pill, persists in localStorage. */}
+          <button
+            onClick={() => setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN')}
+            className="hidden sm:inline-flex items-center gap-0.5 text-[10px] font-bold tracking-wide rounded-full transition overflow-hidden"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.10)',
+            }}
+            title={t('locale.switchHint')}
+            aria-label="Switch language"
+          >
+            <span
+              className="px-2 py-1.5 transition"
+              style={{
+                color: locale === 'zh-CN' ? '#fff' : 'rgba(255,255,255,0.45)',
+                background: locale === 'zh-CN' ? 'rgba(76,158,255,0.25)' : 'transparent',
+              }}
+            >中</span>
+            <span
+              className="px-2 py-1.5 transition"
+              style={{
+                color: locale === 'en-US' ? '#fff' : 'rgba(255,255,255,0.45)',
+                background: locale === 'en-US' ? 'rgba(76,158,255,0.25)' : 'transparent',
+              }}
+            >EN</span>
+          </button>
           {/* v1.1.0 — B 端 SaaS 入口 (律所/HR培训采购) */}
           <button
             onClick={() => navigate('/b2b')}
@@ -219,9 +248,9 @@ export default function Landing() {
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid rgba(255,255,255,0.10)',
             }}
-            title="律所白标 embed / HR 培训沙盘"
+            title="Law firm white-label / HR training sandbox"
           >
-            🏢 B 端
+            {t('header.b2b')}
           </button>
           {/* v1.0.0 — Premium chip in header. Tasteful amber gradient
               that doesn't shout. Routes to /premium paywall page. */}
@@ -242,7 +271,7 @@ export default function Landing() {
             onClick={() => setRulesOpen(true)}
             className="text-xs tracking-wider text-white/55 hover:text-white/90 transition px-3 py-2"
           >
-            怎么玩
+            {t('header.howToPlay')}
           </button>
           <SfxToggle />
         </div>
