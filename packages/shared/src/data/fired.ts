@@ -71,6 +71,11 @@ export interface FiredScenario {
   /** Cap on the compensation slider (in months of salary) shown in the
    *  end-screen. 1 = "1 month", 12 = "2N for a 6-year tenure". */
   maxCompensation: number;
+  /** v1.0.0 — when true, this scenario is part of the Premium Pack and
+   *  locked behind the paywall for free users. UI surfaces a 👑 badge
+   *  and routes the click to /premium. Defaults to undefined (= free)
+   *  on every existing entry — additive, no migration needed. */
+  premium?: boolean;
 }
 
 export const SCENARIOS: FiredScenario[] = [
@@ -265,6 +270,115 @@ export const SCENARIOS: FiredScenario[] = [
       '你是一名高级运维工程师，在公司工作了6年，月薪26K。公司以"组织优化"的名义在一个月内先后辞退了你们部门8个人（部门总共12人）。公司只愿意给1个月工资，不愿意按N+1或2N赔偿。你在其他同事的群里了解到，公司其实在招新人填这些坑，只是title变了。',
     winCondition: '证明属于违法解除，获得2N赔偿金（12个月工资）',
     maxCompensation: 12,
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // v1.0.0 — Premium Pack: 海外大厂场景
+  // 6 真实事件改编的英美大厂裁员剧本。法律框架切换到 at-will employment
+  // + severance package + visa 的玩法,跟国内劳动合同法完全不同的策略。
+  // 全部 premium:true,免费用户在 FiredLanding 看到锁。
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    id: 'twitter-purge',
+    title: 'Twitter 大清洗 · 50% 一夜全裁',
+    description:
+      '周四晚上 11 点,你收到一封英文邮件。主题:"Important: Your Role at the Company"。邮件说明天早上 9 点之前,你的笔电会自动锁屏,Slack 账号关闭。Severance 谈判窗口 48 小时。',
+    difficulty: 3,
+    emoji: '🐦',
+    legalSituation:
+      'California 是 at-will employment 州,公司确实可以随时解雇员工不需要原因,但 WARN Act 要求 100 人以上的大规模裁员必须提前 60 天通知。Twitter 用了一个法律灰色地带:发"提前 60 天的 garden leave"通知,然后 60 天后再正式终止。员工在 garden leave 期间还在 payroll 上但不能上班。这种做法已经被多起 class action 起诉,目前在审理中。员工可以争取 4 个月+严重情况下的 emotional distress 赔偿。',
+    hrOpeningLine:
+      'Hi, this is Jessica from People Ops. I know this is sudden. The company has decided to part ways with you. We\'re offering 2 months of severance plus accelerated vesting on your unvested equity if you sign this separation agreement by Sunday. After Sunday, the offer drops to 1 month.',
+    playerContext:
+      '你是 Twitter Trust & Safety 团队的高级工程师,工作 4 年,base $220K + RSU $180K/年。H-1B 持有者,需要在 60 天内找到新雇主 sponsor 否则要回国。RSU 还有 $150K 没 vest。你在 Slack 上看到至少 50% 同事被裁。律师朋友说 WARN Act 集体诉讼正在筹备。',
+    winCondition: '4 个月 severance + 全部 RSU 加速 vest + 90 天 H-1B 转换协助',
+    maxCompensation: 8,
+    premium: true,
+  },
+  {
+    id: 'meta-efficiency',
+    title: 'Meta "效率年" · Zoom 视频通知',
+    description:
+      '周二早上 9:30,你打开公司 laptop,Outlook 弹出一个无主题日历邀请,5 分钟后开始。你点进去发现是个有 11000 人的 webinar。Mark Zuckerberg 出现,说"我们今天与一些非常有才华的同事告别"。你刷新 GitHub,push 失败:permission denied。你被 fire 了。',
+    difficulty: 2,
+    emoji: '👔',
+    legalSituation:
+      'Meta 这种"群发裁员视频"虽然反人性但完全合法 — at-will 州,WARN Act 60 天通知期他们用 paid garden leave 满足。员工可争取的杠杆是 (1) severance package upgrade — 默认 16 周 + 每年 2 周,senior 可以谈到 24 周;(2) 健康保险 COBRA 公司补贴 6 个月; (3) 已 vest 但 RSU 还没 release 的部分,需要逼公司在 separation date 之前 release;(4) PIP-adjacent 的员工要争取 manager 写 neutral reference,避免行业 blacklist。',
+    hrOpeningLine:
+      'Thanks for joining. As you saw in the all-hands, your role has been impacted. Your manager will reach out within 48 hours. In the meantime, you have access to the alumni portal for benefits info. We appreciate your contribution to building the future.',
+    playerContext:
+      '你是 Meta Reality Labs 的 Software Engineer L5,工作 3 年,base $200K + RSU $250K/年。Manager 跳过你直接被裁,所以没有 PIP 履历。RSU vesting 下个月 25%。你 H-1B 还有 18 个月,但 EB-2 排期 5 年。',
+    winCondition: '24 周 severance + 即将 vest 的 RSU 加速 release + neutral reference',
+    maxCompensation: 7,
+    premium: true,
+  },
+  {
+    id: 'amazon-rto',
+    title: 'Amazon 强制 RTO · 不来就辞职',
+    description:
+      '8 月一个周五,公司发邮件:从 1 月起所有员工必须每周 5 天回 Seattle 总部。你在丹佛远程工作 3 年了,签的是 fully remote offer。没有提供 relocation,没有补偿,不去就视为 voluntary resignation。',
+    difficulty: 3,
+    emoji: '📦',
+    legalSituation:
+      '美国劳动法没有强制 work-from-home 的概念,但当 offer letter 上明确写了 fully remote 时,公司单方面变更 = constructive dismissal(变相解雇),员工可以申请 severance + unemployment。关键看 offer letter 的 fine print 有没有 "Amazon may modify work location at its discretion" 条款。如果有,你 leverage 弱;如果没有,你是 wrongful termination 候选人,可以走 EEOC 投诉(尤其如果你有家庭义务/disability 让 RTO 不可行)。Amazon 这次的策略是逼员工自己辞职 = 0 severance,所以一定要让他们书面说明 "if you don\'t come, your role will be terminated"。',
+    hrOpeningLine:
+      'Hey, just following up on the RTO announcement. We need everyone back in the office by January. We\'re committed to the in-person culture. If you\'re not able to relocate, we understand — we just need you to update your status to "voluntary resignation" by November 1st so we can plan headcount.',
+    playerContext:
+      '你是 AWS Solutions Architect L6,工作 5 年,base $215K + RSU $180K/年。Offer letter 明确写 "Remote, Denver based"。妻子在丹佛是医生,无法搬。儿子 8 年级,刚换学校。Amazon 的 PIP 文化已经让你压力山大,这个 RTO 是压死骆驼的稻草。你想要的是 severance,不是辞职。',
+    winCondition: '逼公司书面承认 involuntary termination + 8 周 severance + 已 vest RSU 完整保留',
+    maxCompensation: 10,
+    premium: true,
+  },
+  {
+    id: 'apple-pm',
+    title: 'Apple Performance Management · 无声驱逐',
+    description:
+      '你是 Apple iCloud 团队的 EM,带 8 人 team。最近 6 个月 perf review 写得越来越冷,从 "Top Performer" 跌到 "Needs Improvement"。HR 邀你"casual coffee chat",说"You know, sometimes Apple just isn\'t the right fit anymore for everyone."',
+    difficulty: 3,
+    emoji: '🍎',
+    legalSituation:
+      'Apple 不像 Meta/Twitter 一刀切,而是用 PIP(Performance Improvement Plan)逐个清理。30/60/90 天 PIP 通过率历史上不到 10% — 公司用 PIP 让你"主动"辞职从而避免支付 severance。员工的反制策略:(1) 拒绝签字,要求 PIP 必须有具体 measurable goals + manager 每周 1on1 书面记录;(2) 同时 contact 一位 employment lawyer 评估 wrongful termination + age discrimination(如果你 40+);(3) 把所有 high performer review 截图存档,为未来 retaliation case 留证;(4) 跟 HR 谈 "mutual separation agreement" 而不是 PIP — 通常 4-6 周 severance + 不上 PIP 历史。',
+    hrOpeningLine:
+      'I want to be transparent with you. Your most recent review was below expectations. We\'re considering placing you on a Performance Improvement Plan. But before we go that route, I wonder if you\'ve thought about whether Apple is still the right environment for you. We could discuss a more graceful transition.',
+    playerContext:
+      '你是 Engineering Manager,在 Apple 9 年,base $260K + RSU $400K/年,42 岁。前 4 年 review 都是 Top 5%,新换的 director 不喜欢你的 management style。你有 2 个孩子在私立学校,一年学费 $80K。Cupertino 房贷月供 $9K。你完全不能裸辞。',
+    winCondition: '拒绝 PIP,谈到 6 周 mutual separation severance + neutral reference + COBRA 补贴',
+    maxCompensation: 9,
+    premium: true,
+  },
+  {
+    id: 'google-bard',
+    title: 'Google Bard 团队重组 · 不搬就走',
+    description:
+      '你在 Google London 做 Search Quality 5 年了。今天周一 Stand-up,你的 director 宣布:整个团队从下季度开始 report 给 Mountain View 的 AI org。你的 job code 改了,如果不搬到加州,公司"无法保证你的角色继续存在"。你有 6 周决定。',
+    difficulty: 2,
+    emoji: '🔍',
+    legalSituation:
+      'UK 劳动法对 redundancy 有非常详细的规定:公司必须证明这个职位"真的不存在了",而不是"换个 location 你不去"。如果你的工作内容不变,只是 reporting line 变了,这不算 redundancy。员工可以要求(1) statutory redundancy pay(每工作年 1 周工资,封顶 £21k);(2) 公司多给的 enhanced redundancy(Google 通常 12 周 + 每年 2 周);(3) 90 天 garden leave;(4) 不签 NDA / non-disparagement,保留对外说话的权利。Google 这种"reorg 强制 relo"在 UK 已经被仲裁庭多次裁定为 disguised redundancy。',
+    hrOpeningLine:
+      'I know this is a big change. The truth is the new structure requires the AI Search team to be co-located in Mountain View. We can offer you a relocation package — visa support, $50k moving stipend, and 6 months of housing. But if relocation isn\'t feasible, we\'ll need to discuss other options.',
+    playerContext:
+      '你是 Senior Software Engineer 在 Google London,工作 5 年,base £140K + RSU $200K/年。Tier 2 visa,英国 indefinite leave to remain 还要 3 个月。妻子在伦敦做律师 partner-track,搬不了。你不想被迫辞职导致 visa 出问题 + 失去 statutory protection。',
+    winCondition: 'Statutory + enhanced redundancy + 90 天 garden leave + 不签 non-disparagement',
+    maxCompensation: 8,
+    premium: true,
+  },
+  {
+    id: 'startup-cliff',
+    title: '硅谷创业公司 · cliff 前两周裁员',
+    description:
+      '你是 Series B startup 的 SWE,工作刚满 11 个月零 2 周。明天就是 stock cliff(满 12 个月才能 vest 第一批 25% 的 stock)。HR 今晚发邮件约你明早 8:30 谈话,subject line: "Quick chat tomorrow"。你打开 Carta,你的 stock 还是 0% vested。',
+    difficulty: 3,
+    emoji: '🚀',
+    legalSituation:
+      'Cliff vesting 是 startup 行业惯例,法律上完全合法 — 公司在 cliff 前 fire 你 = 你拿不到任何 stock。这种 "cliff dump" 行为在 California Labor Code Section 970 下可能构成 fraudulent inducement,如果能证明公司 hire 你的时候明知道 12 个月内会让你走。员工的杠杆:(1) 要求公司给 acceleration — 至少 vest 前 25%(12 个月的 cliff,你已经做了 11.5 个月);(2) 要求 4 周以上 severance(行业标准);(3) 索取 "voluntary resignation" 写法 — 让你后续找工作时不显示被 fire 的痕迹;(4) 如果有 written promise 关于"长期"或"会一起做大",截图存档,为 fraud case 准备弹药。',
+    hrOpeningLine:
+      'Thanks for hopping on. I want to be straight with you. The leadership team has made a tough decision. We\'re restructuring the engineering org and your role isn\'t in the new plan. We can offer you 2 weeks of severance and a positive reference. We\'d like you to wrap up by end of this week.',
+    playerContext:
+      '你是 Senior SWE,base $185K + 0.15% equity(估值 $1.2B,你的 share 理论值 ~$1.8M)。明天就 cliff 满 12 个月。你前一份工作在 Google,被这个 startup 用 "we\'ll make you rich" 挖角。Onboarding 时 CEO 当面承诺 "you\'re going to be here for the long haul"。你在 Slack DM 里有这句话的截图。',
+    winCondition: '至少 25% acceleration(cliff 部分)+ 6 周 severance + 离职日期推到 cliff 之后',
+    maxCompensation: 10,
+    premium: true,
   },
 ];
 

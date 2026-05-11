@@ -209,7 +209,22 @@ export default function Landing() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* v1.0.0 — Premium chip in header. Tasteful amber gradient
+              that doesn't shout. Routes to /premium paywall page. */}
+          <button
+            onClick={() => navigate('/premium')}
+            className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide px-3 py-1.5 rounded-full transition relative overflow-hidden hover-sheen"
+            style={{
+              color: '#fff',
+              background: 'linear-gradient(135deg, rgba(255,184,76,0.30), rgba(255,85,136,0.18))',
+              border: '1px solid rgba(255,184,76,0.55)',
+              boxShadow: '0 4px 14px rgba(255,184,76,0.25)',
+            }}
+            title="解锁 海外大厂剧本 + 律师入口 + voice clone + 无限回放"
+          >
+            👑 Premium
+          </button>
           <button
             onClick={() => setRulesOpen(true)}
             className="text-xs tracking-wider text-white/55 hover:text-white/90 transition px-3 py-2"

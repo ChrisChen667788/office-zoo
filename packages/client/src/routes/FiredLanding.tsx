@@ -23,6 +23,7 @@ import { colors } from '../constants/design';
 import { getUserId } from '../utils/userId';
 import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { EmptyState } from '../components/ui/EmptyState';
+import { isPremium, subscribeEntitlement } from '../utils/entitlement';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
  *  same fields plus a `source` flag distinguishing seed catalogue from
@@ -35,6 +36,10 @@ type ScenarioWithSource = FiredScenario & {
   createdBy?: string;
   /** v0.9.2 — total chat sessions opened on this scenario. */
   plays?: number;
+  /** v1.0.0 — Premium-locked scenario (FAANG pack). Already on
+   *  FiredScenario (shared/data/fired.ts) but explicit here for the
+   *  client-side render branches. */
+  premium?: boolean;
 };
 
 /** v0.8.1/v0.9.2 — sort modes for the scenario grid, mirroring talkshow. */
@@ -91,6 +96,12 @@ export default function FiredLanding() {
   );
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [packCreatorOpen, setPackCreatorOpen] = useState(false);
+  // v1.0.0 — Premium subscription state, reactive so unlocking in
+  // another tab takes effect without reload.
+  const [premium, setPremium] = useState<boolean>(() => isPremium());
+  useEffect(() => subscribeEntitlement((e) => {
+    setPremium(e.status === 'active' || e.status === 'trialing');
+  }), []);
   // v0.8.1 — sort mode for the scenario grid + per-IP liked-set + mine filter
   const [sortMode, setSortMode] = useState<FiredSortMode>('default');
   const [mineOnly, setMineOnly] = useState(false);
@@ -545,10 +556,19 @@ export default function FiredLanding() {
                   const medalGlyph = sortMode === 'monthly' && !mineOnly && idx < 3
                     ? (idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉')
                     : null;
+                  // v1.0.0 — Premium-locked card. Click routes to paywall
+                  // instead of selecting the scenario.
+                  const isLocked = scenario.premium && !premium;
                   return (
                     <motion.button
                       key={scenario.id}
-                      onClick={() => setSelectedScenario(scenario.id)}
+                      onClick={() => {
+                        if (isLocked) {
+                          navigate('/premium');
+                          return;
+                        }
+                        setSelectedScenario(scenario.id);
+                      }}
                       whileHover={{ y: -2 }}
                       whileTap={{ scale: 0.985 }}
                       className="hover-sheen frost-card relative overflow-hidden rounded-2xl p-5 text-left transition min-h-[168px]"
@@ -576,6 +596,42 @@ export default function FiredLanding() {
                           aria-label={`月度榜第 ${idx + 1} 名`}
                         >
                           {medalGlyph}
+                        </div>
+                      )}
+                      {/* v1.0.0 Premium 标签 — locked 状态下大且清晰; 已订阅时
+                          只在卡角放一个小 👑 表明这是 Premium 内容。 */}
+                      {scenario.premium && (
+                        <div
+                          className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide"
+                          style={{
+                            color: '#ffb84c',
+                            background: isLocked
+                              ? 'linear-gradient(135deg, rgba(255,184,76,0.22), rgba(255,85,136,0.10))'
+                              : 'rgba(255,184,76,0.10)',
+                            border: `1px solid ${isLocked ? 'rgba(255,184,76,0.55)' : 'rgba(255,184,76,0.32)'}`,
+                            boxShadow: isLocked ? '0 4px 14px rgba(255,184,76,0.3)' : 'none',
+                          }}
+                        >
+                          {isLocked ? '👑 Premium · 升级解锁' : '👑 Premium'}
+                        </div>
+                      )}
+                      {/* Locked overlay — soft veil + lock glyph centered.
+                          Sits ABOVE content but BELOW the medal/Premium chips
+                          so they remain readable. */}
+                      {isLocked && (
+                        <div
+                          className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
+                          style={{
+                            background: 'radial-gradient(circle at 50% 50%, rgba(8,6,24,0.10) 0%, rgba(8,6,24,0.62) 100%)',
+                            backdropFilter: 'blur(0.5px)',
+                          }}
+                        >
+                          <div
+                            className="text-3xl"
+                            style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.55))' }}
+                          >
+                            🔒
+                          </div>
                         </div>
                       )}
                       {active && (

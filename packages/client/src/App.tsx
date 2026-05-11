@@ -9,6 +9,7 @@ import FiredResult from './routes/FiredResult';
 import FiredPack from './routes/FiredPack';
 import FiredRoom from './routes/FiredRoom';
 import Talkshow from './routes/Talkshow';
+import Premium from './routes/Premium';
 
 export default function App() {
   return (
@@ -27,6 +28,8 @@ export default function App() {
           spawns a fresh room; existing rooms join via ?role=worker|hr. */}
       <Route path="/fired/room/:roomId" element={<FiredRoom />} />
       <Route path="/talkshow" element={<Talkshow />} />
+      {/* v1.0.0 — Premium paywall + demo checkout. */}
+      <Route path="/premium" element={<Premium />} />
     </Routes>
   );
 }
