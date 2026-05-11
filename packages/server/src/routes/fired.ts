@@ -19,6 +19,12 @@ import {
 } from '../services/scenarioStore';
 import { generateFiredScenario } from '../services/firedScenarioGenerator';
 import { createRateLimiter } from '../utils/rateLimit';
+import {
+  listMemories,
+  listScenarioStats,
+  recordMemory,
+} from '../services/memoryStore';
+import { summarizeTactic } from '../services/tacticSummarizer';
 
 // v0.8.0 — same 5/hour/IP cap as talkshow's /generate. Scenario gen is even
 // more expensive (1400 maxTokens vs talkshow's 480) so the limit matters
@@ -141,20 +147,48 @@ function getPersonality(id: string): HRPersonality | undefined {
   return HR_PERSONALITIES.find((p) => p.id === id);
 }
 
+/** v0.8.2 — surface readable Chinese for the outcome enum so the prompt
+ *  block reads natural ("胜诉" vs "win"). */
+function outcomeZh(o: 'win' | 'partial' | 'lose'): string {
+  if (o === 'win')     return '胜诉';
+  if (o === 'partial') return '部分胜诉';
+  return '失败';
+}
+
 /**
  * Build the system prompt for the HR role-play.
+ *
+ * v0.8.2 — when prior `memories` exist for this (user, scenario), inject
+ * them into the prompt so HR can pre-empt repeated tactics. The block
+ * appears AFTER the scenario context so the model sees the situation
+ * first, then "oh and you've met this person before, here's what they
+ * pulled last time". Empty memories array → no injection (legacy
+ * behaviour preserved).
  */
+import type { PlayMemory } from '../services/memoryStore';
 function buildHRSystemPrompt(
   scenario: FiredScenario,
   personality: HRPersonality,
+  memories: PlayMemory[] = [],
 ): string {
+  const memoryBlock = memories.length === 0 ? '' : `
+
+【重要 — 你认得这位员工 (v0.8.2 记忆层)】
+这位员工之前在你这关已经来过 ${memories.length} 次,套路如下:
+${memories.map((m, i) => `  ${i + 1}. [${outcomeZh(m.outcome)}, ${m.tookRounds}轮] ${m.tactic}`).join('\n')}
+
+请预判这些招数,不要再被绕进去:
+- 如果员工又用同样的法律条文施压,你可以反驳"这条上次已经讨论过,公司立场没变"
+- 如果员工在重复成功的话术,提前掐断,转换战场
+- 但仍要保持 HR 的角色扮演风格,不要直接说"我记得你"`;
+
   return `${personality.systemPrompt}
 
 当前场景: ${scenario.title}
 场景描述: ${scenario.description}
 员工情况: ${scenario.playerContext}
 法律背景: ${scenario.legalSituation}
-最大赔偿: ${scenario.maxCompensation}个月工资
+最大赔偿: ${scenario.maxCompensation}个月工资${memoryBlock}
 
 你正在扮演这位HR，与即将被裁员的员工进行谈判。根据你的性格特点进行对话。
 重要规则:
@@ -199,7 +233,12 @@ firedRouter.post('/chat', async (c) => {
       return c.json({ error: `Unknown personality: ${personalityId}` }, 400);
     }
 
-    const systemPrompt = buildHRSystemPrompt(scenario, personality);
+    // v0.8.2 — pull this user's prior memories for the scenario so HR
+    // pre-empts repeated tactics. Missing X-User-Id header (legacy
+    // clients) → empty memories → prompt is identical to v0.8.1.
+    const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+    const memories = userId ? await listMemories(userId, scenarioId) : [];
+    const systemPrompt = buildHRSystemPrompt(scenario, personality, memories);
     const conversation = formatConversation(messages);
 
     // ------ 1. Generate HR response (creative, temperature 0.9) ------
@@ -708,3 +747,80 @@ function checkScenarioSafety(text: string): string | null {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// v0.8.2 — Memory layer
+// ---------------------------------------------------------------------------
+
+const MemoryRecordSchema = z.object({
+  scenarioId: z.string().min(1).max(64),
+  outcome: z.enum(['win', 'partial', 'lose']),
+  /** Final compensation actually achieved (0 to scenario.maxCompensation). */
+  compensationMonths: z.number().min(0).max(120),
+  /** Used to compute finalRatio for the badge. */
+  maxPossible: z.number().min(0).max(120),
+  /** Round count = number of user messages. Helps the "你 7 轮就赢了"
+   *  surface on the FiredLanding badge. */
+  tookRounds: z.number().int().min(1).max(40),
+  /** Full chat history — the summarizer reads this to extract tactic.
+   *  Capped at 40 to match the existing chat schema. */
+  messages: z.array(ChatMessageSchema).min(1).max(40),
+});
+
+/** POST /api/fired/memory/record — called from FiredResult after a round
+ *  ends. Server LLM-summarizes the player's tactic in ~30 chars and
+ *  appends a PlayMemory record. Falls back to a generic outcome string
+ *  if the LLM is unavailable so we always record SOMETHING (the badge
+ *  count is more useful than a perfect tactic string).
+ *
+ *  No rate limit: this is a write tied to a finished gameplay session
+ *  (heavily gated by the 10-round chat flow above), can't be spammed
+ *  cheaply. */
+firedRouter.post('/memory/record', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId) {
+    // Anonymous users don't get persistent memory. Surface a clear error
+    // instead of a silent no-op so debugging is easy.
+    return c.json({ error: 'X-User-Id header required for memory recording' }, 400);
+  }
+  const v = await validateBody(c, MemoryRecordSchema);
+  if (!v.ok) return v.response;
+  const { scenarioId, outcome, compensationMonths, maxPossible, tookRounds, messages } = v.data;
+
+  const scenario = await getScenario(scenarioId);
+  if (!scenario) return c.json({ error: 'scenario not found' }, 404);
+
+  const tactic = await summarizeTactic({
+    scenarioTitle: scenario.title,
+    outcome,
+    messages,
+  });
+
+  const finalRatio = maxPossible > 0
+    ? Math.max(0, Math.min(1, compensationMonths / maxPossible))
+    : 0;
+
+  await recordMemory(userId, scenarioId, {
+    ts: Date.now(),
+    outcome,
+    tactic,
+    tookRounds,
+    finalRatio,
+  });
+
+  routeLog.info('Memory recorded', {
+    user: userId.slice(0, 8) + '…', scenarioId, outcome, tookRounds, tactic,
+  });
+
+  return c.json({ ok: true, tactic });
+});
+
+/** GET /api/fired/memory/me — bulk return per-scenario stats for the
+ *  current user, for FiredLanding to render "你打过 N 次" badges. Empty
+ *  object when no X-User-Id (anonymous). */
+firedRouter.get('/memory/me', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId) return c.json({ stats: {} });
+  const stats = await listScenarioStats(userId);
+  return c.json({ stats });
+});

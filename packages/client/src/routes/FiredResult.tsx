@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useFiredStore, type FiredScores } from '../stores/firedStore';
 import { useFiredProgress, getLevel } from '../stores/firedProgress';
+import { getUserId } from '../utils/userId';
 
 /* ------------------------------------------------------------------ */
 /*  Grade helpers                                                      */
@@ -178,8 +179,12 @@ function RadarChart({ scores }: { scores: FiredScores }) {
 
 export default function FiredResult() {
   const navigate = useNavigate();
-  const { outcome, currentScores, messages, reset } = useFiredStore();
+  const { scenarioId, outcome, currentScores, messages, reset } = useFiredStore();
   const awardLevel = useFiredProgress((s) => s.awardLevel);
+  /** v0.8.2 — server-recorded tactic summary (echoed back from the
+   *  /memory/record response). When present, surface it on the result
+   *  screen so the user sees what HR will remember next time. */
+  const [recordedTactic, setRecordedTactic] = useState<string | null>(null);
 
   const grade = useMemo(
     () => getGrade(outcome?.compensationMonths ?? 0, outcome?.maxPossible ?? 1),
@@ -210,6 +215,60 @@ export default function FiredResult() {
     // One-shot — clear the marker so re-replays start fresh.
     try { sessionStorage.removeItem('office-zoo.active-level'); } catch { /* noop */ }
   }, [activeLevelInfo, outcome, awardLevel]);
+
+  // v0.8.2 — record this round into the user's memory store so HR
+  // pre-empts these tactics next time the same scenario is played.
+  // One-shot via ref-guard, fires only when we have an outcome AND a
+  // scenarioId AND chat history. Soft-fails silently (memory is a "nice
+  // to have", not a critical path).
+  const memorizedRef = useRef(false);
+  useEffect(() => {
+    if (memorizedRef.current) return;
+    if (!outcome || !scenarioId || messages.length === 0) return;
+    memorizedRef.current = true;
+
+    // Map game outcome to memory-store enum.
+    const ratio = outcome.maxPossible > 0
+      ? outcome.compensationMonths / outcome.maxPossible
+      : 0;
+    const memOutcome: 'win' | 'partial' | 'lose' =
+      ratio >= 0.8 ? 'win'
+    : ratio >= 0.4 ? 'partial'
+    :                'lose';
+
+    // Strip messages to the wire shape the server expects (role + content).
+    const wireMessages = messages
+      .filter((m) => m.role === 'user' || m.role === 'hr')
+      .map((m) => ({ role: m.role as 'user' | 'hr', content: m.content }));
+    const tookRounds = wireMessages.filter((m) => m.role === 'user').length;
+    if (tookRounds < 1) return;
+
+    fetch('/api/fired/memory/record', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': getUserId(),
+      },
+      body: JSON.stringify({
+        scenarioId,
+        outcome: memOutcome,
+        compensationMonths: outcome.compensationMonths,
+        maxPossible: outcome.maxPossible,
+        tookRounds,
+        messages: wireMessages,
+      }),
+    })
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((d: { tactic?: string }) => {
+        if (d.tactic) setRecordedTactic(d.tactic);
+      })
+      .catch((err) => {
+        // Non-fatal — memory layer is a UX bonus, not a blocker. Log
+        // for the dev console but don't surface to the user.
+        // eslint-disable-next-line no-console
+        console.warn('[fired/memory] record failed', err);
+      });
+  }, [outcome, scenarioId, messages]);
 
   const handleReplay = () => {
     reset();
@@ -409,6 +468,37 @@ export default function FiredResult() {
             </p>
             <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>
               {outcome.summary}
+            </p>
+          </motion.div>
+        )}
+
+        {/* v0.8.2 — HR memory callout. Shows the tactic the server
+            extracted from this round and tells the user it'll be used
+            against them next time. Sets up the replay value. */}
+        {recordedTactic && (
+          <motion.div
+            className="w-full rounded-2xl p-5 mb-6"
+            style={{
+              background: 'linear-gradient(180deg, rgba(124,58,237,0.10) 0%, rgba(255,255,255,0.02) 100%)',
+              border: '1px solid rgba(124,58,237,0.32)',
+              backdropFilter: 'blur(20px)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.0, duration: 0.6 }}
+          >
+            <p
+              className="text-[10px] uppercase tracking-[0.25em] mb-3 flex items-center gap-2"
+              style={{ color: 'rgba(176,134,255,0.85)' }}
+            >
+              <span>🧠 HR 记住了你这次的套路</span>
+            </p>
+            <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }}>
+              "{recordedTactic}"
+            </p>
+            <p className="text-[11px] mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              下次再玩同一关,HR 会主动预判这条招数。难度自动升级。
             </p>
           </motion.div>
         )}

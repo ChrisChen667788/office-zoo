@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useFiredStore, type FiredMessage, type FiredScores } from '../stores/firedStore';
 import { SCENARIOS as SHARED_SCENARIOS } from '@furball/shared';
 import { uid as genId } from '../utils/uid';
+import { getUserId } from '../utils/userId';
 
 const PERSONALITY_LABELS: Record<string, string> = {
   rookie: '菜鸟HR',
@@ -74,7 +75,13 @@ async function sendChat(
     `${API_BASE}/chat`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        // v0.8.2 — pseudonymous id so the server can pull this user's
+        // PRIOR scenario memories and inject them into the HR system
+        // prompt for pre-empting repeated tactics.
+        'X-User-Id': getUserId(),
+      },
       body: JSON.stringify({
         scenarioId: body.scenarioId,
         personalityId: body.personalityId,
@@ -99,7 +106,12 @@ async function fetchSuggestions(
     `${API_BASE}/suggest`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        // v0.8.2 — same memory id as /chat. Suggestions are colocated
+        // server-side so eventually we'll want them memory-aware too.
+        'X-User-Id': getUserId(),
+      },
       body: JSON.stringify({
         scenarioId: body.scenarioId,
         messages: toChatMessages(body.messages),

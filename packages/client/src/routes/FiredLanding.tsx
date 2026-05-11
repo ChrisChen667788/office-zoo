@@ -85,6 +85,26 @@ export default function FiredLanding() {
   const [mineOnly, setMineOnly] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const myId = useMemo(() => getUserId(), []);
+  // v0.8.2 — per-scenario stats for THIS user (play count, best ratio,
+  // last tactic). Drives the "你打过 N 次" badge so users see their
+  // history at a glance + know the HR has memory.
+  interface MemStat {
+    playCount: number;
+    bestRatio: number;
+    lastOutcome: 'win' | 'partial' | 'lose';
+    lastTactic: string;
+  }
+  const [memStats, setMemStats] = useState<Record<string, MemStat>>({});
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/fired/memory/me', { headers: { 'X-User-Id': myId } })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d: { stats?: Record<string, MemStat> }) => {
+        if (!cancelled && d.stats) setMemStats(d.stats);
+      })
+      .catch(() => { /* soft-fail — badges just don't show */ });
+    return () => { cancelled = true; };
+  }, [myId]);
   const reloadScenarios = useRef<(opts?: { sort?: FiredSortMode }) => Promise<void>>();
   useEffect(() => {
     let cancelled = false;
@@ -546,19 +566,38 @@ export default function FiredLanding() {
                           >
                             {scenario.emoji}
                           </div>
-                          <div className="flex gap-0.5 mt-2">
-                            {Array.from({ length: 3 }, (_, i) => (
+                          <div className="flex flex-col items-end gap-1 mt-1">
+                            <div className="flex gap-0.5">
+                              {Array.from({ length: 3 }, (_, i) => (
+                                <span
+                                  key={i}
+                                  className="text-[11px]"
+                                  style={{
+                                    color: i < scenario.difficulty ? '#ffb84c' : 'rgba(255,255,255,0.18)',
+                                    filter: i < scenario.difficulty ? 'drop-shadow(0 0 4px rgba(255,184,76,0.6))' : 'none',
+                                  }}
+                                >
+                                  ★
+                                </span>
+                              ))}
+                            </div>
+                            {/* v0.8.2 — per-user memory badge. Only shows
+                                when the user has actually played this
+                                scenario before (memStats has an entry).
+                                Communicates that the HR will remember. */}
+                            {memStats[scenario.id] && (
                               <span
-                                key={i}
-                                className="text-[11px]"
+                                className="px-1.5 py-0.5 rounded-full font-bold tracking-wide text-[9px] inline-flex items-center gap-1"
                                 style={{
-                                  color: i < scenario.difficulty ? '#ffb84c' : 'rgba(255,255,255,0.18)',
-                                  filter: i < scenario.difficulty ? 'drop-shadow(0 0 4px rgba(255,184,76,0.6))' : 'none',
+                                  color: '#b086ff',
+                                  background: 'rgba(124,58,237,0.15)',
+                                  border: '1px solid rgba(124,58,237,0.4)',
                                 }}
+                                title={`HR 记得你 · 上次套路:${memStats[scenario.id].lastTactic}`}
                               >
-                                ★
+                                🧠 {memStats[scenario.id].playCount}
                               </span>
-                            ))}
+                            )}
                           </div>
                         </div>
                         <h3
