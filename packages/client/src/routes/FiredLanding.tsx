@@ -14,11 +14,21 @@ import { useFiredProgress, FIRED_LEVELS, totalStars } from '../stores/firedProgr
 import { SCENARIOS as SHARED_SCENARIOS, type FiredScenario } from '@furball/shared';
 import SfxToggle from '../components/game/SfxToggle';
 import { colors } from '../constants/design';
+import { getUserId } from '../utils/userId';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
  *  same fields plus a `source` flag distinguishing seed catalogue from
- *  user-generated bits. Drives the ✨ amber rim on the card. */
-type ScenarioWithSource = FiredScenario & { source?: 'seed' | 'user' };
+ *  user-generated bits. Drives the ✨ amber rim on the card.
+ *  v0.8.1 adds `likes` (community feedback count) and `createdBy`
+ *  (pseudonymous id, drives "我的创作" filter). */
+type ScenarioWithSource = FiredScenario & {
+  source?: 'seed' | 'user';
+  likes?: number;
+  createdBy?: string;
+};
+
+/** v0.8.1 — sort modes for the scenario grid, mirroring talkshow's. */
+type FiredSortMode = 'default' | 'hot' | 'new';
 
 type EntryMode = 'chapters' | 'custom';
 
@@ -70,15 +80,35 @@ export default function FiredLanding() {
     () => SHARED_SCENARIOS.map((s) => ({ ...s, source: 'seed' as const })),
   );
   const [creatorOpen, setCreatorOpen] = useState(false);
-  const reloadScenarios = useRef<() => Promise<void>>();
+  // v0.8.1 — sort mode for the scenario grid + per-IP liked-set + mine filter
+  const [sortMode, setSortMode] = useState<FiredSortMode>('default');
+  const [mineOnly, setMineOnly] = useState(false);
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const myId = useMemo(() => getUserId(), []);
+  const reloadScenarios = useRef<(opts?: { sort?: FiredSortMode }) => Promise<void>>();
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    const load = async (opts?: { sort?: FiredSortMode }) => {
       try {
-        const r = await fetch('/api/fired/scenarios');
+        const sort = opts?.sort ?? sortMode;
+        const url = sort === 'default' ? '/api/fired/scenarios' : `/api/fired/scenarios?sort=${sort}`;
+        const r = await fetch(url);
         const d = await r.json();
-        if (!cancelled && Array.isArray(d.scenarios)) {
-          setScenarios(d.scenarios as ScenarioWithSource[]);
+        if (cancelled) return;
+        const next = (d.scenarios ?? []) as ScenarioWithSource[];
+        setScenarios(next);
+        // v0.8.1 — bulk-fetch which scenarios THIS IP has already hearted
+        // so the cards paint correctly on first frame.
+        const ids = next.map((s) => s.id).join(',');
+        if (ids) {
+          fetch(`/api/fired/like-state?ids=${encodeURIComponent(ids)}`)
+            .then((r2) => r2.json())
+            .then((d2: { liked?: string[] }) => {
+              if (!cancelled && Array.isArray(d2.liked)) {
+                setLikedIds(new Set(d2.liked));
+              }
+            })
+            .catch(() => { /* soft-fail */ });
         }
       } catch {
         // Soft-fail: seed catalogue is already in state, user just doesn't
@@ -88,7 +118,59 @@ export default function FiredLanding() {
     reloadScenarios.current = load;
     load();
     return () => { cancelled = true; };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortMode]);
+
+  /** v0.8.1 — toggle like for `id` with optimistic UI + rollback on
+   *  network fail (parallel to talkshow's toggleLike). */
+  const toggleLikeFired = async (id: string) => {
+    const wasLiked = likedIds.has(id);
+    setLikedIds((prev) => {
+      const next = new Set(prev);
+      if (wasLiked) next.delete(id); else next.add(id);
+      return next;
+    });
+    setScenarios((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, likes: Math.max(0, (s.likes ?? 0) + (wasLiked ? -1 : 1)) } : s,
+      ),
+    );
+    try {
+      const resp = await fetch('/api/fired/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenarioId: id, liked: !wasLiked }),
+      });
+      if (!resp.ok) throw new Error(`like ${resp.status}`);
+      const data = await resp.json() as { likes: number };
+      setScenarios((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, likes: data.likes } : s)),
+      );
+    } catch {
+      // Rollback
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        if (wasLiked) next.add(id); else next.delete(id);
+        return next;
+      });
+      setScenarios((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, likes: Math.max(0, (s.likes ?? 0) + (wasLiked ? 1 : -1)) } : s,
+        ),
+      );
+    }
+  };
+
+  /** v0.8.1 — derived: scenarios after the mine filter (sorting is server-
+   *  side, applied via /scenarios?sort=). */
+  const visibleScenarios = useMemo(
+    () => mineOnly ? scenarios.filter((s) => s.createdBy === myId) : scenarios,
+    [scenarios, mineOnly, myId],
+  );
+  const mineCountFired = useMemo(
+    () => scenarios.filter((s) => s.createdBy === myId).length,
+    [scenarios, myId],
+  );
 
   const handleStart = () => {
     if (!selectedScenario) return;
@@ -392,13 +474,36 @@ export default function FiredLanding() {
                   {scenarios.length} scenarios
                 </span>
               </div>
+
+              {/* v0.8.1 sort / filter chips — same UX as talkshow's so
+                  cross-mode users get a familiar pattern. Mine chip only
+                  shows up when the user has actually created something. */}
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                <FiredChip active={sortMode === 'default' && !mineOnly}
+                  onClick={() => { setSortMode('default'); setMineOnly(false); }}
+                  color="#ffffff">✨ 推荐</FiredChip>
+                <FiredChip active={sortMode === 'hot' && !mineOnly}
+                  onClick={() => { setSortMode('hot'); setMineOnly(false); }}
+                  color="#ff5588">🔥 最热</FiredChip>
+                <FiredChip active={sortMode === 'new' && !mineOnly}
+                  onClick={() => { setSortMode('new'); setMineOnly(false); }}
+                  color="#4c9eff">🆕 最新</FiredChip>
+                {mineCountFired > 0 && (
+                  <FiredChip active={mineOnly}
+                    onClick={() => setMineOnly((v) => !v)}
+                    color="#ffb84c">
+                    👤 我的创作 · {mineCountFired}
+                  </FiredChip>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* v0.8.0 — creator CTA. First slot in the grid; tapping
                     opens the modal. After successful generate the scenario
                     list reloads and the user is auto-selected on the new
                     one so they can pick a personality + start the round. */}
-                <CreateScenarioCard onOpen={() => setCreatorOpen(true)} />
-                {scenarios.map((scenario) => {
+                {!mineOnly && <CreateScenarioCard onOpen={() => setCreatorOpen(true)} />}
+                {visibleScenarios.map((scenario) => {
                   const active = selectedScenario === scenario.id;
                   return (
                     <motion.button
@@ -481,6 +586,40 @@ export default function FiredLanding() {
                         >
                           {scenario.description}
                         </p>
+                        {/* v0.8.1 — like pill in the bottom corner. Tap
+                            stops bubbling so the card-level select handler
+                            doesn't fire. Hidden behind a min-3 likes
+                            threshold for seeds (so empty seed cards don't
+                            shout 0 hearts), always visible for user bits
+                            so creators see traction. */}
+                        {(scenario.source === 'user' || (scenario.likes ?? 0) > 0) && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => { e.stopPropagation(); toggleLikeFired(scenario.id); }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                toggleLikeFired(scenario.id);
+                              }
+                            }}
+                            className="absolute bottom-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] cursor-pointer transition"
+                            style={{
+                              color: likedIds.has(scenario.id) ? '#ff5588' : 'rgba(255,255,255,0.55)',
+                              background: likedIds.has(scenario.id)
+                                ? 'rgba(255,85,136,0.12)'
+                                : 'rgba(0,0,0,0.25)',
+                              border: `1px solid ${likedIds.has(scenario.id)
+                                ? 'rgba(255,85,136,0.45)'
+                                : 'rgba(255,255,255,0.10)'}`,
+                            }}
+                            title={likedIds.has(scenario.id) ? '已喜欢 · 再点取消' : '喜欢这一关'}
+                          >
+                            <span className="leading-none">{likedIds.has(scenario.id) ? '❤' : '♡'}</span>
+                            <span className="tabular-nums">{scenario.likes ?? 0}</span>
+                          </span>
+                        )}
                       </div>
                       {active && (
                         <motion.div
@@ -712,7 +851,12 @@ function CreateScenarioModal({
     try {
       const resp = await fetch('/api/fired/generate-scenario', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // v0.8.1 — pseudonymous creator id so the user can later filter
+          // to "我的创作".
+          'X-User-Id': getUserId(),
+        },
         body: JSON.stringify({ description: description.trim(), difficulty, emoji }),
       });
       if (!resp.ok) {
@@ -855,5 +999,35 @@ function CreateScenarioModal({
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+/** v0.8.1 — sort/filter chip mirroring talkshow's `Chip` component but
+ *  styled to fit the fired-mode danger/amber palette. Inline because we
+ *  use it in exactly one place; promoting to a shared component when a
+ *  3rd caller appears. */
+function FiredChip({
+  active,
+  onClick,
+  color,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  color: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-3 py-1.5 rounded-full text-xs font-bold tracking-wide transition"
+      style={{
+        color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+        background: active ? `${color}30` : 'rgba(255,255,255,0.04)',
+        border: `1px solid ${active ? color + '88' : 'rgba(255,255,255,0.08)'}`,
+      }}
+    >
+      {children}
+    </button>
   );
 }

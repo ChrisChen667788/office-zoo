@@ -25,6 +25,7 @@ import {
   hasBrowserTTS,
   stopTts,
 } from '../utils/audioUnlock';
+import { getUserId } from '../utils/userId';
 
 interface ScriptSummary {
   id: string;
@@ -39,6 +40,9 @@ interface ScriptSummary {
   /** v0.7.5 — community heart count. Always present in v0.7.5+ responses
    *  (server backfills missing entries to 0). */
   likes?: number;
+  /** v0.8.1 — pseudonymous creator id (matches localStorage). Powers the
+   *  "我的创作" filter chip. */
+  createdBy?: string;
 }
 
 interface ScriptFull extends ScriptSummary {
@@ -83,6 +87,11 @@ export default function Talkshow() {
    *  + seeds in curated order; 'hot' = sorted by community likes desc;
    *  'new' = strict recency desc. */
   const [sortMode, setSortMode] = useState<SortMode>('default');
+  /** v0.8.1 — when true, only show bits whose createdBy matches MY local
+   *  pseudonymous id. Mutually exclusive with the tag filter UX-wise but
+   *  technically composable. */
+  const [mineOnly, setMineOnly] = useState(false);
+  const myId = useMemo(() => getUserId(), []);
   /** When non-null, we're in player view for this script. */
   const [active, setActive] = useState<ScriptFull | null>(null);
   /** v0.7.4 — when true, the create-bit modal is open. */
@@ -166,9 +175,19 @@ export default function Talkshow() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
-  const visible = useMemo(
-    () => (tagFilter ? scripts.filter((s) => s.tag === tagFilter) : scripts),
-    [scripts, tagFilter],
+  const visible = useMemo(() => {
+    let out = scripts;
+    if (tagFilter) out = out.filter((s) => s.tag === tagFilter);
+    if (mineOnly)  out = out.filter((s) => s.createdBy === myId);
+    return out;
+  }, [scripts, tagFilter, mineOnly, myId]);
+
+  /** v0.8.1 — count of MY creations across the whole catalogue (not just
+   *  filtered). Drives the badge on the "我的创作" chip so users can see
+   *  there's something to find before tapping it. */
+  const mineCount = useMemo(
+    () => scripts.filter((s) => s.createdBy === myId).length,
+    [scripts, myId],
   );
 
   /** v0.7.5 — toggle like for `id` with optimistic UI: bump the count
@@ -307,30 +326,39 @@ export default function Talkshow() {
               </p>
             </div>
 
-            {/* v0.7.5 sort chips — sit ABOVE the tag chips so the
-                primary slice (hot/new/curated) is the first decision. */}
+            {/* v0.7.5 sort chips + v0.8.1 "我的创作" filter — first row, the
+                primary slice (hot/new/curated/mine) is the top-level decision. */}
             <div className="max-w-4xl mx-auto mb-3 flex flex-wrap gap-2 justify-center">
               <Chip
-                active={sortMode === 'default'}
-                onClick={() => setSortMode('default')}
+                active={sortMode === 'default' && !mineOnly}
+                onClick={() => { setSortMode('default'); setMineOnly(false); }}
                 color="#ffffff"
               >
                 ✨ 推荐
               </Chip>
               <Chip
-                active={sortMode === 'hot'}
-                onClick={() => setSortMode('hot')}
+                active={sortMode === 'hot' && !mineOnly}
+                onClick={() => { setSortMode('hot'); setMineOnly(false); }}
                 color="#ff5588"
               >
                 🔥 最热
               </Chip>
               <Chip
-                active={sortMode === 'new'}
-                onClick={() => setSortMode('new')}
+                active={sortMode === 'new' && !mineOnly}
+                onClick={() => { setSortMode('new'); setMineOnly(false); }}
                 color="#4c9eff"
               >
                 🆕 最新
               </Chip>
+              {mineCount > 0 && (
+                <Chip
+                  active={mineOnly}
+                  onClick={() => setMineOnly((v) => !v)}
+                  color="#ffb84c"
+                >
+                  👤 我的创作 · {mineCount}
+                </Chip>
+              )}
             </div>
 
             {/* Tag filter */}
@@ -638,7 +666,11 @@ function CreateBitModal({
     try {
       const resp = await fetch('/api/talkshow/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // v0.8.1 — pseudonymous creator id for "我的创作" filter.
+          'X-User-Id': getUserId(),
+        },
         body: JSON.stringify({ topic: topic.trim(), persona, tag }),
       });
       if (!resp.ok) {

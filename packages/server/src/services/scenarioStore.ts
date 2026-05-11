@@ -25,11 +25,17 @@ const DATA_DIR  = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'user_scenarios.json');
 
 /** v0.8.0 — like-tracking + recency for the scenario, parallel to
- *  scriptStore.StoredScript. */
+ *  scriptStore.StoredScript. v0.8.1 adds `createdBy` (a pseudonymous
+ *  per-browser id stored in localStorage) so users can filter to "我的
+ *  创作". */
 export interface StoredScenario extends FiredScenario {
   likes?: number;
   /** Unix ms — set on initial addUserScenario. */
   createdAt?: number;
+  /** v0.8.1 — pseudonymous user id from the X-User-Id header. NOT a
+   *  cryptographic identity; just a uuid the client stashes in
+   *  localStorage on first visit. Powers the "我的创作" filter. */
+  createdBy?: string;
 }
 
 interface StoreShape {
@@ -95,22 +101,49 @@ export async function findUserScenario(id: string): Promise<StoredScenario | nul
 }
 
 /** Append + persist. Stamps createdAt + likes=0 for fresh entries; preserves
- *  likes if the same id already existed (matches scriptStore behaviour). */
-export async function addUserScenario(scenario: FiredScenario): Promise<void> {
+ *  likes if the same id already existed (matches scriptStore behaviour).
+ *  v0.8.1: optional `createdBy` is recorded for "my creations" filter. */
+export async function addUserScenario(
+  scenario: FiredScenario,
+  meta?: { createdBy?: string },
+): Promise<void> {
   const s = await ensureLoaded();
   const stamped: StoredScenario = {
     ...scenario,
     likes:     0,
     createdAt: Date.now(),
+    createdBy: meta?.createdBy,
   };
   const idx = s.scenarios.findIndex((x) => x.id === scenario.id);
   if (idx >= 0) {
-    stamped.likes = s.scenarios[idx].likes ?? 0;
+    // Preserve community feedback + creator-id on re-write.
+    stamped.likes     = s.scenarios[idx].likes ?? 0;
+    stamped.createdBy = s.scenarios[idx].createdBy ?? meta?.createdBy;
     s.scenarios[idx] = stamped;
   } else {
     s.scenarios.push(stamped);
   }
   await persist(s);
+}
+
+/** v0.8.1 — increment the like counter for `id`. Mirrors scriptStore. */
+export async function incrementScenarioLike(id: string): Promise<number | null> {
+  const s = await ensureLoaded();
+  const idx = s.scenarios.findIndex((x) => x.id === id);
+  if (idx < 0) return null;
+  s.scenarios[idx].likes = (s.scenarios[idx].likes ?? 0) + 1;
+  await persist(s);
+  return s.scenarios[idx].likes!;
+}
+
+/** v0.8.1 — undo a like, floors at 0 (parallel to scriptStore). */
+export async function decrementScenarioLike(id: string): Promise<number | null> {
+  const s = await ensureLoaded();
+  const idx = s.scenarios.findIndex((x) => x.id === id);
+  if (idx < 0) return null;
+  s.scenarios[idx].likes = Math.max(0, (s.scenarios[idx].likes ?? 0) - 1);
+  await persist(s);
+  return s.scenarios[idx].likes!;
 }
 
 /** Mint a unique id with the `fired-u-XXXXXX` namespace (parallel to

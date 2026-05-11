@@ -92,12 +92,16 @@ talkshowRoutes.get('/list', async (c) => {
     likes: number;
     /** Unix ms — used by the hot/new sorts, not displayed in the UI. */
     createdAt: number;
+    /** v0.8.1 — surfaced so the client can render "我的创作" filter
+     *  without an extra round-trip. Only present on user bits. */
+    createdBy?: string;
   };
   const userWire: Wire[] = userScripts.map(({ text: _t, ...rest }) => ({
     ...rest,
     source:    'user',
     likes:     rest.likes ?? 0,
     createdAt: rest.createdAt ?? 0,
+    createdBy: rest.createdBy,
   }));
   // Seeds get likes=0 + a fixed-low createdAt so they always sort below
   // user bits in 'new', and don't compete with real likes in 'hot' until
@@ -251,8 +255,11 @@ talkshowRoutes.post('/generate', async (c) => {
   if (!script) {
     return c.json({ error: 'LLM unavailable, try again' }, 502);
   }
-  await addUserScript(script);
-  return c.json({ ...script, source: 'user', likes: 0 });
+  // v0.8.1 — capture pseudonymous creator id so the client can filter
+  // to "我的创作" later. Optional header; missing is fine.
+  const createdBy = (c.req.header('x-user-id') ?? '').slice(0, 64) || undefined;
+  await addUserScript(script, { createdBy });
+  return c.json({ ...script, source: 'user', likes: 0, createdBy });
 });
 
 // ── v0.7.6 topic safety ────────────────────────────────────────────────

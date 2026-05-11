@@ -32,12 +32,15 @@ const DATA_FILE = path.join(DATA_DIR, 'user_scripts.json');
 /** v0.7.5 — like-tracking state attached to a script. We extend the on-disk
  *  shape rather than spawning a sidecar file: keeps the migration simple
  *  (any existing entry without `likes` defaults to 0) and survives
- *  hot-reloads. createdAt powers "most recent" sort. */
+ *  hot-reloads. createdAt powers "most recent" sort. v0.8.1 adds
+ *  `createdBy` for "我的创作" filter. */
 export interface StoredScript extends TalkshowScript {
   likes?: number;
   /** Unix ms — set on initial addUserScript. Old entries get backfilled
    *  on first read so any sort-by-recency UI is stable. */
   createdAt?: number;
+  /** v0.8.1 — pseudonymous user id from X-User-Id header. */
+  createdBy?: string;
 }
 
 interface StoreShape {
@@ -109,21 +112,27 @@ export async function findUserScript(id: string): Promise<StoredScript | null> {
 }
 
 /** Append a new user script and persist. Caller picks the id.
- *  Auto-stamps createdAt + likes=0 if the caller didn't set them. */
-export async function addUserScript(script: TalkshowScript): Promise<void> {
+ *  Auto-stamps createdAt + likes=0 if the caller didn't set them.
+ *  v0.8.1: optional `createdBy` is recorded for "my creations" filter. */
+export async function addUserScript(
+  script: TalkshowScript,
+  meta?: { createdBy?: string },
+): Promise<void> {
   const s = await ensureLoaded();
   const stamped: StoredScript = {
     ...script,
     likes:     0,
     createdAt: Date.now(),
+    createdBy: meta?.createdBy,
   };
   // Dedupe by id — last-write-wins. Editor doesn't currently support
   // edits but this keeps things sane if the same id ever recurs.
   const idx = s.scripts.findIndex((x) => x.id === script.id);
   if (idx >= 0) {
-    // Preserve existing likes on re-write so a content edit doesn't
-    // wipe community feedback.
-    stamped.likes = s.scripts[idx].likes ?? 0;
+    // Preserve existing likes + creator on re-write so a content edit
+    // doesn't wipe community feedback.
+    stamped.likes     = s.scripts[idx].likes ?? 0;
+    stamped.createdBy = s.scripts[idx].createdBy ?? meta?.createdBy;
     s.scripts[idx] = stamped;
   } else {
     s.scripts.push(stamped);

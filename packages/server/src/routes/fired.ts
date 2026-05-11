@@ -14,6 +14,8 @@ import {
   listUserScenarios,
   findUserScenario,
   addUserScenario,
+  incrementScenarioLike,
+  decrementScenarioLike,
 } from '../services/scenarioStore';
 import { generateFiredScenario } from '../services/firedScenarioGenerator';
 import { createRateLimiter } from '../utils/rateLimit';
@@ -28,6 +30,12 @@ function ipFromHono(c: { req: { header: (k: string) => string | undefined } }): 
   if (fwd) return fwd.split(',')[0].trim();
   return c.req.header('host') ?? 'unknown';
 }
+
+/** v0.8.1 — pull the per-IP-like dedup key for a scenario. Mirrors talkshow's
+ *  approach (in-memory Set, resets on restart, fine at our scale). Seed
+ *  scenarios get an in-memory like counter; user scenarios persist to disk. */
+const scenarioLikedByIp = new Set<string>();
+const seedScenarioLikes = new Map<string, number>();
 
 const routeLog = logger.child({ component: 'fired' });
 
@@ -528,22 +536,111 @@ function clampScore(val: unknown): number {
 // ---------------------------------------------------------------------------
 
 /** GET /api/fired/scenarios — merged seed + user-generated catalogue.
- *  User scenarios go FIRST so the freshest community content surfaces above
- *  the curated seeds (mirrors talkshow's /list policy). */
+ *  v0.8.1 supports `?sort=hot|new|default`, mirroring talkshow's /list.
+ *  Each scenario carries `likes` and `createdAt` (synthetic-monotonic for
+ *  seeds so they sink in 'new'). */
 firedRouter.get('/scenarios', async (c) => {
+  const sort = c.req.query('sort') ?? 'default';
   const userScenarios = await listUserScenarios();
-  // Stable sort: user bits descending by createdAt, then seeds in their
-  // canonical order. Strip nothing — the FiredLanding card needs all the
-  // metadata to render properly (title/description/difficulty/emoji).
-  const userSorted = [...userScenarios].sort(
-    (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0),
-  );
-  return c.json({
-    scenarios: [
-      ...userSorted.map((s) => ({ ...s, source: 'user' as const })),
-      ...FIRED_SCENARIOS.map((s) => ({ ...s, source: 'seed' as const })),
-    ],
-  });
+
+  type Wire = FiredScenario & {
+    source: 'seed' | 'user';
+    likes: number;
+    createdAt: number;
+    /** v0.8.1 — surfaced so the client can render "我的创作" filter
+     *  without a second round-trip. */
+    createdBy?: string;
+  };
+  const userWire: Wire[] = userScenarios.map((s) => ({
+    ...s,
+    source:    'user',
+    likes:     s.likes ?? 0,
+    createdAt: s.createdAt ?? 0,
+    createdBy: s.createdBy,
+  }));
+  const seedWire: Wire[] = FIRED_SCENARIOS.map((s, i) => ({
+    ...s,
+    source:    'seed',
+    likes:     seedScenarioLikes.get(s.id) ?? 0,
+    createdAt: i,                                    // fixed, monotonic, < real ms
+  }));
+
+  let scenarios: Wire[];
+  if (sort === 'hot') {
+    scenarios = [...userWire, ...seedWire].sort(
+      (a, b) => b.likes - a.likes || b.createdAt - a.createdAt,
+    );
+  } else if (sort === 'new') {
+    scenarios = [...userWire, ...seedWire].sort(
+      (a, b) => b.createdAt - a.createdAt,
+    );
+  } else {
+    scenarios = [
+      ...userWire.sort((a, b) => b.createdAt - a.createdAt),
+      ...seedWire,
+    ];
+  }
+  return c.json({ scenarios });
+});
+
+// ---------- v0.8.1 like / like-state ---------------------------------------
+
+const LikeRequestSchema = z.object({
+  scenarioId: z.string().min(1).max(64),
+  liked: z.boolean().optional(),
+});
+
+firedRouter.post('/like', async (c) => {
+  const v = await validateBody(c, LikeRequestSchema);
+  if (!v.ok) return v.response;
+  const { scenarioId } = v.data;
+  const ip = ipFromHono(c);
+  const dedupKey = `${ip}::${scenarioId}`;
+  const liked = v.data.liked ?? !scenarioLikedByIp.has(dedupKey);
+
+  const inSeeds = FIRED_SCENARIOS.some((s) => s.id === scenarioId);
+  const isUser  = !inSeeds && (await findUserScenario(scenarioId)) !== null;
+  if (!inSeeds && !isUser) {
+    return c.json({ error: 'scenario not found' }, 404);
+  }
+
+  const wasLiked = scenarioLikedByIp.has(dedupKey);
+  if (liked === wasLiked) {
+    const likes = inSeeds
+      ? (seedScenarioLikes.get(scenarioId) ?? 0)
+      : ((await findUserScenario(scenarioId))?.likes ?? 0);
+    return c.json({ scenarioId, liked, likes });
+  }
+
+  let likes: number | null;
+  if (liked) {
+    scenarioLikedByIp.add(dedupKey);
+    if (inSeeds) {
+      likes = (seedScenarioLikes.get(scenarioId) ?? 0) + 1;
+      seedScenarioLikes.set(scenarioId, likes);
+    } else {
+      likes = await incrementScenarioLike(scenarioId);
+    }
+  } else {
+    scenarioLikedByIp.delete(dedupKey);
+    if (inSeeds) {
+      likes = Math.max(0, (seedScenarioLikes.get(scenarioId) ?? 0) - 1);
+      seedScenarioLikes.set(scenarioId, likes);
+    } else {
+      likes = await decrementScenarioLike(scenarioId);
+    }
+  }
+
+  return c.json({ scenarioId, liked, likes: likes ?? 0 });
+});
+
+firedRouter.get('/like-state', (c) => {
+  const idsParam = c.req.query('ids') ?? '';
+  if (!idsParam) return c.json({ liked: [] });
+  const ip = ipFromHono(c);
+  const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 200);
+  const liked = ids.filter((id) => scenarioLikedByIp.has(`${ip}::${id}`));
+  return c.json({ liked });
 });
 
 const GenerateScenarioSchema = z.object({
@@ -588,11 +685,17 @@ firedRouter.post('/generate-scenario', async (c) => {
   if (!scenario) {
     return c.json({ error: 'LLM unavailable, try again' }, 502);
   }
-  await addUserScenario(scenario);
+  // v0.8.1 — capture the pseudonymous creator id (uuid stashed in
+  // localStorage on first visit) so the client can later filter to "我
+  // 创建的". Cap length to dodge header abuse. Missing header is fine
+  // (legacy clients) — the row just won't show up under "我的创作".
+  const createdBy = (c.req.header('x-user-id') ?? '').slice(0, 64) || undefined;
+  await addUserScenario(scenario, { createdBy });
   routeLog.info('User scenario generated', {
     id: scenario.id, difficulty, len: scenario.description.length,
+    createdBy: createdBy ? createdBy.slice(0, 8) + '…' : 'anon',
   });
-  return c.json({ ...scenario, source: 'user' });
+  return c.json({ ...scenario, source: 'user', likes: 0, createdBy });
 });
 
 const SCENARIO_BLOCKED: Array<{ pattern: RegExp; reason: string }> = [
