@@ -29,8 +29,19 @@ const __dirname  = path.dirname(__filename);
 const DATA_DIR  = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'user_scripts.json');
 
+/** v0.7.5 — like-tracking state attached to a script. We extend the on-disk
+ *  shape rather than spawning a sidecar file: keeps the migration simple
+ *  (any existing entry without `likes` defaults to 0) and survives
+ *  hot-reloads. createdAt powers "most recent" sort. */
+export interface StoredScript extends TalkshowScript {
+  likes?: number;
+  /** Unix ms — set on initial addUserScript. Old entries get backfilled
+   *  on first read so any sort-by-recency UI is stable. */
+  createdAt?: number;
+}
+
 interface StoreShape {
-  scripts: TalkshowScript[];
+  scripts: StoredScript[];
 }
 
 let cache: StoreShape | null = null;
@@ -43,7 +54,17 @@ async function loadFromDisk(): Promise<StoreShape> {
     if (!parsed.scripts || !Array.isArray(parsed.scripts)) {
       return { scripts: [] };
     }
-    return { scripts: parsed.scripts };
+    // v0.7.5 backfill: pre-likes entries get likes=0, pre-createdAt entries
+    // get a synthetic timestamp by index so sort-by-recency stays stable
+    // across the rollout. Persisted on next mutation.
+    const now = Date.now();
+    const scripts = parsed.scripts.map((s, idx) => ({
+      ...s,
+      likes:     typeof s.likes === 'number' ? s.likes : 0,
+      // older = smaller. Cap at 0 (epoch) so synthetic ts never exceeds real ones.
+      createdAt: typeof s.createdAt === 'number' ? s.createdAt : (now - (parsed.scripts!.length - idx) * 1000),
+    }));
+    return { scripts };
   } catch (err) {
     // File doesn't exist yet — first run, fresh store.
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -74,27 +95,64 @@ async function persist(state: StoreShape): Promise<void> {
   await fs.rename(tmp, DATA_FILE);
 }
 
-/** All user-generated scripts. Returns the cached array — DO NOT mutate. */
-export async function listUserScripts(): Promise<TalkshowScript[]> {
+/** All user-generated scripts. Returns the cached array — DO NOT mutate.
+ *  Likes/createdAt are guaranteed populated by the loader's backfill pass. */
+export async function listUserScripts(): Promise<StoredScript[]> {
   const s = await ensureLoaded();
   return s.scripts;
 }
 
 /** Find a single user script by id, or null. */
-export async function findUserScript(id: string): Promise<TalkshowScript | null> {
+export async function findUserScript(id: string): Promise<StoredScript | null> {
   const s = await ensureLoaded();
   return s.scripts.find((x) => x.id === id) ?? null;
 }
 
-/** Append a new user script and persist. Caller picks the id. */
+/** Append a new user script and persist. Caller picks the id.
+ *  Auto-stamps createdAt + likes=0 if the caller didn't set them. */
 export async function addUserScript(script: TalkshowScript): Promise<void> {
   const s = await ensureLoaded();
+  const stamped: StoredScript = {
+    ...script,
+    likes:     0,
+    createdAt: Date.now(),
+  };
   // Dedupe by id — last-write-wins. Editor doesn't currently support
   // edits but this keeps things sane if the same id ever recurs.
   const idx = s.scripts.findIndex((x) => x.id === script.id);
-  if (idx >= 0) s.scripts[idx] = script;
-  else          s.scripts.push(script);
+  if (idx >= 0) {
+    // Preserve existing likes on re-write so a content edit doesn't
+    // wipe community feedback.
+    stamped.likes = s.scripts[idx].likes ?? 0;
+    s.scripts[idx] = stamped;
+  } else {
+    s.scripts.push(stamped);
+  }
   await persist(s);
+}
+
+/** v0.7.5 — increment the like counter for `id`. Returns the new total or
+ *  null when the id doesn't exist. Per-IP idempotency lives in the route
+ *  layer; this is a dumb counter. */
+export async function incrementLike(id: string): Promise<number | null> {
+  const s = await ensureLoaded();
+  const idx = s.scripts.findIndex((x) => x.id === id);
+  if (idx < 0) return null;
+  s.scripts[idx].likes = (s.scripts[idx].likes ?? 0) + 1;
+  await persist(s);
+  return s.scripts[idx].likes!;
+}
+
+/** v0.7.5 — undo a like (used when the per-IP toggle wants to walk back
+ *  one). Floors at 0 so we never go negative if the per-IP cache lost
+ *  state across a server restart. */
+export async function decrementLike(id: string): Promise<number | null> {
+  const s = await ensureLoaded();
+  const idx = s.scripts.findIndex((x) => x.id === id);
+  if (idx < 0) return null;
+  s.scripts[idx].likes = Math.max(0, (s.scripts[idx].likes ?? 0) - 1);
+  await persist(s);
+  return s.scripts[idx].likes!;
 }
 
 /** Mint a unique id with the `bit-u-XXXXXX` namespace (the `u` distinguishes

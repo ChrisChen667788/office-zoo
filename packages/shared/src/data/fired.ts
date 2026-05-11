@@ -1,6 +1,36 @@
 // 1. SCENARIOS — 12 realistic layoff scenarios
 // ---------------------------------------------------------------------------
 
+/** v0.8.0 — explicit type definition (was previously referenced but never
+ *  declared, which the TS rootDir scan flagged but Vite missed because it
+ *  doesn't typecheck). Used by both the seed catalogue here and the
+ *  user-generated scenarios that v0.8.0's UGC creator persists to disk. */
+export interface FiredScenario {
+  id: string;
+  title: string;
+  description: string;
+  /** 1 = easy / well-documented, 3 = hardcore (org-wide schemes, multiple
+   *  deniability layers). Drives the difficulty filter on FiredLanding. */
+  difficulty: 1 | 2 | 3;
+  emoji: string;
+  /** What the law says + which articles + the practical playbook. Surfaced
+   *  to the player after a round so they learn even if they lost. */
+  legalSituation: string;
+  /** First line the HR character speaks when the round opens — sets the
+   *  scene + the trap. */
+  hrOpeningLine: string;
+  /** Player's known facts going in: tenure, salary, witnesses, paper
+   *  trail. Drives the LLM's HR responses (it knows what the player
+   *  knows so it can probe the gaps). */
+  playerContext: string;
+  /** Plain-language goal — the result the player needs to negotiate to
+   *  for the win-screen to fire. */
+  winCondition: string;
+  /** Cap on the compensation slider (in months of salary) shown in the
+   *  end-screen. 1 = "1 month", 12 = "2N for a 6-year tenure". */
+  maxCompensation: number;
+}
+
 export const SCENARIOS: FiredScenario[] = [
   {
     id: 'probation-fire',

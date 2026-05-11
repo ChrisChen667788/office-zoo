@@ -6,14 +6,19 @@
  * the red/amber heat palette that lives in design.ts as the danger/warn
  * pair. No more free-floating saturated orbs.
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFiredStore, type PersonalityId } from '../stores/firedStore';
 import { useFiredProgress, FIRED_LEVELS, totalStars } from '../stores/firedProgress';
-import { SCENARIOS as SHARED_SCENARIOS } from '@furball/shared';
+import { SCENARIOS as SHARED_SCENARIOS, type FiredScenario } from '@furball/shared';
 import SfxToggle from '../components/game/SfxToggle';
 import { colors } from '../constants/design';
+
+/** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
+ *  same fields plus a `source` flag distinguishing seed catalogue from
+ *  user-generated bits. Drives the ✨ amber rim on the card. */
+type ScenarioWithSource = FiredScenario & { source?: 'seed' | 'user' };
 
 type EntryMode = 'chapters' | 'custom';
 
@@ -57,6 +62,33 @@ export default function FiredLanding() {
   const [entryMode, setEntryMode] = useState<EntryMode>('chapters');
   const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
   const [selectedPersonality, setSelectedPersonality] = useState<PersonalityId>('veteran');
+
+  // v0.8.0 — fetched scenarios. Falls back to SHARED_SCENARIOS until the
+  // /api/fired/scenarios call resolves so the page never shows an empty
+  // grid. After fetch, both pools are merged with user bits at the front.
+  const [scenarios, setScenarios] = useState<ScenarioWithSource[]>(
+    () => SHARED_SCENARIOS.map((s) => ({ ...s, source: 'seed' as const })),
+  );
+  const [creatorOpen, setCreatorOpen] = useState(false);
+  const reloadScenarios = useRef<() => Promise<void>>();
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch('/api/fired/scenarios');
+        const d = await r.json();
+        if (!cancelled && Array.isArray(d.scenarios)) {
+          setScenarios(d.scenarios as ScenarioWithSource[]);
+        }
+      } catch {
+        // Soft-fail: seed catalogue is already in state, user just doesn't
+        // see the (possibly empty) UGC layer this load.
+      }
+    };
+    reloadScenarios.current = load;
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleStart = () => {
     if (!selectedScenario) return;
@@ -357,11 +389,16 @@ export default function FiredLanding() {
                   <span style={{ color: colors.semantic.danger }}>01</span> · 选择剧本
                 </h2>
                 <span className="text-[10px] tracking-[0.2em] uppercase text-white/30">
-                  {SHARED_SCENARIOS.length} scenarios
+                  {scenarios.length} scenarios
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {SHARED_SCENARIOS.map((scenario) => {
+                {/* v0.8.0 — creator CTA. First slot in the grid; tapping
+                    opens the modal. After successful generate the scenario
+                    list reloads and the user is auto-selected on the new
+                    one so they can pick a personality + start the round. */}
+                <CreateScenarioCard onOpen={() => setCreatorOpen(true)} />
+                {scenarios.map((scenario) => {
                   const active = selectedScenario === scenario.id;
                   return (
                     <motion.button
@@ -420,10 +457,23 @@ export default function FiredLanding() {
                           </div>
                         </div>
                         <h3
-                          className="text-base font-bold mb-1.5 tracking-tight"
+                          className="text-base font-bold mb-1.5 tracking-tight flex items-center gap-2"
                           style={{ color: active ? '#fff' : 'rgba(255,255,255,0.82)' }}
                         >
                           {scenario.title}
+                          {scenario.source === 'user' && (
+                            <span
+                              className="px-1.5 py-0.5 rounded-full font-bold tracking-wide text-[9px]"
+                              style={{
+                                color: '#ffb84c',
+                                background: 'rgba(255,184,76,0.15)',
+                                border: '1px solid rgba(255,184,76,0.4)',
+                              }}
+                              title="社区创作"
+                            >
+                              ✨ 用户
+                            </span>
+                          )}
                         </h3>
                         <p
                           className="text-[12px] leading-relaxed"
@@ -567,6 +617,243 @@ export default function FiredLanding() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* v0.8.0 — UGC scenario creator modal. Lives outside the AnimatePresence
+          for entryMode so it stays mounted across chapters/custom toggles. */}
+      <AnimatePresence>
+        {creatorOpen && (
+          <CreateScenarioModal
+            onCancel={() => setCreatorOpen(false)}
+            onCreated={async (scenario) => {
+              setCreatorOpen(false);
+              if (reloadScenarios.current) await reloadScenarios.current();
+              // Auto-switch to "custom" tab + select the new scenario so
+              // the user just has to pick a personality and hit Start.
+              setEntryMode('custom');
+              setSelectedScenario(scenario.id);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// v0.8.0 — UGC scenario creator
+// ---------------------------------------------------------------------------
+
+const SCENARIO_EMOJIS = ['🐣', '🗣️', '🔄', '🤰', '📊', '🪪', '🏭', '🤝', '🏢', '🍵', '⚖️', '🎭'];
+
+const SCENARIO_SAMPLES = [
+  '我是 35 岁前端,公司说要优化高薪员工',
+  '入职第三个月 HR 突然说我"不胜任",要试用期不通过',
+  '怀孕第四个月被通知岗位取消,公司只赔 1 个月',
+  '老板口头承诺 N+1,签字时只给一个月',
+  '部门集体被裁,公司说是"组织优化",不算裁员',
+];
+
+function CreateScenarioCard({ onOpen }: { onOpen: () => void }) {
+  return (
+    <motion.button
+      onClick={onOpen}
+      whileHover={{ y: -2, scale: 1.005 }}
+      whileTap={{ scale: 0.98 }}
+      className="text-left rounded-2xl p-5 transition flex flex-col items-center justify-center gap-2 min-h-[168px] cursor-pointer"
+      style={{
+        background:
+          'radial-gradient(circle at 20% 0%, rgba(255,51,85,0.18), rgba(255,138,76,0.10) 60%, transparent), rgba(255,255,255,0.03)',
+        border: '1px dashed rgba(255,51,85,0.45)',
+        boxShadow: '0 8px 24px -12px rgba(255,51,85,0.4)',
+      }}
+    >
+      <div className="text-3xl mb-1">⚖️</div>
+      <div className="text-base font-bold text-white/90">自己造一关</div>
+      <div className="text-[12px] text-white/55 text-center px-2 leading-relaxed">
+        说说你的真实裁员场景<br/>AI 写出完整 HR 剧本
+      </div>
+    </motion.button>
+  );
+}
+
+function CreateScenarioModal({
+  onCancel,
+  onCreated,
+}: {
+  onCancel: () => void;
+  onCreated: (scenario: FiredScenario) => void;
+}) {
+  const [description, setDescription] = useState('');
+  const [difficulty, setDifficulty] = useState<1 | 2 | 3>(2);
+  const [emoji, setEmoji] = useState<string>(SCENARIO_EMOJIS[0]);
+  const [submitting, setSubmitting] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const sample = useMemo(
+    () => SCENARIO_SAMPLES[Math.floor(Math.random() * SCENARIO_SAMPLES.length)],
+    [],
+  );
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel, submitting]);
+
+  const canSubmit = description.trim().length >= 8 && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setErrMsg(null);
+    try {
+      const resp = await fetch('/api/fired/generate-scenario', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: description.trim(), difficulty, emoji }),
+      });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.message ?? body.error ?? `生成失败 (${resp.status})`);
+      }
+      const full = (await resp.json()) as FiredScenario;
+      onCreated(full);
+    } catch (e) {
+      setErrMsg((e as Error).message ?? '生成失败,稍后再试');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: 'rgba(8,6,24,0.78)', backdropFilter: 'blur(6px)' }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !submitting) onCancel();
+      }}
+    >
+      <motion.div
+        initial={{ y: 20, scale: 0.96, opacity: 0 }}
+        animate={{ y: 0,  scale: 1,    opacity: 1 }}
+        exit={{    y: 20, scale: 0.96, opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+        style={{
+          background: 'linear-gradient(180deg,#1a0d2e,#0d0a25)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+        }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-black text-white">⚖️ 造一关裁员剧本</h3>
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="text-white/45 hover:text-white/85 transition text-xl leading-none disabled:opacity-30"
+            aria-label="关闭"
+          >
+            ×
+          </button>
+        </div>
+
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5">
+          一句话讲讲你的真实场景（8-300 字越具体越好,会自动屏蔽真名/真公司）
+        </label>
+        <textarea
+          ref={inputRef}
+          value={description}
+          onChange={(e) => setDescription(e.target.value.slice(0, 300))}
+          disabled={submitting}
+          rows={4}
+          placeholder={`例如:${sample}`}
+          className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/30 outline-none focus:ring-2 focus:ring-rose-400/40 transition resize-none"
+          style={{
+            background: 'rgba(0,0,0,0.35)',
+            border: '1px solid rgba(255,255,255,0.10)',
+          }}
+        />
+        <div className="text-right text-[10px] text-white/35 mt-1 tabular-nums">{description.length}/300</div>
+
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5 mt-3">难度</label>
+        <div className="grid grid-cols-3 gap-1.5">
+          {[1, 2, 3].map((d) => (
+            <button
+              key={d}
+              onClick={() => setDifficulty(d as 1 | 2 | 3)}
+              disabled={submitting}
+              className="rounded-lg py-2 text-xs font-bold transition flex items-center justify-center gap-0.5"
+              style={{
+                background: difficulty === d
+                  ? 'linear-gradient(135deg,rgba(255,51,85,0.25),rgba(255,138,76,0.18))'
+                  : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${difficulty === d ? 'rgba(255,51,85,0.55)' : 'rgba(255,255,255,0.08)'}`,
+                color: difficulty === d ? '#fff' : 'rgba(255,255,255,0.6)',
+              }}
+            >
+              {Array.from({ length: 3 }, (_, i) => (
+                <span key={i} style={{ color: i < d ? '#ffb84c' : 'rgba(255,255,255,0.18)' }}>★</span>
+              ))}
+            </button>
+          ))}
+        </div>
+
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5 mt-3">封面 emoji</label>
+        <div className="grid grid-cols-6 gap-1.5">
+          {SCENARIO_EMOJIS.map((e) => (
+            <button
+              key={e}
+              onClick={() => setEmoji(e)}
+              disabled={submitting}
+              className="aspect-square rounded-lg text-lg transition"
+              style={{
+                background: emoji === e
+                  ? 'linear-gradient(135deg,rgba(255,51,85,0.25),rgba(255,138,76,0.18))'
+                  : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${emoji === e ? 'rgba(255,51,85,0.55)' : 'rgba(255,255,255,0.08)'}`,
+              }}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+
+        {errMsg && (
+          <div className="mt-3 text-[12px] text-amber-300/90">⚠️ {errMsg}</div>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="px-4 py-2 rounded-xl text-xs font-semibold tracking-wide text-white/65 transition disabled:opacity-40"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}
+          >
+            取消
+          </button>
+          <button
+            onClick={submit}
+            disabled={!canSubmit}
+            className="px-5 py-2 rounded-xl text-xs font-bold tracking-wide text-white transition disabled:opacity-40"
+            style={{
+              background: 'linear-gradient(135deg,#ff3355,#ff8a4c)',
+              boxShadow: '0 6px 18px rgba(255,51,85,0.45)',
+            }}
+          >
+            {submitting ? '⚖️ AI 起草中…(~10s)' : '✨ 生成剧本'}
+          </button>
+        </div>
+
+        <div className="mt-3 text-[10px] text-white/35 leading-relaxed">
+          AI 会根据你的描述生成完整法律分析 + HR 开场白 + 玩家背景。生成的关卡进入剧本库,所有人可见。请勿输入真人姓名或真公司名(系统会自动替换)。
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

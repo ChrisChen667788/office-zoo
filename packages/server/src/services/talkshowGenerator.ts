@@ -48,12 +48,18 @@ const TAG_HINTS: Record<TalkshowTag, string> = {
 const SCRIPT_SYSTEM_PROMPT = `你是中文脱口秀编剧,专写"班味单口"风格的职场段子。
 风格要求:
 - 结构必须是:Setup(铺垫真实场景)→ Punchline(反转/暴击)→ Tag(再补一刀)
-- 全文 100-220 个汉字之间,严禁啰嗦,严禁段子里出现真人姓名/真公司名
+- 全文 100-220 个汉字之间,严禁啰嗦
 - 用口语化表达,带"我"的第一视角讲述
 - 拒绝写"以下是""标题:""段子如下"等任何前缀,直接出正文
 - 不要任何 emoji、不要分行(段子是一段连贯的口播)
 - 不要写舞台动作、停顿提示、笑点说明,只写说话的内容
-- 必须扣紧给定的话题和 persona 风格`;
+- 必须扣紧给定的话题和 persona 风格
+
+【内容安全 · 必须遵守】
+- 严禁出现任何真人姓名(包括明星/政客/企业家/网红的本名或绰号),如必须提及一律用"我老板""我同事""我朋友"等通用代称
+- 严禁出现任何真实公司全称(如"阿里""字节""腾讯""华为"等),如必须提及一律说"我们公司""一家大厂""某个独角兽"
+- 严禁政治、违法、色情、暴力、自伤内容
+- 如果输入话题包含上述敏感内容,请改写成不指名道姓的版本继续完成段子,不要拒绝或返回错误`;
 
 const TITLE_SYSTEM_PROMPT = `你是短视频文案手,给一段脱口秀写一句"爆款标题"。
 风格要求:
@@ -154,8 +160,38 @@ function sanitizeBody(raw: string): string {
   out = out.replace(/[\r\n]+/g, ' ');
   // Drop trailing meta-commentary like "(这段段子...)"
   out = out.replace(/\s*[（(](?:以上|以下|说明|备注|另一种|更狠|另一版本|标题|分析)[\s\S]*$/, '').trim();
+  // v0.7.6 — post-generation scrub. Catches the most common real names /
+  // big-tech mentions the LLM occasionally lets through despite the prompt.
+  // Replacement is intentionally generic so the joke still reads.
+  out = scrubSensitiveNames(out);
   // Hard cap at 260 字 — protects TTS cost + matches seed length norms.
   if (out.length > 260) out = out.slice(0, 260) + '。';
+  return out;
+}
+
+/** v0.7.6 — replace real-tech-company / real-person names with generic
+ *  equivalents. Same approach as the highlight-caption sanitizer: regex
+ *  list, soft replacement, never throws. */
+const SENSITIVE_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/阿里(?:巴巴)?/g,         '一家大厂'],
+  [/腾讯/g,                   '一家大厂'],
+  [/字节(?:跳动)?|抖音/g,    '一家短视频公司'],
+  [/百度/g,                   '一家搜索公司'],
+  [/华为/g,                   '一家硬件大厂'],
+  [/京东/g,                   '一家电商公司'],
+  [/拼多多/g,                 '一家电商公司'],
+  [/美团/g,                   '一家本地生活公司'],
+  [/小米/g,                   '一家硬件大厂'],
+  [/网易/g,                   '一家互联网公司'],
+  [/微软|谷歌|苹果|亚马逊|Meta|Facebook/gi, '一家外企'],
+  [/马云|马化腾|张一鸣|李彦宏|刘强东|雷军|任正非/g, '某个老板'],
+  [/习近平|普京|拜登|特朗普|金正恩/g, '某个领导人'],
+];
+function scrubSensitiveNames(text: string): string {
+  let out = text;
+  for (const [pat, sub] of SENSITIVE_REPLACEMENTS) {
+    out = out.replace(pat, sub);
+  }
   return out;
 }
 

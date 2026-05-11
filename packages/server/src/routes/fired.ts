@@ -10,6 +10,24 @@ import {
 import { callLLMWithTimeout } from '../utils/llm';
 import { logger } from '../utils/logger';
 import { validateBody } from '../utils/validate';
+import {
+  listUserScenarios,
+  findUserScenario,
+  addUserScenario,
+} from '../services/scenarioStore';
+import { generateFiredScenario } from '../services/firedScenarioGenerator';
+import { createRateLimiter } from '../utils/rateLimit';
+
+// v0.8.0 — same 5/hour/IP cap as talkshow's /generate. Scenario gen is even
+// more expensive (1400 maxTokens vs talkshow's 480) so the limit matters
+// more here.
+const scenarioGenLimiter = createRateLimiter({ windowMs: 3600_000, max: 5 });
+
+function ipFromHono(c: { req: { header: (k: string) => string | undefined } }): string {
+  const fwd = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip');
+  if (fwd) return fwd.split(',')[0].trim();
+  return c.req.header('host') ?? 'unknown';
+}
 
 const routeLog = logger.child({ component: 'fired' });
 
@@ -100,8 +118,15 @@ const HR_VOICE_NAMES: Record<string, string> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getScenario(id: string): FiredScenario | undefined {
-  return FIRED_SCENARIOS.find((s) => s.id === id);
+/** v0.8.0 — look up a scenario by id, checking the seed catalogue first
+ *  (cheap, in-memory) then the user-generated store (file-backed). Async
+ *  because the user store touches disk. All callers were already inside
+ *  async route handlers so propagating the await is one keystroke each. */
+async function getScenario(id: string): Promise<FiredScenario | undefined> {
+  const seed = FIRED_SCENARIOS.find((s) => s.id === id);
+  if (seed) return seed;
+  const user = await findUserScenario(id);
+  return user ?? undefined;
 }
 
 function getPersonality(id: string): HRPersonality | undefined {
@@ -156,7 +181,7 @@ firedRouter.post('/chat', async (c) => {
     if (!v.ok) return v.response;
     const { scenarioId, personalityId, messages } = v.data;
 
-    const scenario = getScenario(scenarioId);
+    const scenario = await getScenario(scenarioId);
     if (!scenario) {
       return c.json({ error: `Unknown scenario: ${scenarioId}` }, 400);
     }
@@ -411,7 +436,7 @@ firedRouter.post('/suggest', async (c) => {
     if (!v.ok) return v.response;
     const { scenarioId, messages } = v.data;
 
-    const scenario = getScenario(scenarioId);
+    const scenario = await getScenario(scenarioId);
     if (!scenario) {
       return c.json({ error: `Unknown scenario: ${scenarioId}` }, 400);
     }
@@ -496,4 +521,87 @@ function clampScore(val: unknown): number {
   const n = Number(val);
   if (isNaN(n)) return 50;
   return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+// ---------------------------------------------------------------------------
+// v0.8.0 — UGC scenario routes
+// ---------------------------------------------------------------------------
+
+/** GET /api/fired/scenarios — merged seed + user-generated catalogue.
+ *  User scenarios go FIRST so the freshest community content surfaces above
+ *  the curated seeds (mirrors talkshow's /list policy). */
+firedRouter.get('/scenarios', async (c) => {
+  const userScenarios = await listUserScenarios();
+  // Stable sort: user bits descending by createdAt, then seeds in their
+  // canonical order. Strip nothing — the FiredLanding card needs all the
+  // metadata to render properly (title/description/difficulty/emoji).
+  const userSorted = [...userScenarios].sort(
+    (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0),
+  );
+  return c.json({
+    scenarios: [
+      ...userSorted.map((s) => ({ ...s, source: 'user' as const })),
+      ...FIRED_SCENARIOS.map((s) => ({ ...s, source: 'seed' as const })),
+    ],
+  });
+});
+
+const GenerateScenarioSchema = z.object({
+  description: z.string().min(8).max(300),
+  difficulty:  z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  // Single-grapheme emoji from the user's picker.
+  emoji:       z.string().min(1).max(4),
+});
+
+/** POST /api/fired/generate-scenario — LLM-write a complete FiredScenario
+ *  from a one-line description + difficulty + emoji. Persists via
+ *  scenarioStore + returns the full record so the client can immediately
+ *  navigate into the chat with the new scenarioId. */
+firedRouter.post('/generate-scenario', async (c) => {
+  const ip = ipFromHono(c);
+  const limit = scenarioGenLimiter.check(ip);
+  if (!limit.ok) {
+    return c.json(
+      {
+        error: 'rate limited',
+        message: `每小时最多 5 关,${Math.ceil(limit.retryAfterSec / 60)} 分钟后再试`,
+        retryAfterSec: limit.retryAfterSec,
+      },
+      429,
+      { 'Retry-After': String(limit.retryAfterSec) },
+    );
+  }
+
+  const v = await validateBody(c, GenerateScenarioSchema);
+  if (!v.ok) return v.response;
+  const { description, difficulty, emoji } = v.data;
+
+  // Cheap pre-LLM safety pass — same patterns the talkshow generator uses.
+  // The LLM prompt also enforces these, but a hard reject here saves cost
+  // and gives the user a clearer error.
+  const block = checkScenarioSafety(description);
+  if (block) {
+    return c.json({ error: 'topic rejected', message: block }, 400);
+  }
+
+  const scenario = await generateFiredScenario({ description, difficulty, emoji });
+  if (!scenario) {
+    return c.json({ error: 'LLM unavailable, try again' }, 502);
+  }
+  await addUserScenario(scenario);
+  routeLog.info('User scenario generated', {
+    id: scenario.id, difficulty, len: scenario.description.length,
+  });
+  return c.json({ ...scenario, source: 'user' });
+});
+
+const SCENARIO_BLOCKED: Array<{ pattern: RegExp; reason: string }> = [
+  { pattern: /习近平|普京|拜登|特朗普|金正恩|蔡英文/, reason: '不接受真实政治人物姓名' },
+  { pattern: /(?:儿童色情|强奸|诈骗教学|毒品交易|杀人|自杀方法)/, reason: '不接受违法或自伤内容' },
+];
+function checkScenarioSafety(text: string): string | null {
+  for (const { pattern, reason } of SCENARIO_BLOCKED) {
+    if (pattern.test(text)) return reason;
+  }
+  return null;
 }

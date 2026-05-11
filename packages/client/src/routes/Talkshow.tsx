@@ -36,11 +36,16 @@ interface ScriptSummary {
    *  user prompt. Drives the ✨ badge on the card so users can tell the
    *  fresh community bits from the curated catalogue. */
   source?: 'seed' | 'user';
+  /** v0.7.5 — community heart count. Always present in v0.7.5+ responses
+   *  (server backfills missing entries to 0). */
+  likes?: number;
 }
 
 interface ScriptFull extends ScriptSummary {
   text: string;
 }
+
+type SortMode = 'default' | 'hot' | 'new';
 
 type Persona = 'shaonv' | 'yujie' | 'qingse' | 'jingying' | 'badao' | 'qingnian';
 type Tag =
@@ -74,20 +79,45 @@ export default function Talkshow() {
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  /** v0.7.5 — sort mode for the grid. 'default' = user bits (recent) first
+   *  + seeds in curated order; 'hot' = sorted by community likes desc;
+   *  'new' = strict recency desc. */
+  const [sortMode, setSortMode] = useState<SortMode>('default');
   /** When non-null, we're in player view for this script. */
   const [active, setActive] = useState<ScriptFull | null>(null);
   /** v0.7.4 — when true, the create-bit modal is open. */
   const [creatorOpen, setCreatorOpen] = useState(false);
+  /** v0.7.5 — set of script ids the current IP has already liked (per the
+   *  server's per-IP dedup). Used to paint hearts filled-vs-outline. */
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 
-  // Fetch list — extracted so we can call it again after a create completes.
-  const reloadList = useRef<() => Promise<void>>();
+  // Fetch list — extracted so we can call it again after a create completes
+  // or when the sort mode changes.
+  const reloadList = useRef<(opts?: { sort?: SortMode }) => Promise<void>>();
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    const load = async (opts?: { sort?: SortMode }) => {
       try {
-        const r = await fetch('/api/talkshow/list');
+        const sort = opts?.sort ?? sortMode;
+        const url = sort === 'default' ? '/api/talkshow/list' : `/api/talkshow/list?sort=${sort}`;
+        const r = await fetch(url);
         const d = await r.json();
-        if (!cancelled) setScripts(d.scripts ?? []);
+        if (cancelled) return;
+        const next = (d.scripts ?? []) as ScriptSummary[];
+        setScripts(next);
+        // After list loads, batch-fetch which ones THIS IP has liked
+        // so the hearts paint correctly on first frame.
+        const ids = next.map((s) => s.id).join(',');
+        if (ids) {
+          fetch(`/api/talkshow/like-state?ids=${encodeURIComponent(ids)}`)
+            .then((r2) => r2.json())
+            .then((d2: { liked?: string[] }) => {
+              if (!cancelled && Array.isArray(d2.liked)) {
+                setLikedIds(new Set(d2.liked));
+              }
+            })
+            .catch(() => { /* non-fatal — hearts just stay outlined */ });
+        }
       } catch (e) {
         if (!cancelled) setLoadErr((e as Error).message ?? '加载失败');
       }
@@ -95,7 +125,8 @@ export default function Talkshow() {
     reloadList.current = load;
     load();
     return () => { cancelled = true; stopTts(); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortMode]);
 
   // Deeplink — `?id=bit-001` auto-opens the player. Also keeps the URL in
   // sync as the user navigates between bits, so refresh / share preserves
@@ -140,6 +171,56 @@ export default function Talkshow() {
     [scripts, tagFilter],
   );
 
+  /** v0.7.5 — toggle like for `id` with optimistic UI: bump the count
+   *  immediately, then reconcile with server response (which is authoritative
+   *  in case our local likedIds disagrees). On network failure we roll back
+   *  so the heart can be tapped again. */
+  const toggleLike = async (id: string) => {
+    const wasLiked = likedIds.has(id);
+    // Optimistic local mutation
+    setLikedIds((prev) => {
+      const next = new Set(prev);
+      if (wasLiked) next.delete(id); else next.add(id);
+      return next;
+    });
+    setScripts((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, likes: Math.max(0, (s.likes ?? 0) + (wasLiked ? -1 : 1)) } : s,
+      ),
+    );
+    if (active?.id === id) {
+      setActive((a) => (a ? { ...a, likes: Math.max(0, (a.likes ?? 0) + (wasLiked ? -1 : 1)) } : a));
+    }
+    try {
+      const resp = await fetch('/api/talkshow/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scriptId: id, liked: !wasLiked }),
+      });
+      if (!resp.ok) throw new Error(`like ${resp.status}`);
+      const data = await resp.json() as { likes: number };
+      // Reconcile to authoritative count.
+      setScripts((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, likes: data.likes } : s)),
+      );
+      if (active?.id === id) {
+        setActive((a) => (a ? { ...a, likes: data.likes } : a));
+      }
+    } catch {
+      // Roll back optimistic state.
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        if (wasLiked) next.add(id); else next.delete(id);
+        return next;
+      });
+      setScripts((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, likes: Math.max(0, (s.likes ?? 0) + (wasLiked ? 1 : -1)) } : s,
+        ),
+      );
+    }
+  };
+
   const tags = useMemo(() => {
     const set = new Set<string>();
     for (const s of scripts) set.add(s.tag);
@@ -177,6 +258,8 @@ export default function Talkshow() {
           <PlayerView
             key="player"
             script={active}
+            liked={likedIds.has(active.id)}
+            onLikeToggle={() => toggleLike(active.id)}
             onBack={() => setActive(null)}
             onNavigate={async (direction) => {
               // Find the active script in the visible list and jump to the
@@ -224,6 +307,32 @@ export default function Talkshow() {
               </p>
             </div>
 
+            {/* v0.7.5 sort chips — sit ABOVE the tag chips so the
+                primary slice (hot/new/curated) is the first decision. */}
+            <div className="max-w-4xl mx-auto mb-3 flex flex-wrap gap-2 justify-center">
+              <Chip
+                active={sortMode === 'default'}
+                onClick={() => setSortMode('default')}
+                color="#ffffff"
+              >
+                ✨ 推荐
+              </Chip>
+              <Chip
+                active={sortMode === 'hot'}
+                onClick={() => setSortMode('hot')}
+                color="#ff5588"
+              >
+                🔥 最热
+              </Chip>
+              <Chip
+                active={sortMode === 'new'}
+                onClick={() => setSortMode('new')}
+                color="#4c9eff"
+              >
+                🆕 最新
+              </Chip>
+            </div>
+
             {/* Tag filter */}
             {tags.length > 0 && (
               <div className="max-w-4xl mx-auto mb-6 flex flex-wrap gap-2 justify-center">
@@ -265,6 +374,8 @@ export default function Talkshow() {
                   <ScriptCard
                     key={s.id}
                     script={s}
+                    liked={likedIds.has(s.id)}
+                    onLikeToggle={() => toggleLike(s.id)}
                     onSelect={async () => {
                       // Prime audio inside the click gesture so Safari
                       // autoplay policy lets us play TTS later.
@@ -339,19 +450,30 @@ function Chip({
   );
 }
 
-function ScriptCard({ script, onSelect }: { script: ScriptSummary; onSelect: () => void }) {
+function ScriptCard({
+  script,
+  onSelect,
+  liked,
+  onLikeToggle,
+}: {
+  script: ScriptSummary;
+  onSelect: () => void;
+  /** v0.7.5 — has THIS IP already liked this bit (server's per-IP dedup
+   *  surfaced via /like-state batch fetch). Drives heart fill. */
+  liked: boolean;
+  onLikeToggle: () => void;
+}) {
   const tagCfg = TAG_LABELS[script.tag] ?? { label: script.tag, color: '#888' };
   const personaCfg = PERSONA_LABELS[script.persona] ?? { emoji: '🎤', label: script.persona };
   const isUser = script.source === 'user';
+  const likeCount = script.likes ?? 0;
   return (
     <motion.button
       onClick={onSelect}
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.98 }}
-      className="text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[140px]"
+      className="text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[140px] relative"
       style={{
-        // User-generated bits get a faint amber rim so they're visually
-        // distinguishable from seed bits without an in-your-face badge.
         background: isUser
           ? 'linear-gradient(135deg, rgba(255,184,76,0.08), rgba(255,255,255,0.02))'
           : 'rgba(255,255,255,0.025)',
@@ -392,7 +514,32 @@ function ScriptCard({ script, onSelect }: { script: ScriptSummary; onSelect: () 
       <div className="text-[11px] text-white/55 mt-auto flex items-center gap-1.5">
         <span>{personaCfg.emoji}</span>
         <span>{personaCfg.label}</span>
-        <span className="text-white/30 ml-auto">▶ 播放</span>
+        {/* Heart pill — stops click bubbling so tapping the heart doesn't
+            also navigate into the player. Slightly bumped opacity when
+            liked so the count reads at-a-glance from across the grid. */}
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => { e.stopPropagation(); onLikeToggle(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.stopPropagation();
+              e.preventDefault();
+              onLikeToggle();
+            }
+          }}
+          className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full transition cursor-pointer"
+          style={{
+            color: liked ? '#ff5588' : 'rgba(255,255,255,0.45)',
+            background: liked ? 'rgba(255,85,136,0.12)' : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${liked ? 'rgba(255,85,136,0.45)' : 'rgba(255,255,255,0.08)'}`,
+          }}
+          title={liked ? '已喜欢 · 再点取消' : '喜欢这一段'}
+        >
+          <span className="leading-none">{liked ? '❤' : '♡'}</span>
+          <span className="tabular-nums">{likeCount}</span>
+        </span>
+        <span className="text-white/30">▶</span>
       </div>
     </motion.button>
   );
@@ -496,7 +643,11 @@ function CreateBitModal({
       });
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
-        throw new Error(body.error ?? `生成失败 (${resp.status})`);
+        // v0.7.6 — surface the server's friendly message verbatim where
+        // it's set (rate limit gives "每小时最多 5 段,N 分钟后再试",
+        // safety check gives "不接受真实政治人物姓名" etc).
+        const msg = body.message ?? body.error ?? `生成失败 (${resp.status})`;
+        throw new Error(msg);
       }
       const full = (await resp.json()) as ScriptFull;
       onCreated(full);
@@ -644,6 +795,8 @@ function PlayerView({
   script,
   onBack,
   onNavigate,
+  liked,
+  onLikeToggle,
 }: {
   script: ScriptFull;
   onBack: () => void;
@@ -651,6 +804,9 @@ function PlayerView({
    *  list. Loops at the boundaries. Lets users binge through the bits
    *  without going back to the grid every time. */
   onNavigate: (direction: 'prev' | 'next') => void;
+  /** v0.7.5 — has THIS IP already liked this bit. */
+  liked: boolean;
+  onLikeToggle: () => void;
 }) {
   const [revealedChars, setRevealedChars] = useState(0);
   // 'fetching' = TTS request in flight; 'ready' = blob fetched but waiting
@@ -848,6 +1004,12 @@ function PlayerView({
         e.preventDefault();
         handleManualPlay();
       }
+      // v0.7.5 — L heart toggle. Mirrors the heart button so binge-listeners
+      // can like without leaving the keyboard.
+      if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        onLikeToggle();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -882,6 +1044,22 @@ function PlayerView({
             aria-label="上一段"
           >
             ← 上一段
+          </button>
+          {/* v0.7.5 — heart button. Pink fill when liked, outline otherwise.
+              Count is the authoritative server count (script.likes), updated
+              optimistically on tap via toggleLike. Keyboard L mirrors. */}
+          <button
+            onClick={onLikeToggle}
+            className="text-xs transition px-3 py-1.5 rounded inline-flex items-center gap-1.5"
+            style={{
+              color: liked ? '#ff5588' : 'rgba(255,255,255,0.55)',
+              background: liked ? 'rgba(255,85,136,0.12)' : 'rgba(255,255,255,0.05)',
+              border: `1px solid ${liked ? 'rgba(255,85,136,0.45)' : 'transparent'}`,
+            }}
+            title={liked ? '已喜欢 (L)' : '喜欢 (L)'}
+          >
+            <span className="leading-none">{liked ? '❤' : '♡'}</span>
+            <span className="tabular-nums">{script.likes ?? 0}</span>
           </button>
           <button
             onClick={handleShare}
