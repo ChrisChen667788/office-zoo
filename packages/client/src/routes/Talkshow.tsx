@@ -28,6 +28,12 @@ import {
   getTtsPlaybackSpeed,
 } from '../utils/audioUnlock';
 import { getUserId } from '../utils/userId';
+import {
+  ARCHETYPE_TO_TALKSHOW_PERSONA,
+  findArchetype,
+  type Archetype,
+} from '@furball/shared';
+import type { UserProfile } from '../utils/profileTypes';
 import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { EmptyState }   from '../components/ui/EmptyState';
 import { WaveformBars } from '../components/ui/WaveformBars';
@@ -57,7 +63,11 @@ interface ScriptFull extends ScriptSummary {
   text: string;
 }
 
-type SortMode = 'default' | 'hot' | 'new' | 'monthly';
+// v1.3.3 — adds 'foryou' which client-side reorders by archetype
+// affinity. Server doesn't need to know about it (no /list?sort=foryou
+// endpoint) — we fetch 'default' and re-sort in the client based on
+// the user's quiz profile.
+type SortMode = 'default' | 'hot' | 'new' | 'monthly' | 'foryou';
 
 type Persona = 'shaonv' | 'yujie' | 'qingse' | 'jingying' | 'badao' | 'qingnian';
 type Tag =
@@ -100,6 +110,21 @@ export default function Talkshow() {
    *  technically composable. */
   const [mineOnly, setMineOnly] = useState(false);
   const myId = useMemo(() => getUserId(), []);
+  /** v1.3.3 — fetched once on mount. When non-null we know the user's
+   *  archetype + can offer "为你推荐" sort + match the creator persona. */
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  useEffect(() => {
+    fetch('/api/quiz/me', { headers: { 'X-User-Id': myId } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { profile: UserProfile | null } | null) => {
+        if (d?.profile) setProfile(d.profile);
+      })
+      .catch(() => { /* anonymous user — feature just stays inactive */ });
+  }, [myId]);
+  const myArchetype: Archetype | null = useMemo(() => {
+    if (!profile?.topArchetypes?.[0]) return null;
+    return findArchetype(profile.topArchetypes[0]) ?? null;
+  }, [profile]);
   /** When non-null, we're in player view for this script. */
   const [active, setActive] = useState<ScriptFull | null>(null);
   /** v0.7.4 — when true, the create-bit modal is open. */
@@ -187,8 +212,23 @@ export default function Talkshow() {
     let out = scripts;
     if (tagFilter) out = out.filter((s) => s.tag === tagFilter);
     if (mineOnly)  out = out.filter((s) => s.createdBy === myId);
+    // v1.3.3 — "为你推荐" client-side reorder. Score = +3 if the bit's
+    // tag matches the user's archetype shineTalkshowTag, +1 for any
+    // bit also tagged with the same emotional bucket. Stable sort —
+    // preserves relative order within tier so seeded curation isn't
+    // destroyed.
+    if (sortMode === 'foryou' && myArchetype) {
+      const shineTag = myArchetype.shineTalkshowTag;
+      out = [...out]
+        .map((s, idx) => ({
+          s, idx,
+          score: s.tag === shineTag ? 3 : 0,
+        }))
+        .sort((a, b) => b.score - a.score || a.idx - b.idx)
+        .map((e) => e.s);
+    }
     return out;
-  }, [scripts, tagFilter, mineOnly, myId]);
+  }, [scripts, tagFilter, mineOnly, myId, sortMode, myArchetype]);
 
   /** v0.8.1 — count of MY creations across the whole catalogue (not just
    *  filtered). Drives the badge on the "我的创作" chip so users can see
@@ -358,6 +398,17 @@ export default function Talkshow() {
               >
                 🆕 最新
               </Chip>
+              {/* v1.3.3 — "为你推荐" chip, only shown when user has a
+                  quiz profile. Tap → reorder by archetype shineTalkshowTag. */}
+              {myArchetype && (
+                <Chip
+                  active={sortMode === 'foryou' && !mineOnly}
+                  onClick={() => { setSortMode('foryou'); setMineOnly(false); }}
+                  color="#b086ff"
+                >
+                  🧠 为你推荐 · {myArchetype.emoji}
+                </Chip>
+              )}
               <Chip
                 active={sortMode === 'monthly' && !mineOnly}
                 onClick={() => { setSortMode('monthly'); setMineOnly(false); }}
@@ -475,11 +526,19 @@ export default function Talkshow() {
       <AnimatePresence>
         {creatorOpen && (
           <CreateBitModal
+            /* v1.3.3 — pre-fill persona based on user's archetype so
+               their bits sound like THEM by default. User can still
+               override in the modal. Falls back to qingse when no
+               profile (matches v1.3.2 behavior). */
+            defaultPersona={
+              myArchetype
+                ? ARCHETYPE_TO_TALKSHOW_PERSONA[myArchetype.id] ?? 'qingse'
+                : 'qingse'
+            }
+            archetypeHint={myArchetype}
             onCancel={() => setCreatorOpen(false)}
             onCreated={async (full) => {
               setCreatorOpen(false);
-              // Pull fresh list so the new bit shows up + auto-open it
-              // in the player. Both branches survive a list refetch fail.
               if (reloadList.current) await reloadList.current();
               setActive(full);
             }}
@@ -702,13 +761,20 @@ const CREATE_SAMPLES = [
 function CreateBitModal({
   onCancel,
   onCreated,
+  defaultPersona,
+  archetypeHint,
 }: {
   onCancel: () => void;
   onCreated: (full: ScriptFull) => void;
+  /** v1.3.3 — pre-fill persona; user can still override. */
+  defaultPersona?: Persona;
+  /** v1.3.3 — when present, show a "based on your X archetype"
+   *  hint over the persona picker. Pure UI affordance. */
+  archetypeHint?: Archetype | null;
 }) {
   const [topic, setTopic] = useState('');
-  const [persona, setPersona] = useState<Persona>('qingse');
-  const [tag, setTag] = useState<Tag>('overtime');
+  const [persona, setPersona] = useState<Persona>(defaultPersona ?? 'qingse');
+  const [tag, setTag] = useState<Tag>(archetypeHint?.shineTalkshowTag as Tag | undefined ?? 'overtime');
   const [submitting, setSubmitting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -817,7 +883,24 @@ function CreateBitModal({
         </div>
 
         {/* Persona */}
-        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5 mt-3">叙述者口音</label>
+        <label className="block text-[11px] text-white/55 tracking-wide mb-1.5 mt-3">
+          叙述者口音
+          {/* v1.3.3 — when user has a quiz profile, the default + tag
+              are pre-tuned to their archetype. Tiny hint above the
+              picker to make this discoverable. */}
+          {archetypeHint && (
+            <span
+              className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+              style={{
+                color: '#b086ff',
+                background: 'rgba(176,134,255,0.12)',
+                border: '1px solid rgba(176,134,255,0.35)',
+              }}
+            >
+              已按 {archetypeHint.emoji}{archetypeHint.name} 推荐
+            </span>
+          )}
+        </label>
         <div className="grid grid-cols-3 gap-1.5">
           {CREATE_PERSONAS.map((p) => (
             <button

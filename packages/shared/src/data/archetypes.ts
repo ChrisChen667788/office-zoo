@@ -476,6 +476,32 @@ export function findArchetype(id: string): Archetype | undefined {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// v1.3.3 — Archetype → Talkshow voice persona mapping.
+//
+// When an identified user opens the talkshow create modal, the default
+// `persona` selection should match their archetype's "natural voice"
+// so the segments they create sound like THEIR own delivery. Mapping
+// is hand-curated rather than derived from traits because voice fit is
+// a tone-judgment, not a math match.
+// ────────────────────────────────────────────────────────────────────
+import type { TalkshowPersona } from './talkshow';
+
+export const ARCHETYPE_TO_TALKSHOW_PERSONA: Record<string, TalkshowPersona> = {
+  grinder:       'qingse',     // 卷王 — earnest hustle voice, never breaks
+  slacker:       'qingse',     // 摸鱼大师 — laid-back young guy
+  'sass-master': 'yujie',      // 阴阳怪气王 — sultry sarcasm fits
+  pleaser:       'shaonv',     // 老好人 — gentle, self-effacing
+  nihilist:      'qingnian',   // 厌世派 — flat neutral narrator
+  'show-pony':   'shaonv',     // 显眼包 — bright, chipper, look-at-me
+  'anti-grinder':'yujie',      // 反卷青年 — knowing, world-weary
+  'drama-queen': 'badao',      // 戏精 — dramatic, theatrical authority
+  'iron-maiden': 'jingying',   // 拼命三娘 — sharp manager voice
+  veteran:       'jingying',   // 老油条 — corporate veteran
+  'deck-wizard': 'jingying',   // PPT 王者 — executive presentation voice
+  ghost:         'qingnian',   // 隐形人 — neutral, low-affect
+};
+
+// ────────────────────────────────────────────────────────────────────
 // v1.3.2 — Archetype-aware HR PUA hooks.
 //
 // When the user enters fired chat, the server reads their stored

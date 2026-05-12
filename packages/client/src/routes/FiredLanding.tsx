@@ -24,6 +24,8 @@ import { getUserId } from '../utils/userId';
 import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { isPremium, subscribeEntitlement } from '../utils/entitlement';
+import { findArchetype, type Archetype } from '@furball/shared';
+import type { UserProfile } from '../utils/profileTypes';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
  *  same fields plus a `source` flag distinguishing seed catalogue from
@@ -107,6 +109,21 @@ export default function FiredLanding() {
   const [mineOnly, setMineOnly] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const myId = useMemo(() => getUserId(), []);
+  // v1.3.4 — fetched once on mount; powers the "适合你" pack sort +
+  // future personalization features. null when user is anonymous.
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  useEffect(() => {
+    fetch('/api/quiz/me', { headers: { 'X-User-Id': myId } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: { profile: UserProfile | null } | null) => {
+        if (d?.profile) setProfile(d.profile);
+      })
+      .catch(() => { /* anonymous */ });
+  }, [myId]);
+  const myArchetype: Archetype | null = useMemo(() => {
+    if (!profile?.topArchetypes?.[0]) return null;
+    return findArchetype(profile.topArchetypes[0]) ?? null;
+  }, [profile]);
   // v0.8.2 — per-scenario stats for THIS user (play count, best ratio,
   // last tactic). Drives the "你打过 N 次" badge so users see their
   // history at a glance + know the HR has memory.
@@ -922,6 +939,7 @@ export default function FiredLanding() {
               key="packs"
               scenarios={scenarios}
               myId={myId}
+              myArchetype={myArchetype}
               onCreateOpen={() => setPackCreatorOpen(true)}
             />
           )}
@@ -1222,7 +1240,10 @@ function FiredChip({
 // v0.9.0 — UGC packs (browse + create)
 // ===========================================================================
 
-type PackSortMode = 'default' | 'hot' | 'new' | 'monthly';
+// v1.3.4 — adds 'foryou' which client-side reorders by archetype
+// shineScenarioId affinity. Server unaware — we re-sort the default
+// list using the user's quiz profile.
+type PackSortMode = 'default' | 'hot' | 'new' | 'monthly' | 'foryou';
 
 interface PackWithMeta extends FiredPack {
   slotCount?: number;
@@ -1232,10 +1253,15 @@ function PacksTab({
   scenarios,
   myId,
   onCreateOpen,
+  myArchetype,
 }: {
   scenarios: ScenarioWithSource[];
   myId: string;
   onCreateOpen: () => void;
+  /** v1.3.4 — when set, "🧠 适合你" sort chip surfaces and re-orders
+   *  packs by how well their slot scenarios match the user's archetype
+   *  shineScenarioId + adjacent emotional tone scenarios. */
+  myArchetype: Archetype | null;
 }) {
   const navigate = useNavigate();
   const scenarioById = useMemo(
@@ -1313,10 +1339,40 @@ function PacksTab({
     }
   };
 
-  const visiblePacks = useMemo(
-    () => mineOnly ? packs.filter((p) => p.createdBy === myId) : packs,
-    [packs, mineOnly, myId],
-  );
+  const visiblePacks = useMemo(() => {
+    let out = mineOnly ? packs.filter((p) => p.createdBy === myId) : packs;
+    // v1.3.4 — "适合你" client-side re-rank by archetype affinity.
+    // Score per pack = +5 if any slot.scenarioId matches the archetype's
+    // shineScenarioId, +1 per slot whose personality matches the
+    // archetype's "natural opponent" tone (demon for grinder/iron-maiden,
+    // veteran for sass/veteran/deck-wizard, rookie for ghost/slacker
+    // etc). Stable secondary sort by likes desc so equal-score packs
+    // surface the better-liked one first.
+    if (sortMode === 'foryou' && myArchetype) {
+      const shineId = myArchetype.shineScenarioId;
+      const preferred: Record<string, 'rookie' | 'veteran' | 'demon'> = {
+        grinder: 'demon', 'iron-maiden': 'demon', 'sass-master': 'veteran',
+        veteran: 'veteran', 'deck-wizard': 'veteran', pleaser: 'demon',
+        ghost: 'rookie', slacker: 'rookie', nihilist: 'veteran',
+        'show-pony': 'demon', 'anti-grinder': 'veteran', 'drama-queen': 'demon',
+      };
+      const wantedPersonality = preferred[myArchetype.id];
+      out = [...out]
+        .map((p, idx) => {
+          let score = 0;
+          for (const slot of (p.slots ?? [])) {
+            if (slot.scenarioId === shineId) score += 5;
+            if (wantedPersonality && slot.personalityId === wantedPersonality) score += 1;
+          }
+          return { p, idx, score };
+        })
+        .sort((a, b) => b.score - a.score
+                     || (b.p.likes ?? 0) - (a.p.likes ?? 0)
+                     || a.idx - b.idx)
+        .map((e) => e.p);
+    }
+    return out;
+  }, [packs, mineOnly, myId, sortMode, myArchetype]);
   const minePackCount = useMemo(
     () => packs.filter((p) => p.createdBy === myId).length,
     [packs, myId],
@@ -1353,6 +1409,15 @@ function PacksTab({
         <FiredChip active={sortMode === 'monthly' && !mineOnly}
           onClick={() => { setSortMode('monthly'); setMineOnly(false); }}
           color="#ffb84c">🏆 月度榜</FiredChip>
+        {/* v1.3.4 — "适合你" archetype-affinity sort. Only when user
+            has a quiz profile (so anonymous users don't see a dead chip). */}
+        {myArchetype && (
+          <FiredChip active={sortMode === 'foryou' && !mineOnly}
+            onClick={() => { setSortMode('foryou'); setMineOnly(false); }}
+            color="#b086ff">
+            🧠 适合你 · {myArchetype.emoji}
+          </FiredChip>
+        )}
         {minePackCount > 0 && (
           <FiredChip active={mineOnly}
             onClick={() => setMineOnly((v) => !v)}
