@@ -119,7 +119,7 @@ export default function Profile() {
         personalized={profile.personalized}
       />
 
-      <ActionRow winner={winner} />
+      <ActionRow winner={winner} cardRef={cardRef} />
     </div>
   );
 }
@@ -300,13 +300,20 @@ function RadarChart({ traits, accent }: { traits: TraitVector; accent: string })
 
 // ===========================================================================
 
-function ActionRow({ winner }: { winner: Archetype }) {
+function ActionRow({
+  winner,
+  cardRef,
+}: {
+  winner: Archetype;
+  cardRef: React.RefObject<HTMLDivElement | null>;
+}) {
   const navigate = useNavigate();
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const flashToast = (msg: string) => {
     setShareToast(msg);
-    setTimeout(() => setShareToast(null), 2200);
+    setTimeout(() => setShareToast(null), 2400);
   };
 
   const shareLink = async () => {
@@ -327,14 +334,93 @@ function ActionRow({ winner }: { winner: Archetype }) {
     } catch { /* clipboard blocked */ }
   };
 
-  // v1.3.0: screenshot hint instead of html2canvas (saves ~50KB bundle).
-  // v1.3.1 ships PNG export when needed.
-  const captureHint = () => flashToast('💡 长按卡片(手机)/ 右键截图(电脑)即可保存');
+  /** v1.3.1 — real PNG export.
+   *  Strategy: clone the card into a fixed 1080-px-wide off-screen
+   *  container so html2canvas captures consistently regardless of the
+   *  viewport, then render to canvas at 1.5× scale (1620 px wide,
+   *  good for retina). Try Web Share API with the blob first for
+   *  mobile single-tap share-as-image; fall back to download trigger. */
+  const exportPng = async () => {
+    if (!cardRef.current) return;
+    setExporting(true);
+    try {
+      // Lazy-load html2canvas to keep the initial bundle slim — only
+      // visitors who actually export pay the ~50KB cost.
+      const { default: html2canvas } = await import('html2canvas');
 
-  // Quick-jump into the user's "命中场景" — the seed scenario this
-  // archetype is designed to shine in.
+      // Clone into a fixed-width off-screen wrapper for stable layout.
+      const original = cardRef.current;
+      const clone = original.cloneNode(true) as HTMLElement;
+      const wrap = document.createElement('div');
+      wrap.style.cssText = [
+        'position: fixed', 'top: -10000px', 'left: 0',
+        'width: 1080px',                       // hardcode to match social aspect
+        'padding: 32px',
+        'background: linear-gradient(135deg, #ff2d92 0%, #6e00ff 50%, #00ddff 100%)',
+      ].join(';');
+      // Force the cloned card to honor the export width.
+      clone.style.maxWidth = 'none';
+      clone.style.width = '100%';
+      wrap.appendChild(clone);
+      document.body.appendChild(wrap);
+
+      try {
+        const canvas = await html2canvas(wrap, {
+          // 1.5× = 1620 px wide PNG — sharp on retina without exploding file size.
+          scale: 1.5,
+          backgroundColor: null,
+          logging: false,
+          useCORS: true,
+        });
+
+        const blob: Blob | null = await new Promise((resolve) =>
+          canvas.toBlob((b) => resolve(b), 'image/png', 0.95),
+        );
+        if (!blob) throw new Error('canvas.toBlob returned null');
+
+        const fileName = `班味卡-${winner.name}-${Date.now()}.png`;
+        const file = new File([blob], fileName, { type: 'image/png' });
+
+        // Mobile: try native share-as-file. Web Share Level 2 requires
+        // navigator.canShare check.
+        if (navigator.canShare?.({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `班味卡 · ${winner.name}`,
+              text: `我是 ${winner.emoji} ${winner.name}`,
+            });
+            flashToast('✓ 已分享');
+            return;
+          } catch { /* user cancelled — fall through to download */ }
+        }
+
+        // Desktop / fallback: trigger download.
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        flashToast('✓ 班味卡 PNG 已下载');
+      } finally {
+        document.body.removeChild(wrap);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[profile] export failed', err);
+      flashToast('💡 导出失败 — 长按卡片(手机)/ 右键截图(电脑)也行');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  /** Quick-jump into the user's "命中场景" — the seed scenario this
+   *  archetype is designed to shine in. Deeplink param is consumed by
+   *  FiredLanding. */
   const playShine = () => {
-    // v1.3.1 will deeplink with shineScenarioId pre-selected.
     navigate(`/fired?focus=${winner.shineScenarioId}`);
   };
 
@@ -344,12 +430,19 @@ function ActionRow({ winner }: { winner: Archetype }) {
         <button onClick={shareLink} className="y2k-cta" style={{ fontSize: 13, padding: '0.625rem 0.5rem' }}>
           🔗 分享
         </button>
-        <button onClick={captureHint} className="y2k-cta" style={{
-          fontSize: 13, padding: '0.625rem 0.5rem',
-          background: 'linear-gradient(135deg, #00ddff 0%, #6e00ff 100%)',
-          color: '#fff',
-        }}>
-          📸 截图
+        <button
+          onClick={exportPng}
+          disabled={exporting}
+          className="y2k-cta"
+          style={{
+            fontSize: 13, padding: '0.625rem 0.5rem',
+            background: 'linear-gradient(135deg, #00ddff 0%, #6e00ff 100%)',
+            color: '#fff',
+            opacity: exporting ? 0.7 : 1,
+          }}
+          title="生成 1080×1620 PNG,可发朋友圈 / 小红书 / IG"
+        >
+          {exporting ? '⏳ 导出中…' : '📸 保存 PNG'}
         </button>
         <button onClick={playShine} className="y2k-cta" style={{
           fontSize: 13, padding: '0.625rem 0.5rem',

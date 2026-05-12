@@ -148,6 +148,13 @@ export default function FiredChat() {
   const [inputText, setInputText] = useState('');
   const [keyMomentFlash, setKeyMomentFlash] = useState<string | null>(null);
   const [showPanel, setShowPanel] = useState(false);
+  /** v1.3.2 — when the user has a quiz profile, the server returns
+   *  archetypeContext on every /chat response. We surface it as a one-shot
+   *  banner under the header so the user knows the HR is reading their
+   *  archetype. Set on first /chat response, persists for the round. */
+  const [archetypeNotice, setArchetypeNotice] = useState<{
+    name: string; emoji: string; aggressiveness: 'subtle' | 'medium' | 'full';
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const greetingSent = useRef(false);
@@ -213,6 +220,12 @@ export default function FiredChat() {
         addMessage(hrMsg);
         if (data.scores) updateScores(data.scores);
         if (data.keyMoment) flashKeyMoment(data.keyMoment);
+      }
+      // v1.3.2 — surface archetype notice on first turn so the user knows
+      // HR is using their personality profile. Skipped silently for
+      // anonymous users (no profile = no archetypeContext on response).
+      if (data.archetypeContext && !archetypeNotice) {
+        setArchetypeNotice(data.archetypeContext);
       }
       if (data.lawyerTip) {
         addMessage({ id: genId(), role: 'lawyer', content: data.lawyerTip, timestamp: Date.now() });
@@ -592,8 +605,33 @@ export default function FiredChat() {
             <h2 className="text-sm font-bold truncate tracking-tight" style={{ color: 'rgba(255,255,255,0.92)' }}>
               {scenarioInfo?.emoji} {scenarioInfo?.title}
             </h2>
-            <p className="text-[11px] tracking-wide" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              对手 · {PERSONALITY_LABELS[personalityId]}
+            <p className="text-[11px] tracking-wide flex items-center gap-1.5 flex-wrap" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              <span>对手 · {PERSONALITY_LABELS[personalityId]}</span>
+              {/* v1.3.2 — archetype recognition pill. Pink = full PUA
+                  (demon), purple = medium (veteran), grey = subtle (rookie). */}
+              {archetypeNotice && (
+                <span
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wide"
+                  title={archetypeNotice.aggressiveness === 'full'
+                    ? 'HR 已读取你的人事档案,会针对性 PUA'
+                    : archetypeNotice.aggressiveness === 'medium'
+                      ? 'HR 看过你的档案,可能利用你的性格'
+                      : 'HR 大概看了一眼你的档案'}
+                  style={{
+                    color: archetypeNotice.aggressiveness === 'full' ? '#ff5588'
+                         : archetypeNotice.aggressiveness === 'medium' ? '#a855f7'
+                         : 'rgba(255,255,255,0.65)',
+                    background: archetypeNotice.aggressiveness === 'full' ? 'rgba(255,85,136,0.14)'
+                              : archetypeNotice.aggressiveness === 'medium' ? 'rgba(168,85,247,0.14)'
+                              : 'rgba(255,255,255,0.06)',
+                    border: `1px solid ${archetypeNotice.aggressiveness === 'full' ? 'rgba(255,85,136,0.45)'
+                            : archetypeNotice.aggressiveness === 'medium' ? 'rgba(168,85,247,0.40)'
+                            : 'rgba(255,255,255,0.10)'}`,
+                  }}
+                >
+                  🧠 HR 看了你 · {archetypeNotice.emoji}{archetypeNotice.name}
+                </span>
+              )}
             </p>
           </div>
 

@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "framer-motion": "^11.0.0",
+    "html2canvas": "^1.4.1",
     "lottie-react": "^2.4.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

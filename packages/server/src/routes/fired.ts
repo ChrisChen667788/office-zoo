@@ -26,6 +26,7 @@ import {
   recordMemory,
 } from '../services/memoryStore';
 import { summarizeTactic } from '../services/tacticSummarizer';
+import { findProfile } from '../services/profileStore';
 import {
   listPacks,
   findPack,
@@ -187,10 +188,28 @@ function outcomeZh(o: 'win' | 'partial' | 'lose'): string {
  * behaviour preserved).
  */
 import type { PlayMemory } from '../services/memoryStore';
+import { ARCHETYPE_WEAK_SPOTS, findArchetype } from '@furball/shared';
+
+/** v1.3.2 — archetype context the HR prompt builder consumes when the
+ *  user has taken the personality quiz. `null` for guests / pre-quiz
+ *  users; the system prompt then matches v1.3.1 behavior exactly. */
+interface ArchetypeContext {
+  id: string;
+  name: string;
+  emoji: string;
+  intro: string;
+  ammo: string[];
+  /** Personality difficulty determines how aggressively the weak-spots
+   *  are deployed. demon = full ammo + explicit instructions to PUA;
+   *  veteran = use them as subtle subtext; rookie = barely tinted. */
+  aggressiveness: 'subtle' | 'medium' | 'full';
+}
+
 function buildHRSystemPrompt(
   scenario: FiredScenario,
   personality: HRPersonality,
   memories: PlayMemory[] = [],
+  archetype: ArchetypeContext | null = null,
 ): string {
   const memoryBlock = memories.length === 0 ? '' : `
 
@@ -203,13 +222,43 @@ ${memories.map((m, i) => `  ${i + 1}. [${outcomeZh(m.outcome)}, ${m.tookRounds}�
 - 如果员工在重复成功的话术,提前掐断,转换战场
 - 但仍要保持 HR 的角色扮演风格,不要直接说"我记得你"`;
 
+  const archetypeBlock = !archetype ? '' : (
+    archetype.aggressiveness === 'subtle' ? `
+
+【人物档案 (v1.3.2)】
+${archetype.intro}
+适当感受这个员工的性格特质,但不要刻意针对。` :
+
+    archetype.aggressiveness === 'medium' ? `
+
+【人物档案 (v1.3.2)】
+${archetype.intro}
+你已经看过他的人事档案,在对话中可以巧妙利用这些性格特质,但保持专业。
+参考话术:
+${archetype.ammo.slice(0, 2).map((s, i) => `  ${i + 1}. ${s}`).join('\n')}` :
+
+    /* full */ `
+
+【⚠️ 人物档案 — 戳他痛点 (v1.3.2)】
+${archetype.intro}
+你 HR 系统里有他的完整心理画像,要用最狠的方式 PUA 他的弱点。
+精确弹药库(挑 1-2 条用,自然融入对话):
+${archetype.ammo.map((s, i) => `  ${i + 1}. ${s}`).join('\n')}
+
+要求:
+- 不要原样念出弹药条目,要消化成你 HR 的语气
+- 每轮对话最多戳一次弱点,过度会反作用
+- 必须自然融入场景,不要让员工察觉你在按剧本 PUA
+- 如果员工识破你的套路,假装"我只是想帮你",换一条弹药`
+  );
+
   return `${personality.systemPrompt}
 
 当前场景: ${scenario.title}
 场景描述: ${scenario.description}
 员工情况: ${scenario.playerContext}
 法律背景: ${scenario.legalSituation}
-最大赔偿: ${scenario.maxCompensation}个月工资${memoryBlock}
+最大赔偿: ${scenario.maxCompensation}个月工资${memoryBlock}${archetypeBlock}
 
 你正在扮演这位HR，与即将被裁员的员工进行谈判。根据你的性格特点进行对话。
 重要规则:
@@ -259,7 +308,34 @@ firedRouter.post('/chat', async (c) => {
     // clients) → empty memories → prompt is identical to v0.8.1.
     const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
     const memories = userId ? await listMemories(userId, scenarioId) : [];
-    const systemPrompt = buildHRSystemPrompt(scenario, personality, memories);
+
+    // v1.3.2 — load the user's quiz profile (if any) so HR can PUA
+    // their archetype-specific weak spots. Aggressiveness scales with
+    // personality difficulty: rookie HR barely uses them, demon HR
+    // weaponizes the full ammo list. Soft-fails to null on missing
+    // profile / store error so legacy users get the v1.3.1 prompt.
+    let archetypeCtx: Parameters<typeof buildHRSystemPrompt>[3] = null;
+    if (userId) {
+      try {
+        const profile = await findProfile(userId);
+        if (profile?.topArchetypes?.[0]) {
+          const arc = findArchetype(profile.topArchetypes[0]);
+          const ws = arc ? ARCHETYPE_WEAK_SPOTS[arc.id] : undefined;
+          if (arc && ws) {
+            archetypeCtx = {
+              id: arc.id, name: arc.name, emoji: arc.emoji,
+              intro: ws.intro, ammo: ws.ammo,
+              aggressiveness:
+                personalityId === 'demon'   ? 'full'
+              : personalityId === 'veteran' ? 'medium'
+              :                                'subtle',
+            };
+          }
+        }
+      } catch { /* profileStore down — non-critical, continue without */ }
+    }
+
+    const systemPrompt = buildHRSystemPrompt(scenario, personality, memories, archetypeCtx);
     const conversation = formatConversation(messages);
 
     // ------ 1. Generate HR response (creative, temperature 0.9) ------
@@ -425,6 +501,8 @@ HR最新回复: ${hrResponse}
 
     // Round number = how many user exchanges have been processed (including current).
     // For init, round=0. After first user reply processed, round=1. etc.
+    // v1.3.2 — surface archetype context to the client so it can render
+    // the "🧠 HR 看了你的档案" notice on the first turn.
     const response = {
       hrMessage: hrResponse.trim(),
       scores,
@@ -434,6 +512,12 @@ HR最新回复: ${hrResponse}
       outcome,
       round: userTurnCount,
       maxRounds: MAX_ROUNDS,
+      archetypeContext: archetypeCtx ? {
+        id:    archetypeCtx.id,
+        name:  archetypeCtx.name,
+        emoji: archetypeCtx.emoji,
+        aggressiveness: archetypeCtx.aggressiveness,
+      } : null,
     };
 
     return c.json(response);
