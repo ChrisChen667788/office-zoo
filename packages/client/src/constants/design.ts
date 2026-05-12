@@ -159,6 +159,55 @@ export const executiveColors = {
   },
 } as const;
 
+// ──────────────────────────────────────────────────────────────────────────
+// v1.3.0 — Y2K theme palette ("MAIN CHARACTER" mode)
+//
+// Used ONLY on quiz + profile-card surfaces because those are the screenshot
+// outputs that get shared on social. Consumer chrome is too sophisticated
+// to break through a TikTok For You feed; Executive is the wrong vibe
+// entirely. Y2K is loud, ironic, "early 2000s MySpace × Polaroid × meme".
+//
+// Decisions:
+//   - Hot pink #ff2d92 + electric cyan #00ddff + acid yellow #ffe300 +
+//     deep purple #6e00ff + chrome silver #c8c8c8. Five colors that should
+//     never be used together in a serious product but ARE the Z-gen viral
+//     palette (look at any TikTok title card or BeReal share image).
+//   - Deliberate clash with the rest of the product. The transition from
+//     consumer chrome → quiz screen should feel "I'm in a different app
+//     now" — that's a feature, not a bug. Increases the "what is this???"
+//     hook when shared.
+//   - Stickers, sparkles, badges, gradient stickers — yes. Glassmorphism
+//     — banned in this theme.
+//   - Typography: chunky display font on big text, slab on numerics.
+// ──────────────────────────────────────────────────────────────────────────
+export const y2kColors = {
+  bg: {
+    /** Hot pink → cyan diagonal. The "this is the page" backdrop. */
+    base: 'linear-gradient(135deg, #ff2d92 0%, #6e00ff 50%, #00ddff 100%)',
+    /** White-on-Y2K card surface. */
+    card: '#fff',
+    /** Black-on-Y2K secondary card. */
+    cardDark: '#0a0a0a',
+  },
+  brand: {
+    pink:    '#ff2d92',
+    cyan:    '#00ddff',
+    yellow:  '#ffe300',
+    purple:  '#6e00ff',
+    silver:  '#c8c8c8',
+    /** Accent black for type contrast on light bg. */
+    ink:     '#0a0a0a',
+  },
+  text: {
+    /** Used on white card. */
+    onLight:    '#0a0a0a',
+    onLightSub: '#444',
+    /** Used on Y2K background. */
+    onDark:     '#fff',
+    onDarkSub:  'rgba(255,255,255,0.85)',
+  },
+} as const;
+
 /** Per-embed-flavor gradient hint. Theme generator on the client picks one
  *  of these as the base then overlays the customer's primaryColor. */
 export const executiveGradients = {

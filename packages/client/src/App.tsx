@@ -12,6 +12,8 @@ import Talkshow from './routes/Talkshow';
 import Premium from './routes/Premium';
 import B2bBuilder from './routes/B2bBuilder';
 import B2bEmbed from './routes/B2bEmbed';
+import Quiz from './routes/Quiz';
+import Profile from './routes/Profile';
 
 export default function App() {
   return (
@@ -35,6 +37,9 @@ export default function App() {
       {/* v1.1.0 — B2B white-label builder + iframe embed target. */}
       <Route path="/b2b" element={<B2bBuilder />} />
       <Route path="/embed/:configId" element={<B2bEmbed />} />
+      {/* v1.3.0 — "你是哪种打工人?" personality quiz + shareable profile card. */}
+      <Route path="/quiz" element={<Quiz />} />
+      <Route path="/profile/me" element={<Profile />} />
     </Routes>
   );
 }

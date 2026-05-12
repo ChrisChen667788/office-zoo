@@ -25,6 +25,7 @@ import { firedRouter } from './routes/fired';
 import { shareRoutes } from './routes/share';
 import { talkshowRoutes } from './routes/talkshow';
 import { b2bRoutes } from './routes/b2b';
+import { quizRoutes } from './routes/quiz';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
 
@@ -41,6 +42,7 @@ app.route('/api/fired', firedRouter);
 app.route('/api/share', shareRoutes);
 app.route('/api/talkshow', talkshowRoutes);
 app.route('/api/b2b', b2bRoutes);
+app.route('/api/quiz', quizRoutes);
 
 // Serve generated avatars + icons as static PNGs.
 // Two near-identical routes share a helper — not worth abstracting further

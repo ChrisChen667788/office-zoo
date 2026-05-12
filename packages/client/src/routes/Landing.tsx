@@ -299,10 +299,29 @@ export default function Landing() {
             <p className="text-white/85 text-base md:text-xl font-semibold tracking-tight mb-3">
               0 点散场,鼠人不睡
             </p>
-            <p className="text-white/50 text-xs md:text-sm max-w-xl leading-relaxed">
+            <p className="text-white/50 text-xs md:text-sm max-w-xl leading-relaxed mb-5">
               一家被裁掉的公司,9 名 AI 鼠人 24h 互卷。
               你不是玩家,是那只盯着 KPI 屏的 HR —— 选个模式,看戏。
             </p>
+
+            {/* v1.3.0 — "你是哪种打工人?" hero CTA. Sits under the
+                wordmark + above the stat strip so it's the first hot
+                action below the fold. Y2K palette breaks the dark-violet
+                hero rhythm = unmissable. Routes to /quiz. */}
+            <button
+              onClick={() => navigate('/quiz')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-black text-sm transition relative overflow-hidden hover-sheen"
+              style={{
+                background: 'linear-gradient(135deg, #ffe300 0%, #ff2d92 50%, #6e00ff 100%)',
+                color: '#0a0a0a',
+                border: '2px solid #0a0a0a',
+                boxShadow: '4px 4px 0 0 #0a0a0a, 0 0 24px rgba(255,45,146,0.45)',
+                letterSpacing: '0.02em',
+              }}
+              title="8 道题 · 90 秒 · 拿到你的「班味卡」"
+            >
+              ✨ 你是哪种打工人?生成你的「班味卡」 →
+            </button>
 
             {/* Stat strip — keep but shrink, slot under the headline */}
             <div className="flex gap-6 md:gap-10 mt-7">

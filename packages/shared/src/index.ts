@@ -6,3 +6,4 @@ export * from './data/jargon';
 export * from './data/fired';
 export * from './data/talkshow';
 export * from './data/furniture';
+export * from './data/archetypes';

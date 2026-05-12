@@ -368,3 +368,106 @@ button {
   0%, 100% { transform: translateY(0px); }
   50%      { transform: translateY(-4px); }
 }
+
+/* ──────────────────────────────────────────────────────────────────────
+   v1.3.0 — Y2K theme utilities ("MAIN CHARACTER" surfaces)
+   Used ONLY on /quiz + /profile/*. Deliberately loud — these screens
+   are screenshot-output for social sharing. See docs/DESIGN.md.
+   ────────────────────────────────────────────────────────────────────── */
+
+/* Y2K background — hot pink → purple → cyan diagonal that's the entire
+   page backdrop on quiz/profile surfaces. */
+.y2k-bg {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(255,227,0,0.35) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 90%, rgba(0,221,255,0.42) 0%, transparent 45%),
+    linear-gradient(135deg, #ff2d92 0%, #6e00ff 50%, #00ddff 100%);
+  min-height: 100vh;
+}
+
+/* Sticker — chunky tilted card with thick black border, white fill, and
+   a 6px chrome offset shadow. The "Polaroid stuck on a notebook" feel. */
+.y2k-sticker {
+  background: #fff;
+  color: #0a0a0a;
+  border: 3px solid #0a0a0a;
+  border-radius: 18px;
+  box-shadow: 6px 6px 0 0 #0a0a0a;
+  padding: 1.25rem;
+}
+
+/* Sticker — alt black variant (white text on ink). */
+.y2k-sticker-dark {
+  background: #0a0a0a;
+  color: #fff;
+  border: 3px solid #fff;
+  border-radius: 18px;
+  box-shadow: 6px 6px 0 0 #ff2d92;
+  padding: 1.25rem;
+}
+
+/* Big chunky button — Y2K candy CTA with pulsing inner glow. */
+.y2k-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.75rem;
+  background: linear-gradient(135deg, #ffe300 0%, #ff2d92 50%, #6e00ff 100%);
+  color: #0a0a0a;
+  font-weight: 900;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  border: 3px solid #0a0a0a;
+  border-radius: 9999px;
+  box-shadow: 4px 4px 0 0 #0a0a0a, 0 0 24px rgba(255, 45, 146, 0.5);
+  cursor: pointer;
+  transition: transform 0.12s cubic-bezier(0.32, 0.72, 0, 1),
+              box-shadow 0.12s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.y2k-cta:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 #0a0a0a, 0 0 32px rgba(255, 45, 146, 0.7);
+}
+.y2k-cta:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 0 #0a0a0a, 0 0 16px rgba(255, 45, 146, 0.4);
+}
+
+/* Sparkle decoration — pseudo-element corner stars. Stick on any
+   container. */
+.y2k-sparkle {
+  position: relative;
+}
+.y2k-sparkle::before,
+.y2k-sparkle::after {
+  content: '✦';
+  position: absolute;
+  font-size: 1.5rem;
+  color: #ffe300;
+  filter: drop-shadow(0 2px 0 #0a0a0a);
+  animation: y2k-twinkle 1.8s ease-in-out infinite;
+}
+.y2k-sparkle::before {
+  top: -10px; left: -10px;
+}
+.y2k-sparkle::after {
+  bottom: -10px; right: -10px;
+  animation-delay: 0.9s;
+}
+@keyframes y2k-twinkle {
+  0%, 100% { transform: scale(1) rotate(0deg);   opacity: 0.85; }
+  50%      { transform: scale(1.3) rotate(120deg); opacity: 1; }
+}
+
+/* Big chunky display type — for archetype names + tagline on the card. */
+.y2k-display {
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+/* Tilt — slight rotation used on sticker corners for "stuck on" feel. */
+.y2k-tilt-l { transform: rotate(-2deg); }
+.y2k-tilt-r { transform: rotate(2deg); }
