@@ -23,10 +23,22 @@
  *   the optional callback so the UI can prompt the user to tap-to-unmute.
  */
 
-// A 100 ms silent MP3 (44.1 kHz mono). Small enough to inline, big enough
-// for the browser to treat as a real audio decode and unlock the element.
+// A proper silent MP3 (44.1 kHz mono, ~1 s). Small enough to inline,
+// VALID enough for Safari to decode + unlock the element.
+//
+// v3.6.0 bug fix: the previous inline MP3 was a truncated stub (~64
+// bytes, only an ID3 header + one incomplete MPEG frame header).
+// Safari refused to decode it → `await el.play()` rejected in the
+// silent-unlock path → `unlocked` stayed false → ALL subsequent
+// TTS playback was blocked by Safari's autoplay policy. Symptom:
+// talkshow audio "始终无法正常输出". Chrome happened to tolerate
+// the malformed stub so the bug went unnoticed in dev.
+//
+// This is a known-valid silent MP3 with proper ID3 tag + LAME header
+// + actual silent audio frames. Source: the audio-community
+// "minimum valid silent MP3" — under 1 KB, decodes everywhere.
 const SILENT_MP3 =
-  'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQxAADB8AhLHABAIEVJOUlbMkEn//';
+  'data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV';
 
 let sharedAudio: HTMLAudioElement | null = null;
 let unlocked = false;

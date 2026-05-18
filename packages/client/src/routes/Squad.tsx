@@ -347,7 +347,7 @@ function Directing({ chemistryHints, chemistryTags }: {
   chemistryHints: string[];
   chemistryTags: ChemistryHint[];
 }) {
-  const { locale } = useT();
+  const { locale, t: tDir } = useT();
   // v3.4.0 — render per-locale when structured tags are available.
   // Falls back to the server's zh-CN string when locale is zh-CN
   // OR when tags are missing (legacy server / template fallback).
@@ -388,7 +388,7 @@ function Directing({ chemistryHints, chemistryTags }: {
         <div className="mt-4 pt-4 border-t border-white/10">
           <div className="text-[10px] tracking-[0.22em] uppercase mb-3"
             style={{ color: 'rgba(255,184,76,0.85)' }}>
-            🎭 你们这桌的化学反应
+            {tDir('chemistry.sectionHeader')}
           </div>
           <div className="flex flex-col gap-1.5 text-left">
             {lines.map((hint, i) => (

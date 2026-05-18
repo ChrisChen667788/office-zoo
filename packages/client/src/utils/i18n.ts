@@ -280,6 +280,36 @@ const DICT = {
   'chemistry.trait.cynicism':        { 'zh-CN': '摆烂度',       'en-US': 'cynicism',             'ja-JP': '諦観度',                'ko-KR': '체념' },
   'chemistry.trait.visibility':      { 'zh-CN': '存在感',       'en-US': 'visibility',           'ja-JP': '存在感',                'ko-KR': '존재감' },
 
+  // v3.4.0 — chemistry section header (above the chip strips on the
+  // squad directing / playing / ended screens).
+  'chemistry.sectionHeader':         { 'zh-CN': '🎭 你们这桌的化学反应', 'en-US': '🎭 Your squad chemistry', 'ja-JP': '🎭 このチームの化学反応', 'ko-KR': '🎭 우리 팀 케미스트리' },
+
+  // v3.6.0 — EvolutionPanel labels (Profile page).
+  'evolution.title':                 { 'zh-CN': '🌀 班味演化',   'en-US': '🌀 Persona evolution', 'ja-JP': '🌀 ペルソナ進化',       'ko-KR': '🌀 페르소나 진화' },
+  'evolution.recordSuffix':          { 'zh-CN': '次记录',        'en-US': 'events',               'ja-JP': '件記録',                'ko-KR': '회 기록' },
+  'evolution.evolvedHeader':         { 'zh-CN': '你已演化',      'en-US': 'You evolved',          'ja-JP': '進化した',              'ko-KR': '진화함' },
+  'evolution.driftHeader':           { 'zh-CN': '✦ 累计漂移',    'en-US': '✦ Cumulative drift',   'ja-JP': '✦ 累積ドリフト',         'ko-KR': '✦ 누적 드리프트' },
+  'evolution.driftEmpty':            { 'zh-CN': '漂移幅度还很小,继续玩看看', 'en-US': 'Drift is still small — keep playing.', 'ja-JP': 'ドリフトはまだ小さい — もう少し遊んでみて。', 'ko-KR': '드리프트가 아직 작아요 — 더 플레이해 보세요.' },
+  'evolution.recentEventsHeader':    { 'zh-CN': '✦ 最近事件',    'en-US': '✦ Recent events',      'ja-JP': '✦ 最近のイベント',      'ko-KR': '✦ 최근 이벤트' },
+  'evolution.milestoneHeader':       { 'zh-CN': '✦ 下一站 · 你离这个 archetype 最近', 'en-US': '✦ Next milestone · closest archetype to you', 'ja-JP': '✦ 次の到達点 · 一番近いアーキタイプ', 'ko-KR': '✦ 다음 마일스톤 · 가장 가까운 원형' },
+  'evolution.milestoneGap':          { 'zh-CN': '差距',          'en-US': 'Gap',                  'ja-JP': '差',                    'ko-KR': '차이' },
+  'evolution.milestoneLever':        { 'zh-CN': '主要差',        'en-US': 'Mostly missing',       'ja-JP': '不足は主に',            'ko-KR': '주로 부족한 건' },
+  'evolution.milestonePlay':         { 'zh-CN': '再玩',          'en-US': 'Play',                 'ja-JP': 'あと',                  'ko-KR': '플레이' },
+  'evolution.milestonePlayTimes':    { 'zh-CN': '局',            'en-US': 'more times',           'ja-JP': '回',                    'ko-KR': '번' },
+  'evolution.milestonePlayWith':     { 'zh-CN': '试试',          'en-US': 'to bridge it →',       'ja-JP': '挑戦してみよう →',       'ko-KR': '시도해 보세요 →' },
+
+  // Event-kind labels for the recent-events feed.
+  'evolution.kind.fired-completion': { 'zh-CN': '裁员谈判',      'en-US': 'Layoff chat',          'ja-JP': '解雇交渉',              'ko-KR': '해고 협상' },
+  'evolution.kind.squad-end':        { 'zh-CN': '攒局',          'en-US': 'Squad',                'ja-JP': 'スクワッド',            'ko-KR': '스쿼드' },
+  'evolution.kind.talkshow-create':  { 'zh-CN': '段子创作',      'en-US': 'Talkshow bit',         'ja-JP': 'ネタ作成',              'ko-KR': '코미디 작성' },
+  'evolution.kind.pack-complete':    { 'zh-CN': '闯关包通关',    'en-US': 'Pack cleared',         'ja-JP': 'パック制覇',            'ko-KR': '팩 클리어' },
+
+  // Suggested-activity labels for the milestone CTA.
+  'evolution.activity.fired':        { 'zh-CN': '裁员谈判',      'en-US': 'Layoff Chat',          'ja-JP': '解雇交渉',              'ko-KR': '해고 협상' },
+  'evolution.activity.squad':        { 'zh-CN': '攒局',          'en-US': 'Squad',                'ja-JP': 'スクワッド',            'ko-KR': '스쿼드' },
+  'evolution.activity.talkshow':     { 'zh-CN': '写段子',        'en-US': 'Write a bit',          'ja-JP': 'ネタ作成',              'ko-KR': '코미디 작성' },
+  'evolution.activity.pack':         { 'zh-CN': '通关闯关包',    'en-US': 'Clear a pack',         'ja-JP': 'パック制覇',            'ko-KR': '팩 클리어' },
+
   // Tribe values used as inline tokens in hint bodies. Keep short.
   'chemistry.region.beijing':        { 'zh-CN': '北漂',         'en-US': 'Beijing',              'ja-JP': '北京',                  'ko-KR': '베이징' },
   'chemistry.region.shanghai':       { 'zh-CN': '沪漂',         'en-US': 'Shanghai',             'ja-JP': '上海',                  'ko-KR': '상하이' },

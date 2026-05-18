@@ -22,7 +22,7 @@ import {
   type TraitVector,
 } from '@furball/shared';
 import { getUserId } from '../utils/userId';
-import { archetypeLabel } from '../utils/i18n';
+import { archetypeLabel, useT, type DictKey } from '../utils/i18n';
 import type { PersonalizedProfile, UserProfile } from '../utils/profileTypes';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
@@ -187,7 +187,9 @@ interface EvolutionPayload {
 }
 
 /** v3.3.0 — deep-link target for each suggested activity, so the
- *  milestone card can be tappable. */
+ *  milestone card can be tappable. Keyed by the server-returned
+ *  zh-CN activity name (the v3.3.0 enum). i18n labels for display
+ *  go through ACTIVITY_LABEL_KEY → t() below. */
 const ACTIVITY_ROUTE: Record<NonNullable<EvolutionPayload['nextMilestone']>['suggestedActivity'], string> = {
   '裁员谈判':    '/fired',
   '攒局':        '/squad/new',
@@ -195,11 +197,22 @@ const ACTIVITY_ROUTE: Record<NonNullable<EvolutionPayload['nextMilestone']>['sug
   '通关闯关包':  '/fired',
 };
 
-const EVENT_KIND_LABEL: Record<EvolutionPayload['events'][number]['kind'], string> = {
-  'fired-completion': '裁员谈判',
-  'squad-end':         '攒局',
-  'talkshow-create':   '段子创作',
-  'pack-complete':     '闯关包通关',
+/** v3.6.0 — i18n label keys for the milestone CTA. Maps the zh-CN
+ *  enum the server emits to the dict key the client uses. */
+const ACTIVITY_LABEL_KEY: Record<NonNullable<EvolutionPayload['nextMilestone']>['suggestedActivity'], DictKey> = {
+  '裁员谈判':    'evolution.activity.fired',
+  '攒局':        'evolution.activity.squad',
+  '写段子':      'evolution.activity.talkshow',
+  '通关闯关包':  'evolution.activity.pack',
+};
+
+/** v3.6.0 — i18n key map for the event-kind chip in the recent-events
+ *  feed. Server emits the kind enum verbatim. */
+const EVENT_KIND_KEY: Record<EvolutionPayload['events'][number]['kind'], DictKey> = {
+  'fired-completion': 'evolution.kind.fired-completion',
+  'squad-end':         'evolution.kind.squad-end',
+  'talkshow-create':   'evolution.kind.talkshow-create',
+  'pack-complete':     'evolution.kind.pack-complete',
 };
 
 function EvolutionPanel({ myId }: { myId: string }) {
@@ -210,6 +223,10 @@ function EvolutionPanel({ myId }: { myId: string }) {
       .then((d: { evolution: EvolutionPayload | null }) => setEv(d.evolution))
       .catch(() => { /* anonymous or offline — silently hide */ });
   }, [myId]);
+
+  // v3.6.0 — i18n: subscribe to locale so the panel re-renders when
+  // the user switches language mid-session.
+  const { t } = useT();
 
   if (!ev || ev.events.length === 0) return null;
 
@@ -233,10 +250,10 @@ function EvolutionPanel({ myId }: { myId: string }) {
       <div className="px-5 py-3 flex items-center justify-between"
         style={{ background: 'linear-gradient(135deg,#ffe300 0%,#ff2d92 50%,#6e00ff 100%)', color: '#0a0a0a' }}>
         <span className="text-sm font-black tracking-tight" style={{ textShadow: '1px 1px 0 #fff' }}>
-          🌀 班味演化
+          {t('evolution.title')}
         </span>
         <span className="text-[10px] font-bold tracking-[0.18em] uppercase opacity-80">
-          {ev.events.length} 次记录
+          {ev.events.length} {t('evolution.recordSuffix')}
         </span>
       </div>
 
@@ -245,10 +262,10 @@ function EvolutionPanel({ myId }: { myId: string }) {
           <span className="text-2xl line-through opacity-60">{fromArc.emoji}</span>
           <div className="flex-1">
             <div className="text-[10px] tracking-[0.18em] uppercase text-rose-600 font-bold mb-0.5">
-              你已演化
+              {t('evolution.evolvedHeader')}
             </div>
             <div className="text-sm font-black text-black/90">
-              {fromArc.name} → <span style={{ color: toArc.colors.start }}>{toArc.emoji} {toArc.name}</span>
+              {archetypeLabel(fromArc, 'name')} → <span style={{ color: toArc.colors.start }}>{toArc.emoji} {archetypeLabel(toArc, 'name')}</span>
             </div>
           </div>
         </div>
@@ -257,18 +274,21 @@ function EvolutionPanel({ myId }: { myId: string }) {
       {/* Drift bars — one row per trait that actually drifted. */}
       <div className="px-5 py-4">
         <div className="text-[10px] tracking-[0.18em] uppercase mb-3 text-black/55 font-bold">
-          ✦ 累计漂移
+          {t('evolution.driftHeader')}
         </div>
         <div className="space-y-2">
-          {TRAIT_LABELS.map((t) => {
-            const v = ev.drift[t.key];
+          {TRAIT_LABELS.map((tr) => {
+            const v = ev.drift[tr.key];
             if (!v || Math.abs(v) < 0.05) return null;
             const sign = v > 0 ? '+' : '';
             const pct  = Math.min(100, (Math.abs(v) / 1.5) * 100);
             const color = v > 0 ? '#ff2d92' : '#4c9eff';
+            // v3.6.0 — pull trait label from i18n DICT so en/ja/ko
+            // users see localized rows instead of "内卷" etc.
+            const traitName = t(`chemistry.trait.${tr.key}` as DictKey) || tr.label;
             return (
-              <div key={t.key} className="flex items-center gap-3 text-xs">
-                <span className="w-12 font-bold text-black/85">{t.label}</span>
+              <div key={tr.key} className="flex items-center gap-3 text-xs">
+                <span className="w-12 font-bold text-black/85">{traitName}</span>
                 <div className="flex-1 h-2 rounded-full"
                   style={{ background: 'rgba(0,0,0,0.08)' }}>
                   <div className="h-full rounded-full"
@@ -281,7 +301,7 @@ function EvolutionPanel({ myId }: { myId: string }) {
           })}
           {Object.values(ev.drift).every((v) => Math.abs(v ?? 0) < 0.05) && (
             <div className="text-[11px] text-black/45 py-2">
-              漂移幅度还很小,继续玩看看
+              {t('evolution.driftEmpty')}
             </div>
           )}
         </div>
@@ -297,20 +317,26 @@ function EvolutionPanel({ myId }: { myId: string }) {
           style={{ background: 'linear-gradient(135deg, rgba(255,184,76,0.18) 0%, rgba(255,45,146,0.10) 100%)' }}>
           <div className="text-[10px] tracking-[0.18em] uppercase mb-2 font-bold"
             style={{ color: '#d62876' }}>
-            ✦ 下一站 · 你离这个 archetype 最近
+            {t('evolution.milestoneHeader')}
           </div>
           <div className="flex items-center gap-3">
             <div className="text-3xl flex-shrink-0">{ev.nextMilestone.archetypeEmoji}</div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-black text-black/95 mb-0.5">
-                {ev.nextMilestone.archetypeName}
+                {/* v3.6.0 — i18n archetype name via shared helper.
+                    findArchetype + archetypeLabel guarantee fallback
+                    to zh-CN for v1.x archetypes. */}
+                {(() => {
+                  const arc = findArchetype(ev.nextMilestone.archetypeId);
+                  return arc ? archetypeLabel(arc, 'name') : ev.nextMilestone.archetypeName;
+                })()}
               </div>
               <div className="text-[11px] text-black/65 leading-snug">
-                差距 <span className="font-bold tabular-nums">{ev.nextMilestone.scoreGap.toFixed(2)}</span> ·
-                {' '}主要差 <span className="font-bold">{ev.nextMilestone.leverTraitLabel}</span>
+                {t('evolution.milestoneGap')} <span className="font-bold tabular-nums">{ev.nextMilestone.scoreGap.toFixed(2)}</span> ·
+                {' '}{t('evolution.milestoneLever')} <span className="font-bold">{t(`chemistry.trait.${ev.nextMilestone.leverTrait}` as DictKey) || ev.nextMilestone.leverTraitLabel}</span>
               </div>
               <div className="text-[11px] mt-1 font-bold" style={{ color: '#d62876' }}>
-                再玩 {ev.nextMilestone.estimatedPlays} 局《{ev.nextMilestone.suggestedActivity}》试试 →
+                {t('evolution.milestonePlay')} {ev.nextMilestone.estimatedPlays} {t('evolution.milestonePlayTimes')} 《{t(ACTIVITY_LABEL_KEY[ev.nextMilestone.suggestedActivity])}》 {t('evolution.milestonePlayWith')}
               </div>
             </div>
           </div>
@@ -320,14 +346,14 @@ function EvolutionPanel({ myId }: { myId: string }) {
       {/* Recent events feed */}
       <div className="px-5 py-4 border-t-2 border-black/10">
         <div className="text-[10px] tracking-[0.18em] uppercase mb-2 text-black/55 font-bold">
-          ✦ 最近事件 ({Math.min(5, ev.events.length)})
+          {t('evolution.recentEventsHeader')} ({Math.min(5, ev.events.length)})
         </div>
         <div className="space-y-1.5">
           {ev.events.slice(0, 5).map((e, i) => (
             <div key={i} className="text-[11px] flex gap-2 items-baseline">
               <span className="text-[9px] tracking-wider uppercase px-1.5 py-0.5 rounded font-bold tabular-nums"
                 style={{ background: '#0a0a0a', color: '#ffe300' }}>
-                {EVENT_KIND_LABEL[e.kind] ?? e.kind}
+                {t(EVENT_KIND_KEY[e.kind])}
               </span>
               <span className="text-black/80 flex-1">{e.summary}</span>
               <span className="text-black/40 tabular-nums shrink-0">
