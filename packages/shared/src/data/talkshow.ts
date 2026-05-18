@@ -51,6 +51,11 @@ export interface TalkshowScript {
   /** Target spoken duration in seconds — informs Minimax `speed` hint. */
   durationSec: number;
   text: string;
+  /** v2.3.0 — optional region tag. When set, daily-drama / talkshow
+   *  recommendations bias toward scripts that match the user archetype's
+   *  region (e.g. bj-drift → 北京段子, sh-yuppie → 沪普段子).
+   *  Defaults undefined = region-neutral (generic). */
+  region?: 'beijing' | 'shanghai' | 'shenzhen' | 'hangzhou' | 'chengdu' | 'overseas';
 }
 
 export const SEED_SCRIPTS: TalkshowScript[] = [
@@ -141,6 +146,7 @@ export const SEED_SCRIPTS: TalkshowScript[] = [
     persona: 'shaonv',
     durationSec: 23,
     text: '入职第一天,HR 让我在 17 份文件上签字。我问她这都是啥,她笑着说哎呀都是常规的,你随便签。我心想随便?这可是我下半生的依据啊。我硬着头皮翻,看到第 12 页有一行小字写 "员工同意公司因业务调整变更工作地点至大兴 / 通州 / 燕郊"。我说这条能改吗,HR 脸色一凉说,你刚入职就想这么远啊。我现在懂了,职场最大的陷阱不是签合同那一刻,而是你不敢看合同那一刻。',
+    region: 'beijing',
   },
   {
     id: 'bit-012',
@@ -245,6 +251,7 @@ export const SEED_SCRIPTS: TalkshowScript[] = [
     persona: 'shaonv',
     durationSec: 22,
     text: 'HR 找我谈话,说公司今年要"减员增效",问我能不能"主动转型"。我说什么叫主动转型,她说就是接受调岗到大兴。我说大兴我每天通勤 3 小时。她说那你看着办。我后来才知道,HR 自己也有 KPI — 她要在年底前 "处理" 5 个员工。我突然觉得我们俩立场没那么对立了,她也是受害者,只是她的工具是我。',
+    region: 'beijing',
   },
   {
     id: 'bit-025',
@@ -277,6 +284,7 @@ export const SEED_SCRIPTS: TalkshowScript[] = [
     persona: 'yujie',
     durationSec: 22,
     text: '我裸辞那天异常清醒。提交离职那一刻,我手不抖,心不慌。HR 问我为什么走,我说 "想休息一下"。她说 "现在裸辞风险很大"。我笑了,我说 "在你们这上班,风险更大"。我走出公司大楼,北京的阳光打在脸上。我吃了顿火锅,看了场电影,睡了 12 小时。三个月后我又入职了一家公司,加班一样狠。但那 3 个月,我至少明白了一件事 — 没你公司也转,但你不能没你自己。',
+    region: 'beijing',
   },
   {
     id: 'bit-029',
@@ -293,5 +301,69 @@ export const SEED_SCRIPTS: TalkshowScript[] = [
     persona: 'qingnian',
     durationSec: 24,
     text: '前几天回家,我跟我爸说我现在 "班味" 太重了。我爸 60 岁,在国企干了一辈子,听不懂。他问什么叫班味。我说就是上班久了,身上有种 "下班也甩不掉" 的疲惫感和油腻感。我爸沉默了一会儿,说,孩子,这不叫班味,这叫成年。我突然觉得我刚才说的话,不是吐槽公司,是吐槽长大本身。',
+  },
+
+  // ──────────────────────────────────────────────────────────────────
+  // v2.3.0 — region-flavored scripts. One dedicated bit per major
+  // region tribe (北/上/深/杭/成都/海外), so daily-drama's talkshow
+  // path has at least one matching pick when the user belongs to that
+  // tribe. Each script leans hard into the city's specific texture
+  // (food / commute / dialect) so it reads as "yours" not "anyone's".
+  // Existing 30 bits are mostly region-neutral; this targeted set
+  // unlocks the region-bias tier without diluting the general pool.
+  // ──────────────────────────────────────────────────────────────────
+  {
+    id: 'bit-r-bj-01',
+    title: '我在国贸打车 47 分钟',
+    tag: 'meta',
+    persona: 'yujie',
+    durationSec: 22,
+    text: '昨晚国贸三期下班,我在 cbd 路口打车 47 分钟。打开高德,前面 218 个人。我心想,大家都加班到 11 点,大家都想回家,但车只有那么几辆。后来我妥协了,坐了 8 号线回北五环。地铁里全是熟人 — 都是同行业不同公司的卷王,大家都很默契,谁也不打招呼,谁也不掏手机,因为掏手机就显得没那么累。',
+    region: 'beijing',
+  },
+  {
+    id: 'bit-r-sh-01',
+    title: '陆家嘴的早 7 点',
+    tag: 'meta',
+    persona: 'shaonv',
+    durationSec: 22,
+    text: '陆家嘴早 7 点是另一个世界。穿西装的、踩高跟的、拎 Manner 杯子的、提电脑包的,全是一个统一的节奏 — 快但优雅。我每天混在里面,假装也是体面人。有一天我没来得及换西装,穿卫衣进了大厦,保安看我的眼神就像在看一个外卖小哥。我就明白了,在陆家嘴,你不是看自己工作多努力,是看自己外表多匹配。',
+    region: 'shanghai',
+  },
+  {
+    id: 'bit-r-sz-01',
+    title: '深圳的副业群',
+    tag: 'meta',
+    persona: 'badao',
+    durationSec: 22,
+    text: '我在深圳,微信里有 6 个副业群:跨境电商群、AI 工具群、视频号搬运群、小红书带货群、咖啡店合伙群、还有一个写着 "搞钱不分时段"。每个群都有人凌晨 2 点 @ 全员发新机会。我加了一年发现一个规律 — 真正在搞钱的人,从不发群,因为他们没空。在群里活跃的,基本都是把信息当生意做的下游。深圳教我最深刻的一课就是 — 群越大,机会越小。',
+    region: 'shenzhen',
+  },
+  {
+    id: 'bit-r-hz-01',
+    title: '我的花名叫"无忌"',
+    tag: 'jargon',
+    persona: 'qingse',
+    durationSec: 22,
+    text: '我在杭州互联网公司,工号底下写着花名 "无忌"。我不姓张,也不会武功。是入职那天 HR 让我从一本《武侠人物表》里随便挑一个 — 因为同事不能直呼真名,要花名,这是文化。开会的时候,听 "无忌你这块怎么想?";被骂的时候,听 "无忌你这块没想清楚啊";离职的时候,HR 群发 "无忌的工位明天清空"。三年下来,我已经忘了自己原名叫什么了。',
+    region: 'hangzhou',
+  },
+  {
+    id: 'bit-r-cd-01',
+    title: '成都同事开会全在喝茶',
+    tag: 'slacking',
+    persona: 'qingse',
+    durationSec: 22,
+    text: '我从北京调到成都分公司,第一天开会我吓一跳。9 点的会,大家 9 点 15 才到,人手一杯盖碗茶。会议室里飘着茉莉花茶的香味,跟北京的咖啡因味完全不同。老板讲到一半,有个同事说 "等哈,我去续个水"。我心想这要在北京早被记一次警告了。结果老板笑笑说 "你顺便帮我也续了"。我突然明白,成都不是上班,是上一种生活。',
+    region: 'chengdu',
+  },
+  {
+    id: 'bit-r-os-01',
+    title: '我润到温哥华第一周',
+    tag: 'meta',
+    persona: 'qingnian',
+    durationSec: 24,
+    text: '我润到温哥华第一周,惊喜地发现 — 这里也加班。只是加班理由不一样。在北京我加班是为了 KPI,在温哥华我加班是为了 visa renewal。在北京我下班 11 点,在温哥华我下班 6 点准点 — 但回家继续投简历到 11 点,因为下一份 job offer 才是续命药。我以前以为润出去就轻松了,润出去才发现 — 焦虑会跟着你的护照走,不会被海关拦住。',
+    region: 'overseas',
   },
 ];

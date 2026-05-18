@@ -189,10 +189,22 @@ export async function getDailyDrama(userId: string): Promise<DailyDrama> {
       cta: { label: '走进谈判室 →', href: `/fired?focus=${pick.id}` },
     };
   } else if (kind === 'talkshow') {
+    // Pick order (most-specific → fallback):
+    //   1. archetype.region match (v2.3.0 NEW) — if user is tribe-tagged
+    //      (北漂/沪漂/etc), prefer scripts dedicated to that city. This
+    //      reads as "the bot knows you're from Shanghai" which lands.
+    //   2. archetype.shineTalkshowTag — semantic tag match from v1.x
+    //   3. anything random from the full pool
+    const regionPool = archetype?.region
+      ? SEED_SCRIPTS.filter((s) => s.region === archetype.region)
+      : [];
     const tagPool = archetype
       ? SEED_SCRIPTS.filter((s) => s.tag === archetype.shineTalkshowTag)
-      : SEED_SCRIPTS;
-    const pool = tagPool.length > 0 ? tagPool : SEED_SCRIPTS;
+      : [];
+    const pool =
+      regionPool.length > 0 ? regionPool
+    : tagPool.length    > 0 ? tagPool
+    :                         SEED_SCRIPTS;
     const pick = pool[Math.floor(prng() * pool.length)];
     drama = {
       kind: 'talkshow',
