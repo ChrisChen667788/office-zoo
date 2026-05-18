@@ -226,13 +226,19 @@ export default function FiredLanding() {
   };
 
   /** v0.8.1 — derived: scenarios after the mine + tribe filters (sorting
-   *  is server-side, applied via /scenarios?sort=). v2.1.0 layers a
-   *  tribe filter on top — independent boolean, both can be active. */
+   *  is server-side, applied via /scenarios?sort=). v2.1.0 layered an
+   *  industry-only tribe filter; v2.4.0 widened it to OR-match on
+   *  region as well (a 海外润人 should see overseas-tagged scenarios
+   *  surface under "我的圈子" even though their archetype has no
+   *  industry tag). */
   const visibleScenarios = useMemo(() => {
     let out = scenarios;
     if (mineOnly)  out = out.filter((s) => s.createdBy === myId);
-    if (tribeOnly && myArchetype?.industry) {
-      out = out.filter((s) => s.industry === myArchetype.industry);
+    if (tribeOnly && (myArchetype?.industry || myArchetype?.region)) {
+      out = out.filter((s) =>
+        (myArchetype?.industry && s.industry === myArchetype.industry) ||
+        (myArchetype?.region   && s.region   === myArchetype.region),
+      );
     }
     return out;
   }, [scenarios, mineOnly, tribeOnly, myArchetype, myId]);
@@ -240,12 +246,15 @@ export default function FiredLanding() {
     () => scenarios.filter((s) => s.createdBy === myId).length,
     [scenarios, myId],
   );
-  /** v2.1.0 — how many scenarios match the user's tribe industry?
+  /** v2.4.0 — count = union of industry-matches AND region-matches.
    *  Used to decide whether to render the tribe filter chip at all
    *  (don't show "0 results" filter). */
   const tribeCountFired = useMemo(() => {
-    if (!myArchetype?.industry) return 0;
-    return scenarios.filter((s) => s.industry === myArchetype.industry).length;
+    if (!myArchetype?.industry && !myArchetype?.region) return 0;
+    return scenarios.filter((s) =>
+      (myArchetype?.industry && s.industry === myArchetype.industry) ||
+      (myArchetype?.region   && s.region   === myArchetype.region),
+    ).length;
   }, [scenarios, myArchetype]);
 
   const handleStart = () => {
@@ -576,12 +585,13 @@ export default function FiredLanding() {
                     👤 我的创作 · {mineCountFired}
                   </FiredChip>
                 )}
-                {/* v2.1.0 — tribe filter chip. Renders only when the
-                    user's archetype carries an industry tag AND at
-                    least one scenario matches that tag. Color picks
-                    its archetype.colors.start so the chip reads as
+                {/* v2.1.0 — tribe filter chip; v2.4.0 widened to OR-
+                    match on region as well. Renders only when the
+                    user's archetype has at least one tribe tag AND
+                    at least one scenario matches it. Color picks
+                    archetype.colors.start so the chip reads as
                     "tribe-personalized". */}
-                {tribeCountFired > 0 && myArchetype?.industry && (
+                {tribeCountFired > 0 && (myArchetype?.industry || myArchetype?.region) && (
                   <FiredChip active={tribeOnly}
                     onClick={() => setTribeOnly((v) => !v)}
                     color={myArchetype.colors.start}>

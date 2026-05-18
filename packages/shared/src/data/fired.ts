@@ -84,6 +84,12 @@ export interface FiredScenario {
    *  user's archetype tribe (e.g. faang-cog → amazon-rto, soe-lifer →
    *  org-optimization). Defaults to undefined = generic for back-compat. */
   industry?: 'soe' | 'faang' | 'startup' | 'finance' | 'edu' | 'mcn';
+  /** v2.4.0 — region symmetry with industry. Parallel field, same
+   *  recommendation-bias mechanic but sliced by geography. Most
+   *  scenarios stay generic (workplace law is national); only those
+   *  with clear regional flavor get tagged (e.g. the海外大厂 scenarios
+   *  are 'overseas'). */
+  region?: 'beijing' | 'shanghai' | 'shenzhen' | 'hangzhou' | 'chengdu' | 'overseas';
 }
 
 export const SCENARIOS: FiredScenario[] = [
@@ -310,6 +316,7 @@ export const SCENARIOS: FiredScenario[] = [
     maxCompensation: 8,
     premium: true,
     industry: 'faang',
+    region: 'overseas',
   },
   {
     id: 'meta-efficiency',
@@ -328,6 +335,7 @@ export const SCENARIOS: FiredScenario[] = [
     maxCompensation: 7,
     premium: true,
     industry: 'faang',
+    region: 'overseas',
   },
   {
     id: 'amazon-rto',
@@ -346,6 +354,7 @@ export const SCENARIOS: FiredScenario[] = [
     maxCompensation: 10,
     premium: true,
     industry: 'faang',
+    region: 'overseas',
   },
   {
     id: 'apple-pm',
@@ -364,6 +373,7 @@ export const SCENARIOS: FiredScenario[] = [
     maxCompensation: 9,
     premium: true,
     industry: 'faang',
+    region: 'overseas',
   },
   {
     id: 'google-bard',
@@ -382,6 +392,7 @@ export const SCENARIOS: FiredScenario[] = [
     maxCompensation: 8,
     premium: true,
     industry: 'faang',
+    region: 'overseas',
   },
   {
     id: 'startup-cliff',
@@ -400,6 +411,7 @@ export const SCENARIOS: FiredScenario[] = [
     maxCompensation: 10,
     premium: true,
     industry: 'startup',
+    region: 'overseas',
   },
 ];
 

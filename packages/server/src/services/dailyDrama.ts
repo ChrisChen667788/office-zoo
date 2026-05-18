@@ -169,18 +169,45 @@ export async function getDailyDrama(userId: string): Promise<DailyDrama> {
   if (kind === 'fired') {
     // Pick order (most-specific → fallback):
     //   1. archetype.shineScenarioId — exact hand-curated pairing
-    //   2. v2.1.0 — industry match (archetype.industry === scenario.industry)
-    //      lets the new 12 tribe archetypes pull in their industry's
-    //      flagship scenarios even when no shine match exists
-    //   3. random free scenario
-    const free = FIRED_SCENARIOS.filter((s) => !s.premium);
+    //   2. v2.4.0 — region match (NEW; parallel to industry tier).
+    //      Tribe archetypes have BOTH region + industry; region wins
+    //      because "this scenario knows I'm a 海外润人" lands harder
+    //      than "this scenario is FAANG-flavored".
+    //   3. v2.1.0 — industry match
+    //   4. random free scenario
+    //
+    // Premium-aware: when a tribe match exists ONLY in the premium
+    // pool (e.g. all overseas-tagged scenarios are premium), the
+    // picker still surfaces it as the daily — the client renders a 🔒
+    // overlay and routes the CTA to /premium. This is a conversion
+    // hook by design: showing "today's overseas drama is locked"
+    // beats showing a generic non-matching free drama.
+    const free    = FIRED_SCENARIOS.filter((s) => !s.premium);
+    const allPool = FIRED_SCENARIOS;
+    const matchIn = (pool: typeof FIRED_SCENARIOS, predicate: (s: typeof pool[number]) => boolean) =>
+      pool.filter(predicate);
+
+    // shineScenarioId stays free-only (v2.1.0 behavior): if the
+    // archetype's hand-curated pairing is premium, fall through to the
+    // tribe tiers. The "premium-as-conversion" surface only applies
+    // when the user's TRIBE has zero free matches — a hand-curated
+    // shine pointing at a premium scenario is more often a tagging
+    // accident than an intentional conversion play.
     const shine = archetype && free.find((s) => s.id === archetype.shineScenarioId);
-    const tribeMatches = archetype?.industry
-      ? free.filter((s) => s.industry === archetype.industry)
-      : [];
-    const pick = shine
-      ?? (tribeMatches.length > 0 ? tribeMatches[Math.floor(prng() * tribeMatches.length)] : undefined)
-      ?? free[Math.floor(prng() * free.length)];
+    const regionMatchesFree   = archetype?.region   ? matchIn(free,    (s) => s.region   === archetype.region)   : [];
+    const regionMatchesAll    = archetype?.region   ? matchIn(allPool, (s) => s.region   === archetype.region)   : [];
+    const industryMatchesFree = archetype?.industry ? matchIn(free,    (s) => s.industry === archetype.industry) : [];
+    const industryMatchesAll  = archetype?.industry ? matchIn(allPool, (s) => s.industry === archetype.industry) : [];
+
+    // Free first per tier; fall over to premium-allowed only when free
+    // returns empty (the conversion case).
+    const pickRegion   = regionMatchesFree.length   > 0 ? regionMatchesFree[Math.floor(prng() * regionMatchesFree.length)]
+                       : regionMatchesAll.length    > 0 ? regionMatchesAll[Math.floor(prng() * regionMatchesAll.length)]
+                       : undefined;
+    const pickIndustry = industryMatchesFree.length > 0 ? industryMatchesFree[Math.floor(prng() * industryMatchesFree.length)]
+                       : industryMatchesAll.length  > 0 ? industryMatchesAll[Math.floor(prng() * industryMatchesAll.length)]
+                       : undefined;
+    const pick = shine ?? pickRegion ?? pickIndustry ?? free[Math.floor(prng() * free.length)];
     drama = {
       kind: 'fired',
       targetId: pick.id,
