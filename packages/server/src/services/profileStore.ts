@@ -25,6 +25,20 @@ const __dirname  = path.dirname(__filename);
 const DATA_DIR  = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'user_profiles.json');
 
+/** v1.5.1 — single evolution event. Capped at MAX_EVENTS most recent on
+ *  the profile so disk stays bounded even for power users. */
+export interface EvolutionEvent {
+  /** Unix ms. */
+  ts: number;
+  /** Which surface produced this delta. Lets the UI render different
+   *  icons + the LLM (eventually) tell stories from this stream. */
+  kind: 'fired-completion' | 'squad-end' | 'talkshow-create' | 'pack-complete';
+  /** Partial because most events touch only 1-3 traits. */
+  delta: Partial<TraitVector>;
+  /** Short human-readable line for the UI ("拿下 8 个月赔偿 — 卷度 +0.4"). */
+  summary: string;
+}
+
 export interface UserProfile {
   userId: string;
   /** Top-3 archetype ids by similarity score; index 0 is the "you are
@@ -33,6 +47,13 @@ export interface UserProfile {
   /** Raw 6-dim trait vector from quiz answers — needed to render the
    *  radar chart on the card. */
   traits: TraitVector;
+  /** v1.5.1 — cumulative drift from plays AFTER the quiz. Kept separate
+   *  from `traits` so the original quiz vector is preserved (lets the
+   *  Profile page render "你最初是 X,现在变成 Y"). Effective trait
+   *  vector = traits + traitDrift, clamped non-negative for cosine. */
+  traitDrift?: TraitVector;
+  /** v1.5.1 — recent evolution events (newest first), capped at 20. */
+  evolutionEvents?: EvolutionEvent[];
   /** LLM-personalized 3 catchphrases + tagline. */
   personalized: PersonalizedProfile;
   /** Unix ms — used to gate "you can re-quiz once a week" if we ever

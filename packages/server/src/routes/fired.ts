@@ -27,6 +27,7 @@ import {
 } from '../services/memoryStore';
 import { summarizeTactic } from '../services/tacticSummarizer';
 import { findProfile } from '../services/profileStore';
+import { firedCompletionDelta, recordEvolutionEvent } from '../services/archetypeEvolution';
 import {
   listPacks,
   findPack,
@@ -949,7 +950,21 @@ firedRouter.post('/memory/record', async (c) => {
     user: userId.slice(0, 8) + '…', scenarioId, outcome, tookRounds, tactic,
   });
 
-  return c.json({ ok: true, tactic });
+  // v1.5.1 — archetype evolution. Derive a delta from the same
+  // win/ratio/rounds inputs and apply it. Anonymous-quiz users (no
+  // profile) silently no-op. The result is returned to the client so
+  // FiredResult can render a "🌀 卷度 +0.4" chip + a transition banner
+  // if the top archetype just changed.
+  let evolution = null;
+  try {
+    const delta = firedCompletionDelta({ outcome, finalRatio, tookRounds });
+    evolution = await recordEvolutionEvent(userId, 'fired-completion', delta, scenario.title);
+  } catch (err) {
+    // Non-fatal — evolution is a UX bonus, never blocks the result page.
+    routeLog.warn({ err }, 'evolution event failed');
+  }
+
+  return c.json({ ok: true, tactic, evolution });
 });
 
 /** GET /api/fired/memory/me — bulk return per-scenario stats for the

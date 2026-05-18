@@ -200,6 +200,20 @@ export default function FiredResult() {
    *  /memory/record response). When present, surface it on the result
    *  screen so the user sees what HR will remember next time. */
   const [recordedTactic, setRecordedTactic] = useState<string | null>(null);
+  /** v1.5.1 — archetype evolution payload from the same /memory/record
+   *  response. When present, surfaces "🌀 卷度 +0.4" chip and (if the
+   *  top archetype just flipped) a big "你已演化为 X" celebration. */
+  const [evolution, setEvolution] = useState<{
+    summary: string;
+    transitioned: boolean;
+    fromArchetype: string;
+    toArchetype: string;
+  } | null>(null);
+  /** v1.5.1 — populated by the same fetch so we can render the to-archetype
+   *  emoji + name on the transition banner without a second round-trip. */
+  const [archetypeCatalogue, setArchetypeCatalogue] = useState<
+    Record<string, { name: string; emoji: string }>
+  >({});
 
   const grade = useMemo(
     () => getGrade(outcome?.compensationMonths ?? 0, outcome?.maxPossible ?? 1),
@@ -299,8 +313,17 @@ export default function FiredResult() {
       }),
     })
       .then((r) => r.ok ? r.json() : Promise.reject(r.status))
-      .then((d: { tactic?: string }) => {
+      .then((d: {
+        tactic?: string;
+        evolution?: {
+          summary: string;
+          transitioned: boolean;
+          fromArchetype: string;
+          toArchetype: string;
+        } | null;
+      }) => {
         if (d.tactic) setRecordedTactic(d.tactic);
+        if (d.evolution) setEvolution(d.evolution);
       })
       .catch((err) => {
         // Non-fatal — memory layer is a UX bonus, not a blocker. Log
@@ -309,6 +332,22 @@ export default function FiredResult() {
         console.warn('[fired/memory] record failed', err);
       });
   }, [outcome, scenarioId, messages]);
+
+  // v1.5.1 — fetch archetype catalogue once so the transition banner
+  // can render the name + emoji of the new top archetype. Cheap (12
+  // entries, GETs once + cached by browser).
+  useEffect(() => {
+    if (!evolution?.transitioned) return;
+    if (archetypeCatalogue[evolution.toArchetype]) return;
+    fetch('/api/quiz/archetypes')
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((d: { archetypes: Array<{ id: string; name: string; emoji: string }> }) => {
+        const next: typeof archetypeCatalogue = {};
+        for (const a of d.archetypes) next[a.id] = { name: a.name, emoji: a.emoji };
+        setArchetypeCatalogue(next);
+      })
+      .catch(() => { /* fallback — banner uses id strings */ });
+  }, [evolution, archetypeCatalogue]);
 
   const handleReplay = () => {
     reset();
@@ -564,6 +603,65 @@ export default function FiredResult() {
             <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>
               {outcome.summary}
             </p>
+          </motion.div>
+        )}
+
+        {/* v1.5.1 — archetype evolution feedback. Two states:
+            (a) just-a-delta: small "🌀 卷度 +0.4" chip
+            (b) transition:   big banner "你已演化为 X" with from→to arc.
+            Sits ABOVE the HR-memory callout because the transition
+            moment is the most viral artefact in this loop — it deserves
+            top placement. */}
+        {evolution?.transitioned && (
+          <motion.div
+            className="w-full rounded-2xl p-5 mb-6 relative overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,184,76,0.18), rgba(255,85,136,0.10))',
+              border: '1px solid rgba(255,184,76,0.55)',
+              boxShadow: '0 12px 32px rgba(255,184,76,0.22), inset 0 1px 0 rgba(255,255,255,0.10)',
+            }}
+            initial={{ opacity: 0, scale: 0.96, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ delay: 0.95, duration: 0.5, type: 'spring', bounce: 0.35 }}
+          >
+            <div className="text-[10px] uppercase tracking-[0.28em] mb-2"
+              style={{ color: 'rgba(255,213,138,0.85)' }}>
+              🌀 你已演化为新人格
+            </div>
+            <div className="flex items-center gap-3 mb-2">
+              {/* From → To with strikethrough on the previous archetype. */}
+              <span className="text-[13px] line-through opacity-65" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                {archetypeCatalogue[evolution.fromArchetype]?.emoji ?? '🐀'}{' '}
+                {archetypeCatalogue[evolution.fromArchetype]?.name ?? evolution.fromArchetype}
+              </span>
+              <span className="text-xl" style={{ color: '#ffb84c' }}>→</span>
+              <span className="text-base font-black"
+                style={{ color: '#ffd58a', textShadow: '0 0 18px rgba(255,184,76,0.45)' }}>
+                {archetypeCatalogue[evolution.toArchetype]?.emoji ?? '✨'}{' '}
+                {archetypeCatalogue[evolution.toArchetype]?.name ?? evolution.toArchetype}
+              </span>
+            </div>
+            <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
+              {evolution.summary} · 多玩几局会再演化
+            </p>
+          </motion.div>
+        )}
+        {evolution && !evolution.transitioned && (
+          <motion.div
+            className="w-full mb-4 flex items-center justify-center gap-2 text-[12px] font-bold"
+            style={{ color: 'rgba(176,134,255,0.95)' }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.95, duration: 0.5 }}
+            title="多玩几局会改变你的班味卡 archetype"
+          >
+            <span className="px-3 py-1 rounded-full"
+              style={{
+                background: 'rgba(176,134,255,0.10)',
+                border: '1px solid rgba(176,134,255,0.40)',
+              }}>
+              🌀 班味演化: {evolution.summary}
+            </span>
           </motion.div>
         )}
 

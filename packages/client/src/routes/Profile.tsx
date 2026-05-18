@@ -120,7 +120,148 @@ export default function Profile() {
       />
 
       <ActionRow winner={winner} cardRef={cardRef} />
+
+      {/* v1.5.1 — archetype evolution. Loaded lazily; renders only when
+          there's at least one drift event so brand-new users aren't
+          shown an empty band that says "你还没演化". */}
+      <EvolutionPanel myId={myId} />
     </div>
+  );
+}
+
+// ===========================================================================
+// v1.5.1 — EVOLUTION PANEL
+// ===========================================================================
+
+interface EvolutionPayload {
+  originTraits: TraitVector;
+  drift: TraitVector;
+  effectiveTraits: TraitVector;
+  originArchetypeId: string;
+  currentArchetypeId: string;
+  evolved: boolean;
+  events: Array<{
+    ts: number;
+    kind: 'fired-completion' | 'squad-end' | 'talkshow-create' | 'pack-complete';
+    delta: Partial<TraitVector>;
+    summary: string;
+  }>;
+  ranked: Array<{ archetypeId: string; score: number; archetypeName: string; archetypeEmoji: string }>;
+}
+
+const EVENT_KIND_LABEL: Record<EvolutionPayload['events'][number]['kind'], string> = {
+  'fired-completion': '裁员谈判',
+  'squad-end':         '攒局',
+  'talkshow-create':   '段子创作',
+  'pack-complete':     '闯关包通关',
+};
+
+function EvolutionPanel({ myId }: { myId: string }) {
+  const [ev, setEv] = useState<EvolutionPayload | null>(null);
+  useEffect(() => {
+    fetch('/api/quiz/evolution/me', { headers: { 'X-User-Id': myId } })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d: { evolution: EvolutionPayload | null }) => setEv(d.evolution))
+      .catch(() => { /* anonymous or offline — silently hide */ });
+  }, [myId]);
+
+  if (!ev || ev.events.length === 0) return null;
+
+  const fromArc = findArchetype(ev.originArchetypeId);
+  const toArc   = findArchetype(ev.currentArchetypeId);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="max-w-lg w-full mb-6"
+      style={{
+        background: '#fff',
+        border: '4px solid #0a0a0a',
+        borderRadius: 20,
+        boxShadow: '6px 6px 0 0 #0a0a0a',
+        overflow: 'hidden',
+      }}
+    >
+      <div className="px-5 py-3 flex items-center justify-between"
+        style={{ background: 'linear-gradient(135deg,#ffe300 0%,#ff2d92 50%,#6e00ff 100%)', color: '#0a0a0a' }}>
+        <span className="text-sm font-black tracking-tight" style={{ textShadow: '1px 1px 0 #fff' }}>
+          🌀 班味演化
+        </span>
+        <span className="text-[10px] font-bold tracking-[0.18em] uppercase opacity-80">
+          {ev.events.length} 次记录
+        </span>
+      </div>
+
+      {ev.evolved && fromArc && toArc && (
+        <div className="px-5 py-4 flex items-center gap-3 border-b-2 border-black/10">
+          <span className="text-2xl line-through opacity-60">{fromArc.emoji}</span>
+          <div className="flex-1">
+            <div className="text-[10px] tracking-[0.18em] uppercase text-rose-600 font-bold mb-0.5">
+              你已演化
+            </div>
+            <div className="text-sm font-black text-black/90">
+              {fromArc.name} → <span style={{ color: toArc.colors.start }}>{toArc.emoji} {toArc.name}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Drift bars — one row per trait that actually drifted. */}
+      <div className="px-5 py-4">
+        <div className="text-[10px] tracking-[0.18em] uppercase mb-3 text-black/55 font-bold">
+          ✦ 累计漂移
+        </div>
+        <div className="space-y-2">
+          {TRAIT_LABELS.map((t) => {
+            const v = ev.drift[t.key];
+            if (!v || Math.abs(v) < 0.05) return null;
+            const sign = v > 0 ? '+' : '';
+            const pct  = Math.min(100, (Math.abs(v) / 1.5) * 100);
+            const color = v > 0 ? '#ff2d92' : '#4c9eff';
+            return (
+              <div key={t.key} className="flex items-center gap-3 text-xs">
+                <span className="w-12 font-bold text-black/85">{t.label}</span>
+                <div className="flex-1 h-2 rounded-full"
+                  style={{ background: 'rgba(0,0,0,0.08)' }}>
+                  <div className="h-full rounded-full"
+                    style={{ width: `${pct}%`, background: color }} />
+                </div>
+                <span className="w-12 text-right font-mono tabular-nums font-bold"
+                  style={{ color }}>{sign}{v.toFixed(2)}</span>
+              </div>
+            );
+          })}
+          {Object.values(ev.drift).every((v) => Math.abs(v ?? 0) < 0.05) && (
+            <div className="text-[11px] text-black/45 py-2">
+              漂移幅度还很小,继续玩看看
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recent events feed */}
+      <div className="px-5 py-4 border-t-2 border-black/10">
+        <div className="text-[10px] tracking-[0.18em] uppercase mb-2 text-black/55 font-bold">
+          ✦ 最近事件 ({Math.min(5, ev.events.length)})
+        </div>
+        <div className="space-y-1.5">
+          {ev.events.slice(0, 5).map((e, i) => (
+            <div key={i} className="text-[11px] flex gap-2 items-baseline">
+              <span className="text-[9px] tracking-wider uppercase px-1.5 py-0.5 rounded font-bold tabular-nums"
+                style={{ background: '#0a0a0a', color: '#ffe300' }}>
+                {EVENT_KIND_LABEL[e.kind] ?? e.kind}
+              </span>
+              <span className="text-black/80 flex-1">{e.summary}</span>
+              <span className="text-black/40 tabular-nums shrink-0">
+                {new Date(e.ts).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </motion.div>
   );
 }
 

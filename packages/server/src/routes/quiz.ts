@@ -23,6 +23,7 @@ import {
   generatePersonalizedProfile,
 } from '../services/profileGenerator';
 import { findProfile, saveProfile, type UserProfile } from '../services/profileStore';
+import { getEvolutionPayload } from '../services/archetypeEvolution';
 import { logger } from '../utils/logger';
 
 const log = logger.child({ component: 'quiz' });
@@ -115,4 +116,14 @@ quizRoutes.get('/archetypes', (c) => {
   // does in shared, but lets clients fetch the full catalogue without
   // bundling the whole shared package if we ever do code-splitting).
   return c.json({ archetypes: ARCHETYPES });
+});
+
+/** v1.5.1 — evolution payload. Origin vs current archetype + cumulative
+ *  drift + recent events. Anonymous (no quiz) returns null so the
+ *  Profile page can render a "take the quiz first" nudge instead. */
+quizRoutes.get('/evolution/me', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId) return c.json({ evolution: null });
+  const evolution = await getEvolutionPayload(userId);
+  return c.json({ evolution });
 });
