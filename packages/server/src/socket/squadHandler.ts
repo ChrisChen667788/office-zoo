@@ -39,7 +39,7 @@ import {
   type SquadMember,
 } from '@furball/shared';
 import { findProfile } from '../services/profileStore';
-import { directSquadStory } from '../services/squadDirector';
+import { analyzeSquadChemistry, directSquadStory } from '../services/squadDirector';
 import { recordSquadEnd } from '../services/squadHistoryStore';
 import { squadEndDelta, recordEvolutionEvent } from '../services/archetypeEvolution';
 
@@ -204,10 +204,20 @@ export function setupSquadHandler(io: SocketServer) {
         return socket.emit('squad:error', { message: '至少需要 2 个人才能开演' });
       }
 
+      // v3.1.0 — pre-compute chemistry BEFORE switching to directing so
+      // the 'directing' state already carries the hints. Lets the client
+      // tease "🎭 国企+大厂 — 文化冲突大戏正在编剧中…" while the LLM
+      // works, instead of revealing only after the playing transition.
+      const preChemistry = analyzeSquadChemistry(room.members)
+        .split('\n')
+        .map((s) => s.trim().replace(/^•\s+/, ''))
+        .filter((s) => s.length > 0);
+      room.chemistryHints = preChemistry;
+
       // Phase 1: switch to directing, tell everyone the LLM is cooking.
       room.status = 'directing';
       io.to(room.id).emit('squad:state', room);
-      log.info({ roomId: room.id, members: room.members.length }, 'Squad direction starting');
+      log.info({ roomId: room.id, members: room.members.length, chemistry: preChemistry.length }, 'Squad direction starting');
 
       // Phase 2: LLM call (5-10s typically). Tolerates failure via
       // squadDirector's fallback story.
@@ -218,9 +228,13 @@ export function setupSquadHandler(io: SocketServer) {
         });
         room.acts = story.acts;
         room.recap = story.recap;
+        // Director may have re-derived chemistry — prefer its version
+        // since it could include LLM-friendly tweaks, but fall back to
+        // our pre-computed if director returned empty (template fallback).
+        if (story.chemistryHints.length > 0) room.chemistryHints = story.chemistryHints;
         room.status = 'playing';
         room.currentActIndex = 0;
-        log.info({ roomId: room.id, acts: story.acts.length }, 'Squad story generated');
+        log.info({ roomId: room.id, acts: story.acts.length, chemistry: story.chemistryHints.length }, 'Squad story generated');
       } catch (err) {
         log.error({ roomId: room.id, err }, 'Squad direction failed unexpectedly');
         room.status = 'lobby'; // rollback so host can retry
@@ -307,6 +321,7 @@ export function setupSquadHandler(io: SocketServer) {
       });
       room.acts = story.acts;
       room.recap = story.recap;
+      room.chemistryHints = story.chemistryHints; // v3.1.0 — also on rerun
       room.status = 'playing';
       io.to(room.id).emit('squad:state', room);
     });

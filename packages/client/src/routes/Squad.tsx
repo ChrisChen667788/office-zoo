@@ -182,7 +182,7 @@ export default function Squad() {
             />
           )}
           {room.status === 'directing' && (
-            <Directing key="dir" />
+            <Directing key="dir" chemistryHints={room.chemistryHints ?? []} />
           )}
           {room.status === 'playing' && (
             <Playing key="play"
@@ -339,7 +339,7 @@ function Lobby({ room, amHost, onStart, onShare }: {
   );
 }
 
-function Directing() {
+function Directing({ chemistryHints }: { chemistryHints: string[] }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
@@ -356,10 +356,43 @@ function Directing() {
         🧠
       </motion.div>
       <h2 className="text-xl font-black text-white mb-2">AI 编剧中…</h2>
-      <p className="text-[13px] text-white/65 leading-relaxed">
+      <p className="text-[13px] text-white/65 leading-relaxed mb-4">
         正在按你们每个人的 archetype 写 5 幕连续剧<br/>
         <span className="text-[11px] text-white/45">大概 5-10 秒,值得等</span>
       </p>
+
+      {/* v3.1.0 — chemistry teaser. Surfaces the group dynamics that
+          the director is actually weaving into the 5 acts. Pre-computed
+          server-side at squad:start so it's available the moment the
+          status hits 'directing' (anticipation builder, not a
+          post-hoc reveal). Renders nothing when no notable dynamics
+          fired (the common case for v1.x archetype-only squads). */}
+      {chemistryHints.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <div className="text-[10px] tracking-[0.22em] uppercase mb-3"
+            style={{ color: 'rgba(255,184,76,0.85)' }}>
+            🎭 你们这桌的化学反应
+          </div>
+          <div className="flex flex-col gap-1.5 text-left">
+            {chemistryHints.map((hint, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 + i * 0.15, duration: 0.4 }}
+                className="text-[12px] leading-snug px-3 py-2 rounded-lg"
+                style={{
+                  background: 'rgba(255,184,76,0.08)',
+                  border: '1px solid rgba(255,184,76,0.28)',
+                  color: 'rgba(255,255,255,0.88)',
+                }}
+              >
+                ✦ {hint}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -473,6 +506,27 @@ function Playing({ room, myId, amHost, onAdvance }: {
         <span>进度 {progress}</span>
         <span>共 {room.acts.length} 幕</span>
       </div>
+
+      {/* v3.1.0 — chemistry chips persist across acts so users can
+          re-orient at any moment why this story is theirs. Compact
+          single-line strip; only renders when hints exist. */}
+      {(room.chemistryHints?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {room.chemistryHints!.map((hint, i) => (
+            <span key={i}
+              className="text-[10px] px-2 py-1 rounded-full"
+              style={{
+                background: 'rgba(255,184,76,0.10)',
+                border: '1px solid rgba(255,184,76,0.32)',
+                color: 'rgba(255,213,138,0.95)',
+                maxWidth: '100%',
+              }}
+              title={hint}>
+              🎭 {hint.length > 28 ? hint.slice(0, 28) + '…' : hint}
+            </span>
+          ))}
+        </div>
+      )}
 
       <h2 className="y2k-display text-2xl md:text-3xl font-black text-white">
         {act.title}

@@ -40,6 +40,10 @@ function getOpenAI() {
 interface DirectorResult {
   acts: SquadAct[];
   recap: SquadRecap;
+  /** v3.1.0 — chemistry hints surfaced back so squadHandler can stash
+   *  them on the SquadRoom for the client to render. Empty when no
+   *  notable dynamics fired (v1.x-only squads). */
+  chemistryHints: string[];
 }
 
 export async function directSquadStory(opts: {
@@ -77,6 +81,13 @@ export async function directSquadStory(opts: {
   const chemistryBlock = chemistry
     ? `\n\n小队化学反应分析(导演必读 — 这些动力学应在 5 幕里有所体现):\n${chemistry}`
     : '';
+  // v3.1.0 — split the markdown-bulleted chemistry into per-bullet
+  // hints so the client can render each as its own chip. Strips the
+  // leading "• " prefix used in the LLM prompt.
+  const chemistryHints = chemistry
+    .split('\n')
+    .map((s) => s.trim().replace(/^•\s+/, ''))
+    .filter((s) => s.length > 0);
 
   const briefBlock = opts.scenarioBrief
     ? `\n\n额外背景设定(由 host 提供):\n${opts.scenarioBrief}`
@@ -103,10 +114,12 @@ export async function directSquadStory(opts: {
 
   if (res.ok) {
     const parsed = parseDirectorJson(res.text);
-    if (parsed) return parsed;
+    if (parsed) return { ...parsed, chemistryHints };
   }
   // Fallback — templated story so the squad isn't blocked on LLM down.
-  return fallbackStory(opts.members);
+  // Chemistry hints still flow through so the client can render the
+  // "为什么这局特别" chips even when the AI script is the template.
+  return { ...fallbackStory(opts.members), chemistryHints };
 }
 
 /** Strict JSON parser tolerating markdown fences + trailing prose. */
@@ -130,7 +143,9 @@ function parseDirectorJson(raw: string): DirectorResult | null {
         if (typeof b.line !== 'string') return null;
       }
     }
-    return obj as DirectorResult;
+    // chemistryHints get stamped by the caller (directSquadStory) —
+    // the LLM JSON itself never carries them, so coalesce to [].
+    return { ...obj, chemistryHints: obj.chemistryHints ?? [] } as DirectorResult;
   } catch {
     return null;
   }
