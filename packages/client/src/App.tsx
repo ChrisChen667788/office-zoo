@@ -15,6 +15,7 @@ import B2bEmbed from './routes/B2bEmbed';
 import Quiz from './routes/Quiz';
 import Profile from './routes/Profile';
 import Squad from './routes/Squad';
+import SquadHistory from './routes/SquadHistory';
 
 export default function App() {
   return (
@@ -43,6 +44,9 @@ export default function App() {
       <Route path="/profile/me" element={<Profile />} />
       {/* v1.4.1 — "攒局" squad mode (2-4 friends, LLM director, 5-act sitcom). */}
       <Route path="/squad/:roomId" element={<Squad />} />
+      {/* v1.4.3 — squad history + group leaderboard. Lives ABOVE /squad/:id
+          so the literal "history" segment wins the router precedence battle. */}
+      <Route path="/squad-history" element={<SquadHistory />} />
     </Routes>
   );
 }

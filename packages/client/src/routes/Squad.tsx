@@ -742,6 +742,17 @@ function EndedView({ room, recap, myId, amHost, onRerun, onShare }: {
             ↻ 重开一局
           </button>
         )}
+        {/* v1.4.3 — entry to per-user history + group leaderboard */}
+        <button
+          onClick={() => window.location.assign('/squad-history')}
+          className="px-5 py-2.5 rounded-full text-xs font-bold tracking-wide text-white/85"
+          style={{
+            background: 'rgba(255,184,76,0.10)',
+            border: '1px solid rgba(255,184,76,0.40)',
+            color: '#ffb84c',
+          }}>
+          📜 我的攒局
+        </button>
       </div>
     </motion.div>
   );

@@ -40,6 +40,7 @@ import {
 } from '@furball/shared';
 import { findProfile } from '../services/profileStore';
 import { directSquadStory } from '../services/squadDirector';
+import { recordSquadEnd } from '../services/squadHistoryStore';
 
 const log = logger.child({ component: 'squad' });
 
@@ -245,6 +246,22 @@ export function setupSquadHandler(io: SocketServer) {
       if (next >= room.acts.length) {
         room.status = 'ended';
         room.currentActIndex = room.acts.length - 1;
+        // v1.4.3 — snapshot to history. Fire-and-forget; never block
+        // the state broadcast on disk write.
+        void recordSquadEnd({
+          roomId: room.id,
+          endedAt: Date.now(),
+          members: room.members.map((m) => ({
+            userId: m.userId,
+            displayName: m.displayName,
+            archetypeId: m.archetypeId,
+            archetypeName: m.archetypeName,
+            archetypeEmoji: m.archetypeEmoji,
+          })),
+          recap: room.recap,
+          actCount: room.acts.length,
+          scenarioBrief: room.scenarioBrief,
+        });
       } else {
         room.currentActIndex = next;
       }
