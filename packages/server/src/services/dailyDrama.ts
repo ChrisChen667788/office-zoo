@@ -254,7 +254,39 @@ export async function getDailyDrama(userId: string): Promise<DailyDrama> {
         cta: { label: '走进谈判室 →', href: `/fired?focus=${pick.id}` },
       };
     } else {
-      const pick = all[Math.floor(prng() * all.length)];
+      // v3.3.2 — tribe-bias on pack picker, mirroring fired+talkshow
+      // tiers (v2.1.0+v2.3.0+v2.4.0). Packs don't carry tribe tags
+      // directly, so we derive a pack's "dominant tribe" from its
+      // member scenarios: the most-common industry/region across
+      // the 5 slots. This works without server schema changes
+      // because pack.slots[].scenarioId → FIRED_SCENARIOS.industry
+      // lookup is cheap. Per-tier free→all premium fallback isn't
+      // applicable (packs are user-generated UGC, not gated).
+      const dominantTribe = (p: typeof all[number]): { region?: string; industry?: string } => {
+        const ri: Record<string, number> = {};
+        const ii: Record<string, number> = {};
+        for (const slot of p.slots) {
+          const s = FIRED_SCENARIOS.find((x) => x.id === slot.scenarioId);
+          if (!s) continue;
+          if (s.region)   ri[s.region]   = (ri[s.region]   ?? 0) + 1;
+          if (s.industry) ii[s.industry] = (ii[s.industry] ?? 0) + 1;
+        }
+        const pickMax = (m: Record<string, number>): string | undefined => {
+          let best: string | undefined; let bestN = 0;
+          for (const [k, n] of Object.entries(m)) if (n > bestN) { best = k; bestN = n; }
+          return best;
+        };
+        return { region: pickMax(ri), industry: pickMax(ii) };
+      };
+      const tribeMatches = archetype
+        ? all.filter((p) => {
+            const dom = dominantTribe(p);
+            return (archetype.region   && dom.region   === archetype.region)
+                || (archetype.industry && dom.industry === archetype.industry);
+          })
+        : [];
+      const pool = tribeMatches.length > 0 ? tribeMatches : all;
+      const pick = pool[Math.floor(prng() * pool.length)];
       drama = {
         kind: 'pack',
         targetId: pick.id,
