@@ -727,6 +727,34 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
         region: 'chengdu' },
     ],
   },
+  // ──────────────────────────────────────────────────────────────────
+  // v3.1.2 — second-axis region question. v2.0.0 q-tribe-region only
+  // had 4 options (北/上/深/成都) because we wanted to keep the quiz
+  // short. But that left hangzhou + overseas archetypes unreachable
+  // via tribe signal — they could only surface via trait coincidence,
+  // which is too random for users who explicitly identify with those
+  // tribes. This question lets them opt in directly.
+  //
+  // The two "non-tribe" options carry deltas without setting `region`
+  // so users who picked a city above don't get double-counted on a
+  // region they don't actually belong to.
+  // ──────────────────────────────────────────────────────────────────
+  {
+    id: 'q-tribe-region-2',
+    prompt: '上一题没你的城市?这题再补一个 — 或者跳过(选最后一项)。',
+    answers: [
+      { text: '杭州 — 花名"小六" + 居住未来科技城 + 996 是天经地义',
+        delta: { grind: 3, ambition: 2, cynicism: -1, visibility: 1 },
+        region: 'hangzhou' },
+      { text: '海外 — LinkedIn 改英文头像换三次 + 雅思托福群很活跃',
+        delta: { ambition: 2, snark: 2, cynicism: 1, grind: 1 },
+        region: 'overseas' },
+      { text: '我已经在上一题选过了 — 不补充',
+        delta: {} },
+      { text: '都不像 — 我活在自己的小世界',
+        delta: { cynicism: 1, visibility: -1, empathy: 1 } },
+    ],
+  },
 ];
 
 // ────────────────────────────────────────────────────────────────────
@@ -821,6 +849,12 @@ export function extractTribeFromAnswers(
   answers: number[],
   questions: QuizQuestion[] = QUIZ_QUESTIONS,
 ): TribeSignal {
+  // v3.1.2 — weight scheme: later region/industry questions are
+  // explicit "if you didn't see your tribe above" overrides, so we
+  // weight them progressively higher (i+1 per question). This makes
+  // q11 (the hangzhou/overseas widening question) outrank q10 when
+  // both signal a region — matching the prompt's promise "上一题没
+  // 你的城市? 这题再补一个".
   const regionCount: Partial<Record<RegionId, number>> = {};
   const industryCount: Partial<Record<IndustryId, number>> = {};
   for (let i = 0; i < questions.length; i++) {
@@ -829,8 +863,9 @@ export function extractTribeFromAnswers(
     if (typeof idx !== 'number') continue;
     const ans = q.answers[idx];
     if (!ans) continue;
-    if (ans.region)   regionCount[ans.region]     = (regionCount[ans.region]     ?? 0) + 1;
-    if (ans.industry) industryCount[ans.industry] = (industryCount[ans.industry] ?? 0) + 1;
+    const weight = i + 1; // 1-indexed so q1 still counts
+    if (ans.region)   regionCount[ans.region]     = (regionCount[ans.region]     ?? 0) + weight;
+    if (ans.industry) industryCount[ans.industry] = (industryCount[ans.industry] ?? 0) + weight;
   }
   const pickMax = <K extends string>(m: Partial<Record<K, number>>): K | undefined => {
     let best: K | undefined; let bestN = 0;
