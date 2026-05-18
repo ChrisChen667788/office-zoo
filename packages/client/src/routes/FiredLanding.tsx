@@ -107,6 +107,11 @@ export default function FiredLanding() {
   // v0.8.1 — sort mode for the scenario grid + per-IP liked-set + mine filter
   const [sortMode, setSortMode] = useState<FiredSortMode>('default');
   const [mineOnly, setMineOnly] = useState(false);
+  /** v2.1.0 — "show only scenarios in my tribe's industry". Lights up
+   *  only when the user's archetype has an industry tag (i.e. they
+   *  picked one of the new 12 region/industry archetypes) AND at
+   *  least one scenario carries that tag. */
+  const [tribeOnly, setTribeOnly] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const myId = useMemo(() => getUserId(), []);
   // v1.3.4 — fetched once on mount; powers the "适合你" pack sort +
@@ -220,16 +225,28 @@ export default function FiredLanding() {
     }
   };
 
-  /** v0.8.1 — derived: scenarios after the mine filter (sorting is server-
-   *  side, applied via /scenarios?sort=). */
-  const visibleScenarios = useMemo(
-    () => mineOnly ? scenarios.filter((s) => s.createdBy === myId) : scenarios,
-    [scenarios, mineOnly, myId],
-  );
+  /** v0.8.1 — derived: scenarios after the mine + tribe filters (sorting
+   *  is server-side, applied via /scenarios?sort=). v2.1.0 layers a
+   *  tribe filter on top — independent boolean, both can be active. */
+  const visibleScenarios = useMemo(() => {
+    let out = scenarios;
+    if (mineOnly)  out = out.filter((s) => s.createdBy === myId);
+    if (tribeOnly && myArchetype?.industry) {
+      out = out.filter((s) => s.industry === myArchetype.industry);
+    }
+    return out;
+  }, [scenarios, mineOnly, tribeOnly, myArchetype, myId]);
   const mineCountFired = useMemo(
     () => scenarios.filter((s) => s.createdBy === myId).length,
     [scenarios, myId],
   );
+  /** v2.1.0 — how many scenarios match the user's tribe industry?
+   *  Used to decide whether to render the tribe filter chip at all
+   *  (don't show "0 results" filter). */
+  const tribeCountFired = useMemo(() => {
+    if (!myArchetype?.industry) return 0;
+    return scenarios.filter((s) => s.industry === myArchetype.industry).length;
+  }, [scenarios, myArchetype]);
 
   const handleStart = () => {
     if (!selectedScenario) return;
@@ -557,6 +574,18 @@ export default function FiredLanding() {
                     onClick={() => setMineOnly((v) => !v)}
                     color="#ffb84c">
                     👤 我的创作 · {mineCountFired}
+                  </FiredChip>
+                )}
+                {/* v2.1.0 — tribe filter chip. Renders only when the
+                    user's archetype carries an industry tag AND at
+                    least one scenario matches that tag. Color picks
+                    its archetype.colors.start so the chip reads as
+                    "tribe-personalized". */}
+                {tribeCountFired > 0 && myArchetype?.industry && (
+                  <FiredChip active={tribeOnly}
+                    onClick={() => setTribeOnly((v) => !v)}
+                    color={myArchetype.colors.start}>
+                    {myArchetype.emoji} 我的圈子 · {tribeCountFired}
                   </FiredChip>
                 )}
               </div>

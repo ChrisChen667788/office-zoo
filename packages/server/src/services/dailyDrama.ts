@@ -167,11 +167,20 @@ export async function getDailyDrama(userId: string): Promise<DailyDrama> {
   let drama: Omit<DailyDrama, 'teaser' | 'date'>;
 
   if (kind === 'fired') {
-    // Bias toward archetype's shineScenarioId, fall back to random
-    // free scenario.
+    // Pick order (most-specific → fallback):
+    //   1. archetype.shineScenarioId — exact hand-curated pairing
+    //   2. v2.1.0 — industry match (archetype.industry === scenario.industry)
+    //      lets the new 12 tribe archetypes pull in their industry's
+    //      flagship scenarios even when no shine match exists
+    //   3. random free scenario
     const free = FIRED_SCENARIOS.filter((s) => !s.premium);
     const shine = archetype && free.find((s) => s.id === archetype.shineScenarioId);
-    const pick = shine ?? free[Math.floor(prng() * free.length)];
+    const tribeMatches = archetype?.industry
+      ? free.filter((s) => s.industry === archetype.industry)
+      : [];
+    const pick = shine
+      ?? (tribeMatches.length > 0 ? tribeMatches[Math.floor(prng() * tribeMatches.length)] : undefined)
+      ?? free[Math.floor(prng() * free.length)];
     drama = {
       kind: 'fired',
       targetId: pick.id,

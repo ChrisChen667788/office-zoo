@@ -79,6 +79,11 @@ export interface FiredScenario {
    *  and routes the click to /premium. Defaults to undefined (= free)
    *  on every existing entry — additive, no migration needed. */
   premium?: boolean;
+  /** v2.1.0 — optional industry tag. When set, daily-drama / FiredLanding
+   *  recommendation flows can bias toward scenarios that match the
+   *  user's archetype tribe (e.g. faang-cog → amazon-rto, soe-lifer →
+   *  org-optimization). Defaults to undefined = generic for back-compat. */
+  industry?: 'soe' | 'faang' | 'startup' | 'finance' | 'edu' | 'mcn';
 }
 
 export const SCENARIOS: FiredScenario[] = [
@@ -97,6 +102,9 @@ export const SCENARIOS: FiredScenario[] = [
       '你是一名产品经理，入职2个月，月薪15K。入职时公司没有明确告知录用条件，没有书面的试用期考核标准。你的直属领导对你的工作评价是"还行"。公司也没有提前3天通知你。',
     winCondition: '获得违法解除赔偿金（2N，即1个月工资）或公司撤回解除决定',
     maxCompensation: 1,
+    // v2.1.0 — probation-fire is a generic early-stage scenario.
+    // Defaulting to startup tag because试用期裁员最频繁出现的就是初创/小厂语境。
+    industry: 'startup',
   },
   {
     id: 'verbal-fire-no-paper',
@@ -241,6 +249,8 @@ export const SCENARIOS: FiredScenario[] = [
       '你是一名后端开发工程师，在公司工作了4年半，月薪28K。公司这次裁了50多人（占总人数30%），但没有提前向工会说明、没有听取职工意见、没有向劳动行政部门报告。公司只是突然通知，让大家一周内签离职协议。你家里还有房贷和两个小孩。',
     winCondition: '获得违法解除2N赔偿金（约9-10个月工资）',
     maxCompensation: 10,
+    // 经济性裁员法定程序 — 最常发生在制造业 / 大国企集体裁员场景。
+    industry: 'soe',
   },
   {
     id: 'verbal-promise-no-paper',
@@ -273,6 +283,8 @@ export const SCENARIOS: FiredScenario[] = [
       '你是一名高级运维工程师，在公司工作了6年，月薪26K。公司以"组织优化"的名义在一个月内先后辞退了你们部门8个人（部门总共12人）。公司只愿意给1个月工资，不愿意按N+1或2N赔偿。你在其他同事的群里了解到，公司其实在招新人填这些坑，只是title变了。',
     winCondition: '证明属于违法解除，获得2N赔偿金（12个月工资）',
     maxCompensation: 12,
+    // "组织优化" — 大厂裁员最常见的话术包装,FAANG 系日常黑话。
+    industry: 'faang',
   },
 
   // ─────────────────────────────────────────────────────────────────────
@@ -297,6 +309,7 @@ export const SCENARIOS: FiredScenario[] = [
     winCondition: '4 个月 severance + 全部 RSU 加速 vest + 90 天 H-1B 转换协助',
     maxCompensation: 8,
     premium: true,
+    industry: 'faang',
   },
   {
     id: 'meta-efficiency',
@@ -314,6 +327,7 @@ export const SCENARIOS: FiredScenario[] = [
     winCondition: '24 周 severance + 即将 vest 的 RSU 加速 release + neutral reference',
     maxCompensation: 7,
     premium: true,
+    industry: 'faang',
   },
   {
     id: 'amazon-rto',
@@ -331,6 +345,7 @@ export const SCENARIOS: FiredScenario[] = [
     winCondition: '逼公司书面承认 involuntary termination + 8 周 severance + 已 vest RSU 完整保留',
     maxCompensation: 10,
     premium: true,
+    industry: 'faang',
   },
   {
     id: 'apple-pm',
@@ -348,6 +363,7 @@ export const SCENARIOS: FiredScenario[] = [
     winCondition: '拒绝 PIP,谈到 6 周 mutual separation severance + neutral reference + COBRA 补贴',
     maxCompensation: 9,
     premium: true,
+    industry: 'faang',
   },
   {
     id: 'google-bard',
@@ -365,6 +381,7 @@ export const SCENARIOS: FiredScenario[] = [
     winCondition: 'Statutory + enhanced redundancy + 90 天 garden leave + 不签 non-disparagement',
     maxCompensation: 8,
     premium: true,
+    industry: 'faang',
   },
   {
     id: 'startup-cliff',
@@ -382,6 +399,7 @@ export const SCENARIOS: FiredScenario[] = [
     winCondition: '至少 25% acceleration(cliff 部分)+ 6 周 severance + 离职日期推到 cliff 之后',
     maxCompensation: 10,
     premium: true,
+    industry: 'startup',
   },
 ];
 
