@@ -127,6 +127,20 @@ export default function Talkshow() {
   }, [profile]);
   /** When non-null, we're in player view for this script. */
   const [active, setActive] = useState<ScriptFull | null>(null);
+  /** v3.1.1 — transient evolution toast after the user creates a
+   *  segment. Surfaces the trait drift that the server just recorded
+   *  so the user sees their班味 update even when not on a Profile
+   *  page. Auto-dismisses after 4.5s. */
+  const [evolutionToast, setEvolutionToast] = useState<{
+    summary: string;
+    transitioned: boolean;
+    toArchetype: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!evolutionToast) return;
+    const id = setTimeout(() => setEvolutionToast(null), 4500);
+    return () => clearTimeout(id);
+  }, [evolutionToast]);
   /** v0.7.4 — when true, the create-bit modal is open. */
   const [creatorOpen, setCreatorOpen] = useState(false);
   /** v0.7.5 — set of script ids the current IP has already liked (per the
@@ -537,12 +551,58 @@ export default function Talkshow() {
             }
             archetypeHint={myArchetype}
             onCancel={() => setCreatorOpen(false)}
-            onCreated={async (full) => {
+            onCreated={async (full, evo) => {
               setCreatorOpen(false);
               if (reloadList.current) await reloadList.current();
               setActive(full);
+              // v3.1.1 — surface evolution toast if the server recorded a drift.
+              if (evo) setEvolutionToast(evo);
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* v3.1.1 — evolution toast. Fires after talkshow create when
+          the server recorded a trait drift. Auto-dismisses; tappable
+          if the user wants to clear early. Sits bottom-center so it
+          doesn't fight the script-player UI. */}
+      <AnimatePresence>
+        {evolutionToast && (
+          <motion.button
+            type="button"
+            onClick={() => setEvolutionToast(null)}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 30 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed left-1/2 bottom-6 -translate-x-1/2 z-50 max-w-[92vw] text-left rounded-2xl px-4 py-3 flex items-center gap-3"
+            style={{
+              background: evolutionToast.transitioned
+                ? 'linear-gradient(135deg, rgba(255,184,76,0.22), rgba(255,85,136,0.12))'
+                : 'rgba(176,134,255,0.14)',
+              border: evolutionToast.transitioned
+                ? '1px solid rgba(255,184,76,0.55)'
+                : '1px solid rgba(176,134,255,0.45)',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)',
+              backdropFilter: 'blur(8px)',
+              color: '#fff',
+            }}
+            aria-label="评估提示"
+          >
+            <span className="text-2xl">{evolutionToast.transitioned ? '🌀' : '✨'}</span>
+            <div className="text-[12px] leading-snug">
+              {evolutionToast.transitioned ? (
+                <>
+                  <div className="font-black text-[13px]" style={{ color: '#ffd58a' }}>
+                    你已演化为新人格
+                  </div>
+                  <div className="text-white/85 mt-0.5">{evolutionToast.summary}</div>
+                </>
+              ) : (
+                <div className="text-white/90">🌀 班味演化: {evolutionToast.summary}</div>
+              )}
+            </div>
+          </motion.button>
         )}
       </AnimatePresence>
     </div>
@@ -765,7 +825,12 @@ function CreateBitModal({
   archetypeHint,
 }: {
   onCancel: () => void;
-  onCreated: (full: ScriptFull) => void;
+  /** v3.1.1 — second arg is the evolution payload from the server's
+   *  /generate response (null for anonymous users / no-profile). */
+  onCreated: (
+    full: ScriptFull,
+    evolution: { summary: string; transitioned: boolean; toArchetype: string } | null,
+  ) => void;
   /** v1.3.3 — pre-fill persona; user can still override. */
   defaultPersona?: Persona;
   /** v1.3.3 — when present, show a "based on your X archetype"
@@ -817,8 +882,13 @@ function CreateBitModal({
         const msg = body.message ?? body.error ?? `生成失败 (${resp.status})`;
         throw new Error(msg);
       }
-      const full = (await resp.json()) as ScriptFull;
-      onCreated(full);
+      // v3.1.1 — extract optional evolution payload (added in v3.1.1
+       // server-side). Older server responses omit the field → null.
+      const json = (await resp.json()) as ScriptFull & {
+        evolution?: { summary: string; transitioned: boolean; toArchetype: string } | null;
+      };
+      const { evolution: evo, ...full } = json;
+      onCreated(full as ScriptFull, evo ?? null);
     } catch (e) {
       setErrMsg((e as Error).message ?? '生成失败,稍后再试');
       setSubmitting(false);

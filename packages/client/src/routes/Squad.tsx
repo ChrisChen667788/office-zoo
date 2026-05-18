@@ -704,6 +704,44 @@ function EndedView({ room, recap, myId, amHost, onRerun, onShare }: {
   onShare: () => void;
 }) {
   const myAward = recap.awards.find((a) => a.userId === myId);
+
+  // v3.1.1 — after the squad ends, server-side recordEvolutionEvent
+  // already fired for each member (v2.0.1 wiring). Pull THIS user's
+  // latest event via the read endpoint and surface a chip if it was
+  // a recent squad-end (within the last 2 min). Transient: no toast,
+  // just a chip inline — squad ended state is where the player is
+  // already lingering on screen.
+  const [evo, setEvo] = useState<{
+    summary: string;
+    transitioned: boolean;
+    fromArchetype: string;
+    toArchetype: string;
+  } | null>(null);
+  useEffect(() => {
+    fetch('/api/quiz/evolution/me', { headers: { 'X-User-Id': myId } })
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((d: { evolution: {
+        events: Array<{ ts: number; kind: string; summary: string }>;
+        originArchetypeId: string;
+        currentArchetypeId: string;
+      } | null }) => {
+        const ev = d.evolution;
+        if (!ev) return;
+        const latest = ev.events[0];
+        if (!latest || latest.kind !== 'squad-end') return;
+        // Only show if the event is recent (~2 min). Stale events
+        // belong to a different past squad and would confuse the user.
+        if (Date.now() - latest.ts > 120_000) return;
+        setEvo({
+          summary: latest.summary,
+          transitioned: ev.originArchetypeId !== ev.currentArchetypeId,
+          fromArchetype: ev.originArchetypeId,
+          toArchetype: ev.currentArchetypeId,
+        });
+      })
+      .catch(() => { /* anonymous / no profile — skip */ });
+  }, [myId]);
+
   return (
     <motion.div
       key="ended"
@@ -768,6 +806,49 @@ function EndedView({ room, recap, myId, amHost, onRerun, onShare }: {
       <div className="text-center text-[13px] text-white/75 italic px-4">
         — {recap.closer} —
       </div>
+
+      {/* v3.1.1 — evolution chip / transition banner. Mounted as a
+          read of the latest evolution event from /api/quiz/evolution/me
+          (squad-end events are recorded server-side at status='ended').
+          Two presentations:
+            - transition:  big "你已演化为 X" banner with archetype name
+            - delta-only:  inline pill "🌀 班味演化: <summary>"
+          Falls silent if the user has no profile or the latest event
+          isn't a recent squad-end. */}
+      {evo && evo.transitioned && (
+        <div className="rounded-xl px-4 py-3 flex items-center gap-3 mx-auto max-w-md"
+          style={{
+            background: 'linear-gradient(135deg, rgba(255,184,76,0.20), rgba(255,85,136,0.12))',
+            border: '1px solid rgba(255,184,76,0.55)',
+            color: '#fff',
+            boxShadow: '0 6px 18px rgba(255,184,76,0.20)',
+          }}>
+          <span className="text-2xl">🌀</span>
+          <div className="flex-1 text-left">
+            <div className="text-[10px] tracking-[0.22em] uppercase font-bold"
+              style={{ color: 'rgba(255,213,138,0.92)' }}>
+              你已演化为新人格
+            </div>
+            <div className="text-sm font-bold text-white/95">
+              {evo.fromArchetype} → <span style={{ color: '#ffd58a' }}>{evo.toArchetype}</span>
+            </div>
+            <div className="text-[11px] text-white/65 mt-0.5">{evo.summary}</div>
+          </div>
+        </div>
+      )}
+      {evo && !evo.transitioned && (
+        <div className="text-center">
+          <span className="inline-block text-[11px] px-3 py-1.5 rounded-full font-bold"
+            style={{
+              color: 'rgba(176,134,255,0.95)',
+              background: 'rgba(176,134,255,0.10)',
+              border: '1px solid rgba(176,134,255,0.40)',
+            }}
+            title="多攒几局会改变你的班味卡 archetype">
+            🌀 班味演化: {evo.summary}
+          </span>
+        </div>
+      )}
       {myAward && (
         <div className="text-center text-[11px] text-white/55">
           你拿了 <span className="font-bold text-white">{myAward.label}</span>,

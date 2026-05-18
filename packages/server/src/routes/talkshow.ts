@@ -301,18 +301,22 @@ talkshowRoutes.post('/generate', async (c) => {
   await addUserScript(script, { createdBy });
 
   // v2.0.1 — archetype evolution. Creating a talkshow segment counts as
-  // a small "ambitious creative output" event. Fire-and-forget;
-  // anonymous creators (no profile) no-op silently.
+  // a small "ambitious creative output" event.
+  // v3.1.1 — promoted from fire-and-forget to awaited so we can return
+  // the evolution payload to the client (toast surface). Anonymous
+  // creators (no profile) still no-op silently via recordEvolutionEvent
+  // returning null.
+  let evolution = null;
   if (createdBy) {
-    void recordEvolutionEvent(
+    evolution = await recordEvolutionEvent(
       createdBy,
       'talkshow-create',
       talkshowCreateDelta(),
       `创作了《${script.title}》`,
-    ).catch(() => { /* silent */ });
+    ).catch(() => null);
   }
 
-  return c.json({ ...script, source: 'user', likes: 0, createdBy });
+  return c.json({ ...script, source: 'user', likes: 0, createdBy, evolution });
 });
 
 // ── v0.7.6 topic safety ────────────────────────────────────────────────
