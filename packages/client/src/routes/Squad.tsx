@@ -20,13 +20,20 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import { getUserId } from '../utils/userId';
-import type {
-  SquadRoom,
-  SquadMember,
-  SquadAct,
-  SquadActBeat,
-  SquadRecap,
+import {
+  ARCHETYPE_TO_TALKSHOW_PERSONA,
+  type SquadRoom,
+  type SquadMember,
+  type SquadAct,
+  type SquadActBeat,
+  type SquadRecap,
+  type TalkshowPersona,
 } from '@furball/shared';
+import {
+  primeAudio,
+  playTtsFromUrl,
+  stopTts,
+} from '../utils/audioUnlock';
 
 export default function Squad() {
   const navigate = useNavigate();
@@ -361,8 +368,97 @@ function Playing({ room, myId, amHost, onAdvance }: {
   room: SquadRoom; myId: string; amHost: boolean; onAdvance: () => void;
 }) {
   const act = room.acts[room.currentActIndex];
+
+  // v1.4.2 — audio playback state. Plays all beats in the current act
+  // sequentially, each using the speaker's archetype voice persona. Auto-
+  // resets when user advances to a new act.
+  const [playingBeat, setPlayingBeat] = useState<number | null>(null);
+  const [audioState, setAudioState] = useState<'idle' | 'loading' | 'playing' | 'done'>('idle');
+  const cancelledRef = useRef(false);
+
+  // Reset when the act changes — stop any in-flight playback.
+  useEffect(() => {
+    cancelledRef.current = true;
+    setPlayingBeat(null);
+    setAudioState('idle');
+    stopTts();
+  }, [room.currentActIndex]);
+
+  // Stop on unmount.
+  useEffect(() => () => { cancelledRef.current = true; stopTts(); }, []);
+
+  /** Map a speaker's userId → talkshow persona for TTS. Narrator gets a
+   *  neutral male voice (qingnian) so it reads as "voice-over". Member
+   *  voices come from their archetype mapping, falling back to qingnian
+   *  for anonymous members. */
+  const personaFor = (beat: SquadActBeat): TalkshowPersona => {
+    if (beat.speakerUserId === 'narrator') return 'qingnian';
+    const m = room.members.find((mm) => mm.userId === beat.speakerUserId);
+    if (!m?.archetypeId) return 'qingnian';
+    return ARCHETYPE_TO_TALKSHOW_PERSONA[m.archetypeId] ?? 'qingnian';
+  };
+
+  const playAll = async () => {
+    if (!act) return;
+    cancelledRef.current = false;
+    setAudioState('loading');
+    primeAudio();   // unlock <audio> inside the click gesture
+
+    for (let i = 0; i < act.beats.length; i++) {
+      if (cancelledRef.current) break;
+      const beat = act.beats[i];
+      setPlayingBeat(i);
+      setAudioState('loading');
+      try {
+        const r = await fetch('/api/talkshow/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: beat.line, persona: personaFor(beat) }),
+        });
+        if (cancelledRef.current) break;
+        if (!r.ok) {
+          // Soft-skip: highlight the beat for ~1.2s as "would have read this"
+          // then move on. Don't surface error toast — the user can keep
+          // reading silently.
+          await new Promise((res) => setTimeout(res, 1200));
+          continue;
+        }
+        const blob = await r.blob();
+        if (cancelledRef.current) break;
+        const url = URL.createObjectURL(blob);
+        setAudioState('playing');
+        await playTtsFromUrl(url);
+        // Wait for the audio to actually finish — playTtsFromUrl returns
+        // true as soon as play() resolves, not when the audio ends.
+        // Approximate end via text length × 0.18 s/char + 0.6s buffer.
+        // (No <audio>.ended hook is exposed by audioUnlock yet.)
+        const estimateMs = Math.max(900, beat.line.length * 180 + 600);
+        await new Promise((res) => setTimeout(res, estimateMs));
+        URL.revokeObjectURL(url);
+      } catch {
+        // network drop — skip this beat
+        await new Promise((res) => setTimeout(res, 600));
+      }
+    }
+    if (!cancelledRef.current) {
+      setPlayingBeat(null);
+      setAudioState('done');
+    } else {
+      setPlayingBeat(null);
+      setAudioState('idle');
+    }
+  };
+
+  const stopAll = () => {
+    cancelledRef.current = true;
+    stopTts();
+    setPlayingBeat(null);
+    setAudioState('idle');
+  };
+
   if (!act) return null;
   const progress = `${room.currentActIndex + 1} / ${room.acts.length}`;
+  const isAudioActive = audioState === 'loading' || audioState === 'playing';
 
   return (
     <motion.div
@@ -382,12 +478,55 @@ function Playing({ room, myId, amHost, onAdvance }: {
         {act.title}
       </h2>
 
+      {/* v1.4.2 — audio playback bar. Each user can toggle audio
+          independently; not synced across the room (squad members read at
+          their own pace, audio is a per-screen affordance). */}
+      <div
+        className="flex items-center gap-2 px-3 py-2 rounded-2xl"
+        style={{
+          background: isAudioActive
+            ? 'linear-gradient(135deg, rgba(255,85,136,0.12), rgba(124,58,237,0.08))'
+            : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${isAudioActive ? 'rgba(255,85,136,0.40)' : 'rgba(255,255,255,0.08)'}`,
+        }}
+      >
+        {isAudioActive ? (
+          <button onClick={stopAll}
+            className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide text-white"
+            style={{ background: 'linear-gradient(135deg,#ff5588,#7c3aed)' }}>
+            ⏸ 停止
+          </button>
+        ) : (
+          <button onClick={playAll}
+            className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide"
+            style={{
+              color: '#fff',
+              background: audioState === 'done'
+                ? 'linear-gradient(135deg,#6ee7b7,#4c9eff)'
+                : 'linear-gradient(135deg,#ff5588,#7c3aed)',
+              boxShadow: '0 4px 12px rgba(255,85,136,0.35)',
+            }}>
+            {audioState === 'done' ? '↻ 重听一遍' : '▶ 播全幕'}
+          </button>
+        )}
+        <span className="text-[11px] text-white/65 flex-1">
+          {audioState === 'loading' && '⏳ 加载中…'}
+          {audioState === 'playing' && playingBeat !== null
+            && `🔊 ${act.beats[playingBeat]?.speakerLabel ?? ''} 正在念…`}
+          {audioState === 'idle'
+            && '用每个角色的 archetype 音色播一遍'}
+          {audioState === 'done'
+            && '✓ 念完了'}
+        </span>
+      </div>
+
       <div className="space-y-2 mt-4">
         {act.beats.map((beat, i) => (
           <BeatBubble key={i}
             beat={beat}
             mine={beat.speakerUserId === myId}
             members={room.members}
+            isPlaying={playingBeat === i}
           />
         ))}
       </div>
@@ -427,16 +566,26 @@ function Playing({ room, myId, amHost, onAdvance }: {
   );
 }
 
-function BeatBubble({ beat, mine, members }: {
-  beat: SquadActBeat; mine: boolean; members: SquadMember[];
+function BeatBubble({ beat, mine, members, isPlaying = false }: {
+  beat: SquadActBeat;
+  mine: boolean;
+  members: SquadMember[];
+  /** v1.4.2 — when true, this beat is currently being read by the
+   *  archetype voice. Gets a soft ring + pulsing 🔊 next to the label
+   *  so the reader can follow along visually. */
+  isPlaying?: boolean;
 }) {
   const isNarrator = beat.speakerUserId === 'narrator';
   if (isNarrator) {
     return (
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
-        className="text-center text-[12px] italic px-4 py-2"
-        style={{ color: 'rgba(255,255,255,0.55)' }}
+        className="text-center text-[12px] italic px-4 py-2 transition"
+        style={{
+          color: isPlaying ? '#fff' : 'rgba(255,255,255,0.55)',
+          background: isPlaying ? 'rgba(124,58,237,0.10)' : 'transparent',
+          borderRadius: 8,
+        }}
       >
         — {beat.line} —
       </motion.div>
@@ -448,23 +597,37 @@ function BeatBubble({ beat, mine, members }: {
       className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
     >
       <div
-        className="max-w-[85%] rounded-2xl px-3.5 py-2"
+        className="max-w-[85%] rounded-2xl px-3.5 py-2 transition-shadow"
         style={{
           background: mine
             ? 'linear-gradient(135deg, rgba(255,85,136,0.20), rgba(124,58,237,0.12))'
             : 'rgba(255,255,255,0.06)',
-          border: `1px solid ${mine ? 'rgba(255,85,136,0.45)' : 'rgba(255,255,255,0.10)'}`,
+          border: `1px solid ${
+            isPlaying
+              ? '#ffe300'
+              : mine ? 'rgba(255,85,136,0.45)' : 'rgba(255,255,255,0.10)'
+          }`,
+          boxShadow: isPlaying
+            ? '0 0 0 3px rgba(255,227,0,0.35), 0 6px 18px rgba(255,184,76,0.30)'
+            : 'none',
         }}
       >
-        <div className="text-[10px] mb-0.5 opacity-75 font-bold">
+        <div className="text-[10px] mb-0.5 opacity-75 font-bold flex items-center gap-1">
+          {isPlaying && (
+            <motion.span
+              animate={{ scale: [1, 1.3, 1] }}
+              transition={{ duration: 0.7, repeat: Infinity }}
+              style={{ display: 'inline-block' }}
+            >
+              🔊
+            </motion.span>
+          )}
           {beat.speakerLabel}
         </div>
         <div className="text-sm text-white/95 leading-relaxed" style={{ whiteSpace: 'pre-wrap' }}>
           {beat.line}
         </div>
       </div>
-      {/* Reference `members` to avoid lint-unused (used by the parent for
-          @mention lookup; included here for prop symmetry / future avatar). */}
       <span className="hidden">{members.length}</span>
     </motion.div>
   );
