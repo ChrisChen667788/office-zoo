@@ -404,6 +404,73 @@ export default function FiredResult() {
     navigate('/fired');
   };
 
+  // v4.0.0 — Challenge a friend. Two halves:
+  //   1. Auto-complete: if sessionStorage carries an active-challenge
+  //      from a friend's invite, POST /challenge/<code>/complete with
+  //      this round's result. Surface "对比战绩" link on success.
+  //   2. Create-challenge button: lets the current user mint a NEW
+  //      challenge from this result. Returns a URL the user shares.
+  const [activeChallengeCode, setActiveChallengeCode] = useState<string | null>(null);
+  const [createdChallengeCode, setCreatedChallengeCode] = useState<string | null>(null);
+  const challengeCompletedRef = useRef(false);
+  useEffect(() => {
+    if (challengeCompletedRef.current) return;
+    if (!outcome || !scenarioId) return;
+    let pending: { code: string; scenarioId: string } | null = null;
+    try {
+      const raw = sessionStorage.getItem('office-zoo.active-challenge');
+      if (raw) pending = JSON.parse(raw);
+    } catch { /* no-op */ }
+    if (!pending) return;
+    // Only complete if the challenge's scenarioId matches what was
+    // actually played — friend could have backed out + replayed a
+    // different scenario without us realizing.
+    if (pending.scenarioId !== scenarioId) return;
+    challengeCompletedRef.current = true;
+    setActiveChallengeCode(pending.code);
+    try { sessionStorage.removeItem('office-zoo.active-challenge'); } catch { /* no-op */ }
+    fetch(`/api/fired/challenge/${encodeURIComponent(pending.code)}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': getUserId() },
+      body: JSON.stringify({
+        result: {
+          compensationMonths: outcome.compensationMonths,
+          maxPossible: outcome.maxPossible,
+          tactic: recordedTactic ?? undefined,
+        },
+      }),
+    }).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn('[fired/challenge/complete] failed', err);
+    });
+  }, [outcome, scenarioId, recordedTactic]);
+
+  const createChallenge = async () => {
+    if (!outcome || !scenarioId || createdChallengeCode) return;
+    try {
+      const resp = await fetch('/api/fired/challenge/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': getUserId() },
+        body: JSON.stringify({
+          scenarioId,
+          result: {
+            compensationMonths: outcome.compensationMonths,
+            maxPossible: outcome.maxPossible,
+            tactic: recordedTactic ?? undefined,
+          },
+        }),
+      });
+      const data = await resp.json() as { challenge?: { code: string } };
+      if (data.challenge?.code) {
+        setCreatedChallengeCode(data.challenge.code);
+        const url = `${window.location.origin}/fired/challenge/${data.challenge.code}`;
+        try { await navigator.clipboard.writeText(url); } catch { /* ignore */ }
+      }
+    } catch {
+      // Soft fail — keep the button visible so user can retry.
+    }
+  };
+
   // v1.5.0 — daily-drama share card. If the just-played scenario is
   // today's daily fired pick, we surface a "✦ 分享今日战绩" button that
   // generates a result-mode PNG (grade letter + comp ratio baked in).
@@ -854,6 +921,53 @@ export default function FiredResult() {
           >
             ✦ 分享今日战绩 → 生成 PNG
           </motion.button>
+        )}
+
+        {/* v4.0.0 — Challenge a friend OR "you completed a friend's challenge".
+            Two distinct flows that share the same surface slot. */}
+        {activeChallengeCode ? (
+          <motion.a
+            href={`/fired/challenge/${activeChallengeCode}`}
+            className="w-full block text-center py-3.5 rounded-2xl text-sm font-bold tracking-wide mb-3"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,45,146,0.20), rgba(124,58,237,0.12))',
+              border: '1px solid rgba(255,45,146,0.55)',
+              color: '#ff8aa6',
+              boxShadow: '0 8px 24px rgba(255,45,146,0.22)',
+            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.20, duration: 0.5 }}
+          >
+            🥊 应战完成 → 看对比战绩
+          </motion.a>
+        ) : (
+          outcome && (
+            <motion.button
+              onClick={createChallenge}
+              className="w-full py-3.5 rounded-2xl text-sm font-bold tracking-wide mb-3"
+              style={{
+                background: createdChallengeCode
+                  ? 'rgba(156,255,87,0.14)'
+                  : 'linear-gradient(135deg, rgba(255,85,136,0.16), rgba(124,58,237,0.10))',
+                border: createdChallengeCode
+                  ? '1px solid rgba(156,255,87,0.55)'
+                  : '1px solid rgba(255,85,136,0.45)',
+                color: createdChallengeCode ? '#9cff57' : '#ff8aa6',
+                boxShadow: createdChallengeCode ? 'none' : '0 6px 18px rgba(255,85,136,0.20)',
+              }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.20, duration: 0.5 }}
+              whileHover={{ scale: createdChallengeCode ? 1 : 1.01, y: createdChallengeCode ? 0 : -1 }}
+              whileTap={{ scale: 0.985 }}
+              title="生成挑战链接 · 朋友打开后玩同一关 · 自动出对比卡"
+            >
+              {createdChallengeCode
+                ? '✓ 挑战链接已复制 · 发给朋友吧'
+                : '🥊 挑战朋友玩这一关'}
+            </motion.button>
+          )
         )}
 
         {/* Action buttons */}

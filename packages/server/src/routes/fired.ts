@@ -29,6 +29,13 @@ import { summarizeTactic } from '../services/tacticSummarizer';
 import { findProfile } from '../services/profileStore';
 import { firedCompletionDelta, packCompleteDelta, recordEvolutionEvent } from '../services/archetypeEvolution';
 import {
+  createChallenge,
+  getChallenge,
+  completeChallenge,
+  gradeFromOutcome,
+  infoFromProfile,
+} from '../services/challengeStore';
+import {
   listPacks,
   findPack,
   addPack,
@@ -1046,6 +1053,113 @@ firedRouter.post('/pack/complete', async (c) => {
   }
 
   return c.json({ ok: true, evolution });
+});
+
+// ---------------------------------------------------------------------------
+// v4.0.0 — fired-mode "challenge a friend" comparison flow
+//
+// Three routes that wrap challengeStore.ts:
+//   POST /api/fired/challenge/create   — challenger mints code after a result
+//   GET  /api/fired/challenge/:code     — friend opens the link, sees context
+//   POST /api/fired/challenge/:code/complete — friend's result lands,
+//                                              comparison data ready
+//
+// All routes require X-User-Id (matches /memory/record pattern). Anonymous
+// users can't create challenges (no display name / archetype to put on
+// the card) but can technically view via GET.
+// ---------------------------------------------------------------------------
+
+const ChallengeCreateSchema = z.object({
+  scenarioId: z.string().min(1).max(64),
+  displayName: z.string().min(1).max(24).optional(),
+  result: z.object({
+    compensationMonths: z.number().min(0).max(120),
+    maxPossible: z.number().min(0).max(120),
+    tactic: z.string().max(200).optional(),
+  }),
+});
+
+firedRouter.post('/challenge/create', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId) return c.json({ error: 'X-User-Id header required' }, 400);
+  const v = await validateBody(c, ChallengeCreateSchema);
+  if (!v.ok) return v.response;
+
+  // Resolve scenario for title/emoji (challenge card shows these);
+  // accept both seed + user-generated scenarios.
+  const seed = FIRED_SCENARIOS.find((s) => s.id === v.data.scenarioId);
+  const scenario = seed ?? await findUserScenario(v.data.scenarioId);
+  if (!scenario) return c.json({ error: 'scenario not found' }, 404);
+
+  // Resolve challenger's archetype (matches the share card chip).
+  const profile = await findProfile(userId).catch(() => null);
+  const archetype = profile?.topArchetypes?.[0]
+    ? findArchetype(profile.topArchetypes[0]) ?? null
+    : null;
+
+  const challenge = createChallenge({
+    scenarioId: scenario.id,
+    scenarioTitle: scenario.title,
+    scenarioEmoji: scenario.emoji,
+    challenger: infoFromProfile({ userId, displayName: v.data.displayName, archetype }),
+    challengerResult: {
+      compensationMonths: v.data.result.compensationMonths,
+      maxPossible: v.data.result.maxPossible,
+      grade: gradeFromOutcome(v.data.result.compensationMonths, v.data.result.maxPossible),
+      tactic: v.data.result.tactic,
+    },
+  });
+  routeLog.info({
+    code: challenge.code, scenarioId: scenario.id,
+    challenger: userId.slice(0, 8) + '…',
+  }, 'Challenge created');
+  return c.json({ challenge });
+});
+
+firedRouter.get('/challenge/:code', (c) => {
+  const code = c.req.param('code');
+  const challenge = getChallenge(code);
+  if (!challenge) return c.json({ error: 'challenge not found or expired' }, 404);
+  return c.json({ challenge });
+});
+
+const ChallengeCompleteSchema = z.object({
+  displayName: z.string().min(1).max(24).optional(),
+  result: z.object({
+    compensationMonths: z.number().min(0).max(120),
+    maxPossible: z.number().min(0).max(120),
+    tactic: z.string().max(200).optional(),
+  }),
+});
+
+firedRouter.post('/challenge/:code/complete', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId) return c.json({ error: 'X-User-Id header required' }, 400);
+  const v = await validateBody(c, ChallengeCompleteSchema);
+  if (!v.ok) return v.response;
+
+  const code = c.req.param('code');
+  const profile = await findProfile(userId).catch(() => null);
+  const archetype = profile?.topArchetypes?.[0]
+    ? findArchetype(profile.topArchetypes[0]) ?? null
+    : null;
+
+  const updated = completeChallenge(
+    code,
+    infoFromProfile({ userId, displayName: v.data.displayName, archetype }),
+    {
+      compensationMonths: v.data.result.compensationMonths,
+      maxPossible: v.data.result.maxPossible,
+      grade: gradeFromOutcome(v.data.result.compensationMonths, v.data.result.maxPossible),
+      tactic: v.data.result.tactic,
+    },
+  );
+  if (!updated) return c.json({ error: 'challenge not found or expired' }, 404);
+  routeLog.info({
+    code, scenarioId: updated.scenarioId,
+    challengee: userId.slice(0, 8) + '…',
+  }, 'Challenge completed');
+  return c.json({ challenge: updated });
 });
 
 // ---------------------------------------------------------------------------
