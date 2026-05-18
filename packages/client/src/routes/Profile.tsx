@@ -22,6 +22,7 @@ import {
   type TraitVector,
 } from '@furball/shared';
 import { getUserId } from '../utils/userId';
+import { archetypeLabel } from '../utils/i18n';
 import type { PersonalizedProfile, UserProfile } from '../utils/profileTypes';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
@@ -328,13 +329,15 @@ const ProfileCard = forwardRef<HTMLDivElement, ProfileCardProps>(function Profil
           className="y2k-display text-4xl mb-2"
           style={{ color: '#fff', textShadow: '3px 3px 0 #0a0a0a', letterSpacing: '-0.03em' }}
         >
-          {archetype.name}
+          {/* v2.2.0 — i18n lookup. Falls back to raw zh-CN for v1.x
+              archetypes that don't have dict entries. */}
+          {archetypeLabel(archetype, 'name')}
         </div>
         <div
           className="text-sm font-bold inline-block px-3 py-1 rounded-full"
           style={{ background: '#fff', color: '#0a0a0a', border: '2px solid #0a0a0a' }}
         >
-          {archetype.tagline}
+          {archetypeLabel(archetype, 'tagline')}
         </div>
 
         {/* v2.0.0 — region/industry tribe chips. Only render when the
@@ -367,12 +370,12 @@ const ProfileCard = forwardRef<HTMLDivElement, ProfileCardProps>(function Profil
             Hybrid 类型
           </div>
           <div className="text-sm font-black mt-1 mb-3" style={{ color: '#0a0a0a' }}>
-            <span style={{ color: archetype.colors.start }}>主调:</span> {archetype.name}
+            <span style={{ color: archetype.colors.start }}>主调:</span> {archetypeLabel(archetype, 'name')}
             {second && (
-              <><br/><span style={{ color: '#666' }}>+ 一点:</span> {second.emoji} {second.name}</>
+              <><br/><span style={{ color: '#666' }}>+ 一点:</span> {second.emoji} {archetypeLabel(second, 'name')}</>
             )}
             {third && (
-              <><br/><span style={{ color: '#999' }}>+ 一丢丢:</span> {third.emoji} {third.name}</>
+              <><br/><span style={{ color: '#999' }}>+ 一丢丢:</span> {third.emoji} {archetypeLabel(third, 'name')}</>
             )}
           </div>
         </div>
@@ -411,7 +414,7 @@ const ProfileCard = forwardRef<HTMLDivElement, ProfileCardProps>(function Profil
               style={{ background: '#0a0a0a', color: '#fff', border: '2px solid #0a0a0a', borderRadius: 10 }}>
               <div className="text-[10px] tracking-[0.2em] uppercase mb-1" style={{ color: '#ff2d92' }}>你的天敌</div>
               <div className="text-2xl mb-0.5">{rival.emoji}</div>
-              <div className="text-xs font-bold">{rival.name}</div>
+              <div className="text-xs font-bold">{archetypeLabel(rival, 'shortName')}</div>
             </div>
           )}
           {bestie && (
@@ -419,7 +422,7 @@ const ProfileCard = forwardRef<HTMLDivElement, ProfileCardProps>(function Profil
               style={{ background: '#fff', color: '#0a0a0a', border: '2px solid #0a0a0a', borderRadius: 10 }}>
               <div className="text-[10px] tracking-[0.2em] uppercase mb-1" style={{ color: '#00ddff' }}>你的搭子</div>
               <div className="text-2xl mb-0.5">{bestie.emoji}</div>
-              <div className="text-xs font-bold">{bestie.name}</div>
+              <div className="text-xs font-bold">{archetypeLabel(bestie, 'shortName')}</div>
             </div>
           )}
         </div>

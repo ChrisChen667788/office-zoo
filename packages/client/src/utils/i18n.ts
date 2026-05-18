@@ -195,6 +195,66 @@ const DICT = {
 
   // Locale picker
   'locale.switchHint':   { 'zh-CN': '语言',                'en-US': 'Language',             'ja-JP': '言語',                  'ko-KR': '언어' },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // v2.2.0 — Archetype names + taglines for the 12 region/industry
+  // archetypes added in v2.0.0. The original 12 v1.3.0 archetypes
+  // intentionally NOT translated here (they still render in zh-CN
+  // across all locales) — backwards-compatible behaviour, and the
+  // translation cost vs. impact wasn't justified for v2.2.0 scope.
+  //
+  // Lookup pattern: `archetype.<id>.name`, `.shortName`, `.tagline`.
+  // ─────────────────────────────────────────────────────────────────────
+
+  // Industry archetypes (6)
+  'archetype.soe-lifer.name':       { 'zh-CN': '国企铁饭碗',     'en-US': 'SOE Lifer',          'ja-JP': '国営の鉄飯椀',          'ko-KR': '국영 철밥통' },
+  'archetype.soe-lifer.shortName':  { 'zh-CN': '国企',           'en-US': 'SOE',                'ja-JP': '国営',                  'ko-KR': '국영' },
+  'archetype.soe-lifer.tagline':    { 'zh-CN': '下午 3 点喝茶,5 点准时下班,工资按月到账', 'en-US': 'Tea at 3, off at 5, paycheck like clockwork.', 'ja-JP': '15時に茶、17時退社、給料は月例。', 'ko-KR': '오후 3시 차, 5시 칼퇴, 월급은 시계처럼.' },
+
+  'archetype.faang-cog.name':       { 'zh-CN': '大厂螺丝钉',     'en-US': 'FAANG Cog',          'ja-JP': '大手企業の歯車',        'ko-KR': '대기업 부품' },
+  'archetype.faang-cog.shortName':  { 'zh-CN': '螺丝钉',         'en-US': 'Cog',                'ja-JP': '歯車',                  'ko-KR': '부품' },
+  'archetype.faang-cog.tagline':    { 'zh-CN': '我是 OKR 里的一行字, 周报里的一个 bullet', 'en-US': 'A line in the OKR, a bullet in the weekly report.', 'ja-JP': 'OKRの中の一行、週報の中の一弾。', 'ko-KR': 'OKR 한 줄, 주간보고 한 줄.' },
+
+  'archetype.startup-cowboy.name':  { 'zh-CN': '创业老炮',       'en-US': 'Startup Veteran',    'ja-JP': 'スタートアップ古参',    'ko-KR': '창업 베테랑' },
+  'archetype.startup-cowboy.shortName': { 'zh-CN': '创业',       'en-US': 'Startup',            'ja-JP': '創業',                  'ko-KR': '창업' },
+  'archetype.startup-cowboy.tagline': { 'zh-CN': '见过三轮裁员还活着 — 工资条比 commit log 还密', 'en-US': 'Survived 3 layoff rounds — paychecks denser than the git log.', 'ja-JP': '3度のリストラを生き残った — 給与明細はコミットログより密。', 'ko-KR': '3차례 정리해고에서 살아남음 — 급여명세서가 commit log보다 빽빽.' },
+
+  'archetype.finance-suit.name':    { 'zh-CN': '金融体面人',     'en-US': 'Finance Suit',       'ja-JP': '金融エリート',          'ko-KR': '금융 정장' },
+  'archetype.finance-suit.shortName':{'zh-CN': '金融',           'en-US': 'Finance',            'ja-JP': '金融',                  'ko-KR': '금융' },
+  'archetype.finance-suit.tagline': { 'zh-CN': '讲话夹英文,西装革履,通勤陆家嘴', 'en-US': 'Code-switches mid-sentence, suit-clad, commutes to Lujiazui.', 'ja-JP': '英語混じり、スーツ姿、陸家嘴通勤。', 'ko-KR': '말끝마다 영어, 정장 차림, 루자쭈이 통근.' },
+
+  'archetype.edu-survivor.name':    { 'zh-CN': '教培劫余',       'en-US': 'EdTech Survivor',    'ja-JP': '教育業界の生存者',      'ko-KR': '에듀테크 생존자' },
+  'archetype.edu-survivor.shortName':{'zh-CN': '教培',           'en-US': 'EdTech',             'ja-JP': '教育',                  'ko-KR': '에듀' },
+  'archetype.edu-survivor.tagline': { 'zh-CN': '双减后转 K9, 双语转一对一, 一对一转海外', 'en-US': 'Post-crackdown pivots: K9 → bilingual → 1-on-1 → overseas.', 'ja-JP': '規制後はK9へ、二言語から個別、個別から海外へ。', 'ko-KR': '단속 후 K9 → 이중언어 → 1대1 → 해외로 전환.' },
+
+  'archetype.mcn-grinder.name':     { 'zh-CN': '网红打工人',     'en-US': 'MCN Hustler',        'ja-JP': 'インフルエンサー社員',  'ko-KR': 'MCN 노동자' },
+  'archetype.mcn-grinder.shortName':{'zh-CN': '网红',            'en-US': 'MCN',                'ja-JP': 'MCN',                   'ko-KR': 'MCN' },
+  'archetype.mcn-grinder.tagline':  { 'zh-CN': '今天涨了 200 粉, 这个月 GMV 还差 5 万', 'en-US': '+200 followers today, still 50K GMV short for the month.', 'ja-JP': '今日200人増、今月のGMVあと5万足りない。', 'ko-KR': '오늘 200명 증가, 이번 달 GMV 5만 부족.' },
+
+  // Region archetypes (6)
+  'archetype.bj-drift.name':        { 'zh-CN': '北漂',           'en-US': 'Beijing Drifter',    'ja-JP': '北京漂流者',            'ko-KR': '베이징 표류자' },
+  'archetype.bj-drift.shortName':   { 'zh-CN': '北漂',           'en-US': 'BJ-drifter',         'ja-JP': '北京組',                'ko-KR': '베이징' },
+  'archetype.bj-drift.tagline':     { 'zh-CN': '出租屋 + 沙县小吃 + 五号线早 7 点', 'en-US': 'Shared rental + cheap noodles + 7am Line 5.', 'ja-JP': '賃貸+大衆食堂+早朝の地下鉄5号線。', 'ko-KR': '월세방+분식+아침 7시 5호선.' },
+
+  'archetype.sh-yuppie.name':       { 'zh-CN': '沪漂精致',       'en-US': 'Shanghai Yuppie',    'ja-JP': '上海プチセレブ',        'ko-KR': '상하이 여피' },
+  'archetype.sh-yuppie.shortName':  { 'zh-CN': '沪漂',           'en-US': 'SH-yuppie',          'ja-JP': '上海組',                'ko-KR': '상하이' },
+  'archetype.sh-yuppie.tagline':    { 'zh-CN': '周末必喝咖啡, 工作日早餐 manner', 'en-US': 'Weekend coffee ritual, weekday breakfast at Manner.', 'ja-JP': '週末はカフェ必須、平日はMannerの朝食。', 'ko-KR': '주말 카페 필수, 평일 Manner 아침.' },
+
+  'archetype.sz-money-chaser.name': { 'zh-CN': '深漂搞钱党',     'en-US': 'Shenzhen Money-chaser', 'ja-JP': '深圳マネーハンター',  'ko-KR': '선전 돈벌이족' },
+  'archetype.sz-money-chaser.shortName': { 'zh-CN': '深漂',      'en-US': 'SZ-chaser',          'ja-JP': '深圳組',                'ko-KR': '선전' },
+  'archetype.sz-money-chaser.tagline':{ 'zh-CN': '搞钱搞钱搞钱, 别跟我谈情怀', 'en-US': 'Make money, make money, make money — don\'t talk passion.', 'ja-JP': '稼ぐ稼ぐ稼ぐ — 情熱の話はやめて。', 'ko-KR': '돈 돈 돈 — 열정 얘기는 그만.' },
+
+  'archetype.hz-internet-kid.name': { 'zh-CN': '杭州互联网青年', 'en-US': 'Hangzhou Tech Youth','ja-JP': '杭州IT若手',            'ko-KR': '항저우 IT 청년' },
+  'archetype.hz-internet-kid.shortName': { 'zh-CN': '杭漂',      'en-US': 'HZ-tech',            'ja-JP': '杭州組',                'ko-KR': '항저우' },
+  'archetype.hz-internet-kid.tagline':{ 'zh-CN': '花名"小六", 居住未来科技城, 996 是天经地义', 'en-US': 'Code-name "Liu-Six", lives in Future Sci-Tech City, 996 is gospel.', 'ja-JP': 'コードネーム「小六」、未来科技城在住、996は当然。', 'ko-KR': '코드네임 "샤오류", 미래과기성 거주, 996은 당연.' },
+
+  'archetype.cd-zen.name':          { 'zh-CN': '成都摆烂派',     'en-US': 'Chengdu Zen-Slacker','ja-JP': '成都のチル派',          'ko-KR': '청두 무기력파' },
+  'archetype.cd-zen.shortName':     { 'zh-CN': '成都',           'en-US': 'Chengdu',            'ja-JP': '成都',                  'ko-KR': '청두' },
+  'archetype.cd-zen.tagline':       { 'zh-CN': '巴适得板, 上班是为了下班吃火锅', 'en-US': 'Life is chill — work just funds the hotpot.', 'ja-JP': '人生まったり — 仕事は火鍋の資金稼ぎ。', 'ko-KR': '인생은 여유 — 일은 훠궈를 위한 자금.' },
+
+  'archetype.escape-overseas.name': { 'zh-CN': '海外润人',       'en-US': 'Overseas Escapee',   'ja-JP': '海外脱出組',            'ko-KR': '해외 탈출족' },
+  'archetype.escape-overseas.shortName':{'zh-CN': '润人',        'en-US': 'Escapee',            'ja-JP': '脱出',                  'ko-KR': '탈출' },
+  'archetype.escape-overseas.tagline':{ 'zh-CN': '走为上策, 简历 + 英语 + 签证一起搞', 'en-US': 'Exit strategy: resume + English + visa, all at once.', 'ja-JP': '逃げるが勝ち — 履歴書、英語、ビザを同時並行。', 'ko-KR': '도망이 상책 — 이력서, 영어, 비자 동시 진행.' },
 } as const;
 
 export type DictKey = keyof typeof DICT;
@@ -248,4 +308,28 @@ export function t(key: DictKey): string {
 export function useT() {
   const locale = useSyncExternalStore(subscribe, getLocale, getLocale);
   return { t, locale, setLocale };
+}
+
+/** v2.2.0 — archetype label resolver. Tries the i18n DICT first for
+ *  archetype.<id>.<field>; falls back to the raw zh-CN provided by the
+ *  archetype data (the v1.x archetypes which we deliberately didn't
+ *  translate). This single function lets the Profile card / Squad
+ *  card / Daily card all surface localized names without each one
+ *  re-implementing the fallback chain.
+ *
+ *  Usage:
+ *    archetypeLabel(myArchetype, 'name')      // "FAANG Cog" in en-US
+ *    archetypeLabel(myArchetype, 'tagline')   // localized tagline
+ */
+export function archetypeLabel(
+  archetype: { id: string; name: string; shortName: string; tagline: string } | null | undefined,
+  field: 'name' | 'shortName' | 'tagline',
+): string {
+  if (!archetype) return '';
+  const key = `archetype.${archetype.id}.${field}` as DictKey;
+  const entry = (DICT as Record<string, Record<Locale, string>>)[key];
+  if (entry) return entry[_locale] ?? entry['zh-CN'] ?? archetype[field];
+  // No dict entry — legacy v1.x archetype. Return the raw zh-CN value
+  // already on the archetype data object.
+  return archetype[field];
 }
