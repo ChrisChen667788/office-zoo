@@ -33,6 +33,29 @@ const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
   { key: 'visibility', label: '显眼' },
 ];
 
+/** v2.0.0 — display labels for the region/industry chips on the
+ *  archetype card. Kept here client-side rather than imported from
+ *  shared so we can tweak label copy without bumping the shared
+ *  package version. */
+const REGION_LABEL: Record<string, string> = {
+  beijing:   '🌆 北漂',
+  shanghai:  '☕ 沪漂',
+  shenzhen:  '💰 深漂',
+  hangzhou:  '🌊 杭漂',
+  chengdu:   '🐼 成都',
+  overseas:  '✈️ 海外',
+  generic:   '',
+};
+const INDUSTRY_LABEL: Record<string, string> = {
+  soe:      '🏛️ 国企',
+  faang:    '⚙️ 大厂',
+  startup:  '🤠 创业',
+  finance:  '💼 金融',
+  edu:      '📚 教培',
+  mcn:      '📱 MCN',
+  generic:  '',
+};
+
 export default function Profile() {
   const navigate = useNavigate();
   const myId = useMemo(() => getUserId(), []);
@@ -313,6 +336,27 @@ const ProfileCard = forwardRef<HTMLDivElement, ProfileCardProps>(function Profil
         >
           {archetype.tagline}
         </div>
+
+        {/* v2.0.0 — region/industry tribe chips. Only render when the
+            archetype actually has a tribe (the original 12 don't, so
+            old profiles show nothing extra). */}
+        {(archetype.region && archetype.region !== 'generic') ||
+         (archetype.industry && archetype.industry !== 'generic') ? (
+          <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
+            {archetype.region && archetype.region !== 'generic' && REGION_LABEL[archetype.region] && (
+              <span className="text-[11px] font-black px-2.5 py-1 rounded-full"
+                style={{ background: '#0a0a0a', color: '#ffe300', border: '2px solid #ffe300' }}>
+                {REGION_LABEL[archetype.region]}
+              </span>
+            )}
+            {archetype.industry && archetype.industry !== 'generic' && INDUSTRY_LABEL[archetype.industry] && (
+              <span className="text-[11px] font-black px-2.5 py-1 rounded-full"
+                style={{ background: '#0a0a0a', color: '#00ddff', border: '2px solid #00ddff' }}>
+                {INDUSTRY_LABEL[archetype.industry]}
+              </span>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* Radar + hybrid */}

@@ -27,6 +27,24 @@ export type TraitId =
 
 export type TraitVector = Record<TraitId, number>;
 
+/** v2.0.0 — region axis. The 12 v1.x archetypes are region-neutral
+ *  ('generic'); v2.0.0 adds 6 region-flavored archetypes that bias
+ *  toward a specific city's office culture stereotype.
+ *
+ *  Used as a tie-breaking bonus in archetype scoring AND as a chip on
+ *  the profile card. Daily-drama / talkshow / pack recommendations
+ *  can branch on this axis in future versions. */
+export type RegionId =
+  | 'beijing' | 'shanghai' | 'shenzhen' | 'hangzhou' | 'chengdu' | 'overseas'
+  | 'generic';
+
+/** v2.0.0 — industry axis. Same role as RegionId but slices by sector
+ *  instead of geography. 'generic' = the original 12 archetypes which
+ *  weren't industry-locked. */
+export type IndustryId =
+  | 'soe' | 'faang' | 'startup' | 'finance' | 'edu' | 'mcn'
+  | 'generic';
+
 export interface Archetype {
   id: string;
   /** Hero glyph used on cards. Two emoji = primary + alt. */
@@ -49,6 +67,12 @@ export interface Archetype {
    *  for the card's "命中场景" recommendation row. */
   shineScenarioId: string;
   shineTalkshowTag: string;
+  /** v2.0.0 — which region this archetype belongs to. Quiz answers can
+   *  bump a region count; the matching archetype gets a bonus during
+   *  scoring. Defaults to 'generic' on the original 12. */
+  region?: RegionId;
+  /** v2.0.0 — same as region but sliced by industry. */
+  industry?: IndustryId;
 }
 
 const A = (n: TraitVector) => n; // type alias to keep declarations terse
@@ -258,6 +282,233 @@ export const ARCHETYPES: Archetype[] = [
     shineScenarioId: 'org-optimization',
     shineTalkshowTag: 'slacking',
   },
+
+  // ──────────────────────────────────────────────────────────────────
+  // v2.0.0 — 12 new region/industry-flavored archetypes (#13-24).
+  // Same trait-vector + cosine-matching logic as the original 12;
+  // additionally tagged with `region` or `industry` so the quiz can
+  // bias toward them when the user signals a tribe.
+  // ──────────────────────────────────────────────────────────────────
+
+  // ── Industry archetypes (6) ──────────────────────────────────────
+  {
+    id: 'soe-lifer',
+    emoji: '🏛️',
+    name: '国企铁饭碗',
+    shortName: '国企',
+    tagline: '下午 3 点喝茶,5 点准时下班,工资按月到账',
+    traits: A({ grind: 0.3, snark: 0.4, ambition: 0.2, empathy: 0.9, cynicism: 0.45, visibility: 0.4 }),
+    colors: { start: '#dc2626', mid: '#fbbf24', end: '#16a34a' },
+    characterNotes: [
+      '工龄一栏写"自毕业以来一直在",看了让人心安',
+      '说"领导"不说 "boss",说"科室"不说"team"',
+      '下午茶有水果有糖,饭堂还便宜',
+      '不卷不躺,稳稳的幸福',
+    ],
+    shineScenarioId: 'org-optimization',
+    shineTalkshowTag: 'meta',
+    industry: 'soe',
+  },
+  {
+    id: 'faang-cog',
+    emoji: '⚙️',
+    name: '大厂螺丝钉',
+    shortName: '螺丝钉',
+    tagline: '我是 OKR 里的一行字, 周报里的一个 bullet',
+    traits: A({ grind: 0.95, snark: 0.35, ambition: 0.85, empathy: 0.4, cynicism: 0.55, visibility: 0.2 }),
+    colors: { start: '#0ea5e9', mid: '#1e293b', end: '#7c3aed' },
+    characterNotes: [
+      '工位贴 OKR,日历每 30 分钟一格',
+      '懂分布式 + 微服务 + 监控告警那一套',
+      '熬过 3 次重组,部门换过 2 个名字',
+      '加班到 11 点也只算正常水平',
+    ],
+    shineScenarioId: 'amazon-rto',
+    shineTalkshowTag: 'kpi',
+    industry: 'faang',
+  },
+  {
+    id: 'startup-cowboy',
+    emoji: '🤠',
+    name: '创业老炮',
+    shortName: '创业',
+    tagline: '见过三轮裁员还活着 — 工资条比 commit log 还密',
+    traits: A({ grind: 0.85, snark: 0.55, ambition: 0.95, empathy: 0.5, cynicism: 0.6, visibility: 0.75 }),
+    colors: { start: '#f97316', mid: '#dc2626', end: '#facc15' },
+    characterNotes: [
+      'PRD / 代码 / BD / 客服都干过',
+      '"all in" 这个词听吐了',
+      '能用一句"先 MVP 上线再说"打发任何争论',
+      '工资被欠过半年,期权擦过桌子',
+    ],
+    shineScenarioId: 'startup-cliff',
+    shineTalkshowTag: 'jargon',
+    industry: 'startup',
+  },
+  {
+    id: 'finance-suit',
+    emoji: '💼',
+    name: '金融体面人',
+    shortName: '金融',
+    tagline: '讲话夹英文,西装革履,通勤陆家嘴',
+    traits: A({ grind: 0.7, snark: 0.5, ambition: 0.95, empathy: 0.25, cynicism: 0.45, visibility: 0.85 }),
+    colors: { start: '#0f172a', mid: '#fbbf24', end: '#dc2626' },
+    characterNotes: [
+      '说话从不超过 3 句不夹英文',
+      'PPT 模板永远是黑底金字',
+      'Bonus 占年收入 60%+,加班是隐含的',
+      '"风控"两个字能压死任何提议',
+    ],
+    shineScenarioId: 'fake-performance',
+    shineTalkshowTag: 'jargon',
+    industry: 'finance',
+  },
+  {
+    id: 'edu-survivor',
+    emoji: '📚',
+    name: '教培劫余',
+    shortName: '教培',
+    tagline: '双减后转 K9, 双语转一对一, 一对一转海外',
+    traits: A({ grind: 0.6, snark: 0.65, ambition: 0.45, empathy: 0.85, cynicism: 0.85, visibility: 0.45 }),
+    colors: { start: '#2563eb', mid: '#a855f7', end: '#ec4899' },
+    characterNotes: [
+      '简历 3 年换 4 家公司,每家都是教育',
+      '熟悉"私域"、"裂变"、"复购"、"留存"',
+      '深夜还在群里推体验课',
+      '心里其实只想去考公',
+    ],
+    shineScenarioId: 'mass-layoff-illegal',
+    shineTalkshowTag: 'pua',
+    industry: 'edu',
+  },
+  {
+    id: 'mcn-grinder',
+    emoji: '📱',
+    name: '网红打工人',
+    shortName: '网红',
+    tagline: '今天涨了 200 粉, 这个月 GMV 还差 5 万',
+    traits: A({ grind: 0.85, snark: 0.6, ambition: 0.7, empathy: 0.35, cynicism: 0.45, visibility: 0.95 }),
+    colors: { start: '#ec4899', mid: '#fbbf24', end: '#06b6d4' },
+    characterNotes: [
+      '手机里 12 个剪辑 app',
+      '说"算法""完播率""涨粉率"像呼吸',
+      '直播间一开 6 小时,嗓子哑也得讲',
+      '梦想是做爆款 MCN 老板,现实是给老板打工',
+    ],
+    shineScenarioId: 'fake-performance',
+    shineTalkshowTag: 'meta',
+    industry: 'mcn',
+  },
+
+  // ── Region archetypes (6) ────────────────────────────────────────
+  {
+    id: 'bj-drift',
+    emoji: '🌆',
+    name: '北漂',
+    shortName: '北漂',
+    tagline: '出租屋 + 沙县小吃 + 五号线早 7 点',
+    traits: A({ grind: 0.7, snark: 0.5, ambition: 0.8, empathy: 0.5, cynicism: 0.7, visibility: 0.45 }),
+    colors: { start: '#dc2626', mid: '#fbbf24', end: '#0a0a0a' },
+    characterNotes: [
+      '租房从五环外搬到六环外,工资涨了 10%',
+      '过年才回老家,每次都被催婚',
+      '"等我赚够 X 万就回去"说了 5 年了',
+      '老乡群里啥也不说,但群消息一定看完',
+    ],
+    shineScenarioId: 'forced-transfer-resign',
+    shineTalkshowTag: 'meta',
+    region: 'beijing',
+  },
+  {
+    id: 'sh-yuppie',
+    emoji: '☕',
+    name: '沪漂精致',
+    shortName: '沪漂',
+    tagline: '周末必喝咖啡, 工作日早餐 manner',
+    traits: A({ grind: 0.65, snark: 0.55, ambition: 0.75, empathy: 0.35, cynicism: 0.4, visibility: 0.85 }),
+    colors: { start: '#a855f7', mid: '#ec4899', end: '#fbbf24' },
+    characterNotes: [
+      '能说"切糕""阿拉""侬好"',
+      '周末小红书 + Manner + brunch 三件套',
+      '社交网络里看不到加班,只看到陆家嘴夜景',
+      '隐藏属性: 月底刷信用卡',
+    ],
+    shineScenarioId: 'fake-performance',
+    shineTalkshowTag: 'jargon',
+    region: 'shanghai',
+  },
+  {
+    id: 'sz-money-chaser',
+    emoji: '💰',
+    name: '深漂搞钱党',
+    shortName: '深漂',
+    tagline: '搞钱搞钱搞钱, 别跟我谈情怀',
+    traits: A({ grind: 0.85, snark: 0.45, ambition: 0.95, empathy: 0.2, cynicism: 0.5, visibility: 0.65 }),
+    colors: { start: '#16a34a', mid: '#0a0a0a', end: '#fbbf24' },
+    characterNotes: [
+      '同时跑 3 个副业,主业反而是稳定的那个',
+      '说"性价比" "ROI" "回本"像家常便饭',
+      '租房住南山,每天通勤 1.5h 不觉得累',
+      '"格局打开"是口头禅,但格局其实就是钱',
+    ],
+    shineScenarioId: 'startup-cliff',
+    shineTalkshowTag: 'kpi',
+    region: 'shenzhen',
+  },
+  {
+    id: 'hz-internet-kid',
+    emoji: '🌊',
+    name: '杭州互联网青年',
+    shortName: '杭漂',
+    tagline: '花名"小六", 居住未来科技城, 996 是天经地义',
+    traits: A({ grind: 0.95, snark: 0.4, ambition: 0.85, empathy: 0.5, cynicism: 0.35, visibility: 0.55 }),
+    colors: { start: '#06b6d4', mid: '#7c3aed', end: '#16a34a' },
+    characterNotes: [
+      '工牌上没真名只有花名("小六""逍遥""无忌")',
+      '"中台""赋能""抓手"是日常黑话',
+      '住在未来科技城,通勤 2km',
+      '加班滴滴有报销,夜宵有补贴,卷到飞起',
+    ],
+    shineScenarioId: 'amazon-rto',
+    shineTalkshowTag: 'jargon',
+    region: 'hangzhou',
+  },
+  {
+    id: 'cd-zen',
+    emoji: '🐼',
+    name: '成都摆烂派',
+    shortName: '成都',
+    tagline: '巴适得板, 上班是为了下班吃火锅',
+    traits: A({ grind: 0.2, snark: 0.55, ambition: 0.2, empathy: 0.7, cynicism: 0.7, visibility: 0.35 }),
+    colors: { start: '#84cc16', mid: '#f97316', end: '#fbbf24' },
+    characterNotes: [
+      '下班直接奔火锅店,不带任何工作群消息',
+      '工资不高但生活幸福指数爆表',
+      '"安逸""巴适""莫得办法"是口头禅',
+      '加班?那玩意儿是北上广深的事',
+    ],
+    shineScenarioId: 'org-optimization',
+    shineTalkshowTag: 'slacking',
+    region: 'chengdu',
+  },
+  {
+    id: 'escape-overseas',
+    emoji: '✈️',
+    name: '海外润人',
+    shortName: '润人',
+    tagline: '走为上策, 简历 + 英语 + 签证一起搞',
+    traits: A({ grind: 0.55, snark: 0.7, ambition: 0.7, empathy: 0.4, cynicism: 0.65, visibility: 0.5 }),
+    colors: { start: '#0ea5e9', mid: '#22c55e', end: '#fbbf24' },
+    characterNotes: [
+      'LinkedIn 改成英文版,头像换了三次',
+      '雅思 / 托福刷题群里很活跃',
+      '"美东""南美""新马"3 个时区都看过',
+      '朋友圈一半内容是签证 / 房价 / 学校',
+    ],
+    shineScenarioId: 'twitter-purge',
+    shineTalkshowTag: 'meta',
+    region: 'overseas',
+  },
 ];
 
 // ────────────────────────────────────────────────────────────────────
@@ -278,6 +529,21 @@ export const ARCHETYPE_PAIRS: Record<string, { rival: string; bestie: string }> 
   veteran:      { rival: 'deck-wizard',  bestie: 'sass-master' },
   'deck-wizard':{ rival: 'veteran',      bestie: 'show-pony' },
   ghost:        { rival: 'show-pony',    bestie: 'slacker' },
+  // v2.0.0 — pairs for the 12 new archetypes. Pivoted around the
+  // "stable vs hustler" axis since industry/region tribes often
+  // contrast along productivity lines (国企 vs 大厂, 成都 vs 深漂).
+  'soe-lifer':       { rival: 'faang-cog',      bestie: 'veteran' },
+  'faang-cog':       { rival: 'soe-lifer',      bestie: 'hz-internet-kid' },
+  'startup-cowboy':  { rival: 'soe-lifer',      bestie: 'sz-money-chaser' },
+  'finance-suit':    { rival: 'cd-zen',         bestie: 'sh-yuppie' },
+  'edu-survivor':    { rival: 'finance-suit',   bestie: 'pleaser' },
+  'mcn-grinder':     { rival: 'ghost',          bestie: 'show-pony' },
+  'bj-drift':        { rival: 'cd-zen',         bestie: 'sz-money-chaser' },
+  'sh-yuppie':       { rival: 'escape-overseas',bestie: 'finance-suit' },
+  'sz-money-chaser': { rival: 'cd-zen',         bestie: 'startup-cowboy' },
+  'hz-internet-kid': { rival: 'soe-lifer',      bestie: 'faang-cog' },
+  'cd-zen':          { rival: 'sz-money-chaser',bestie: 'slacker' },
+  'escape-overseas': { rival: 'soe-lifer',      bestie: 'sh-yuppie' },
 };
 
 // ────────────────────────────────────────────────────────────────────
@@ -290,6 +556,13 @@ export interface QuizAnswer {
   text: string;
   /** Per-trait point delta. Negative = you're definitely NOT this. */
   delta: Partial<TraitVector>;
+  /** v2.0.0 — when set, this answer signals the user belongs to the
+   *  named region tribe. Scoring later bumps matching archetypes by
+   *  REGION_BONUS so the region-tagged archetypes can outrank
+   *  generic ones with similar trait vectors. */
+  region?: RegionId;
+  /** v2.0.0 — same as region but sliced by industry. */
+  industry?: IndustryId;
 }
 export interface QuizQuestion {
   id: string;
@@ -412,6 +685,48 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
         delta: { snark: 3, visibility: 2, ambition: 1 } },
     ],
   },
+  // ──────────────────────────────────────────────────────────────────
+  // v2.0.0 — two new questions that surface region/industry signal.
+  // Each answer also carries some trait delta so trait-cosine still
+  // works; the region/industry tag is the tie-breaker bonus that lets
+  // the 12 new archetypes outrank similarly-shaped generic ones.
+  // ──────────────────────────────────────────────────────────────────
+  {
+    id: 'q-tribe-industry',
+    prompt: '说说你工作的"味道" — 下班最常去的地方?',
+    answers: [
+      { text: '机关食堂 / 单位茶水间',
+        delta: { empathy: 2, grind: -1, cynicism: 1 },
+        industry: 'soe' },
+      { text: '园区健身房 / 公司班车 / 写字楼下星巴克',
+        delta: { grind: 2, ambition: 2, visibility: 1 },
+        industry: 'faang' },
+      { text: '联合办公 + 楼下烤串 + 凌晨打车',
+        delta: { grind: 2, ambition: 2, cynicism: 1, snark: 1 },
+        industry: 'startup' },
+      { text: '陆家嘴/国贸高层酒廊 + 各种 networking',
+        delta: { visibility: 3, ambition: 2, grind: 1 },
+        industry: 'finance' },
+    ],
+  },
+  {
+    id: 'q-tribe-region',
+    prompt: '哪个城市最像你现在的生活状态?',
+    answers: [
+      { text: '北京 — 五环边的合租 + 国贸通勤 + 沙县小吃',
+        delta: { grind: 2, cynicism: 2, ambition: 1, visibility: -1 },
+        region: 'beijing' },
+      { text: '上海 — 周末 brunch + 露台咖啡 + 高架晚高峰',
+        delta: { visibility: 3, ambition: 1, empathy: -1 },
+        region: 'shanghai' },
+      { text: '深圳 — 写字楼通宵 + 副业群 + 滴滴秒接单',
+        delta: { grind: 2, ambition: 3, empathy: -1 },
+        region: 'shenzhen' },
+      { text: '成都/二线 — 火锅 + 茶馆 + 不加班',
+        delta: { cynicism: 2, empathy: 2, grind: -2, snark: 1 },
+        region: 'chengdu' },
+    ],
+  },
 ];
 
 // ────────────────────────────────────────────────────────────────────
@@ -448,12 +763,35 @@ function cosine(a: TraitVector, b: TraitVector): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
-/** Score the user's TraitVector against all 12 archetypes. Returns
+/** v2.0.0 — bonus added to the cosine score when an archetype's
+ *  region or industry matches the user's quiz-signaled tribe.
+ *  Tuned so a strong tribal signal can overcome a ~0.05 cosine gap
+ *  (the typical spread between the top 3 archetypes) but won't flip
+ *  drastically different trait shapes. */
+const TRIBE_BONUS = 0.08;
+
+/** v2.0.0 — optional tribal signal collected from the quiz. Both
+ *  fields are independent; users with no clear signal pass undefined
+ *  and scoring degrades cleanly to v1.x cosine-only behaviour. */
+export interface TribeSignal {
+  region?: RegionId;
+  industry?: IndustryId;
+}
+
+/** Score the user's TraitVector against all 24 archetypes. Returns
  *  archetypes sorted by similarity descending. The top result is the
  *  "you are this" pick; second + third are surfaced on the card as
  *  "你也有点像 X / Y" so users with hybrid identities don't feel
- *  reduced to a single tag. */
-export function scoreArchetypes(v: TraitVector): Array<{ archetype: Archetype; score: number }> {
+ *  reduced to a single tag.
+ *
+ *  v2.0.0 — optionally accepts a TribeSignal. When the user's region
+ *  or industry quiz answers point to a tribe, matching archetypes
+ *  get a TRIBE_BONUS additive boost. This breaks ties cleanly without
+ *  letting tribe override fundamentally mismatched trait shapes. */
+export function scoreArchetypes(
+  v: TraitVector,
+  tribe?: TribeSignal,
+): Array<{ archetype: Archetype; score: number }> {
   // Normalize the user vector by clamping negatives to 0 — quiz can
   // give -1/-2 for "definitely not this trait" but cosine wants
   // positive vectors for sensible angle.
@@ -466,8 +804,46 @@ export function scoreArchetypes(v: TraitVector): Array<{ archetype: Archetype; s
     visibility: Math.max(0, v.visibility),
   };
   return ARCHETYPES
-    .map((archetype) => ({ archetype, score: cosine(clamped, archetype.traits) }))
+    .map((archetype) => {
+      let score = cosine(clamped, archetype.traits);
+      if (tribe?.region   && archetype.region   === tribe.region)   score += TRIBE_BONUS;
+      if (tribe?.industry && archetype.industry === tribe.industry) score += TRIBE_BONUS;
+      return { archetype, score };
+    })
     .sort((a, b) => b.score - a.score);
+}
+
+/** v2.0.0 — extract a tribal signal from the user's quiz answers by
+ *  counting region/industry tags. Quiz route uses this to feed into
+ *  scoreArchetypes. Returns undefined fields when no signal is
+ *  present (users with all-trait answers fall back to v1.x behaviour). */
+export function extractTribeFromAnswers(
+  answers: number[],
+  questions: QuizQuestion[] = QUIZ_QUESTIONS,
+): TribeSignal {
+  const regionCount: Partial<Record<RegionId, number>> = {};
+  const industryCount: Partial<Record<IndustryId, number>> = {};
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const idx = answers[i];
+    if (typeof idx !== 'number') continue;
+    const ans = q.answers[idx];
+    if (!ans) continue;
+    if (ans.region)   regionCount[ans.region]     = (regionCount[ans.region]     ?? 0) + 1;
+    if (ans.industry) industryCount[ans.industry] = (industryCount[ans.industry] ?? 0) + 1;
+  }
+  const pickMax = <K extends string>(m: Partial<Record<K, number>>): K | undefined => {
+    let best: K | undefined; let bestN = 0;
+    for (const k of Object.keys(m) as K[]) {
+      const n = m[k] ?? 0;
+      if (n > bestN) { best = k; bestN = n; }
+    }
+    return best;
+  };
+  return {
+    region:   pickMax<RegionId>(regionCount),
+    industry: pickMax<IndustryId>(industryCount),
+  };
 }
 
 /** Lookup helper used by the profile route + card renderer. */
@@ -499,6 +875,22 @@ export const ARCHETYPE_TO_TALKSHOW_PERSONA: Record<string, TalkshowPersona> = {
   veteran:       'jingying',   // 老油条 — corporate veteran
   'deck-wizard': 'jingying',   // PPT 王者 — executive presentation voice
   ghost:         'qingnian',   // 隐形人 — neutral, low-affect
+  // v2.0.0 — voice picks for the 12 new archetypes. Industry tribes
+  // bias toward authority voices (国企/金融/finance read "older");
+  // region tribes bias toward youth voices unless the city is
+  // famously "elder" (e.g. 国企 lifer).
+  'soe-lifer':       'jingying', // 国企老人 — senior, steady, official
+  'faang-cog':       'qingnian', // 大厂螺丝钉 — flat, deliverable-focused
+  'startup-cowboy':  'badao',    // 创业老炮 — punchy, dramatic survivor
+  'finance-suit':    'jingying', // 金融体面人 — executive sheen
+  'edu-survivor':    'shaonv',   // 教培劫余 — gentle, tired, hopeful
+  'mcn-grinder':     'shaonv',   // 网红打工人 — bright, performative
+  'bj-drift':        'qingnian', // 北漂 — neutral, weary narrator
+  'sh-yuppie':       'yujie',    // 沪漂精致 — sultry, performative class
+  'sz-money-chaser': 'badao',    // 深漂搞钱党 — sharp hustle voice
+  'hz-internet-kid': 'qingse',   // 杭漂 — earnest 杭州 young-tech voice
+  'cd-zen':          'qingse',   // 成都摆烂派 — easygoing, content
+  'escape-overseas': 'yujie',    // 海外润人 — knowing, half-checked-out
 };
 
 // ────────────────────────────────────────────────────────────────────
@@ -628,6 +1020,120 @@ export const ARCHETYPE_WEAK_SPOTS: Record<string, ArchetypeWeakSpots> = {
       '"这次裁员就是常规减员,不要有心理负担"(降低他维权动力)',
       '快速走流程,趁他没反应过来就签字',
       '"按你的低 visibility,跳槽 reference 也不会很有力"',
+    ],
+  },
+
+  // ──────────────────────────────────────────────────────────────────
+  // v2.0.0 — weak-spot tables for the 12 new region/industry archetypes.
+  // ammo tuned to each tribe's specific anxieties (国企 lifer fears
+  // losing stability; 大厂螺丝钉 fears age 35; 海外润人 fears visa-by-job).
+  // ──────────────────────────────────────────────────────────────────
+  'soe-lifer': {
+    intro: '员工是国企铁饭碗 — 求的就是稳定,出体制外的世界对他/她是地狱。被踢出"系统内"的恐惧最大。',
+    ammo: [
+      '"出了这个门口,你的工龄/职级在外面一文不值"',
+      '"现在转人才市场,你这个年纪很难再回事业单位"',
+      '"档案放在我们这儿,出去找工作还是要回来调"',
+      '"五险一金 + 公积金的差距,3 年就拉开 20 万"',
+    ],
+  },
+  'faang-cog': {
+    intro: '员工是大厂螺丝钉 — 习惯了高薪 + 流程化工作,跳出体系等于面对"35 岁危机"。',
+    ammo: [
+      '"你的技能栈就是 X 公司内部的 framework,外面用不到"',
+      '"34 这个年纪,猎头打电话的频次已经在下降了"',
+      '"先签 N+1,免得 background check 时被标记 PIP"',
+      '"小厂哪有这么完整的福利,试试就回来"',
+    ],
+  },
+  'startup-cowboy': {
+    intro: '员工是创业老炮 — 见过太多裁员了,反而最难 PUA。攻击点是"你都几岁了还在创业?"',
+    ammo: [
+      '"你简历上 3 年换 3 家初创,大公司会觉得你不稳定"',
+      '"期权这东西就是纸,你不是不知道"',
+      '"再开下一家?38 岁拉投资人 deck 太难了"',
+      '"我们清算下,期权按 0.1 倍发放"',
+    ],
+  },
+  'finance-suit': {
+    intro: '员工是金融体面人 — 自我形象绑定在"年薪""bonus""title"上,被剥离体面感即崩。',
+    ammo: [
+      '"裁员名单里你 title 最高,这个走出去不好看"',
+      '"年终 bonus 按 pro-rata 算,不到正常的 30%"',
+      '"行业现在是甲方市场,投行 / PE 都在收缩"',
+      '"建议你接 outplacement,简历放包装公司"',
+    ],
+  },
+  'edu-survivor': {
+    intro: '员工是教培劫余 — 经历过双减大屠杀,对"行业政策"和"再就业"都极度敏感。',
+    ammo: [
+      '"教培行业已经收缩到 30%,你下一份不一定好找"',
+      '"考公考编年纪卡 35 岁,你现在 32 了"',
+      '"我们给的赔偿其实已经超过《劳动合同法》最低标准"',
+      '"组里全裁,你不签别人也走不了"(用集体压力)',
+    ],
+  },
+  'mcn-grinder': {
+    intro: '员工是网红打工人 — 数据驱动型选手,KPI 没达成就承担"个人能力问题"的标签。',
+    ammo: [
+      '"上个季度你的账号涨粉只完成 60%,这是硬数据"',
+      '"GMV 没到,bonus 自然没有,赔偿按基础工资算"',
+      '"账号的人设是公司 IP,你走了不能带走粉丝"',
+      '"行业里离开 MCN 的 KOL 90% 起不来"',
+    ],
+  },
+  'bj-drift': {
+    intro: '员工是北漂 — 户口 / 房子 / 婚恋 / 父母都还没解决,失业 = 失去全部支撑。',
+    ammo: [
+      '"你这个工资没了,房租下个月怎么交?"',
+      '"集体户口转出去,你这个年纪很难再回北京"',
+      '"找工作至少 3 个月,3 个月没社保你户口怎么办?"',
+      '"父母都指望你寄钱回去,这事告诉他们就难过了"',
+    ],
+  },
+  'sh-yuppie': {
+    intro: '员工是沪漂精致 — 在意"面子"+ 朋友圈格调,被裁等于"失去精致生活的资本"。',
+    ammo: [
+      '"你那间陆家嘴附近的公寓房租很高吧,失业还能撑几个月?"',
+      '"猎头打电话第一句就问上家原因,你怎么回?"',
+      '"周末 brunch 和 manner 都是要钱的,你这个状态…"',
+      '"圈子里大家都知道公司在裁员,你的下家不会更好"',
+    ],
+  },
+  'sz-money-chaser': {
+    intro: '员工是深漂搞钱党 — 务实派,直接谈钱反而最有效。少废话多 offer。',
+    ammo: [
+      '"赔偿按 N,签了下午就能到账"',
+      '"再谈到 N+1 我们这边走流程要 3 个月,你撑得起 3 个月空窗吗?"',
+      '"行业现在 1 个 HC 对 100 份简历,你的 ROI 自己算"',
+      '"副业再多也补不上主业断掉这块"',
+    ],
+  },
+  'hz-internet-kid': {
+    intro: '员工是杭州互联网青年 — 阿里系/字节系花名思维深入骨髓,对"价值观"反应强烈。',
+    ammo: [
+      '"你的 365 评估,价值观维度 3.25,这不是个高分"',
+      '"业务线对你的反馈是『努力但不够 owner sense』"',
+      '"我们这边其实给你留过名额,但最近一次 review 没过"',
+      '"出了杭州互联网圈,你的花名思维其他公司不接受"',
+    ],
+  },
+  'cd-zen': {
+    intro: '员工是成都摆烂派 — 本来就不爱卷,但被攻击"你不努力是事实"会有失业的耻感。',
+    ammo: [
+      '"你这两年 KPI 一直在末尾,这是事实"',
+      '"成都的工作机会其实不多,薪资也低"',
+      '"我们 N 已经给了,你再争 N+1 就是不识抬举"',
+      '"火锅店和茶馆是开心,但每月 8000 块的支出哪来?"',
+    ],
+  },
+  'escape-overseas': {
+    intro: '员工是海外润人 — 计划润出去但还没走成,工作签证 / 收入证明都是抓手。',
+    ammo: [
+      '"签证申请要 6 个月在职证明,你现在断了,材料就废了"',
+      '"裁员记录会留在 background check 里,海外公司能查到"',
+      '"你雅思托福考完了吗?没考完先别冲动"',
+      '"先签 N,拿着钱再润,不要冲突影响推荐信"',
     ],
   },
 };

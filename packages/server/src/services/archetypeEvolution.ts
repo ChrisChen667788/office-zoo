@@ -33,6 +33,12 @@
 
 import type { TraitVector, TraitId } from '@furball/shared';
 import { ARCHETYPES, findArchetype, scoreArchetypes } from '@furball/shared';
+// Note: tribe signal (region/industry) is captured at quiz time and
+// baked into the profile's topArchetypes ranking. Evolution re-scoring
+// here intentionally does NOT re-derive tribe — drift is play-pattern,
+// not tribe-switching, so the existing tribe stays with the user.
+// If we ever want re-quizzing to repick tribe, that goes in the quiz
+// route, not here.
 import { findProfile, saveProfile, type EvolutionEvent, type UserProfile } from './profileStore';
 import { logger } from '../utils/logger';
 

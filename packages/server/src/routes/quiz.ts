@@ -18,6 +18,7 @@ import {
   emptyTraitVector,
   addTraitDelta,
   scoreArchetypes,
+  extractTribeFromAnswers,
 } from '@furball/shared';
 import {
   generatePersonalizedProfile,
@@ -71,8 +72,14 @@ quizRoutes.post('/score', async (c) => {
     if (ans) traits = addTraitDelta(traits, ans.delta);
   }
 
-  // Cosine-match against the 12 archetypes.
-  const ranked = scoreArchetypes(traits);
+  // v2.0.0 — extract region/industry signal from the same answers, so
+  // the new 12 tribe-flavored archetypes can outrank generic ones with
+  // similar trait shapes. Falls back to v1.x cosine-only when no
+  // region/industry-tagged answer was selected.
+  const tribe = extractTribeFromAnswers(answers);
+
+  // Cosine-match against all 24 archetypes (tribe bonus applied inside).
+  const ranked = scoreArchetypes(traits, tribe);
   const top3: [string, string, string] = [
     ranked[0].archetype.id,
     ranked[1]?.archetype.id ?? ranked[0].archetype.id,
