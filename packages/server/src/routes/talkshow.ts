@@ -33,6 +33,7 @@ import {
 } from '../services/scriptStore';
 import { validateBody } from '../utils/validate';
 import { createRateLimiter } from '../utils/rateLimit';
+import { recordEvolutionEvent, talkshowCreateDelta } from '../services/archetypeEvolution';
 
 // v0.7.6 — generate is the most expensive route (LLM body + LLM title +
 // disk write). Cap it at 5 requests per IP per hour so a single user
@@ -298,6 +299,19 @@ talkshowRoutes.post('/generate', async (c) => {
   // to "我的创作" later. Optional header; missing is fine.
   const createdBy = (c.req.header('x-user-id') ?? '').slice(0, 64) || undefined;
   await addUserScript(script, { createdBy });
+
+  // v2.0.1 — archetype evolution. Creating a talkshow segment counts as
+  // a small "ambitious creative output" event. Fire-and-forget;
+  // anonymous creators (no profile) no-op silently.
+  if (createdBy) {
+    void recordEvolutionEvent(
+      createdBy,
+      'talkshow-create',
+      talkshowCreateDelta(),
+      `创作了《${script.title}》`,
+    ).catch(() => { /* silent */ });
+  }
+
   return c.json({ ...script, source: 'user', likes: 0, createdBy });
 });
 

@@ -41,6 +41,7 @@ import {
 import { findProfile } from '../services/profileStore';
 import { directSquadStory } from '../services/squadDirector';
 import { recordSquadEnd } from '../services/squadHistoryStore';
+import { squadEndDelta, recordEvolutionEvent } from '../services/archetypeEvolution';
 
 const log = logger.child({ component: 'squad' });
 
@@ -262,6 +263,21 @@ export function setupSquadHandler(io: SocketServer) {
           actCount: room.acts.length,
           scenarioBrief: room.scenarioBrief,
         });
+        // v2.0.1 — archetype evolution. Each member's identity drifts a
+        // bit toward "social performer" (small visibility+empathy
+        // bump). Host gets the additional ambition credit for shaping
+        // the room. Fire-and-forget per member; failures swallowed so
+        // the squad UX never blocks on a disk write.
+        const summary = `${room.members.length} 人攒局 · ${room.acts.length} 幕`;
+        for (const m of room.members) {
+          if (!m.userId) continue;
+          void recordEvolutionEvent(
+            m.userId,
+            'squad-end',
+            squadEndDelta({ isHost: m.isHost, actCount: room.acts.length }),
+            summary,
+          ).catch(() => { /* anonymous / no profile — silent no-op */ });
+        }
       } else {
         room.currentActIndex = next;
       }

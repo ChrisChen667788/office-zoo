@@ -114,6 +114,59 @@ export function firedCompletionDelta(input: FiredCompletionInput): Partial<Trait
 }
 
 // ────────────────────────────────────────────────────────────────────
+// v2.0.1 — deltas for the other event types scaffolded in v1.5.1.
+// ────────────────────────────────────────────────────────────────────
+
+export interface SquadEndInput {
+  /** Whether this member was the host (creator) of the room. Hosts
+   *  drove the direction → they collected the "shaper" credit. */
+  isHost: boolean;
+  /** Number of acts the director generated. More acts = longer
+   *  session = more visibility credit per member. */
+  actCount: number;
+}
+
+/** A squad session is a small social burst. Everyone present gets a
+ *  small visibility+empathy bump (you were on a 5-act stage together,
+ *  reading each other's lines). Hosts additionally pick up ambition.
+ *  Delta magnitudes intentionally smaller than fired-completion
+ *  because squad is lower-effort + multiplied across 2-4 members. */
+export function squadEndDelta(input: SquadEndInput): Partial<TraitVector> {
+  const delta: Partial<TraitVector> = {
+    visibility: 0.1,
+    empathy:    0.1,
+  };
+  if (input.isHost) {
+    delta.ambition  = 0.2;
+    delta.visibility = (delta.visibility ?? 0) + 0.1;
+  }
+  if (input.actCount >= 5) {
+    delta.grind = 0.05;
+  }
+  return delta;
+}
+
+/** Authoring a talkshow segment = creative output + public-facing
+ *  ambition. Small bump because each segment is one-shot; people
+ *  who push a lot of segments will accumulate noticeably. */
+export function talkshowCreateDelta(): Partial<TraitVector> {
+  return {
+    ambition:   0.15,
+    visibility: 0.2,
+    snark:      0.05,
+  };
+}
+
+/** Completing all 5 slots of a pack = a marathon. Worth more than a
+ *  single fired completion because it represents sustained focus. */
+export function packCompleteDelta(): Partial<TraitVector> {
+  return {
+    grind:    0.3,
+    ambition: 0.2,
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────
 // Persistence + queries
 // ────────────────────────────────────────────────────────────────────
 
