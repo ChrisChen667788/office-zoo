@@ -88,6 +88,20 @@ function getSnapshot(): ConnectionState {
 function initSocket(): Socket {
   if (globalSocket) return globalSocket;
 
+  // v1.4.1 — pass the pseudonymous user id via handshake auth so socket
+  // handlers (squad / future PvP-with-archetype) can read it without us
+  // re-emitting an identity ping per event. Lazy import to avoid the
+  // useSocket-→userId-→userId-needs-no-other-deps cycle.
+  let userId = '';
+  try {
+    if (typeof window !== 'undefined') {
+      // Inline the localStorage read so we don't pull the whole userId
+      // module's randomUUID minting into this hot-path. If absent, the
+      // first profile-aware feature that needs an id will mint it.
+      userId = window.localStorage.getItem('office-zoo.user-id') ?? '';
+    }
+  } catch { /* private mode — userId stays empty, anon-{sid} fallback applies on server */ }
+
   const socket = io(SOCKET_URL, {
     transports: ['websocket', 'polling'],
     autoConnect: true,
@@ -99,6 +113,7 @@ function initSocket(): Socket {
     reconnectionDelayMax: 5000,  // cap at 5s
     randomizationFactor: 0.3,    // ±30% jitter — prevents thundering herd on server restart
     timeout: 10_000,             // initial connect timeout
+    auth: { userId },
   });
 
   socket.on('connect', () => {

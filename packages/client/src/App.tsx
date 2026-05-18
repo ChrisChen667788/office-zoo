@@ -14,6 +14,7 @@ import B2bBuilder from './routes/B2bBuilder';
 import B2bEmbed from './routes/B2bEmbed';
 import Quiz from './routes/Quiz';
 import Profile from './routes/Profile';
+import Squad from './routes/Squad';
 
 export default function App() {
   return (
@@ -40,6 +41,8 @@ export default function App() {
       {/* v1.3.0 — "你是哪种打工人?" personality quiz + shareable profile card. */}
       <Route path="/quiz" element={<Quiz />} />
       <Route path="/profile/me" element={<Profile />} />
+      {/* v1.4.1 — "攒局" squad mode (2-4 friends, LLM director, 5-act sitcom). */}
+      <Route path="/squad/:roomId" element={<Squad />} />
     </Routes>
   );
 }

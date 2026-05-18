@@ -19,6 +19,7 @@ import { createServer } from 'http';
 import { cors } from 'hono/cors';
 import { setupSocketHandler, getServerStats } from './socket/socketHandler';
 import { setupFiredRoomHandler } from './socket/firedRoomHandler';
+import { setupSquadHandler } from './socket/squadHandler';
 import { ttsRoutes } from './routes/tts';
 import { mediaRoutes } from './routes/media';
 import { firedRouter } from './routes/fired';
@@ -149,6 +150,8 @@ setupSocketHandler(io);
 // instance. Uses `room:*` event namespace to stay clearly separate
 // from `game:*` events that the main social-deduction engine owns.
 setupFiredRoomHandler(io);
+// v1.4.1 — squad mode (2-4 friends, LLM director writes 5-act sitcom)
+setupSquadHandler(io);
 
 httpServer.listen(wsPort, () => {
   logger.info({ wsPort }, 'WebSocket server listening');

@@ -248,6 +248,20 @@ export default function Landing() {
               flipped to a single button + popover. Native names render
               inside (简体中文 / English / 日本語 / 한국어). */}
           <LocaleDropdown locale={locale} />
+          {/* v1.4.1 — Squad mode entry. Pink so it reads as
+              "play with friends" not "enterprise". */}
+          <button
+            onClick={() => navigate('/squad/new')}
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
+            style={{
+              color: '#ff8aa6',
+              background: 'rgba(255,85,136,0.10)',
+              border: '1px solid rgba(255,85,136,0.32)',
+            }}
+            title="2-4 个朋友各有 archetype, AI 编 5 幕剧"
+          >
+            🎭 攒局
+          </button>
           {/* v1.1.0 — B 端 SaaS 入口 (律所/HR培训采购) */}
           <button
             onClick={() => navigate('/b2b')}
