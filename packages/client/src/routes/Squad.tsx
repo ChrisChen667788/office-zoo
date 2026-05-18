@@ -770,6 +770,28 @@ function EndedView({ room, recap, myId, amHost, onRerun, onShare }: {
         </div>
       </div>
 
+      {/* v3.2.0 — chemistry chip strip on the recap. Closes the
+          v3.1.0 visibility loop: users see the chemistry teaser on
+          directing → live strip during playing → recap chips on
+          ended. Lets the user re-orient "why our story was special"
+          right at the moment they screenshot the recap. */}
+      {(room.chemistryHints?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap gap-1.5 justify-center">
+          {room.chemistryHints!.map((hint, i) => (
+            <span key={i}
+              className="text-[10px] px-2 py-1 rounded-full"
+              style={{
+                background: 'rgba(255,184,76,0.10)',
+                border: '1px solid rgba(255,184,76,0.32)',
+                color: 'rgba(255,213,138,0.95)',
+              }}
+              title={hint}>
+              🎭 {hint.length > 28 ? hint.slice(0, 28) + '…' : hint}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Awards row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {recap.awards.map((a, i) => {

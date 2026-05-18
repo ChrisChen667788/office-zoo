@@ -57,6 +57,10 @@ interface ScriptSummary {
   /** v0.9.2 — total times this bit's TTS has been generated. Drives the
    *  "▶ N" play-count badge + monthly leaderboard ranking. */
   plays?: number;
+  /** v2.3.0 — optional region tag. When set, dailyDrama biases toward
+   *  it; v3.2.0 also surfaces a "我的圈子" filter chip when the user's
+   *  archetype's region matches. */
+  region?: 'beijing' | 'shanghai' | 'shenzhen' | 'hangzhou' | 'chengdu' | 'overseas';
 }
 
 interface ScriptFull extends ScriptSummary {
@@ -101,6 +105,11 @@ export default function Talkshow() {
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  /** v3.2.0 — "我的圈子" tribe filter. Mirror of FiredLanding's
+   *  v2.1.0/v2.4.0 chip but for talkshow scripts. Talkshow scripts
+   *  carry only `region?` (no industry), so this is a region filter
+   *  in practice. */
+  const [tribeOnly, setTribeOnly] = useState(false);
   /** v0.7.5 — sort mode for the grid. 'default' = user bits (recent) first
    *  + seeds in curated order; 'hot' = sorted by community likes desc;
    *  'new' = strict recency desc. */
@@ -226,6 +235,11 @@ export default function Talkshow() {
     let out = scripts;
     if (tagFilter) out = out.filter((s) => s.tag === tagFilter);
     if (mineOnly)  out = out.filter((s) => s.createdBy === myId);
+    // v3.2.0 — tribe filter, region-only (talkshow scripts don't carry
+    // industry). Mirrors FiredLanding's chip behavior.
+    if (tribeOnly && myArchetype?.region) {
+      out = out.filter((s) => s.region === myArchetype.region);
+    }
     // v1.3.3 — "为你推荐" client-side reorder. Score = +3 if the bit's
     // tag matches the user's archetype shineTalkshowTag, +1 for any
     // bit also tagged with the same emotional bucket. Stable sort —
@@ -242,7 +256,14 @@ export default function Talkshow() {
         .map((e) => e.s);
     }
     return out;
-  }, [scripts, tagFilter, mineOnly, myId, sortMode, myArchetype]);
+  }, [scripts, tagFilter, mineOnly, tribeOnly, myId, sortMode, myArchetype]);
+
+  /** v3.2.0 — count of region-matching scripts. Used to decide whether
+   *  the tribe chip should render at all (avoid "0 results" filter). */
+  const tribeCount = useMemo(() => {
+    if (!myArchetype?.region) return 0;
+    return scripts.filter((s) => s.region === myArchetype.region).length;
+  }, [scripts, myArchetype]);
 
   /** v0.8.1 — count of MY creations across the whole catalogue (not just
    *  filtered). Drives the badge on the "我的创作" chip so users can see
@@ -437,6 +458,20 @@ export default function Talkshow() {
                   color="#ffb84c"
                 >
                   👤 我的创作 · {mineCount}
+                </Chip>
+              )}
+              {/* v3.2.0 — tribe (region) filter chip. Renders only
+                  when the user's archetype has a region tag AND at
+                  least one script matches it. Color uses the
+                  archetype's brand color so it reads as "tribe-
+                  personalized". Parallel to FiredLanding's v2.4.0 chip. */}
+              {tribeCount > 0 && myArchetype?.region && (
+                <Chip
+                  active={tribeOnly}
+                  onClick={() => setTribeOnly((v) => !v)}
+                  color={myArchetype.colors.start}
+                >
+                  {myArchetype.emoji} 我的圈子 · {tribeCount}
                 </Chip>
               )}
             </div>
