@@ -319,7 +319,54 @@ export interface EvolutionPayload {
    *  uses this to render "second-place archetype is breathing down
    *  your neck" affordances. */
   ranked: Array<{ archetypeId: string; score: number; archetypeName: string; archetypeEmoji: string }>;
+  /** v3.3.0 — "next milestone" projection. The closest competing
+   *  archetype + the trait lever that would push the user toward it
+   *  + a suggested activity that biases that lever. Drives Profile's
+   *  "再玩 N 局 你就会演化成 X" replay CTA.
+   *
+   *  Undefined when:
+   *    - score gap to runner-up is huge (> 0.15) → no realistic
+   *      milestone in sight, would be misleading
+   *    - drift has zero head-room left (already at DRIFT_CLAMP on
+   *      the lever trait)
+   *    - no profile (caller already returns null in that case) */
+  nextMilestone?: {
+    archetypeId: string;
+    archetypeName: string;
+    archetypeEmoji: string;
+    /** Cosine score gap to current top. Smaller = closer. */
+    scoreGap: number;
+    /** Trait dim where competitor is most stronger than current
+     *  top — the "lever" to push toward this archetype. */
+    leverTrait: TraitId;
+    /** Human-readable Chinese label for the lever ("卷度"). */
+    leverTraitLabel: string;
+    /** Suggested gameplay surface that biases the lever trait.
+     *  Hardcoded mapping (see TRAIT_TO_ACTIVITY below) — keeps
+     *  the milestone copy actionable without re-deriving the
+     *  optimal surface every request. */
+    suggestedActivity: '裁员谈判' | '攒局' | '写段子' | '通关闯关包';
+    /** Rough estimate of how many plays of suggestedActivity would
+     *  close the gap. Cap at 10+ to avoid bleak suggestions. */
+    estimatedPlays: number;
+  };
 }
+
+/** v3.3.0 — which trait does each evolution kind push the hardest?
+ *  Derived from the *CompletionDelta functions in this file —
+ *  hardcoded here rather than re-computing per request because the
+ *  deltas are stable + this stays grep-able. */
+const TRAIT_TO_BEST_ACTIVITY: Record<TraitId, {
+  activity: '裁员谈判' | '攒局' | '写段子' | '通关闯关包';
+  perPlay: number; // average trait gain per play for the best surface
+}> = {
+  grind:      { activity: '通关闯关包', perPlay: 0.30 }, // packCompleteDelta
+  ambition:   { activity: '裁员谈判',   perPlay: 0.35 }, // firedCompletionDelta (avg of win paths)
+  empathy:    { activity: '攒局',       perPlay: 0.10 }, // squadEndDelta
+  visibility: { activity: '写段子',     perPlay: 0.20 }, // talkshowCreateDelta
+  snark:      { activity: '写段子',     perPlay: 0.10 }, // talkshowCreateDelta (small)
+  cynicism:   { activity: '裁员谈判',   perPlay: 0.20 }, // firedCompletionDelta on lose path
+};
 
 export async function getEvolutionPayload(userId: string): Promise<EvolutionPayload | null> {
   const profile = await findProfile(userId).catch(() => null);
@@ -331,6 +378,47 @@ export async function getEvolutionPayload(userId: string): Promise<EvolutionPayl
   const ranked = scoreArchetypes(effective);
   const originTop = originRanked[0]?.archetype.id ?? profile.topArchetypes[0];
   const currentTop = ranked[0]?.archetype.id ?? profile.topArchetypes[0];
+
+  // v3.3.0 — compute next milestone if the runner-up archetype is
+  // realistically close (gap ≤ 0.15). The lever is the trait dim
+  // where runner-up scores most-stronger than current top.
+  let nextMilestone: EvolutionPayload['nextMilestone'];
+  if (ranked.length >= 2) {
+    const top = ranked[0];
+    const next = ranked[1];
+    const scoreGap = top.score - next.score;
+    if (scoreGap <= 0.15) {
+      // Find the trait dim where `next.archetype.traits[dim] - top.archetype.traits[dim]`
+      // is largest — that's the direction to push to flip the ranking.
+      let bestDim: TraitId | null = null;
+      let bestAdvantage = 0;
+      for (const dim of TRAIT_KEYS) {
+        const adv = next.archetype.traits[dim] - top.archetype.traits[dim];
+        if (adv > bestAdvantage) { bestAdvantage = adv; bestDim = dim; }
+      }
+      // Only surface the milestone if we found a positive lever AND
+      // the drift in that dim isn't already maxed.
+      if (bestDim && (drift[bestDim] ?? 0) < DRIFT_CLAMP - 0.1) {
+        const route = TRAIT_TO_BEST_ACTIVITY[bestDim];
+        // Rough estimated plays: assume each play of the best activity
+        // closes ~perPlay of the trait gap, which closes proportional
+        // cosine. We treat 0.05 cosine = 1 play as a working
+        // heuristic — most fired-completion plays move score by
+        // ~0.02-0.05 in the matching direction.
+        const estimatedPlays = Math.max(1, Math.min(10, Math.ceil(scoreGap / 0.02)));
+        nextMilestone = {
+          archetypeId: next.archetype.id,
+          archetypeName: next.archetype.name,
+          archetypeEmoji: next.archetype.emoji,
+          scoreGap,
+          leverTrait: bestDim,
+          leverTraitLabel: TRAIT_LABEL[bestDim],
+          suggestedActivity: route.activity,
+          estimatedPlays,
+        };
+      }
+    }
+  }
 
   return {
     originTraits: profile.traits,
@@ -346,6 +434,7 @@ export async function getEvolutionPayload(userId: string): Promise<EvolutionPayl
       archetypeName: r.archetype.name,
       archetypeEmoji: r.archetype.emoji,
     })),
+    nextMilestone,
   };
 }
 

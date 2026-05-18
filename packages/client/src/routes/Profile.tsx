@@ -171,7 +171,29 @@ interface EvolutionPayload {
     summary: string;
   }>;
   ranked: Array<{ archetypeId: string; score: number; archetypeName: string; archetypeEmoji: string }>;
+  /** v3.3.0 — "next milestone" projection. Undefined when no
+   *  realistic milestone is in reach. See server-side
+   *  archetypeEvolution.ts for the projection math. */
+  nextMilestone?: {
+    archetypeId: string;
+    archetypeName: string;
+    archetypeEmoji: string;
+    scoreGap: number;
+    leverTrait: string;
+    leverTraitLabel: string;
+    suggestedActivity: '裁员谈判' | '攒局' | '写段子' | '通关闯关包';
+    estimatedPlays: number;
+  };
 }
+
+/** v3.3.0 — deep-link target for each suggested activity, so the
+ *  milestone card can be tappable. */
+const ACTIVITY_ROUTE: Record<NonNullable<EvolutionPayload['nextMilestone']>['suggestedActivity'], string> = {
+  '裁员谈判':    '/fired',
+  '攒局':        '/squad/new',
+  '写段子':      '/talkshow',
+  '通关闯关包':  '/fired',
+};
 
 const EVENT_KIND_LABEL: Record<EvolutionPayload['events'][number]['kind'], string> = {
   'fired-completion': '裁员谈判',
@@ -264,6 +286,36 @@ function EvolutionPanel({ myId }: { myId: string }) {
           )}
         </div>
       </div>
+
+      {/* v3.3.0 — next milestone CTA. Tappable: deep-links to the
+          suggested activity's route. Only renders when the server
+          computed a realistic milestone (close runner-up + drift
+          head-room remains). */}
+      {ev.nextMilestone && (
+        <a href={ACTIVITY_ROUTE[ev.nextMilestone.suggestedActivity]}
+          className="block px-5 py-4 border-t-2 border-black/10 transition hover:opacity-90"
+          style={{ background: 'linear-gradient(135deg, rgba(255,184,76,0.18) 0%, rgba(255,45,146,0.10) 100%)' }}>
+          <div className="text-[10px] tracking-[0.18em] uppercase mb-2 font-bold"
+            style={{ color: '#d62876' }}>
+            ✦ 下一站 · 你离这个 archetype 最近
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-3xl flex-shrink-0">{ev.nextMilestone.archetypeEmoji}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-black text-black/95 mb-0.5">
+                {ev.nextMilestone.archetypeName}
+              </div>
+              <div className="text-[11px] text-black/65 leading-snug">
+                差距 <span className="font-bold tabular-nums">{ev.nextMilestone.scoreGap.toFixed(2)}</span> ·
+                {' '}主要差 <span className="font-bold">{ev.nextMilestone.leverTraitLabel}</span>
+              </div>
+              <div className="text-[11px] mt-1 font-bold" style={{ color: '#d62876' }}>
+                再玩 {ev.nextMilestone.estimatedPlays} 局《{ev.nextMilestone.suggestedActivity}》试试 →
+              </div>
+            </div>
+          </div>
+        </a>
+      )}
 
       {/* Recent events feed */}
       <div className="px-5 py-4 border-t-2 border-black/10">
