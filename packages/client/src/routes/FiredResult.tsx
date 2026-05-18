@@ -260,6 +260,7 @@ export default function FiredResult() {
     } catch { return null; }
   }, []);
   const packRecordedRef = useRef(false);
+  const packProgressMap = useFiredProgress((s) => s.packProgress);
   useEffect(() => {
     if (packRecordedRef.current) return;
     if (!packContext || !outcome) return;
@@ -268,7 +269,56 @@ export default function FiredResult() {
     // One-shot — clear so a subsequent non-pack play doesn't think it's
     // still inside the pack.
     try { sessionStorage.removeItem('office-zoo.active-pack'); } catch { /* noop */ }
-  }, [packContext, outcome, recordPackSlot]);
+
+    // v2.0.2 — pack-complete evolution hook. After recordPackSlot lands
+    // the cleared map for this packId, check whether the user has now
+    // covered all 5 slots. If yes AND this is the first time we fire
+    // for that pack (guarded via sessionStorage), POST to the server's
+    // /api/fired/pack/complete which records a pack-complete evolution
+    // event and returns drift info we can stash with FiredResult's
+    // existing evolution chip.
+    queueMicrotask(() => {
+      // Re-read the zustand state AFTER recordPackSlot has set it —
+      // useFiredProgress.getState() avoids stale-closure issues vs
+      // packProgressMap from this effect's render.
+      const fresh = useFiredProgress.getState().packProgress[packContext.packId];
+      if (!fresh) return;
+      const clearedCount = Object.keys(fresh.cleared).length;
+      // v1 packs are fixed at 5 slots. If future versions support
+      // variable lengths, this check should query the pack's slot count
+      // from /api/fired/packs/:id — for v2.0.2 the static 5 is fine.
+      const PACK_SIZE = 5;
+      if (clearedCount < PACK_SIZE) return;
+      const guardKey = `pack-complete-fired:${packContext.packId}`;
+      try {
+        if (sessionStorage.getItem(guardKey)) return;
+        sessionStorage.setItem(guardKey, '1');
+      } catch { /* private mode etc — re-fires acceptable */ }
+
+      fetch('/api/fired/pack/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': getUserId() },
+        body: JSON.stringify({ packId: packContext.packId, slotCount: PACK_SIZE }),
+      })
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+        .then((d: {
+          evolution?: {
+            summary: string;
+            transitioned: boolean;
+            fromArchetype: string;
+            toArchetype: string;
+          } | null;
+        }) => {
+          // Stash into the same evolution state used for fired-completion
+          // → the existing chip / transition banner renders for free.
+          if (d.evolution) setEvolution(d.evolution);
+        })
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.warn('[fired/pack/complete] failed', err);
+        });
+    });
+  }, [packContext, outcome, recordPackSlot, packProgressMap]);
 
   // v0.8.2 — record this round into the user's memory store so HR
   // pre-empts these tactics next time the same scenario is played.

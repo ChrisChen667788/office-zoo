@@ -27,7 +27,7 @@ import {
 } from '../services/memoryStore';
 import { summarizeTactic } from '../services/tacticSummarizer';
 import { findProfile } from '../services/profileStore';
-import { firedCompletionDelta, recordEvolutionEvent } from '../services/archetypeEvolution';
+import { firedCompletionDelta, packCompleteDelta, recordEvolutionEvent } from '../services/archetypeEvolution';
 import {
   listPacks,
   findPack,
@@ -975,6 +975,54 @@ firedRouter.get('/memory/me', async (c) => {
   if (!userId) return c.json({ stats: {} });
   const stats = await listScenarioStats(userId);
   return c.json({ stats });
+});
+
+// ---------------------------------------------------------------------------
+// v2.0.2 — Pack completion evolution hook
+//
+// Pack progress lives client-side (zustand + localStorage) so the server
+// has no natural notification when a user clears their 5th slot. The
+// client calls this endpoint exactly once per pack-completion event,
+// guarded by a sessionStorage key (`pack-complete-fired:<packId>`) so
+// retries don't double-fire evolution.
+//
+// Body: { packId, slotCount } — slotCount is the pack's total slots
+// (always 5 in v1 but future-proofed) so the server can stamp a
+// human-readable summary. We deliberately DON'T re-validate progress
+// here against scenarioStore — that would mean a round-trip per slot
+// completion and the worst-case "user lies and gets +0.3 grind" is a
+// trivial fairness concern (no leaderboard, no spendable currency).
+// ---------------------------------------------------------------------------
+const PackCompleteSchema = z.object({
+  packId:    z.string().min(1).max(64),
+  slotCount: z.number().int().min(1).max(20).optional().default(5),
+});
+
+firedRouter.post('/pack/complete', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId) {
+    return c.json({ error: 'X-User-Id header required for evolution' }, 400);
+  }
+  const v = await validateBody(c, PackCompleteSchema);
+  if (!v.ok) return v.response;
+  const { packId, slotCount } = v.data;
+
+  // Try to resolve the pack title for a nicer event summary. Falls back
+  // to the packId if lookup fails (legacy packs / deleted packs).
+  const pack = await findPack(packId).catch(() => null);
+  const title = pack?.title ?? packId;
+  const summary = `通关 ${slotCount} 关挑战包《${title}》`;
+
+  let evolution = null;
+  try {
+    evolution = await recordEvolutionEvent(
+      userId, 'pack-complete', packCompleteDelta(), summary,
+    );
+  } catch (err) {
+    routeLog.warn({ err }, 'pack-complete evolution event failed');
+  }
+
+  return c.json({ ok: true, evolution });
 });
 
 // ---------------------------------------------------------------------------
