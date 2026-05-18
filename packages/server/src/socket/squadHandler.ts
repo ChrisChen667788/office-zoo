@@ -39,7 +39,7 @@ import {
   type SquadMember,
 } from '@furball/shared';
 import { findProfile } from '../services/profileStore';
-import { analyzeSquadChemistry, directSquadStory } from '../services/squadDirector';
+import { analyzeSquadChemistry, directSquadStory, renderHintZh } from '../services/squadDirector';
 import { recordSquadEnd } from '../services/squadHistoryStore';
 import { squadEndDelta, recordEvolutionEvent } from '../services/archetypeEvolution';
 
@@ -208,16 +208,17 @@ export function setupSquadHandler(io: SocketServer) {
       // the 'directing' state already carries the hints. Lets the client
       // tease "🎭 国企+大厂 — 文化冲突大戏正在编剧中…" while the LLM
       // works, instead of revealing only after the playing transition.
-      const preChemistry = analyzeSquadChemistry(room.members)
-        .split('\n')
-        .map((s) => s.trim().replace(/^•\s+/, ''))
-        .filter((s) => s.length > 0);
-      room.chemistryHints = preChemistry;
+      // v3.4.0 — pre-compute also stamps structured chemistryTags for
+      // i18n-ready client render.
+      const preChemistryTags  = analyzeSquadChemistry(room.members);
+      const preChemistryHints = preChemistryTags.map(renderHintZh);
+      room.chemistryHints = preChemistryHints;
+      room.chemistryTags  = preChemistryTags;
 
       // Phase 1: switch to directing, tell everyone the LLM is cooking.
       room.status = 'directing';
       io.to(room.id).emit('squad:state', room);
-      log.info({ roomId: room.id, members: room.members.length, chemistry: preChemistry.length }, 'Squad direction starting');
+      log.info({ roomId: room.id, members: room.members.length, chemistry: preChemistryHints.length }, 'Squad direction starting');
 
       // Phase 2: LLM call (5-10s typically). Tolerates failure via
       // squadDirector's fallback story.
@@ -231,7 +232,10 @@ export function setupSquadHandler(io: SocketServer) {
         // Director may have re-derived chemistry — prefer its version
         // since it could include LLM-friendly tweaks, but fall back to
         // our pre-computed if director returned empty (template fallback).
-        if (story.chemistryHints.length > 0) room.chemistryHints = story.chemistryHints;
+        if (story.chemistryHints.length > 0) {
+          room.chemistryHints = story.chemistryHints;
+          room.chemistryTags  = story.chemistryTags;
+        }
         room.status = 'playing';
         room.currentActIndex = 0;
         log.info({ roomId: room.id, acts: story.acts.length, chemistry: story.chemistryHints.length }, 'Squad story generated');
@@ -321,7 +325,10 @@ export function setupSquadHandler(io: SocketServer) {
       });
       room.acts = story.acts;
       room.recap = story.recap;
-      room.chemistryHints = story.chemistryHints; // v3.1.0 — also on rerun
+      // v3.1.0 + v3.4.0 — refresh both legacy zh-CN strings and
+      // structured tags on rerun.
+      room.chemistryHints = story.chemistryHints;
+      room.chemistryTags  = story.chemistryTags;
       room.status = 'playing';
       io.to(room.id).emit('squad:state', room);
     });

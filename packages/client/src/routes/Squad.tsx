@@ -20,6 +20,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import { getUserId } from '../utils/userId';
+import { renderChemistryHint, type ChemistryHint } from '../utils/chemistryHint';
+import { useT } from '../utils/i18n';
 import {
   ARCHETYPE_TO_TALKSHOW_PERSONA,
   type SquadRoom,
@@ -182,7 +184,9 @@ export default function Squad() {
             />
           )}
           {room.status === 'directing' && (
-            <Directing key="dir" chemistryHints={room.chemistryHints ?? []} />
+            <Directing key="dir"
+              chemistryHints={room.chemistryHints ?? []}
+              chemistryTags={room.chemistryTags ?? []} />
           )}
           {room.status === 'playing' && (
             <Playing key="play"
@@ -339,7 +343,18 @@ function Lobby({ room, amHost, onStart, onShare }: {
   );
 }
 
-function Directing({ chemistryHints }: { chemistryHints: string[] }) {
+function Directing({ chemistryHints, chemistryTags }: {
+  chemistryHints: string[];
+  chemistryTags: ChemistryHint[];
+}) {
+  const { locale } = useT();
+  // v3.4.0 — render per-locale when structured tags are available.
+  // Falls back to the server's zh-CN string when locale is zh-CN
+  // OR when tags are missing (legacy server / template fallback).
+  const lines: string[] = chemistryTags.length > 0
+    ? chemistryTags.map((tag, i) => renderChemistryHint(tag, locale, chemistryHints[i]))
+    : chemistryHints;
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
@@ -366,15 +381,17 @@ function Directing({ chemistryHints }: { chemistryHints: string[] }) {
           server-side at squad:start so it's available the moment the
           status hits 'directing' (anticipation builder, not a
           post-hoc reveal). Renders nothing when no notable dynamics
-          fired (the common case for v1.x archetype-only squads). */}
-      {chemistryHints.length > 0 && (
+          fired (the common case for v1.x archetype-only squads).
+          v3.4.0 — lines now go through renderChemistryHint() so
+          en/ja/ko users see localized chips. */}
+      {lines.length > 0 && (
         <div className="mt-4 pt-4 border-t border-white/10">
           <div className="text-[10px] tracking-[0.22em] uppercase mb-3"
             style={{ color: 'rgba(255,184,76,0.85)' }}>
             🎭 你们这桌的化学反应
           </div>
           <div className="flex flex-col gap-1.5 text-left">
-            {chemistryHints.map((hint, i) => (
+            {lines.map((hint, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, x: -8 }}
@@ -408,6 +425,12 @@ function Playing({ room, myId, amHost, onAdvance }: {
   const [playingBeat, setPlayingBeat] = useState<number | null>(null);
   const [audioState, setAudioState] = useState<'idle' | 'loading' | 'playing' | 'done'>('idle');
   const cancelledRef = useRef(false);
+  // v3.4.0 — locale subscription so chemistry chips re-render when
+  // user switches language mid-session.
+  const { locale } = useT();
+  const chemistryLines: string[] = (room.chemistryTags?.length ?? 0) > 0
+    ? room.chemistryTags!.map((tag, i) => renderChemistryHint(tag, locale, room.chemistryHints?.[i]))
+    : (room.chemistryHints ?? []);
 
   // Reset when the act changes — stop any in-flight playback.
   useEffect(() => {
@@ -509,10 +532,12 @@ function Playing({ room, myId, amHost, onAdvance }: {
 
       {/* v3.1.0 — chemistry chips persist across acts so users can
           re-orient at any moment why this story is theirs. Compact
-          single-line strip; only renders when hints exist. */}
-      {(room.chemistryHints?.length ?? 0) > 0 && (
+          single-line strip; only renders when hints exist.
+          v3.4.0 — chemistryLines goes through renderChemistryHint() so
+          en/ja/ko users see localized labels. */}
+      {chemistryLines.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {room.chemistryHints!.map((hint, i) => (
+          {chemistryLines.map((hint, i) => (
             <span key={i}
               className="text-[10px] px-2 py-1 rounded-full"
               style={{
@@ -742,6 +767,12 @@ function EndedView({ room, recap, myId, amHost, onRerun, onShare }: {
       .catch(() => { /* anonymous / no profile — skip */ });
   }, [myId]);
 
+  // v3.4.0 — locale-aware chemistry lines for the recap chip strip.
+  const { locale: endedLocale } = useT();
+  const endedChemistryLines: string[] = (room.chemistryTags?.length ?? 0) > 0
+    ? room.chemistryTags!.map((tag, i) => renderChemistryHint(tag, endedLocale, room.chemistryHints?.[i]))
+    : (room.chemistryHints ?? []);
+
   return (
     <motion.div
       key="ended"
@@ -774,10 +805,11 @@ function EndedView({ room, recap, myId, amHost, onRerun, onShare }: {
           v3.1.0 visibility loop: users see the chemistry teaser on
           directing → live strip during playing → recap chips on
           ended. Lets the user re-orient "why our story was special"
-          right at the moment they screenshot the recap. */}
-      {(room.chemistryHints?.length ?? 0) > 0 && (
+          right at the moment they screenshot the recap.
+          v3.4.0 — endedChemistryLines is locale-aware. */}
+      {endedChemistryLines.length > 0 && (
         <div className="flex flex-wrap gap-1.5 justify-center">
-          {room.chemistryHints!.map((hint, i) => (
+          {endedChemistryLines.map((hint, i) => (
             <span key={i}
               className="text-[10px] px-2 py-1 rounded-full"
               style={{

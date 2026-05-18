@@ -94,11 +94,48 @@ export interface SquadRoom {
    *  v3.0.0 chemistry analysis was invisible to users. Each entry
    *  is a single bullet pulled from analyzeSquadChemistry. Empty
    *  array when no notable dynamics fired (the common case for
-   *  v1.x archetype-only squads). */
+   *  v1.x archetype-only squads). zh-CN strings — kept for back-
+   *  compat with v3.1.0 clients and as the source of truth for the
+   *  zh-CN locale (also fed verbatim into the LLM director's prompt). */
   chemistryHints?: string[];
+  /** v3.4.0 — structured chemistry hints (discriminated union). Enables
+   *  per-locale rendering on the client so en/ja/ko users don't see
+   *  Chinese on the squad screens. Parallel to chemistryHints —
+   *  both arrays are populated in lock-step by the server; clients
+   *  pick which to render based on the active locale. */
+  chemistryTags?: ChemistryHint[];
   /** Wall-clock for TTL sweeper. */
   createdAt: number;
 }
+
+// ────────────────────────────────────────────────────────────────────
+// v3.4.0 — Structured chemistry hint tags.
+//
+// The v3.0.0 analyzer emitted zh-CN markdown bullets that the LLM
+// director consumed verbatim. That worked because the director writes
+// in zh-CN regardless — but client users in en/ja/ko saw Chinese chips
+// on their squad screen, breaking the v1.2.0 i18n promise.
+//
+// This discriminated union exposes the underlying SEMANTIC of each
+// hint so the client can render it per-locale via i18n dict entries.
+// Server still emits the zh-CN string version (chemistryHints) for
+// LLM input + zh client back-compat.
+// ────────────────────────────────────────────────────────────────────
+export type ChemistryHint =
+  /** Two opposing industry tribes present in the squad. */
+  | { type: 'culture-clash-industry'; industries: [string, string] }
+  /** Two opposing region tribes present in the squad. */
+  | { type: 'culture-clash-region';   regions:    [string, string] }
+  /** Majority of squad shares one region (n of total). */
+  | { type: 'shared-tribe-region';    region:   string; count: number; total: number }
+  /** Majority of squad shares one industry (n of total). */
+  | { type: 'shared-tribe-industry';  industry: string; count: number; total: number }
+  /** Two members are ARCHETYPE_PAIRS rivals. */
+  | { type: 'rival-pair'; archetypeA: string; archetypeB: string; emojiA: string; emojiB: string; nameA: string; nameB: string }
+  /** Wide spread on a single trait dim (spread ≥ 0.7). */
+  | { type: 'trait-extreme'; trait: string; traitLabel: string }
+  /** Exactly one tribe member in a 3+ room. */
+  | { type: 'solo-outlier'; archetypeId: string; archetypeName: string; emoji: string; tribeKind: 'region' | 'industry'; tribeValue: string };
 
 /** v1.4.1 — default # of acts when the director runs. Keep at 5 for
  *  the MVP since that's a comfortable "watch through in ~5 min" beat,

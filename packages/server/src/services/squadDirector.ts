@@ -19,6 +19,7 @@ import {
   ARCHETYPE_PAIRS,
   findArchetype,
   type Archetype,
+  type ChemistryHint,
   type SquadMember,
   type SquadAct,
   type SquadRecap,
@@ -40,10 +41,11 @@ function getOpenAI() {
 interface DirectorResult {
   acts: SquadAct[];
   recap: SquadRecap;
-  /** v3.1.0 — chemistry hints surfaced back so squadHandler can stash
-   *  them on the SquadRoom for the client to render. Empty when no
-   *  notable dynamics fired (v1.x-only squads). */
+  /** v3.1.0 — zh-CN chemistry hint strings (also fed into the LLM
+   *  prompt). v3.4.0 — kept as the zh-CN render of chemistryTags. */
   chemistryHints: string[];
+  /** v3.4.0 — structured chemistry tags for client-side i18n render. */
+  chemistryTags: ChemistryHint[];
 }
 
 export async function directSquadStory(opts: {
@@ -77,17 +79,14 @@ export async function directSquadStory(opts: {
   // gets a culture-clash drama; a room of all 北漂 gets a 群像剧;
   // a rival pair present gets a 火药味 arc. The hint is advisory,
   // not prescriptive — the LLM still owns the actual writing.
-  const chemistry = analyzeSquadChemistry(opts.members);
-  const chemistryBlock = chemistry
-    ? `\n\n小队化学反应分析(导演必读 — 这些动力学应在 5 幕里有所体现):\n${chemistry}`
+  // v3.4.0 — analyzer now returns structured tags; we derive both the
+  // zh-CN chemistry hints (for LLM prompt + zh client) and the tag
+  // list (for i18n-ready client render) in one pass.
+  const chemistryTags = analyzeSquadChemistry(opts.members);
+  const chemistryHints = chemistryTags.map(renderHintZh);
+  const chemistryBlock = chemistryHints.length > 0
+    ? `\n\n小队化学反应分析(导演必读 — 这些动力学应在 5 幕里有所体现):\n${chemistryHints.map((h) => `• ${h}`).join('\n')}`
     : '';
-  // v3.1.0 — split the markdown-bulleted chemistry into per-bullet
-  // hints so the client can render each as its own chip. Strips the
-  // leading "• " prefix used in the LLM prompt.
-  const chemistryHints = chemistry
-    .split('\n')
-    .map((s) => s.trim().replace(/^•\s+/, ''))
-    .filter((s) => s.length > 0);
 
   const briefBlock = opts.scenarioBrief
     ? `\n\n额外背景设定(由 host 提供):\n${opts.scenarioBrief}`
@@ -114,12 +113,12 @@ export async function directSquadStory(opts: {
 
   if (res.ok) {
     const parsed = parseDirectorJson(res.text);
-    if (parsed) return { ...parsed, chemistryHints };
+    if (parsed) return { ...parsed, chemistryHints, chemistryTags };
   }
   // Fallback — templated story so the squad isn't blocked on LLM down.
-  // Chemistry hints still flow through so the client can render the
-  // "为什么这局特别" chips even when the AI script is the template.
-  return { ...fallbackStory(opts.members), chemistryHints };
+  // Chemistry hints + tags still flow through so the client can render
+  // the "为什么这局特别" chips even when the AI script is the template.
+  return { ...fallbackStory(opts.members), chemistryHints, chemistryTags };
 }
 
 /** Strict JSON parser tolerating markdown fences + trailing prose. */
@@ -143,9 +142,14 @@ function parseDirectorJson(raw: string): DirectorResult | null {
         if (typeof b.line !== 'string') return null;
       }
     }
-    // chemistryHints get stamped by the caller (directSquadStory) —
-    // the LLM JSON itself never carries them, so coalesce to [].
-    return { ...obj, chemistryHints: obj.chemistryHints ?? [] } as DirectorResult;
+    // chemistryHints + chemistryTags get stamped by the caller
+    // (directSquadStory) — the LLM JSON itself never carries them,
+    // so coalesce to [].
+    return {
+      ...obj,
+      chemistryHints: obj.chemistryHints ?? [],
+      chemistryTags:  obj.chemistryTags  ?? [],
+    } as DirectorResult;
   } catch {
     return null;
   }
@@ -225,52 +229,63 @@ function fallbackStory(members: SquadMember[]): DirectorResult {
 /** Industry pairs that read as natural culture-clash. Hand-picked,
  *  not derived (the "iron rice bowl vs hustler" frame is a specific
  *  cultural trope, not a math result). */
-const CULTURE_CLASH_INDUSTRY: Array<[IndustryId, IndustryId, string]> = [
-  ['soe', 'faang',    '国企的稳定 vs 大厂的 OKR — 文化冲突大戏'],
-  ['soe', 'startup',  '国企的"红头文件"思维 vs 创业的"all in"狂热'],
-  ['soe', 'mcn',      '国企的体面 vs 网红的流量 — 两个时代的同框'],
-  ['faang','edu',     '大厂的"颗粒度对齐" vs 教培的"私域裂变" — 黑话互殴'],
-  ['finance','startup','金融的风控 vs 创业的赌博 — 两种风险偏好'],
-  ['finance','mcn',   '金融的西装 vs 网红的灯架 — 体面感 vs 表演感'],
+const CULTURE_CLASH_INDUSTRY: Array<[IndustryId, IndustryId]> = [
+  ['soe', 'faang'],
+  ['soe', 'startup'],
+  ['soe', 'mcn'],
+  ['faang', 'edu'],
+  ['finance', 'startup'],
+  ['finance', 'mcn'],
 ];
 
-const CULTURE_CLASH_REGION: Array<[RegionId, RegionId, string]> = [
-  ['beijing', 'chengdu',  '北漂 996 vs 成都摆烂 — 两种活法'],
-  ['shanghai','beijing',  '沪上精致 vs 京味儿野 — Manner 和煎饼的对话'],
-  ['shenzhen','chengdu',  '深圳搞钱 vs 成都火锅 — 价值观的两极'],
-  ['overseas','beijing',  '海外润人 vs 还在五道口卷的人'],
-  ['hangzhou','beijing',  '杭州花名 vs 北京真名 — 互联网两大流派'],
+const CULTURE_CLASH_REGION: Array<[RegionId, RegionId]> = [
+  ['beijing',  'chengdu'],
+  ['shanghai', 'beijing'],
+  ['shenzhen', 'chengdu'],
+  ['overseas', 'beijing'],
+  ['hangzhou', 'beijing'],
 ];
 
-export function analyzeSquadChemistry(members: SquadMember[]): string {
+/** zh-CN trait labels — kept here as the canonical short form. The
+ *  client has its own per-locale TRAIT_LABEL table for non-zh
+ *  renderers (consumed via the chemistryTags structured payload). */
+const TRAIT_LABEL_ZH: Record<string, string> = {
+  grind: '卷度', snark: '阴阳度', ambition: '进取心',
+  empathy: '人情味', cynicism: '摆烂度', visibility: '存在感',
+};
+
+/** v3.4.0 — structured analyzer. Returns ChemistryHint[] tags; the
+ *  zh-CN string rendering is delegated to renderHintZh() so the
+ *  client can render per-locale without re-deriving the heuristics. */
+export function analyzeSquadChemistry(members: SquadMember[]): ChemistryHint[] {
   const arcs: Array<{ m: SquadMember; arc: Archetype | null }> = members.map((m) => ({
     m,
     arc: m.archetypeId ? findArchetype(m.archetypeId) ?? null : null,
   }));
 
-  const lines: string[] = [];
+  const tags: ChemistryHint[] = [];
 
-  // 1. Culture clash — industry contrast
+  // 1. Culture clash — industry contrast (max one per squad)
   const industries = new Set<IndustryId>();
   for (const x of arcs) {
     if (x.arc?.industry && x.arc.industry !== 'generic') industries.add(x.arc.industry);
   }
-  for (const [a, b, hint] of CULTURE_CLASH_INDUSTRY) {
+  for (const [a, b] of CULTURE_CLASH_INDUSTRY) {
     if (industries.has(a) && industries.has(b)) {
-      lines.push(`• 行业碰撞 — ${hint}`);
-      break; // one culture clash per arc keeps the story focused
+      tags.push({ type: 'culture-clash-industry', industries: [a, b] });
+      break;
     }
   }
 
   // 2. Culture clash — region contrast (only if no industry clash fired)
-  if (lines.length === 0) {
+  if (tags.length === 0) {
     const regions = new Set<RegionId>();
     for (const x of arcs) {
       if (x.arc?.region && x.arc.region !== 'generic') regions.add(x.arc.region);
     }
-    for (const [a, b, hint] of CULTURE_CLASH_REGION) {
+    for (const [a, b] of CULTURE_CLASH_REGION) {
       if (regions.has(a) && regions.has(b)) {
-        lines.push(`• 地域碰撞 — ${hint}`);
+        tags.push({ type: 'culture-clash-region', regions: [a, b] });
         break;
       }
     }
@@ -286,12 +301,12 @@ export function analyzeSquadChemistry(members: SquadMember[]): string {
   const majority = (n: number) => n >= Math.ceil(members.length * 2 / 3);
   for (const [r, n] of Object.entries(regionCounts)) {
     if (n !== undefined && majority(n)) {
-      lines.push(`• 同城群像 — ${n}/${members.length} 人都是 ${r} 圈,可以写成"我们这一波 ${r} 人"的共同苦水`);
+      tags.push({ type: 'shared-tribe-region', region: r, count: n, total: members.length });
     }
   }
   for (const [i, n] of Object.entries(industryCounts)) {
     if (n !== undefined && majority(n)) {
-      lines.push(`• 同行业群像 — ${n}/${members.length} 人都在 ${i} 行业,共同的术语 / 痛点 / 内行黑话可以密集出现`);
+      tags.push({ type: 'shared-tribe-industry', industry: i, count: n, total: members.length });
     }
   }
 
@@ -303,7 +318,12 @@ export function analyzeSquadChemistry(members: SquadMember[]): string {
       const aPair = ARCHETYPE_PAIRS[a.id];
       const bPair = ARCHETYPE_PAIRS[b.id];
       if (aPair?.rival === b.id || bPair?.rival === a.id) {
-        lines.push(`• 天敌同台 — ${a.emoji}${a.name} 和 ${b.emoji}${b.name} 互为天敌,从第一幕开始就有摩擦`);
+        tags.push({
+          type: 'rival-pair',
+          archetypeA: a.id, archetypeB: b.id,
+          emojiA: a.emoji, emojiB: b.emoji,
+          nameA: a.name,   nameB: b.name,
+        });
         break;
       }
     }
@@ -311,20 +331,15 @@ export function analyzeSquadChemistry(members: SquadMember[]): string {
 
   // 5. Trait extremes — find the dim with widest spread
   if (arcs.every((x) => x.arc)) {
-    const traitNames: Record<string, string> = {
-      grind: '卷度', snark: '阴阳度', ambition: '进取心',
-      empathy: '人情味', cynicism: '摆烂度', visibility: '存在感',
-    };
     let bestDim: string | null = null;
     let bestSpread = 0;
-    for (const dim of Object.keys(traitNames)) {
+    for (const dim of Object.keys(TRAIT_LABEL_ZH)) {
       const vals = arcs.map((x) => x.arc!.traits[dim as keyof typeof x.arc.traits]);
       const spread = Math.max(...vals) - Math.min(...vals);
       if (spread > bestSpread) { bestSpread = spread; bestDim = dim; }
     }
     if (bestDim && bestSpread >= 0.7) {
-      const dimName = traitNames[bestDim];
-      lines.push(`• ${dimName}的两极 — 这桌最${dimName.replace('度', '').replace('心', '').replace('味', '').replace('感', '')}的和最不${dimName.replace('度', '').replace('心', '').replace('味', '').replace('感', '')}的差距很大,可以做对照镜头`);
+      tags.push({ type: 'trait-extreme', trait: bestDim, traitLabel: TRAIT_LABEL_ZH[bestDim] });
     }
   }
 
@@ -332,9 +347,57 @@ export function analyzeSquadChemistry(members: SquadMember[]): string {
   const tribeMembers = arcs.filter((x) => x.arc?.region || x.arc?.industry);
   if (tribeMembers.length === 1 && arcs.length >= 3) {
     const out = tribeMembers[0].arc!;
-    const what = out.region !== 'generic' && out.region ? out.region : out.industry;
-    lines.push(`• 单点外人 — 这桌只有 ${out.emoji}${out.name} 一个 ${what} 背景,其他人都是中性 office body,可以写成"格格不入"的张力`);
+    const isRegion = out.region && out.region !== 'generic';
+    tags.push({
+      type: 'solo-outlier',
+      archetypeId: out.id, archetypeName: out.name, emoji: out.emoji,
+      tribeKind: isRegion ? 'region' : 'industry',
+      tribeValue: isRegion ? (out.region as string) : (out.industry as string),
+    });
   }
 
-  return lines.join('\n');
+  return tags;
+}
+
+/** v3.4.0 — zh-CN renderer for chemistry hints. The LLM prompt uses
+ *  this verbatim; zh-CN clients display it as the chip label.
+ *  Non-zh clients use their own per-locale renderer via the i18n DICT. */
+export function renderHintZh(hint: ChemistryHint): string {
+  switch (hint.type) {
+    case 'culture-clash-industry': {
+      const taglines: Record<string, string> = {
+        'soe|faang':     '国企的稳定 vs 大厂的 OKR — 文化冲突大戏',
+        'soe|startup':   '国企的"红头文件"思维 vs 创业的"all in"狂热',
+        'soe|mcn':       '国企的体面 vs 网红的流量 — 两个时代的同框',
+        'faang|edu':     '大厂的"颗粒度对齐" vs 教培的"私域裂变" — 黑话互殴',
+        'finance|startup': '金融的风控 vs 创业的赌博 — 两种风险偏好',
+        'finance|mcn':   '金融的西装 vs 网红的灯架 — 体面感 vs 表演感',
+      };
+      const key = `${hint.industries[0]}|${hint.industries[1]}`;
+      return `行业碰撞 — ${taglines[key] ?? `${hint.industries[0]} vs ${hint.industries[1]} — 行业风格不同`}`;
+    }
+    case 'culture-clash-region': {
+      const taglines: Record<string, string> = {
+        'beijing|chengdu':  '北漂 996 vs 成都摆烂 — 两种活法',
+        'shanghai|beijing': '沪上精致 vs 京味儿野 — Manner 和煎饼的对话',
+        'shenzhen|chengdu': '深圳搞钱 vs 成都火锅 — 价值观的两极',
+        'overseas|beijing': '海外润人 vs 还在五道口卷的人',
+        'hangzhou|beijing': '杭州花名 vs 北京真名 — 互联网两大流派',
+      };
+      const key = `${hint.regions[0]}|${hint.regions[1]}`;
+      return `地域碰撞 — ${taglines[key] ?? `${hint.regions[0]} vs ${hint.regions[1]} — 城市气质不同`}`;
+    }
+    case 'shared-tribe-region':
+      return `同城群像 — ${hint.count}/${hint.total} 人都是 ${hint.region} 圈,可以写成"我们这一波 ${hint.region} 人"的共同苦水`;
+    case 'shared-tribe-industry':
+      return `同行业群像 — ${hint.count}/${hint.total} 人都在 ${hint.industry} 行业,共同的术语 / 痛点 / 内行黑话可以密集出现`;
+    case 'rival-pair':
+      return `天敌同台 — ${hint.emojiA}${hint.nameA} 和 ${hint.emojiB}${hint.nameB} 互为天敌,从第一幕开始就有摩擦`;
+    case 'trait-extreme': {
+      const stem = hint.traitLabel.replace(/(度|心|味|感)$/, '');
+      return `${hint.traitLabel}的两极 — 这桌最${stem}的和最不${stem}的差距很大,可以做对照镜头`;
+    }
+    case 'solo-outlier':
+      return `单点外人 — 这桌只有 ${hint.emoji}${hint.archetypeName} 一个 ${hint.tribeValue} 背景,其他人都是中性 office body,可以写成"格格不入"的张力`;
+  }
 }

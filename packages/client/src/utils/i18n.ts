@@ -255,6 +255,44 @@ const DICT = {
   'archetype.escape-overseas.name': { 'zh-CN': '海外润人',       'en-US': 'Overseas Escapee',   'ja-JP': '海外脱出組',            'ko-KR': '해외 탈출족' },
   'archetype.escape-overseas.shortName':{'zh-CN': '润人',        'en-US': 'Escapee',            'ja-JP': '脱出',                  'ko-KR': '탈출' },
   'archetype.escape-overseas.tagline':{ 'zh-CN': '走为上策, 简历 + 英语 + 签证一起搞', 'en-US': 'Exit strategy: resume + English + visa, all at once.', 'ja-JP': '逃げるが勝ち — 履歴書、英語、ビザを同時並行。', 'ko-KR': '도망이 상책 — 이력서, 영어, 비자 동시 진행.' },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // v3.4.0 — Squad chemistry hint headers + trait labels + tribe names.
+  // The structured ChemistryHint payload from the server is rendered
+  // per-locale via these entries. Template assembly happens in
+  // utils/chemistryHint.ts so non-zh users see proper localized chips.
+  // ─────────────────────────────────────────────────────────────────────
+
+  // Hint type prefixes ("行业碰撞", "天敌同台" etc)
+  'chemistry.cultureClashIndustry':  { 'zh-CN': '行业碰撞',     'en-US': 'Industry clash',       'ja-JP': '業界衝突',              'ko-KR': '업종 충돌' },
+  'chemistry.cultureClashRegion':    { 'zh-CN': '地域碰撞',     'en-US': 'Region clash',         'ja-JP': '地域衝突',              'ko-KR': '지역 충돌' },
+  'chemistry.sharedTribeRegion':     { 'zh-CN': '同城群像',     'en-US': 'Same-city ensemble',   'ja-JP': '同郷の群像',            'ko-KR': '같은 도시 군상' },
+  'chemistry.sharedTribeIndustry':   { 'zh-CN': '同行业群像',   'en-US': 'Same-industry ensemble','ja-JP': '同業界の群像',          'ko-KR': '동종업계 군상' },
+  'chemistry.rivalPair':             { 'zh-CN': '天敌同台',     'en-US': 'Nemesis pair on stage','ja-JP': '宿敵同席',              'ko-KR': '천적 동석' },
+  'chemistry.traitExtreme':          { 'zh-CN': '两极对照',     'en-US': 'Trait extremes',       'ja-JP': '両極の対比',            'ko-KR': '양극단 대비' },
+  'chemistry.soloOutlier':           { 'zh-CN': '单点外人',     'en-US': 'Solo outsider',        'ja-JP': '一人だけ場違い',        'ko-KR': '나 홀로 이질감' },
+
+  // Trait labels (used by trait-extreme hint body)
+  'chemistry.trait.grind':           { 'zh-CN': '卷度',         'en-US': 'grind',                'ja-JP': '頑張り度',              'ko-KR': '갈아넣기' },
+  'chemistry.trait.snark':           { 'zh-CN': '阴阳度',       'en-US': 'snark',                'ja-JP': '皮肉度',                'ko-KR': '비꼼' },
+  'chemistry.trait.ambition':        { 'zh-CN': '进取心',       'en-US': 'ambition',             'ja-JP': '上昇志向',              'ko-KR': '야망' },
+  'chemistry.trait.empathy':         { 'zh-CN': '人情味',       'en-US': 'empathy',              'ja-JP': '人情味',                'ko-KR': '인정' },
+  'chemistry.trait.cynicism':        { 'zh-CN': '摆烂度',       'en-US': 'cynicism',             'ja-JP': '諦観度',                'ko-KR': '체념' },
+  'chemistry.trait.visibility':      { 'zh-CN': '存在感',       'en-US': 'visibility',           'ja-JP': '存在感',                'ko-KR': '존재감' },
+
+  // Tribe values used as inline tokens in hint bodies. Keep short.
+  'chemistry.region.beijing':        { 'zh-CN': '北漂',         'en-US': 'Beijing',              'ja-JP': '北京',                  'ko-KR': '베이징' },
+  'chemistry.region.shanghai':       { 'zh-CN': '沪漂',         'en-US': 'Shanghai',             'ja-JP': '上海',                  'ko-KR': '상하이' },
+  'chemistry.region.shenzhen':       { 'zh-CN': '深漂',         'en-US': 'Shenzhen',             'ja-JP': '深圳',                  'ko-KR': '선전' },
+  'chemistry.region.hangzhou':       { 'zh-CN': '杭州',         'en-US': 'Hangzhou',             'ja-JP': '杭州',                  'ko-KR': '항저우' },
+  'chemistry.region.chengdu':        { 'zh-CN': '成都',         'en-US': 'Chengdu',              'ja-JP': '成都',                  'ko-KR': '청두' },
+  'chemistry.region.overseas':       { 'zh-CN': '海外',         'en-US': 'overseas',             'ja-JP': '海外',                  'ko-KR': '해외' },
+  'chemistry.industry.soe':          { 'zh-CN': '国企',         'en-US': 'SOE',                  'ja-JP': '国営',                  'ko-KR': '국영' },
+  'chemistry.industry.faang':        { 'zh-CN': '大厂',         'en-US': 'FAANG',                'ja-JP': '大手IT',                'ko-KR': '대기업' },
+  'chemistry.industry.startup':      { 'zh-CN': '创业公司',     'en-US': 'startup',              'ja-JP': 'スタートアップ',        'ko-KR': '창업' },
+  'chemistry.industry.finance':      { 'zh-CN': '金融',         'en-US': 'finance',              'ja-JP': '金融',                  'ko-KR': '금융' },
+  'chemistry.industry.edu':          { 'zh-CN': '教培',         'en-US': 'EdTech',               'ja-JP': '教育',                  'ko-KR': '에듀' },
+  'chemistry.industry.mcn':          { 'zh-CN': 'MCN',          'en-US': 'MCN',                  'ja-JP': 'MCN',                   'ko-KR': 'MCN' },
 } as const;
 
 export type DictKey = keyof typeof DICT;
