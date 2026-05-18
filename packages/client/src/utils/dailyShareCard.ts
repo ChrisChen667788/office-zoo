@@ -61,6 +61,19 @@ export interface DailyShareCardData {
     /** Optional sub-line, e.g. "法定应得 8 个月 · 谈判技巧 87". */
     sub?: string;
   };
+  /** v3.3.1 — "next milestone" hook printed as a small footer strip
+   *  above the brand footer. Tied to the user's archetype evolution
+   *  trajectory (server computed in /api/quiz/evolution/me). Drives
+   *  the "challenge me to evolve" share angle that turns the card
+   *  from a recap into a recurring engagement hook. */
+  milestone?: {
+    /** Closest competing archetype name + emoji ("反卷青年 🚪"). */
+    archetypeLabel: string;
+    /** Rough plays-to-flip with the suggested activity, capped 1-10. */
+    estimatedPlays: number;
+    /** Activity name in Chinese ("攒局", "裁员谈判", etc.). */
+    suggestedActivity: string;
+  };
 }
 
 const W = 1080;
@@ -416,6 +429,45 @@ function drawCallToShareBlock(
   return y + boxH + 24;
 }
 
+function drawMilestoneStrip(
+  ctx: CanvasRenderingContext2D,
+  milestone: NonNullable<DailyShareCardData['milestone']>,
+  y: number,
+): number {
+  // Sits above the footer divider. Compact single-line gradient
+  // chip telling whoever sees this card "this person is N plays
+  // away from evolving" — a viral hook ("challenge me to evolve").
+  const boxX = PAD;
+  const boxW = W - PAD * 2;
+  const boxH = 60;
+  const grad = ctx.createLinearGradient(boxX, y, boxX + boxW, y);
+  grad.addColorStop(0, 'rgba(255,184,76,0.22)');
+  grad.addColorStop(1, 'rgba(255,45,146,0.18)');
+  fillRoundRect(ctx, boxX, y, boxW, boxH, 18, grad);
+  strokeRoundRect(ctx, boxX, y, boxW, boxH, 18, 'rgba(255,184,76,0.55)', 1.5);
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.font = `900 18px ${SANS}`;
+  ctx.fillStyle = '#ffd58a';
+  ctx.fillText('✦ 下一站', boxX + 20, y + boxH / 2);
+
+  ctx.font = `600 16px ${SANS}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  const detail = `${milestone.archetypeLabel} · 再玩 ${milestone.estimatedPlays} 局《${milestone.suggestedActivity}》`;
+  // Truncate if it doesn't fit
+  const maxDetailW = boxW - 130;
+  let detailText = detail;
+  if (ctx.measureText(detailText).width > maxDetailW) {
+    while (detailText.length > 1 && ctx.measureText(detailText + '…').width > maxDetailW) {
+      detailText = detailText.slice(0, -1);
+    }
+    detailText = detailText + '…';
+  }
+  ctx.fillText(detailText, boxX + 110, y + boxH / 2);
+  return y + boxH;
+}
+
 function drawFooter(ctx: CanvasRenderingContext2D, data: DailyShareCardData) {
   // Hairline divider just above the footer text.
   ctx.strokeStyle = 'rgba(255,255,255,0.08)';
@@ -457,10 +509,16 @@ export async function generateDailyShareCard(data: DailyShareCardData): Promise<
   if (data.archetype) y = drawArchetypeChip(ctx, data.archetype, y + 24);
   // Push the bottom block to a fixed slot so cards with / without
   // a result still have a consistent footer position. Roughly
-  // 240px above the footer.
-  const bottomBlockY = H - 70 - 24 - (data.result ? (data.result.sub ? 200 : 160) : 110) - 24;
+  // 240px above the footer. v3.3.1 — reserve extra room for the
+  // milestone strip (60px + 16px gap) when present.
+  const milestoneReserve = data.milestone ? 60 + 16 : 0;
+  const bottomBlockY = H - 70 - 24 - milestoneReserve - (data.result ? (data.result.sub ? 200 : 160) : 110) - 24;
   if (data.result) drawResultBlock(ctx, data.result, bottomBlockY);
   else            drawCallToShareBlock(ctx, palette, bottomBlockY);
+  if (data.milestone) {
+    // Sits just above the footer divider.
+    drawMilestoneStrip(ctx, data.milestone, H - 70 - 16 - 60);
+  }
   drawFooter(ctx, data);
 
   return new Promise<Blob>((resolve, reject) => {

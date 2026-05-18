@@ -424,6 +424,35 @@ export default function FiredResult() {
   );
 
   const [shareOpen, setShareOpen] = useState(false);
+  // v3.3.1 — milestone fetch lives alongside shareData. Fired one-shot
+  // when the FiredResult mounts AND the user has a tribe-matched daily
+  // drama, so the share card's bottom strip can surface the next
+  // milestone hook.
+  const [milestone, setMilestone] = useState<DailyShareCardData['milestone']>();
+  useEffect(() => {
+    if (!isTodaysDaily) return;
+    fetch('/api/quiz/evolution/me', { headers: { 'X-User-Id': getUserId() } })
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((json: { evolution: {
+        nextMilestone?: {
+          archetypeEmoji: string;
+          archetypeName: string;
+          estimatedPlays: number;
+          suggestedActivity: string;
+        };
+      } | null }) => {
+        const m = json.evolution?.nextMilestone;
+        if (m) {
+          setMilestone({
+            archetypeLabel: `${m.archetypeEmoji} ${m.archetypeName}`,
+            estimatedPlays: m.estimatedPlays,
+            suggestedActivity: m.suggestedActivity,
+          });
+        }
+      })
+      .catch(() => { /* silent — milestone optional */ });
+  }, [isTodaysDaily]);
+
   const shareData: DailyShareCardData | null = useMemo(() => {
     if (!daily || !isTodaysDaily) return null;
     const months    = outcome?.compensationMonths ?? 0;
@@ -456,8 +485,9 @@ export default function FiredResult() {
         grade: grade.letter as 'S' | 'A' | 'B' | 'C' | 'D',
         headline, sub,
       },
+      milestone,
     };
-  }, [daily, isTodaysDaily, outcome, currentScores, grade]);
+  }, [daily, isTodaysDaily, outcome, currentScores, grade, milestone]);
 
   return (
     <div

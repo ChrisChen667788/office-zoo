@@ -128,9 +128,39 @@ export default function Landing() {
   // v1.5.0 — share-card modal. Daily card's 📤 button toggles this with
   // a preview-mode payload (no result block — Landing doesn't know
   // whether the user has played today; that's FiredResult's job).
+  // v3.3.1 — share card now pulls the user's nextMilestone (if any)
+  // so the bottom strip surfaces "下一站 · 反卷青年 · 再玩 1 局攒局"
+  // as a viral hook ("challenge me to evolve").
   const [shareOpen, setShareOpen] = useState(false);
   const [shareData, setShareData] = useState<DailyShareCardData | null>(null);
-  const openShareForDaily = useCallback((d: DailyDrama) => {
+  const openShareForDaily = useCallback(async (d: DailyDrama) => {
+    // Best-effort milestone fetch — anonymous users / network errors
+    // just get a milestone-less card (still useful).
+    let milestone: DailyShareCardData['milestone'] | undefined;
+    try {
+      const r = await fetch('/api/quiz/evolution/me', { headers: { 'X-User-Id': getUserId() } });
+      if (r.ok) {
+        const json = await r.json() as {
+          evolution: {
+            nextMilestone?: {
+              archetypeEmoji: string;
+              archetypeName: string;
+              estimatedPlays: number;
+              suggestedActivity: string;
+            };
+          } | null;
+        };
+        const m = json.evolution?.nextMilestone;
+        if (m) {
+          milestone = {
+            archetypeLabel: `${m.archetypeEmoji} ${m.archetypeName}`,
+            estimatedPlays: m.estimatedPlays,
+            suggestedActivity: m.suggestedActivity,
+          };
+        }
+      }
+    } catch { /* silent — milestone is a nice-to-have */ }
+
     setShareData({
       date: d.date,
       kind: d.kind,
@@ -140,6 +170,7 @@ export default function Landing() {
       archetype: d.archetypeName && d.archetypeEmoji
         ? { emoji: d.archetypeEmoji, name: d.archetypeName }
         : undefined,
+      milestone,
       // No result on Landing — purely a teaser-mode share.
     });
     setShareOpen(true);
