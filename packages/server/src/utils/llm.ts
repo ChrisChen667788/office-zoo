@@ -10,7 +10,9 @@
  *   SPEECH      = 15s  (60-120 chars * ~10 tok/s ≈ 3-6s upstream, + network)
  *   GHOST       = 10s  (short 10-25 char danmaku)
  *   VOTE        =  6s  (just "player_0" or "skip")
- *   CHAT_REPLY  = 20s  (HR dialogue can be 2-4 sentences, sometimes slow)
+ *   CHAT_REPLY  = 30s  (HR dialogue 2-4 sentences; v3.7.0 bumped from 20s
+ *                       because claude-opus-4-7 streams ~30 tok/s so a 400-
+ *                       token HR reply legitimately needs ~13s + network)
  *   SCORING     = 15s  (JSON output ~200 tokens)
  *   SUGGESTIONS = 15s  (3 JSON items ~150 tokens each)
  *   DIRECTOR    = 75s  (v3.5.0 — squad director writes ~1800 tokens of
@@ -26,7 +28,7 @@ export const LLM_TIMEOUTS = {
   SPEECH: 15_000,
   GHOST: 10_000,
   VOTE: 6_000,
-  CHAT_REPLY: 20_000,
+  CHAT_REPLY: 30_000,
   SCORING: 15_000,
   SUGGESTIONS: 15_000,
   DIRECTOR: 75_000,

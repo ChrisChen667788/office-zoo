@@ -112,6 +112,26 @@ function getModel() {
   return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 }
 
+/** v3.7.0 — dedicated model for the HR dialogue (the user-facing
+ *  conversation in fired-chat mode). Defaults to claude-opus-4-7 for
+ *  the same reason squadDirector got it in v3.5.0: HR replies are
+ *  the highest-stakes LLM output in fired-mode (drives the entire
+ *  PUA experience users post-screenshot). Premium model produces
+ *  more on-character HR voice + better archetype-aware weak-spot
+ *  weaponization. Scoring + suggestion calls stay on the cheap
+ *  OPENAI_MODEL — they're either deterministic (JSON scoring) or
+ *  multi-shot (3 suggestions per turn) and don't benefit as much.
+ *
+ *  Cost note: HR chat is ~10 round-trips per session at ~400 tokens
+ *  each → ~4K tokens/session. Run premium tier ONLY here.
+ *  Override via FIRED_HR_MODEL to dial back if cost matters more
+ *  than dialogue quality. */
+function getHRModel() {
+  return process.env.FIRED_HR_MODEL
+    ?? process.env.OPENAI_MODEL
+    ?? 'claude-opus-4-7';
+}
+
 // ---------------------------------------------------------------------------
 // Types — request types are derived from the zod schemas above (single source
 // of truth). Response-shape types stay hand-written since they're not validated.
@@ -364,8 +384,11 @@ firedRouter.post('/chat', async (c) => {
         ? `以下是到目前为止的对话:\n${conversation}\n\n双方已经谈判了${MAX_ROUNDS}轮,现在必须给出最终答复——告诉员工公司的最终决定和赔偿方案(2-3句话)。`
         : `以下是到目前为止的对话:\n${conversation}\n\n请以HR的身份回复员工最新的发言。`;
 
+    // v3.7.0 — HR reply runs on the premium model (default
+    // claude-opus-4-7). All other fired-mode LLM calls stay on
+    // getModel() which is the cheap default.
     const hrRes = await callLLMWithTimeout('CHAT_REPLY', {
-      model: getOpenAI()(getModel()),
+      model: getOpenAI()(getHRModel()),
       system: systemPrompt,
       prompt: hrPrompt,
       maxTokens: 400,
