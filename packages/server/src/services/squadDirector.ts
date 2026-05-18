@@ -99,9 +99,30 @@ export async function directSquadStory(opts: {
     `\n\n请按格式输出严格 JSON,${SQUAD_ACT_COUNT} 幕 + recap。所有 speakerUserId 必须从上面 id= 那一栏抄一致 (除非用 "narrator")。realLifePrompt.targetUserId 同理。`;
 
   const openai = getOpenAI();
-  const model = openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
+  // v3.5.0 — dedicated SQUAD_DIRECTOR_MODEL env var, default to the
+  // strongest reasonable model on the QingYun聚合 proxy ('claude-opus-4-7').
+  // Squad direction is the highest-value LLM call in the product (once
+  // per squad, ~1800 token output, drives the entire 5-act drama
+  // people screenshot) — worth running on a premium model even when
+  // we cheap-out on per-tick HR chat / scoring.
+  //
+  // Fallback chain when SQUAD_DIRECTOR_MODEL is unavailable on the
+  // configured base URL:
+  //   1. ai-sdk returns 4xx → tryMinimaxFallback() kicks in
+  //      (MiniMax-M2 — same path used by every other LLM call)
+  //   2. Both fail → directSquadStory returns fallbackStory(members)
+  //      with the template-driven 5-act arc
+  // So a bad SQUAD_DIRECTOR_MODEL value degrades gracefully without
+  // blocking the room. Set SQUAD_DIRECTOR_MODEL=<your-model> in .env
+  // to override (e.g. 'gpt-5', 'gpt-5.5', 'gpt-4.5-turbo',
+  // 'claude-sonnet-4-7' for cheaper) — see .env.example for notes.
+  const directorModelName =
+    process.env.SQUAD_DIRECTOR_MODEL
+    ?? process.env.OPENAI_MODEL
+    ?? 'claude-opus-4-7';
+  const model = openai(directorModelName);
 
-  const res = await callLLMWithTimeout('SCORING', {
+  const res = await callLLMWithTimeout('DIRECTOR', {
     model,
     system: SQUAD_DIRECTOR_SYSTEM_PROMPT,
     prompt,

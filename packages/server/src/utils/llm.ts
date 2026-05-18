@@ -13,6 +13,11 @@
  *   CHAT_REPLY  = 20s  (HR dialogue can be 2-4 sentences, sometimes slow)
  *   SCORING     = 15s  (JSON output ~200 tokens)
  *   SUGGESTIONS = 15s  (3 JSON items ~150 tokens each)
+ *   DIRECTOR    = 75s  (v3.5.0 — squad director writes ~1800 tokens of
+ *                       structured JSON on a premium model like
+ *                       claude-opus-4-7 / gpt-5.5; budget is generous
+ *                       because the user is already on the "AI 编剧中…"
+ *                       teaser screen and tolerance is high)
  */
 
 import { generateText } from 'ai';
@@ -24,6 +29,7 @@ export const LLM_TIMEOUTS = {
   CHAT_REPLY: 20_000,
   SCORING: 15_000,
   SUGGESTIONS: 15_000,
+  DIRECTOR: 75_000,
 } as const;
 
 export type LLMTimeoutKind = keyof typeof LLM_TIMEOUTS;
