@@ -22,6 +22,21 @@ import { primeAudio } from '../utils/audioUnlock';
 import { colors } from '../constants/design';
 import { lottie } from '../constants/lottie';
 import { useT, setLocale, LOCALE_OPTIONS, type Locale, type DictKey } from '../utils/i18n';
+import { getUserId } from '../utils/userId';
+
+/** v1.4.0 — shape returned by /api/daily/me. Kept inline (small,
+ *  no cross-package import) so we don't add another util module. */
+interface DailyDrama {
+  date: string;
+  kind: 'fired' | 'talkshow' | 'pack' | 'pvp';
+  targetId: string | null;
+  targetTitle: string;
+  targetEmoji: string;
+  cta: { label: string; href: string };
+  teaser: string;
+  archetypeEmoji?: string;
+  archetypeName?: string;
+}
 import { modeIcons, Icon } from '../constants/icons';
 
 const PLAYER_COUNTS = [6, 8, 10] as const;
@@ -94,6 +109,19 @@ export default function Landing() {
   const navigate = useNavigate();
   // v1.2.0 — i18n. `t()` for translations, `locale` re-renders on toggle.
   const { t, locale } = useT();
+
+  // v1.4.0 — daily drama. Server returns personalized "today's drama"
+  // when the user has a quiz profile; null otherwise (we keep the legacy
+  // "你是哪种打工人?" hero CTA in that case).
+  const [daily, setDaily] = useState<DailyDrama | null>(null);
+  useEffect(() => {
+    fetch('/api/daily/me', { headers: { 'X-User-Id': getUserId() } })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: { drama: DailyDrama | null } | null) => {
+        if (d?.drama) setDaily(d.drama);
+      })
+      .catch(() => { /* anonymous — keep legacy CTA */ });
+  }, []);
   const [mode, setMode] = useState<GameMode>('classic');
   const [playerCount, setPlayerCount] = useState<number>(8);
   const [isCreating, setIsCreating] = useState(false);
@@ -304,24 +332,29 @@ export default function Landing() {
               你不是玩家,是那只盯着 KPI 屏的 HR —— 选个模式,看戏。
             </p>
 
-            {/* v1.3.0 — "你是哪种打工人?" hero CTA. Sits under the
-                wordmark + above the stat strip so it's the first hot
-                action below the fold. Y2K palette breaks the dark-violet
-                hero rhythm = unmissable. Routes to /quiz. */}
-            <button
-              onClick={() => navigate('/quiz')}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-black text-sm transition relative overflow-hidden hover-sheen"
-              style={{
-                background: 'linear-gradient(135deg, #ffe300 0%, #ff2d92 50%, #6e00ff 100%)',
-                color: '#0a0a0a',
-                border: '2px solid #0a0a0a',
-                boxShadow: '4px 4px 0 0 #0a0a0a, 0 0 24px rgba(255,45,146,0.45)',
-                letterSpacing: '0.02em',
-              }}
-              title="8 道题 · 90 秒 · 拿到你的「班味卡」"
-            >
-              ✨ 你是哪种打工人?生成你的「班味卡」 →
-            </button>
+            {/* v1.4.0 — daily drama card OR v1.3.0 quiz CTA. The card
+                wins when the user has a profile (= taken the quiz);
+                otherwise the quiz invite stays. Both pull the eye via
+                Y2K-tinged accent palette so the hero never feels static
+                even after the user has scrolled past it 10 times. */}
+            {daily ? (
+              <DailyDramaCard drama={daily} onJump={() => navigate(daily.cta.href)} onRetake={() => navigate('/quiz')} />
+            ) : (
+              <button
+                onClick={() => navigate('/quiz')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-black text-sm transition relative overflow-hidden hover-sheen"
+                style={{
+                  background: 'linear-gradient(135deg, #ffe300 0%, #ff2d92 50%, #6e00ff 100%)',
+                  color: '#0a0a0a',
+                  border: '2px solid #0a0a0a',
+                  boxShadow: '4px 4px 0 0 #0a0a0a, 0 0 24px rgba(255,45,146,0.45)',
+                  letterSpacing: '0.02em',
+                }}
+                title="8 道题 · 90 秒 · 拿到你的「班味卡」"
+              >
+                ✨ 你是哪种打工人?生成你的「班味卡」 →
+              </button>
+            )}
 
             {/* Stat strip — keep but shrink, slot under the headline */}
             <div className="flex gap-6 md:gap-10 mt-7">
@@ -692,5 +725,113 @@ function LocaleDropdown({ locale }: { locale: Locale }) {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// v1.4.0 — Daily drama hero card. Shown to identified users with a quiz
+// profile; replaces the static "你是哪种打工人?" CTA so the hero feels
+// fresh every day. Y2K-tinged but quieter than the quiz CTA (smaller +
+// rectangular + thinner border) so it doesn't dominate the dark hero.
+// ───────────────────────────────────────────────────────────────────────
+function DailyDramaCard({
+  drama, onJump, onRetake,
+}: {
+  drama: DailyDrama;
+  onJump: () => void;
+  onRetake: () => void;
+}) {
+  // Per-kind gradient. Each kind gets its own vibe so a returning
+  // user can pattern-match the card at a glance.
+  const grad =
+    drama.kind === 'fired'    ? 'linear-gradient(135deg, #ff3355 0%, #ff8a4c 100%)'
+  : drama.kind === 'talkshow' ? 'linear-gradient(135deg, #ff5588 0%, #7c3aed 100%)'
+  : drama.kind === 'pack'     ? 'linear-gradient(135deg, #ffb84c 0%, #ff5588 100%)'
+  :                             'linear-gradient(135deg, #7c3aed 0%, #00ddff 100%)';
+  const kindLabel =
+    drama.kind === 'fired'    ? '裁员谈判'
+  : drama.kind === 'talkshow' ? '今日段子'
+  : drama.kind === 'pack'     ? '今日挑战'
+  :                             'PvP 邀请';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className="w-full max-w-xl mx-auto rounded-2xl overflow-hidden cursor-pointer hover-sheen relative"
+      style={{
+        background: 'rgba(15,14,46,0.78)',
+        border: '2px solid rgba(255,184,76,0.45)',
+        boxShadow: '0 18px 48px rgba(255,184,76,0.18), inset 0 1px 0 rgba(255,255,255,0.08)',
+        backdropFilter: 'blur(8px)',
+      }}
+      onClick={onJump}
+    >
+      <div className="flex items-stretch">
+        {/* Left strip — kind emoji + label, archetype-aware tint */}
+        <div
+          className="flex-shrink-0 w-20 md:w-24 flex flex-col items-center justify-center py-4 px-2"
+          style={{ background: grad, color: '#fff' }}
+        >
+          <div className="text-3xl md:text-4xl leading-none mb-1.5"
+            style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.35))' }}>
+            {drama.targetEmoji}
+          </div>
+          <div className="text-[9px] tracking-[0.18em] font-black uppercase"
+            style={{ textShadow: '1px 1px 0 rgba(0,0,0,0.4)' }}>
+            {kindLabel}
+          </div>
+        </div>
+        {/* Right body — teaser + CTA */}
+        <div className="flex-1 p-4 md:p-5 text-left">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[10px] tracking-[0.22em] uppercase font-bold"
+              style={{ color: 'rgba(255,184,76,0.85)' }}>
+              ✦ 今日剧情
+            </span>
+            {drama.archetypeName && (
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                style={{
+                  color: '#b086ff',
+                  background: 'rgba(176,134,255,0.12)',
+                  border: '1px solid rgba(176,134,255,0.35)',
+                }}
+                title="按你的班味卡 archetype 推荐"
+              >
+                {drama.archetypeEmoji} {drama.archetypeName}
+              </span>
+            )}
+          </div>
+          <div className="text-sm md:text-base text-white/95 font-bold leading-snug mb-2">
+            {drama.teaser}
+          </div>
+          <div className="text-[11px] text-white/55 mb-3 truncate">
+            {drama.targetTitle}
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={(e) => { e.stopPropagation(); onJump(); }}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-black text-xs tracking-wide"
+              style={{
+                background: grad,
+                color: '#fff',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.18)',
+                textShadow: '1px 1px 0 rgba(0,0,0,0.35)',
+              }}
+            >
+              {drama.cta.label}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onRetake(); }}
+              className="text-[10px] text-white/45 hover:text-white/85 transition px-2 py-1 rounded shrink-0"
+              title="重测班味卡"
+            >
+              ↻ 重测
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 }
