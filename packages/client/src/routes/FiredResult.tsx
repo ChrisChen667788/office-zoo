@@ -4,6 +4,21 @@ import { motion } from 'framer-motion';
 import { useFiredStore, type FiredScores } from '../stores/firedStore';
 import { useFiredProgress, getLevel } from '../stores/firedProgress';
 import { getUserId } from '../utils/userId';
+import DailyShareCardModal from '../components/DailyShareCardModal';
+import type { DailyShareCardData } from '../utils/dailyShareCard';
+
+/** v1.5.0 — shape returned by /api/daily/me. Duplicated from Landing
+ *  (kept small + local) so we don't add a shared types module. */
+interface DailyDramaShape {
+  date: string;
+  kind: 'fired' | 'talkshow' | 'pack' | 'pvp';
+  targetId: string | null;
+  targetTitle: string;
+  targetEmoji: string;
+  teaser: string;
+  archetypeEmoji?: string;
+  archetypeName?: string;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Grade helpers                                                      */
@@ -300,6 +315,61 @@ export default function FiredResult() {
     navigate('/fired');
   };
 
+  // v1.5.0 — daily-drama share card. If the just-played scenario is
+  // today's daily fired pick, we surface a "✦ 分享今日战绩" button that
+  // generates a result-mode PNG (grade letter + comp ratio baked in).
+  // Anonymous users / non-matching plays simply never see the button.
+  const [daily, setDaily] = useState<DailyDramaShape | null>(null);
+  useEffect(() => {
+    fetch('/api/daily/me', { headers: { 'X-User-Id': getUserId() } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { drama: DailyDramaShape | null } | null) => {
+        if (d?.drama) setDaily(d.drama);
+      })
+      .catch(() => { /* anonymous or offline — no share button */ });
+  }, []);
+
+  const isTodaysDaily = useMemo(
+    () => !!(daily && daily.kind === 'fired' && daily.targetId === scenarioId),
+    [daily, scenarioId],
+  );
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareData: DailyShareCardData | null = useMemo(() => {
+    if (!daily || !isTodaysDaily) return null;
+    const months    = outcome?.compensationMonths ?? 0;
+    const maxMonths = outcome?.maxPossible ?? 0;
+    const ratio     = maxMonths > 0 ? months / maxMonths : 0;
+    // Avg-of-4 score — same calc rationale as the radar but flattened.
+    const avgScore = Math.round(
+      (currentScores.legalKnowledge
+       + currentScores.negotiationSkill
+       + currentScores.emotionalControl
+       + currentScores.evidenceAwareness) / 4,
+    );
+    const headline =
+      ratio >= 0.95 ? `谈下 ${months} 个月赔偿,几乎打满了`
+    : ratio >= 0.6  ? `争取到 ${months} 个月赔偿`
+    : ratio >= 0.3  ? `只拿到 ${months} 个月,有点亏`
+    :                 `被压到 ${months} 个月,这局难顶`;
+    const sub = `法定应得 ${maxMonths} 个月 · 综合能力 ${avgScore} 分`;
+    return {
+      date: daily.date,
+      kind: 'fired',
+      targetTitle: daily.targetTitle,
+      targetEmoji: daily.targetEmoji,
+      teaser: daily.teaser,
+      archetype: daily.archetypeName && daily.archetypeEmoji
+        ? { emoji: daily.archetypeEmoji, name: daily.archetypeName }
+        : undefined,
+      result: {
+        // grade.letter is "S"|"A"|"B"|"C"|"D" by construction in getGrade().
+        grade: grade.letter as 'S' | 'A' | 'B' | 'C' | 'D',
+        headline, sub,
+      },
+    };
+  }, [daily, isTodaysDaily, outcome, currentScores, grade]);
+
   return (
     <div
       className="relative min-h-screen flex items-center justify-center overflow-hidden py-12 noise"
@@ -583,6 +653,31 @@ export default function FiredResult() {
           </motion.div>
         )}
 
+        {/* v1.5.0 — daily share card. Only shown when the played
+            scenario matches today's /api/daily/me pick. Sits above
+            the replay/home buttons so it catches the eye before the
+            user navigates away. */}
+        {isTodaysDaily && shareData && (
+          <motion.button
+            onClick={() => setShareOpen(true)}
+            className="w-full py-3.5 rounded-2xl text-sm font-bold tracking-wide mb-3 relative overflow-hidden hover-sheen"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,184,76,0.18), rgba(255,85,136,0.14))',
+              border: '1px solid rgba(255,184,76,0.55)',
+              color: '#ffd58a',
+              boxShadow: '0 8px 24px rgba(255,184,76,0.20), inset 0 1px 0 rgba(255,255,255,0.08)',
+            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.15, duration: 0.5 }}
+            whileHover={{ scale: 1.01, y: -1 }}
+            whileTap={{ scale: 0.985 }}
+            title="生成 1080×1350 PNG · 适合朋友圈 / 小红书 / Twitter"
+          >
+            ✦ 分享今日战绩 → 生成 PNG
+          </motion.button>
+        )}
+
         {/* Action buttons */}
         <motion.div
           className="flex gap-3 w-full"
@@ -641,6 +736,15 @@ export default function FiredResult() {
           </motion.button>
         </motion.div>
       </motion.div>
+
+      {/* v1.5.0 — share-card preview modal. Mounts only when shareData
+          is non-null (i.e. today's daily matched this scenario AND the
+          user tapped the button). */}
+      <DailyShareCardModal
+        open={shareOpen}
+        data={shareData}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   );
 }

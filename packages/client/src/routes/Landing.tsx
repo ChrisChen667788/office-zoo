@@ -18,6 +18,8 @@ import { useSocket, useSocketEvent } from '../hooks/useSocket';
 import RulesModal, { shouldAutoShowRules, markRulesSeen } from '../components/onboarding/RulesModal';
 import SfxToggle from '../components/game/SfxToggle';
 import LottieAsset from '../components/LottieAsset';
+import DailyShareCardModal from '../components/DailyShareCardModal';
+import type { DailyShareCardData } from '../utils/dailyShareCard';
 import { primeAudio } from '../utils/audioUnlock';
 import { colors } from '../constants/design';
 import { lottie } from '../constants/lottie';
@@ -121,6 +123,26 @@ export default function Landing() {
         if (d?.drama) setDaily(d.drama);
       })
       .catch(() => { /* anonymous — keep legacy CTA */ });
+  }, []);
+
+  // v1.5.0 — share-card modal. Daily card's 📤 button toggles this with
+  // a preview-mode payload (no result block — Landing doesn't know
+  // whether the user has played today; that's FiredResult's job).
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareData, setShareData] = useState<DailyShareCardData | null>(null);
+  const openShareForDaily = useCallback((d: DailyDrama) => {
+    setShareData({
+      date: d.date,
+      kind: d.kind,
+      targetTitle: d.targetTitle,
+      targetEmoji: d.targetEmoji,
+      teaser: d.teaser,
+      archetype: d.archetypeName && d.archetypeEmoji
+        ? { emoji: d.archetypeEmoji, name: d.archetypeName }
+        : undefined,
+      // No result on Landing — purely a teaser-mode share.
+    });
+    setShareOpen(true);
   }, []);
   const [mode, setMode] = useState<GameMode>('classic');
   const [playerCount, setPlayerCount] = useState<number>(8);
@@ -352,7 +374,12 @@ export default function Landing() {
                 Y2K-tinged accent palette so the hero never feels static
                 even after the user has scrolled past it 10 times. */}
             {daily ? (
-              <DailyDramaCard drama={daily} onJump={() => navigate(daily.cta.href)} onRetake={() => navigate('/quiz')} />
+              <DailyDramaCard
+                drama={daily}
+                onJump={() => navigate(daily.cta.href)}
+                onRetake={() => navigate('/quiz')}
+                onShare={() => openShareForDaily(daily)}
+              />
             ) : (
               <button
                 onClick={() => navigate('/quiz')}
@@ -480,6 +507,15 @@ export default function Landing() {
       </main>
 
       <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+
+      {/* v1.5.0 — daily-drama share-card preview. Lazy-renders the PNG
+          inside a modal so users can copy / download without leaving
+          the landing flow. */}
+      <DailyShareCardModal
+        open={shareOpen}
+        data={shareData}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   );
 }
@@ -749,11 +785,13 @@ function LocaleDropdown({ locale }: { locale: Locale }) {
 // rectangular + thinner border) so it doesn't dominate the dark hero.
 // ───────────────────────────────────────────────────────────────────────
 function DailyDramaCard({
-  drama, onJump, onRetake,
+  drama, onJump, onRetake, onShare,
 }: {
   drama: DailyDrama;
   onJump: () => void;
   onRetake: () => void;
+  /** v1.5.0 — opens the share-card preview modal in teaser mode. */
+  onShare: () => void;
 }) {
   // Per-kind gradient. Each kind gets its own vibe so a returning
   // user can pattern-match the card at a glance.
@@ -835,6 +873,15 @@ function DailyDramaCard({
               }}
             >
               {drama.cta.label}
+            </button>
+            {/* v1.5.0 — share-card button. Stays compact next to "重测"
+                so the CTA pill doesn't lose dominance. */}
+            <button
+              onClick={(e) => { e.stopPropagation(); onShare(); }}
+              className="text-[10px] text-white/55 hover:text-white/95 transition px-2 py-1 rounded shrink-0"
+              title="生成今日剧情分享卡 (1080×1350 PNG)"
+            >
+              📤 分享
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onRetake(); }}
