@@ -27,6 +27,19 @@
 | 🏢 | **鼠人公司** | 2.5D 写字楼,9 名鼠人自由摸鱼互撕 |
 | 🎤 | **全程开麦** | 真人音色把每句"颗粒度不够"读给你听 |
 | ⚖️ | **裁了么** | 1v1 怼 HR,5 关速通《劳动合同法》 |
+| 🎭 | **攒局** (v1.4) | 2-4 个朋友 + AI 导演,各自带 archetype,5 幕剧 |
+
+## ✨ v2.x → v3.0 新功能(2026 年 5 月)
+
+> 让"班味"成为一个可演化、可分享、可二刷的身份系统。
+
+- 🪪 **24 种打工人 archetype** (v2.0.0) — 国企铁饭碗 / 大厂螺丝钉 / 创业老炮 / 金融体面人 / 教培劫余 / 网红打工人 / 北漂 / 沪漂 / 深漂搞钱党 / 杭州互联网青年 / 成都摆烂派 / 海外润人 + 原 v1.3 的 12 种行为型
+- 🌀 **班味会演化** (v1.5.1 + v2.0.1 + v2.0.2) — 玩裁员 / 攒局 / 写段子 / 闯关包,每次都给 trait 向量加 delta;漂得够多 archetype 会"转世"(原 sass-master 卷成 grinder),触发"🌀 你已演化为新人格"大字幕
+- 🎬 **今日剧情结果分享卡** (v1.5.0) — 1080×1350 IG 竖图 PNG,一键复制或下载;teaser 模式 + 战绩模式两种排版,把每天的剧情塞进朋友圈
+- 🏢 **Tribe-aware 推荐** (v2.1.0 + v2.3.0) — 你是大厂?今日剧情自动推 FAANG 剧本 + 大厂段子;你是沪漂?给你推《陆家嘴的早 7 点》;你是杭州的?给你推《我的花名叫"无忌"》
+- 🎭 **化学反应导演** (v3.0.0) — 攒局时 AI 编剧会看全队 archetype 混合,自动写出"国企 + 大厂 = 文化冲突剧"、"全员北漂 = 群像剧"、"卷王 vs 摆烂 = 天敌同台" — 不再是模板剧本,每桌都是独家剧情
+- 🎙️ **Per-beat 多声音** (v1.4.2) — squad 剧本每个角色用自己的 archetype 专属音色播报,御姐 / 霸道总裁 / 青涩男切换无缝
+- 🌐 **i18n 覆盖新 12 archetype** (v2.2.0) — 简中 / English / 日本語 / 한국어 四语,Profile 卡完整本地化
 
 ## 它会做什么
 
@@ -166,24 +179,30 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 每关结算根据 `compensationMonths / maxPossible` 算 1-3 ⭐,通关解锁下一关 + 弹"知识卡片"。
 进度持久化到 `localStorage`(`office-zoo.fired-progress`)。
 
-## Roadmap (12 个月)
+## Roadmap
 
-> 完整版见 [`docs/ITERATION_PLAN.md`](docs/ITERATION_PLAN.md) — 含同类竞品分析(AI Town 9.7k / Smallville 21k 实时对比)+ 7 Phase 详细规划。
+> 完整版见 [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — 含所有版本的"why / what / verified"原文。
 
-**已完成:**
-- [x] **PR1** 服务端 Activity 模型 + 1.5s tick 循环
-- [x] **PR2** 客户端 RAF lerp + Catmull-Rom 走廊 + 8 种 activity 图标 + 发言者脉冲
+**已上线(2025-12 → 2026-05):**
+- ✅ **v0.6-v0.9** 2.5D 写字楼 + tick 循环 + 8 种 activity / talkshow + Web Speech 兜底 / UGC + HR 记忆 + 闯关包 + PvP 房间
+- ✅ **v1.0** Premium 6 个 FAANG 场景 + 付费墙 demo
+- ✅ **v1.1** B 端白标 + HR 培训沙盒 + 高管金属主题
+- ✅ **v1.2** i18n 中/英/日/韩
+- ✅ **v1.3** "你是哪种打工人"identity quiz + 12 archetype + Y2K 班味卡 + archetype-personalized 推荐
+- ✅ **v1.4** 攒局模式 + 多声音 + 历史/排行
+- ✅ **v1.5** 今日剧情结果分享卡 + archetype 演化(单 surface)
+- ✅ **v2.0.0** 12→24 archetype + region/industry 维度
+- ✅ **v2.0.1 + v2.0.2** 演化扩到 squad / talkshow / pack 三个 surface
+- ✅ **v2.1** Tribe-aware fired 推荐 + FiredLanding tribe 过滤
+- ✅ **v2.2** 新 12 archetype 的 en/ja/ko 翻译
+- ✅ **v2.3** Talkshow 加 region tag + daily 推 城市段子
+- ✅ **v3.0** 化学反应导演 — squad 编剧看全队 archetype mix 写专属剧
 
-**未来 12 个月(按 ROI 排序):**
-- [ ] 🎬 **Phase A · Viral 短视频引擎** — 一局结束自动剪 30s 竖版 mp4,一键发抖音/B 站
-- [ ] 🧠 **Phase B · 记忆 + 反思层** — sqlite-vec episodic memory + 跨局结盟/记仇
-- [ ] 👥 **Phase C · 真人玩家加入** — 真人扮 HR / 工会代表 / 律师 / 媒体记者,多人房间
-- [ ] 🛠️ **Phase D · UGC 剧本平台** — 用户上传真实事件 → 自动生成剧本,`/explore` 排行榜
-- [ ] 🌏 **Phase E · 文化扩展包** — 35 岁危机 / PUA 拆解 / 大厂面试 / 海外大厂场景
-- [ ] 💰 **Phase F · 商业化** — Premium Pack + 律所 / HR 培训 B 端
-- [ ] 🌍 **Phase G · 国际化** — EN/JA/KO 版本
-
-**12 个月里程碑:** 15k+ stars / 5w MAU / ¥10w/月 营收。
+**下一步(开放讨论):**
+- [ ] 真 Stripe checkout 替换 v1.0 demo
+- [ ] Squad LLM 用 Claude 4.5 Sonnet 替换 gpt-4o-mini 看演出效果
+- [ ] FiredLanding tribe 过滤扩到 region 维度
+- [ ] 演化事件的"周报"邮件订阅(可选)
 
 ## 安全须知
 

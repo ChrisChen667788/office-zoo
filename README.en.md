@@ -20,13 +20,26 @@
 
 > "Can't grind harder, can't lie flat — let the AIs grind for you."
 
-## Three ways to play
+## Four ways to play
 
 | | Mode | One-liner |
 |---|---|---|
 | 🏢 | **Office Zoo Classic** | 2.5D floor plan, 9 rat-people slack + scheme + backstab |
 | 🎤 | **Hot Mic** | Real-voice TTS reads every "we need more granularity" out loud |
 | ⚖️ | **You're Fired** | 1v1 vs HR, 5 chapters of PRC Labor Contract Law speed-run |
+| 🎭 | **Squad** (v1.4) | 2-4 friends + AI director, each carrying an archetype, in a 5-act office sitcom |
+
+## ✨ What's new in v2.x → v3.0 (May 2026)
+
+> Turning "your work-fatigue persona" into an evolving, shareable, replayable identity system.
+
+- 🪪 **24-archetype catalogue** (v2.0.0) — SOE Lifer / FAANG Cog / Startup Veteran / Finance Suit / EdTech Survivor / MCN Hustler / Beijing Drifter / Shanghai Yuppie / Shenzhen Money-chaser / Hangzhou Tech Youth / Chengdu Zen-Slacker / Overseas Escapee — plus the original 12 behavioral archetypes from v1.3
+- 🌀 **Archetypes evolve** (v1.5.1 + v2.0.1 + v2.0.2) — every fired chat / squad / talkshow segment / pack completion drifts your 6-trait vector; drift enough and your top archetype flips ("🌀 You evolved into a new persona")
+- 🎬 **Daily-drama share card** (v1.5.0) — 1080×1350 IG-portrait PNG, one-tap copy or download; renders in teaser mode or result mode (with grade + comp ratio baked in)
+- 🏢 **Tribe-aware recommendations** (v2.1.0 + v2.3.0) — FAANG users get FAANG scenarios; Shanghai users get Lujiazui talkshow bits; Hangzhou users get the "my code-name is 'Wu-Ji'" segment
+- 🎭 **Chemistry-aware director** (v3.0.0) — squad director now reads the full archetype mix and writes culture-clash arcs (SOE + FAANG = "iron rice bowl meets OKR speak"), group-portrait arcs (all Beijing drifters), or rival-pair arcs (Grinder + Anti-grinder eye-acting from act 1)
+- 🎙️ **Per-beat multi-voice** (v1.4.2) — every squad-act beat plays with the speaker's own archetype voice (sultry sister / dominator / earnest junior) — no voice repetition across a 5-act drama
+- 🌐 **i18n for new 12** (v2.2.0) — Profile cards localized in zh/en/ja/ko including translations of region-specific jokes
 
 ## What it does
 
@@ -96,16 +109,23 @@ Both have free trials. The product degrades gracefully:
 
 ## Roadmap (where we are)
 
+> Full per-version "why / what / verified" notes in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+
 ```
-✅ v0.6.x  3D isometric floor + furniture + carried items
-✅ v0.7.x  Talkshow MVP + Web Speech fallback + binge controls
-✅ v0.8.x  UGC creator + community feedback + HR memory layer
-✅ v0.9.x  Challenge packs + monthly leaderboard + PvP rooms
-✅ v1.0.0  Premium paywall + 6 FAANG scenarios (demo checkout)
-✅ v1.1.0  B2B white-label embeds + HR training mode + Executive theme
-✅ v1.2.0  Internationalization (zh-CN ↔ en-US) — you're here
-🔜 v1.2.1  ja-JP + ko-KR for Japan/Korea launch
-🔜 v1.3.0  Real Stripe checkout (replacing v1.0.0 demo checkout)
+✅ v0.6-v0.9  Isometric floor + activity tick / talkshow / UGC + HR memory / packs + PvP
+✅ v1.0       Premium paywall + 6 FAANG layoff scenarios
+✅ v1.1       B2B white-label embeds + HR training mode
+✅ v1.2       Internationalization (zh-CN / en-US / ja-JP / ko-KR)
+✅ v1.3       Identity quiz + 12 archetypes + Y2K personality card
+✅ v1.4       Squad mode + multi-voice + room history & leaderboard
+✅ v1.5       Daily-drama share card + archetype evolution (single surface)
+✅ v2.0.0     12 → 24 archetypes with region/industry tribes
+✅ v2.0.1–.2  Evolution extended to squad / talkshow / pack completions
+✅ v2.1       Tribe-aware fired-scenario recommendations
+✅ v2.2       en/ja/ko translations for the new 12 archetypes
+✅ v2.3       Region-tagged talkshow bits → daily drama picks city-flavored jokes
+✅ v3.0       Chemistry-aware squad director — culture-clash + group-portrait + rival arcs
+🔜 next       Real Stripe checkout · Claude 4.5 director · region-tier FiredLanding filter
 ```
 
 ## License
