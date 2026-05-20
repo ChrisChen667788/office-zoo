@@ -58,8 +58,11 @@ app.route('/api/daily-challenge', dailyChallengeRoutes);
 // per-game via TTL; icons are a build-time asset set).
 const avatarDir = path.resolve(__dirname2, '../public/avatars');
 const iconDir = path.resolve(__dirname2, '../public/icons');
+// v5.1.0 — talkshow persona portraits served as a parallel static dir.
+const talkshowPersonaDir = path.resolve(__dirname2, '../public/talkshow-personas');
 if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
 if (!fs.existsSync(iconDir))   fs.mkdirSync(iconDir,   { recursive: true });
+if (!fs.existsSync(talkshowPersonaDir)) fs.mkdirSync(talkshowPersonaDir, { recursive: true });
 
 // Detect actual image format from magic bytes — Minimax `image_generation`
 // returns JPEG even when we asked for PNG, so trusting the file extension
@@ -94,6 +97,7 @@ function servePng(dir: string) {
 
 app.get('/avatars/:filename', servePng(avatarDir));
 app.get('/icons/:filename',   servePng(iconDir));
+app.get('/talkshow-personas/:filename', servePng(talkshowPersonaDir));
 
 // ---------------------------------------------------------------------------
 // Health check — honest one. Returns:

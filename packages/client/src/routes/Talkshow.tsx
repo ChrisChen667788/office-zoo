@@ -90,13 +90,24 @@ const TAG_LABELS: Record<string, { label: string; color: string }> = {
   meta:     { label: '🪞 自嘲', color: '#90caf9' },
 };
 
-const PERSONA_LABELS: Record<string, { emoji: string; label: string; gender: 'female' | 'male' }> = {
-  shaonv:   { emoji: '👧', label: '少女音',   gender: 'female' },
-  yujie:    { emoji: '💃', label: '御姐音',   gender: 'female' },
-  qingse:   { emoji: '🧑', label: '青涩男',   gender: 'male'   },
-  jingying: { emoji: '🧔', label: '精英男',   gender: 'male'   },
-  badao:    { emoji: '👨‍💼', label: '霸道男', gender: 'male'   },
-  qingnian: { emoji: '👤', label: '青年音',   gender: 'male'   },
+/** v5.1.0 — each persona now also references an `imageUrl` pointing at
+ *  the AI-generated portrait under /talkshow-personas/<id>.png. The
+ *  emoji stays as a fallback for: (a) brand-new dev environments where
+ *  the portraits haven't been generated yet, (b) image-load failures
+ *  in the wild. See packages/server/src/services/talkshowAvatarGen.ts
+ *  for art direction + scripts/regen-talkshow-personas.ts for the CLI. */
+const PERSONA_LABELS: Record<string, {
+  emoji: string;
+  imageUrl: string;
+  label: string;
+  gender: 'female' | 'male';
+}> = {
+  shaonv:   { emoji: '👧',     imageUrl: '/talkshow-personas/shaonv.png',   label: '少女音',  gender: 'female' },
+  yujie:    { emoji: '💃',     imageUrl: '/talkshow-personas/yujie.png',    label: '御姐音',  gender: 'female' },
+  qingse:   { emoji: '🧑',     imageUrl: '/talkshow-personas/qingse.png',   label: '青涩男',  gender: 'male'   },
+  jingying: { emoji: '🧔',     imageUrl: '/talkshow-personas/jingying.png', label: '精英男',  gender: 'male'   },
+  badao:    { emoji: '👨‍💼', imageUrl: '/talkshow-personas/badao.png',    label: '霸道男',  gender: 'male'   },
+  qingnian: { emoji: '👤',     imageUrl: '/talkshow-personas/qingnian.png', label: '青年音',  gender: 'male'   },
 };
 
 export default function Talkshow() {
@@ -836,13 +847,17 @@ const CREATE_TAGS: Array<{ key: Tag; label: string; color: string }> = [
   { key: 'meta',     label: '🪞 自嘲',   color: '#90caf9' },
 ];
 
-const CREATE_PERSONAS: Array<{ key: Persona; emoji: string; label: string }> = [
-  { key: 'shaonv',   emoji: '👧', label: '少女音' },
-  { key: 'yujie',    emoji: '💃', label: '御姐音' },
-  { key: 'qingse',   emoji: '🧑', label: '青涩男' },
-  { key: 'jingying', emoji: '🧔', label: '精英男' },
-  { key: 'badao',    emoji: '👨‍💼', label: '霸道男' },
-  { key: 'qingnian', emoji: '👤', label: '青年音' },
+/** v5.1.0 — Personas in the "write a new bit" modal. Same fallback
+ *  pattern as PERSONA_LABELS: AI portrait via /talkshow-personas/<id>.png
+ *  with emoji as 404-safe fallback so users see the actual voice
+ *  character they're picking, not a generic person emoji. */
+const CREATE_PERSONAS: Array<{ key: Persona; emoji: string; imageUrl: string; label: string }> = [
+  { key: 'shaonv',   emoji: '👧',     imageUrl: '/talkshow-personas/shaonv.png',   label: '少女音' },
+  { key: 'yujie',    emoji: '💃',     imageUrl: '/talkshow-personas/yujie.png',    label: '御姐音' },
+  { key: 'qingse',   emoji: '🧑',     imageUrl: '/talkshow-personas/qingse.png',   label: '青涩男' },
+  { key: 'jingying', emoji: '🧔',     imageUrl: '/talkshow-personas/jingying.png', label: '精英男' },
+  { key: 'badao',    emoji: '👨‍💼', imageUrl: '/talkshow-personas/badao.png',    label: '霸道男' },
+  { key: 'qingnian', emoji: '👤',     imageUrl: '/talkshow-personas/qingnian.png', label: '青年音' },
 ];
 
 const CREATE_SAMPLES = [
@@ -1012,7 +1027,7 @@ function CreateBitModal({
               key={p.key}
               onClick={() => setPersona(p.key)}
               disabled={submitting}
-              className="rounded-lg py-2 text-xs font-semibold transition flex flex-col items-center gap-0.5"
+              className="rounded-lg py-2 text-xs font-semibold transition flex flex-col items-center gap-1"
               style={{
                 background: persona === p.key
                   ? 'linear-gradient(135deg,rgba(255,85,136,0.25),rgba(124,58,237,0.18))'
@@ -1021,7 +1036,20 @@ function CreateBitModal({
                 color: persona === p.key ? '#fff' : 'rgba(255,255,255,0.6)',
               }}
             >
-              <span className="text-base leading-none">{p.emoji}</span>
+              {/* v5.1.0 — AI portrait thumbnail, 40px circle. Emoji
+                  absolutely-positioned behind so 404 falls through. */}
+              <span className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg,#ff5588 0%,#7c3aed 100%)' }}>
+                <span className="absolute inset-0 flex items-center justify-center text-base leading-none"
+                  aria-hidden>{p.emoji}</span>
+                <img
+                  src={p.imageUrl}
+                  alt={p.label}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  draggable={false}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
+              </span>
               <span>{p.label}</span>
             </button>
           ))}
@@ -1508,7 +1536,7 @@ function PlayerView({
               repeat: Infinity,
               ease: 'easeInOut',
             }}
-            className="relative w-36 h-36 rounded-full flex items-center justify-center text-6xl select-none"
+            className="relative w-36 h-36 rounded-full flex items-center justify-center text-6xl select-none overflow-hidden"
             style={{
               background:
                 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.35), transparent 35%), linear-gradient(135deg, #ff5588 0%, #7c3aed 100%)',
@@ -1516,11 +1544,29 @@ function PlayerView({
                 '0 0 50px rgba(255,85,136,0.45), inset 0 2px 0 rgba(255,255,255,0.18), inset 0 -8px 24px rgba(0,0,0,0.18)',
             }}
           >
-            {personaCfg.emoji}
+            {/* v5.1.0 — AI-generated portrait. Emoji absolutely-positioned
+                behind so it shows through if the image 404s (legacy
+                fallback) AND survives momentary load lag. The img is
+                full-disc cover-crop so the character fills the circle. */}
+            <span className="absolute inset-0 flex items-center justify-center text-6xl pointer-events-none"
+              aria-hidden>
+              {personaCfg.emoji}
+            </span>
+            <img
+              src={personaCfg.imageUrl}
+              alt={personaCfg.label}
+              className="absolute inset-0 w-full h-full object-cover"
+              draggable={false}
+              onError={(e) => {
+                // Hide on 404 so the emoji fallback (sitting in the same
+                // bounding box behind us) shows through.
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
             {/* EQ bars overlay — bottom-center, sits inside the disc so
                 it reads as "the avatar is the source of the sound". */}
             {(audioState === 'playing' || audioState === 'browser') && (
-              <span className="absolute bottom-3.5 left-1/2 -translate-x-1/2">
+              <span className="absolute bottom-3.5 left-1/2 -translate-x-1/2 z-10">
                 <WaveformBars active={true} count={5} height={14} />
               </span>
             )}
