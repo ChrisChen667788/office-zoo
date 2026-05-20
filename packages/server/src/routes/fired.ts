@@ -34,6 +34,8 @@ import {
   completeChallenge,
   gradeFromOutcome,
   infoFromProfile,
+  listLatestCompletedChallenges,
+  listBiggestSpreadChallenges,
 } from '../services/challengeStore';
 import {
   listPacks,
@@ -1114,6 +1116,25 @@ firedRouter.post('/challenge/create', async (c) => {
     challenger: userId.slice(0, 8) + '…',
   }, 'Challenge created');
   return c.json({ challenge });
+});
+
+/** v4.3.0 — Leaderboards. Read-only, anonymous-friendly (no header
+ *  required). Two views:
+ *   ?sort=latest  (default) — newest completions first, 20 entries
+ *   ?sort=spread            — biggest score gaps, 10 entries
+ * Returns Challenge[] verbatim so the client can render the same
+ * ComparisonStrip component it uses on /fired/challenge/:code.
+ *
+ * REGISTRATION ORDER: must come BEFORE /challenge/:code because Hono
+ * matches in declaration order — literal segments don't auto-win over
+ * params, so "leaderboard" would otherwise be greedily eaten by :code
+ * and return 404 "challenge not found or expired". */
+firedRouter.get('/challenge/leaderboard', (c) => {
+  const sort = c.req.query('sort') === 'spread' ? 'spread' : 'latest';
+  const challenges = sort === 'spread'
+    ? listBiggestSpreadChallenges(10)
+    : listLatestCompletedChallenges(20);
+  return c.json({ sort, challenges });
 });
 
 firedRouter.get('/challenge/:code', (c) => {

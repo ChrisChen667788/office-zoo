@@ -157,6 +157,41 @@ export function completeChallenge(
   return ch;
 }
 
+/** v4.3.0 — leaderboard helpers. All read from the same in-mem store
+ *  (no separate index). For the current store cap (5000 entries) +
+ *  TTL (24h) the linear scans below are well under 1 ms. */
+
+/** Latest N completed challenges (both sides done), newest first.
+ *  Powers the "最近的对决" section on FiredLanding + the standalone
+ *  /fired/leaderboard page. */
+export function listLatestCompletedChallenges(limit = 20): Challenge[] {
+  const completed: Challenge[] = [];
+  for (const ch of store.values()) {
+    if (ch.challengee && ch.challengeeResult) completed.push(ch);
+  }
+  completed.sort((a, b) =>
+    (b.challengeeResult!.ts ?? 0) - (a.challengeeResult!.ts ?? 0),
+  );
+  return completed.slice(0, limit);
+}
+
+/** Most-lopsided victories — the "biggest spreads" angle. Returns
+ *  challenges where the gap between the two sides is largest (in
+ *  RATIO terms, not absolute months, so a 5/5 vs 0/5 outranks an
+ *  11/12 vs 6/12). Drives the "笑死, 朋友被打到 0 月" share angle. */
+export function listBiggestSpreadChallenges(limit = 10): Challenge[] {
+  const completed = listLatestCompletedChallenges(5000);
+  const scored = completed.map((ch) => {
+    const c = ch.challengerResult;
+    const e = ch.challengeeResult!;
+    const cR = c.maxPossible > 0 ? c.compensationMonths / c.maxPossible : 0;
+    const eR = e.maxPossible > 0 ? e.compensationMonths / e.maxPossible : 0;
+    return { ch, spread: Math.abs(cR - eR) };
+  });
+  scored.sort((a, b) => b.spread - a.spread);
+  return scored.slice(0, limit).map((x) => x.ch);
+}
+
 /** Helper to build a ChallengeParticipantInfo from a profile + display. */
 export function infoFromProfile(opts: {
   userId: string;

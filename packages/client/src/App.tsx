@@ -17,6 +17,7 @@ import Profile from './routes/Profile';
 import Squad from './routes/Squad';
 import SquadHistory from './routes/SquadHistory';
 import FiredChallenge from './routes/FiredChallenge';
+import FiredLeaderboard from './routes/FiredLeaderboard';
 
 export default function App() {
   return (
@@ -48,6 +49,9 @@ export default function App() {
       {/* v1.4.3 — squad history + group leaderboard. Lives ABOVE /squad/:id
           so the literal "history" segment wins the router precedence battle. */}
       <Route path="/squad-history" element={<SquadHistory />} />
+      {/* v4.3.0 — challenge leaderboard. Lives ABOVE /fired/challenge/:code
+          so the literal "leaderboard" segment wins router precedence. */}
+      <Route path="/fired/challenge/leaderboard" element={<FiredLeaderboard />} />
       {/* v4.0.0 — "X 挑战你这一关" comparison flow. Friend opens this link
           → sees challenger's archetype + grade → accepts → plays the
           same scenario → comparison share card. */}
