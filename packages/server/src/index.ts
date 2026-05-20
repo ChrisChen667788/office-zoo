@@ -29,6 +29,7 @@ import { b2bRoutes } from './routes/b2b';
 import { quizRoutes } from './routes/quiz';
 import { dailyRoutes } from './routes/daily';
 import { squadRoutes } from './routes/squad';
+import { dailyChallengeRoutes } from './routes/dailyChallenge';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
 
@@ -48,6 +49,8 @@ app.route('/api/b2b', b2bRoutes);
 app.route('/api/quiz', quizRoutes);
 app.route('/api/daily', dailyRoutes);
 app.route('/api/squad', squadRoutes);
+// v5.0.0 — global today-only challenge (everyone races the same scenario).
+app.route('/api/daily-challenge', dailyChallengeRoutes);
 
 // Serve generated avatars + icons as static PNGs.
 // Two near-identical routes share a helper — not worth abstracting further

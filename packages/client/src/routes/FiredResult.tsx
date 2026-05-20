@@ -404,6 +404,70 @@ export default function FiredResult() {
     navigate('/fired');
   };
 
+  // v5.0.0 — global daily challenge auto-record. If the played
+  // scenario matches today's global daily challenge, POST the result
+  // so the user lands on the leaderboard. Server best-of-day
+  // dedupes (lower-than-best won't overwrite). Surfaces a "🌐 全网今日
+  // 挑战" badge with the user's current rank when recorded.
+  const [dailyChallengeRank, setDailyChallengeRank] = useState<{
+    rank: number;
+    total: number;
+  } | null>(null);
+  const dcRecordedRef = useRef(false);
+  useEffect(() => {
+    if (dcRecordedRef.current) return;
+    if (!outcome || !scenarioId) return;
+    dcRecordedRef.current = true;
+
+    // Compute grade locally to mirror server-side gradeFromOutcome.
+    const ratio = outcome.maxPossible > 0
+      ? outcome.compensationMonths / outcome.maxPossible : 0;
+    const localGrade =
+      ratio >= 0.95 ? 'S'
+    : ratio >= 0.8  ? 'A'
+    : ratio >= 0.6  ? 'B'
+    : ratio >= 0.4  ? 'C'
+    :                 'D';
+
+    fetch('/api/daily-challenge/today/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': getUserId() },
+      body: JSON.stringify({
+        scenarioId,
+        result: {
+          compensationMonths: outcome.compensationMonths,
+          maxPossible: outcome.maxPossible,
+          grade: localGrade,
+          tactic: recordedTactic ?? undefined,
+        },
+      }),
+    })
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((d: {
+        recorded: boolean;
+        summary: {
+          topResults: Array<{ userId: string; compensationMonths: number; maxPossible: number }>;
+          myResult?: { userId: string };
+          participantCount: number;
+        };
+      }) => {
+        // Only show the rank badge when this round actually matched the
+        // daily challenge (server returns recorded=true OR myResult
+        // exists from a prior best). Scenario-mismatch responses are
+        // silent.
+        if (!d.summary.myResult) return;
+        const me = d.summary.myResult.userId;
+        // Find my rank via the topResults list. If I'm outside top-20,
+        // best we can say is "outside top 20".
+        const idx = d.summary.topResults.findIndex((p) => p.userId === me);
+        setDailyChallengeRank({
+          rank: idx >= 0 ? idx + 1 : -1,
+          total: d.summary.participantCount,
+        });
+      })
+      .catch(() => { /* no-op — daily challenge is a bonus surface */ });
+  }, [outcome, scenarioId, recordedTactic]);
+
   // v4.0.0 — Challenge a friend. Two halves:
   //   1. Auto-complete: if sessionStorage carries an active-challenge
   //      from a friend's invite, POST /challenge/<code>/complete with
@@ -921,6 +985,32 @@ export default function FiredResult() {
           >
             ✦ 分享今日战绩 → 生成 PNG
           </motion.button>
+        )}
+
+        {/* v5.0.0 — Global daily-challenge rank chip. Appears only when
+            the played scenario was today's global daily challenge AND
+            the server recorded a result for this user (best-of-day).
+            Tappable → /fired/daily-challenge for the full leaderboard. */}
+        {dailyChallengeRank && (
+          <motion.a
+            href="/fired/daily-challenge"
+            className="w-full block text-center py-3 rounded-2xl text-sm font-bold tracking-wide mb-3"
+            style={{
+              background: 'linear-gradient(135deg, rgba(0,221,255,0.16), rgba(124,58,237,0.10))',
+              border: '1px solid rgba(0,221,255,0.45)',
+              color: '#9be6ff',
+              boxShadow: '0 6px 18px rgba(0,221,255,0.18)',
+            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.10, duration: 0.5 }}
+          >
+            🌐 全网今日挑战 ·{' '}
+            {dailyChallengeRank.rank > 0
+              ? `你是第 ${dailyChallengeRank.rank}/${dailyChallengeRank.total} 名`
+              : `你在 ${dailyChallengeRank.total} 人中(榜外)`}{' '}
+            → 看完整榜
+          </motion.a>
         )}
 
         {/* v4.0.0 — Challenge a friend OR "you completed a friend's challenge".

@@ -405,12 +405,30 @@ export default function Landing() {
                 Y2K-tinged accent palette so the hero never feels static
                 even after the user has scrolled past it 10 times. */}
             {daily ? (
-              <DailyDramaCard
-                drama={daily}
-                onJump={() => navigate(daily.cta.href)}
-                onRetake={() => navigate('/quiz')}
-                onShare={() => openShareForDaily(daily)}
-              />
+              <>
+                <DailyDramaCard
+                  drama={daily}
+                  onJump={() => navigate(daily.cta.href)}
+                  onRetake={() => navigate('/quiz')}
+                  onShare={() => openShareForDaily(daily)}
+                />
+                {/* v5.0.0 — entry to the global "today's challenge"
+                    leaderboard. Sits right under the personalized
+                    daily card so users discover it without it
+                    competing for top-of-hero attention. */}
+                <button
+                  onClick={() => navigate('/fired/daily-challenge')}
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-bold text-[12px] transition hover-sheen"
+                  style={{
+                    color: '#9be6ff',
+                    background: 'rgba(0,221,255,0.10)',
+                    border: '1px solid rgba(0,221,255,0.40)',
+                  }}
+                  title="今天全网都在玩同一关 · 看自己卡在第几名"
+                >
+                  🌐 全网今日挑战 · 看榜
+                </button>
+              </>
             ) : (
               <button
                 onClick={() => navigate('/quiz')}
