@@ -1111,7 +1111,14 @@ function PlayerView({
   const [audioState, setAudioState] = useState<
     'fetching' | 'ready' | 'playing' | 'browser' | 'done' | 'failed'
   >('fetching');
-  const fetchedRef = useRef(false);
+  // v3.6.x bugfix — was a plain boolean ref that StrictMode double-mount
+  // bricked: 1st effect set ref=true + started fetch; 1st cleanup set
+  // cancelled=true; 2nd effect saw ref=true and bailed; 1st fetch's
+  // promise resolved, found cancelled=true, dropped the result without
+  // updating state → UI stuck at "正在生成真人音色…" forever in dev. Fix
+  // is to key the ref by script.id so the in-flight check uses an
+  // invariant the cleanup can't flip.
+  const fetchedRef = useRef<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
   /** End-of-audio timer for the server MP3 path — we don't have a direct
    *  'ended' hook on the shared element so we approximate using durationSec.
@@ -1159,31 +1166,39 @@ function PlayerView({
   // If the SERVER chain is exhausted (502 / network error), we silently fall
   // back to Web Speech so users still get a voice instead of a silent screen.
   useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-    let cancelled = false;
+    // De-dup by script.id (not by a plain boolean) so StrictMode's
+    // synthetic double-mount short-circuits the SECOND mount cleanly
+    // without forcing the FIRST run's promise to bail.
+    if (fetchedRef.current === script.id) return;
+    fetchedRef.current = script.id;
+    // Resetting state to 'fetching' on legitimate script switch — the
+    // earlier `cancelled` closure flag is gone; staleness check now
+    // uses fetchedRef.current vs. script.id at each await boundary.
+    setAudioState('fetching');
+    const myScriptId = script.id; // pin for staleness comparison below
     (async () => {
       try {
         const resp = await fetch('/api/talkshow/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scriptId: script.id }),
+          body: JSON.stringify({ scriptId: myScriptId }),
         });
         if (!resp.ok) {
           // Server-side TTS chain exhausted (502) or some other error.
           // Don't throw — degrade to browser TTS so the UX still has audio.
           console.warn(`[talkshow] server tts ${resp.status} — falling back to Web Speech`);
-          if (!cancelled) await speakBrowser();
+          if (fetchedRef.current === myScriptId) await speakBrowser();
           return;
         }
         const blob = await resp.blob();
-        if (cancelled) return;
+        // Staleness check: only commit if the user is still on THIS script.
+        if (fetchedRef.current !== myScriptId) return;
         const url = URL.createObjectURL(blob);
         blobUrlRef.current = url;
         // Try autoplay first (works when the shared audio element was
         // unlocked by primeAudio() during the earlier click).
         const ok = await playTtsFromUrl(url);
-        if (cancelled) return;
+        if (fetchedRef.current !== myScriptId) return;
         if (ok) {
           setAudioState('playing');
           armEndTimer(script.durationSec);
@@ -1193,11 +1208,15 @@ function PlayerView({
         }
       } catch (err) {
         console.warn('[talkshow] tts fetch errored — falling back to Web Speech', err);
-        if (!cancelled) await speakBrowser();
+        if (fetchedRef.current === myScriptId) await speakBrowser();
       }
     })();
     return () => {
-      cancelled = true;
+      // StrictMode-safe cleanup: DO NOT flip a cancellation flag here.
+      // The in-flight effect uses fetchedRef.current === script.id as its
+      // staleness check, and fetchedRef gets overwritten only when the
+      // script.id actually changes. So this cleanup ALWAYS leaves the
+      // in-flight fetch alone for the current script.
       stopTts();
       if (endTimerRef.current) {
         window.clearTimeout(endTimerRef.current);
