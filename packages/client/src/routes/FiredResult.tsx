@@ -1031,11 +1031,24 @@ export default function FiredResult() {
 
       {/* v1.5.0 — share-card preview modal. Mounts only when shareData
           is non-null (i.e. today's daily matched this scenario AND the
-          user tapped the button). */}
+          user tapped the button).
+          v4.2.0 — also passes challengeContext so the modal can mint
+          a "🥊 挑战朋友" link inline (without forcing the user back
+          to the separate challenge button on FiredResult). */}
       <DailyShareCardModal
         open={shareOpen}
         data={shareData}
         onClose={() => setShareOpen(false)}
+        challengeContext={
+          isTodaysDaily && scenarioId && outcome
+            ? {
+                scenarioId,
+                compensationMonths: outcome.compensationMonths,
+                maxPossible: outcome.maxPossible,
+                tactic: recordedTactic ?? undefined,
+              }
+            : undefined
+        }
       />
     </div>
   );

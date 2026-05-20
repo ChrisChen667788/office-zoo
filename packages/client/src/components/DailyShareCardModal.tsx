@@ -24,17 +24,36 @@ import {
   generateDailyShareCardPreviewUrl,
   type DailyShareCardData,
 } from '../utils/dailyShareCard';
+import { getUserId } from '../utils/userId';
 
 export interface DailyShareCardModalProps {
   open: boolean;
   data: DailyShareCardData | null;
   onClose: () => void;
+  /** v4.2.0 — when present + the daily drama is a fired scenario AND
+   *  the user already has a result for it, the modal surfaces a
+   *  "🥊 挑战朋友" button that POSTs to /api/fired/challenge/create
+   *  using these scenario+result fields and copies the link to the
+   *  clipboard. Optional — anonymous users / non-fired daily picks /
+   *  pre-result Landing teaser mode all skip the button cleanly. */
+  challengeContext?: {
+    scenarioId: string;
+    compensationMonths: number;
+    maxPossible: number;
+    tactic?: string;
+  };
 }
 
-export default function DailyShareCardModal({ open, data, onClose }: DailyShareCardModalProps) {
+export default function DailyShareCardModal({ open, data, onClose, challengeContext }: DailyShareCardModalProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [genErr, setGenErr] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  /** v4.2.0 — once challenge link minted, this stashes the URL so the
+   *  button can flip to "✓ 已复制" and stop re-creating duplicates. */
+  const [challengeUrl, setChallengeUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) setChallengeUrl(null);
+  }, [open]);
 
   // Regenerate preview whenever the data changes or modal opens.
   useEffect(() => {
@@ -77,6 +96,38 @@ export default function DailyShareCardModal({ open, data, onClose }: DailyShareC
       setActionMsg('✓ 已下载');
     } catch {
       setActionMsg('下载失败,请重试');
+    }
+  };
+
+  /** v4.2.0 — mint a challenge link from the daily-drama result.
+   *  Only available when challengeContext is provided (fired-mode
+   *  daily AFTER the user has played). Copies link to clipboard. */
+  const handleChallenge = async () => {
+    if (!challengeContext) return;
+    try {
+      const resp = await fetch('/api/fired/challenge/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': getUserId() },
+        body: JSON.stringify({
+          scenarioId: challengeContext.scenarioId,
+          result: {
+            compensationMonths: challengeContext.compensationMonths,
+            maxPossible: challengeContext.maxPossible,
+            tactic: challengeContext.tactic,
+          },
+        }),
+      });
+      const json = await resp.json() as { challenge?: { code: string } };
+      if (json.challenge?.code) {
+        const url = `${window.location.origin}/fired/challenge/${json.challenge.code}`;
+        setChallengeUrl(url);
+        try { await navigator.clipboard.writeText(url); } catch { /* ignore */ }
+        setActionMsg('✓ 挑战链接已复制 · 发给朋友吧');
+      } else {
+        setActionMsg('挑战链接创建失败,请重试');
+      }
+    } catch {
+      setActionMsg('网络错误,挑战链接没创建成功');
     }
   };
 
@@ -160,6 +211,33 @@ export default function DailyShareCardModal({ open, data, onClose }: DailyShareC
                 📥 下载 PNG
               </button>
             </div>
+
+            {/* v4.2.0 — Challenge friend, additional CTA below the
+                copy/download row. Only renders when the modal was
+                opened with challengeContext (= fired-mode daily card
+                AFTER the user has a result). Wide button so it reads
+                as the next-step social action, not a tertiary option. */}
+            {challengeContext && (
+              <button
+                onClick={handleChallenge}
+                className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold tracking-wide text-white mb-2"
+                style={{
+                  background: challengeUrl
+                    ? 'rgba(156,255,87,0.14)'
+                    : 'linear-gradient(135deg, rgba(255,85,136,0.45), rgba(124,58,237,0.40))',
+                  border: challengeUrl
+                    ? '1px solid rgba(156,255,87,0.55)'
+                    : '1px solid rgba(255,85,136,0.45)',
+                  color: challengeUrl ? '#9cff57' : '#fff',
+                  boxShadow: challengeUrl ? 'none' : '0 6px 18px rgba(255,85,136,0.30)',
+                }}
+                title="挑战链接发给朋友, 等他玩完, 你们俩自动出对比卡"
+              >
+                {challengeUrl
+                  ? '✓ 挑战链接已复制 · 发给朋友吧'
+                  : '🥊 挑战朋友玩这一关 · 一键复制链接'}
+              </button>
+            )}
 
             {actionMsg && (
               <div className="text-center text-[11px] text-white/65 mt-1">{actionMsg}</div>
