@@ -197,14 +197,70 @@ const DICT = {
   'locale.switchHint':   { 'zh-CN': '语言',                'en-US': 'Language',             'ja-JP': '言語',                  'ko-KR': '언어' },
 
   // ─────────────────────────────────────────────────────────────────────
-  // v2.2.0 — Archetype names + taglines for the 12 region/industry
-  // archetypes added in v2.0.0. The original 12 v1.3.0 archetypes
-  // intentionally NOT translated here (they still render in zh-CN
-  // across all locales) — backwards-compatible behaviour, and the
-  // translation cost vs. impact wasn't justified for v2.2.0 scope.
+  // v2.2.0 (extended in v4.2.1) — Archetype names + taglines.
+  //
+  // Originally v2.2.0 translated only the 12 v2.0.0 region/industry
+  // archetypes. v4.2.1 extends coverage to the original v1.3.0 set
+  // because the v3.3.0 "next milestone" CTA on Profile / nextMilestone
+  // strip on the share card was still showing zh-CN names for v1.x
+  // archetypes (the most common surfaces) in en/ja/ko locales.
+  // 24-archetype full coverage now lands across every surface.
   //
   // Lookup pattern: `archetype.<id>.name`, `.shortName`, `.tagline`.
   // ─────────────────────────────────────────────────────────────────────
+
+  // v4.2.1 — Original v1.3.0 archetypes (12).
+  'archetype.grinder.name':         { 'zh-CN': '卷王',           'en-US': 'Grinder',            'ja-JP': '頑張り王',              'ko-KR': '갈아넣기왕' },
+  'archetype.grinder.shortName':    { 'zh-CN': '卷王',           'en-US': 'Grinder',            'ja-JP': '頑張り',                'ko-KR': '갈아넣기' },
+  'archetype.grinder.tagline':      { 'zh-CN': '别人在睡, 我在卷; 别人在卷, 我也在卷', 'en-US': 'Others sleep, I grind. Others grind, I grind harder.', 'ja-JP': '皆寝てる時も俺は頑張る、皆頑張ってる時も俺は頑張る。', 'ko-KR': '남이 잘 때 갈고, 남이 갈 때 더 간다.' },
+
+  'archetype.slacker.name':         { 'zh-CN': '摸鱼大师',       'en-US': 'Slacker',            'ja-JP': 'サボリの達人',          'ko-KR': '땡땡이 마스터' },
+  'archetype.slacker.shortName':    { 'zh-CN': '摸鱼',           'en-US': 'Slack',              'ja-JP': 'サボリ',                'ko-KR': '땡땡이' },
+  'archetype.slacker.tagline':      { 'zh-CN': '工作三件事: 看群、刷淘宝、装在认真', 'en-US': 'Three things at work: chat, shop, pretend to focus.', 'ja-JP': '仕事の三つ:グループ見て、ネット通販、本気に見せる。', 'ko-KR': '업무 3종 세트: 채팅, 쇼핑, 열심한 척.' },
+
+  'archetype.sass-master.name':     { 'zh-CN': '阴阳怪气王',     'en-US': 'Sass Master',        'ja-JP': '皮肉王',                'ko-KR': '비꼼 대마왕' },
+  'archetype.sass-master.shortName':{ 'zh-CN': '阴阳',           'en-US': 'Sass',               'ja-JP': '皮肉',                  'ko-KR': '비꼼' },
+  'archetype.sass-master.tagline':  { 'zh-CN': '"哦, 这样啊。挺好的。"(背后白眼翻到天灵盖)', 'en-US': '"Oh, I see. That\'s nice." (eye-roll behind your back)', 'ja-JP': '「あ、そう。いいね。」(裏では白目)', 'ko-KR': '"아, 그래요. 좋네요." (뒤에서 눈 굴림)' },
+
+  'archetype.pleaser.name':         { 'zh-CN': '老好人',         'en-US': 'People-Pleaser',     'ja-JP': 'いい人',                'ko-KR': '천사 같은 사람' },
+  'archetype.pleaser.shortName':    { 'zh-CN': '好人',           'en-US': 'Pleaser',            'ja-JP': 'いい人',                'ko-KR': '천사' },
+  'archetype.pleaser.tagline':      { 'zh-CN': '帮你帮你帮你, 然后凌晨 2 点哭', 'en-US': 'Helping helping helping — then crying at 2 a.m.', 'ja-JP': '助ける助ける助ける、そして深夜2時に泣く。', 'ko-KR': '도와줘 도와줘 도와줘 — 그리고 새벽 2시에 운다.' },
+
+  'archetype.nihilist.name':        { 'zh-CN': '厌世派',         'en-US': 'Nihilist',           'ja-JP': '厭世派',                'ko-KR': '염세주의자' },
+  'archetype.nihilist.shortName':   { 'zh-CN': '厌世',           'en-US': 'Nihilist',           'ja-JP': '厭世',                  'ko-KR': '염세' },
+  'archetype.nihilist.tagline':     { 'zh-CN': '"行, 你说咋办就咋办", 反正都一样', 'en-US': '"Sure, whatever you say." — it\'s all the same anyway.', 'ja-JP': '「はい、お任せします」 — どうせ同じだ。', 'ko-KR': '"네, 시키는 대로요" — 어차피 다 똑같다.' },
+
+  'archetype.show-pony.name':       { 'zh-CN': '显眼包',         'en-US': 'Show Pony',          'ja-JP': '目立ちたがり',          'ko-KR': '주목 한가운데' },
+  'archetype.show-pony.shortName':  { 'zh-CN': '显眼',           'en-US': 'Show-pony',          'ja-JP': '目立',                  'ko-KR': '주목' },
+  'archetype.show-pony.tagline':    { 'zh-CN': '团建第一个开麦, 周报第一个发, 生日第一个庆', 'en-US': 'First mic at team night, first weekly report, first to throw birthday parties.', 'ja-JP': '飲み会で最初にマイク、週報を最初に送る、誕生日も最初に祝う。', 'ko-KR': '회식 첫 마이크, 주간보고 첫 제출, 생일 첫 축하.' },
+
+  'archetype.anti-grinder.name':    { 'zh-CN': '反卷青年',       'en-US': 'Anti-Grinder',       'ja-JP': '反頑張り派',            'ko-KR': '안 갈아넣는 청년' },
+  'archetype.anti-grinder.shortName':{'zh-CN': '反卷',           'en-US': 'Anti-Grind',         'ja-JP': '反頑張り',              'ko-KR': '안 갈기' },
+  'archetype.anti-grinder.tagline': { 'zh-CN': '"我下班了哈" + 头也不回', 'en-US': '"I\'m off, bye!" + never looks back.', 'ja-JP': '「お疲れさまでーす」 + 振り返らず帰る。', 'ko-KR': '"퇴근합니다" + 뒤도 안 돌아본다.' },
+
+  'archetype.drama-queen.name':     { 'zh-CN': '戏精',           'en-US': 'Drama Queen',        'ja-JP': '演技派',                'ko-KR': '드라마 퀸' },
+  'archetype.drama-queen.shortName':{ 'zh-CN': '戏精',           'en-US': 'Drama',              'ja-JP': '演技',                  'ko-KR': '드라마' },
+  'archetype.drama-queen.tagline':  { 'zh-CN': '每次开会都演一集《甄嬛传》', 'en-US': 'Every meeting is an episode of palace drama.', 'ja-JP': '会議のたびに「宮廷ドラマ」一話放送。', 'ko-KR': '회의마다 궁중 드라마 한 편 찍기.' },
+
+  'archetype.iron-maiden.name':     { 'zh-CN': '拼命三娘',       'en-US': 'Iron Maiden',        'ja-JP': '鉄の女',                'ko-KR': '아이언 메이든' },
+  'archetype.iron-maiden.shortName':{ 'zh-CN': '拼命',           'en-US': 'Iron',               'ja-JP': '鉄女',                  'ko-KR': '아이언' },
+  'archetype.iron-maiden.tagline':  { 'zh-CN': '我能行, 你也能行, 我们一起拼', 'en-US': 'I can do it, you can do it, let\'s grind together.', 'ja-JP': '私できる、あなたもできる、一緒に頑張ろう。', 'ko-KR': '나도 한다, 너도 한다, 같이 가자.' },
+
+  'archetype.veteran.name':         { 'zh-CN': '老油条',         'en-US': 'Office Veteran',     'ja-JP': '社内ベテラン',          'ko-KR': '오피스 베테랑' },
+  'archetype.veteran.shortName':    { 'zh-CN': '油条',           'en-US': 'Veteran',            'ja-JP': 'ベテラン',              'ko-KR': '베테랑' },
+  'archetype.veteran.tagline':      { 'zh-CN': '"这事 5 年前就这么干过了"', 'en-US': '"We did this exact thing 5 years ago."', 'ja-JP': '「これ、5年前にもやったよ」', 'ko-KR': '"이거 5년 전에도 했었지."' },
+
+  'archetype.deck-wizard.name':     { 'zh-CN': 'PPT 王者',       'en-US': 'Deck Wizard',        'ja-JP': 'スライドの達人',        'ko-KR': '슬라이드 마법사' },
+  'archetype.deck-wizard.shortName':{ 'zh-CN': 'PPT',            'en-US': 'Deck',               'ja-JP': 'スライド',              'ko-KR': '슬라이드' },
+  'archetype.deck-wizard.tagline':  { 'zh-CN': '工作不在乎做了什么, 在乎 PPT 怎么写', 'en-US': 'The work doesn\'t matter — the slide deck does.', 'ja-JP': '何やったかじゃなくて、スライドが大事。', 'ko-KR': '뭘 했냐가 아니라 슬라이드가 중요하다.' },
+
+  'archetype.ghost.name':           { 'zh-CN': '隐形人',         'en-US': 'Office Ghost',       'ja-JP': '透明人間',              'ko-KR': '투명 인간' },
+  'archetype.ghost.shortName':      { 'zh-CN': '隐形',           'en-US': 'Ghost',              'ja-JP': '透明',                  'ko-KR': '투명' },
+  'archetype.ghost.tagline':        { 'zh-CN': '一个季度发言一次, 通常是说"在的"', 'en-US': 'Speaks once a quarter, usually just to say "here".', 'ja-JP': '四半期に一回発言、だいたい「はい」だけ。', 'ko-KR': '분기에 한 번 말함, 보통 "네"가 전부.' },
+
+  // v2.2.0 — v2.0.0 region/industry archetypes (12). NOT moved despite
+  // the section being unified — keeping them as the v2.2.0 block in
+  // git blame preserves the original review context.
 
   // Industry archetypes (6)
   'archetype.soe-lifer.name':       { 'zh-CN': '国企铁饭碗',     'en-US': 'SOE Lifer',          'ja-JP': '国営の鉄飯椀',          'ko-KR': '국영 철밥통' },
