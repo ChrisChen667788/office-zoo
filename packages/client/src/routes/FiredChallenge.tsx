@@ -16,10 +16,12 @@
  * "yet another scenario picker".
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getUserId } from '../utils/userId';
+import ChallengeShareCardModal from '../components/ChallengeShareCardModal';
+import type { ChallengeShareCardData } from '../utils/challengeShareCard';
 
 interface ChallengeParticipantInfo {
   userId: string;
@@ -193,9 +195,11 @@ export default function FiredChallenge() {
 
 function ComparisonStrip({ challenge }: { challenge: Challenge }) {
   // Both sides finished — render a compact side-by-side strip the
-  // friend can screenshot. Server-side, the comparison card is also
-  // available via the existing share card flow (challenger gets the
-  // notification when they re-open the link).
+  // friend can screenshot.
+  // v4.1.0 — also surface a "📤 分享对比卡" button that opens the
+  // dedicated 1080×1350 PNG share card modal. Closes the v4.0.0
+  // viral loop: comparison was previously only visible inside the
+  // app; now it's a postable artefact.
   const c = challenge.challenger;
   const cR = challenge.challengerResult;
   const e = challenge.challengee!;
@@ -204,26 +208,68 @@ function ComparisonStrip({ challenge }: { challenge: Challenge }) {
     ? 'tie'
     : cR.compensationMonths > eR.compensationMonths ? 'challenger' : 'challengee';
 
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareData = useMemo<ChallengeShareCardData>(() => ({
+    date: new Date().toISOString().slice(0, 10),
+    scenarioTitle: challenge.scenarioTitle,
+    scenarioEmoji: challenge.scenarioEmoji,
+    challenger: {
+      displayName: c.displayName,
+      archetypeEmoji: c.archetypeEmoji ?? '🐀',
+      archetypeName: c.archetypeName ?? '—',
+      grade: cR.grade,
+      compensationMonths: cR.compensationMonths,
+      maxPossible: cR.maxPossible,
+      tactic: cR.tactic,
+    },
+    challengee: {
+      displayName: e.displayName,
+      archetypeEmoji: e.archetypeEmoji ?? '🐀',
+      archetypeName: e.archetypeName ?? '—',
+      grade: eR.grade,
+      compensationMonths: eR.compensationMonths,
+      maxPossible: eR.maxPossible,
+      tactic: eR.tactic,
+    },
+  }), [challenge, c, cR, e, eR]);
+
   return (
-    <div className="rounded-2xl p-5"
-      style={{
-        background: 'linear-gradient(135deg, rgba(255,184,76,0.20), rgba(255,45,146,0.10))',
-        border: '1px solid rgba(255,184,76,0.55)',
-      }}>
-      <div className="text-[10px] uppercase tracking-[0.22em] mb-3"
-        style={{ color: '#ffd58a' }}>
-        ✦ 对比战绩
-      </div>
-      <div className="grid grid-cols-2 gap-3 text-center">
-        <Side info={c} result={cR} highlight={winner === 'challenger'} label="挑战者" />
-        <Side info={e} result={eR} highlight={winner === 'challengee'} label="应战者" />
-      </div>
-      {winner === 'tie' && (
-        <div className="text-center mt-3 text-xs text-white/85 font-bold">
-          🤝 平手 — 都拿了 {cR.compensationMonths} 个月
+    <>
+      <div className="rounded-2xl p-5"
+        style={{
+          background: 'linear-gradient(135deg, rgba(255,184,76,0.20), rgba(255,45,146,0.10))',
+          border: '1px solid rgba(255,184,76,0.55)',
+        }}>
+        <div className="text-[10px] uppercase tracking-[0.22em] mb-3"
+          style={{ color: '#ffd58a' }}>
+          ✦ 对比战绩
         </div>
-      )}
-    </div>
+        <div className="grid grid-cols-2 gap-3 text-center">
+          <Side info={c} result={cR} highlight={winner === 'challenger'} label="挑战者" />
+          <Side info={e} result={eR} highlight={winner === 'challengee'} label="应战者" />
+        </div>
+        {winner === 'tie' && (
+          <div className="text-center mt-3 text-xs text-white/85 font-bold">
+            🤝 平手 — 都拿了 {cR.compensationMonths} 个月
+          </div>
+        )}
+        <button
+          onClick={() => setShareOpen(true)}
+          className="mt-4 w-full py-2.5 rounded-xl text-xs font-bold tracking-wide text-white"
+          style={{
+            background: 'linear-gradient(135deg,#ff5588,#7c3aed)',
+            boxShadow: '0 6px 18px rgba(124,58,237,0.32)',
+          }}>
+          📤 分享这张对比卡 (1080×1350 PNG)
+        </button>
+      </div>
+
+      <ChallengeShareCardModal
+        open={shareOpen}
+        data={shareData}
+        onClose={() => setShareOpen(false)}
+      />
+    </>
   );
 }
 
