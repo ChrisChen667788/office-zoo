@@ -27,6 +27,8 @@ export default defineConfig({
       // upgrade. Caught the first time the user reloaded after v5.1.0
       // shipped.
       '/talkshow-personas': 'http://localhost:3100',
+      // v5.2.0 — archetype portraits, lazy-generated server-side.
+      '/archetype-portraits': 'http://localhost:3100',
       '/socket.io': {
         target: 'http://localhost:3101',
         ws: true

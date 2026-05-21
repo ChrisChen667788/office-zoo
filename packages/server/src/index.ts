@@ -60,9 +60,12 @@ const avatarDir = path.resolve(__dirname2, '../public/avatars');
 const iconDir = path.resolve(__dirname2, '../public/icons');
 // v5.1.0 — talkshow persona portraits served as a parallel static dir.
 const talkshowPersonaDir = path.resolve(__dirname2, '../public/talkshow-personas');
+// v5.2.0 — 24 archetype portraits, lazy-generated on first request.
+const archetypePortraitDir = path.resolve(__dirname2, '../public/archetype-portraits');
 if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
 if (!fs.existsSync(iconDir))   fs.mkdirSync(iconDir,   { recursive: true });
-if (!fs.existsSync(talkshowPersonaDir)) fs.mkdirSync(talkshowPersonaDir, { recursive: true });
+if (!fs.existsSync(talkshowPersonaDir))    fs.mkdirSync(talkshowPersonaDir, { recursive: true });
+if (!fs.existsSync(archetypePortraitDir))  fs.mkdirSync(archetypePortraitDir, { recursive: true });
 
 // Detect actual image format from magic bytes — Minimax `image_generation`
 // returns JPEG even when we asked for PNG, so trusting the file extension
@@ -98,6 +101,7 @@ function servePng(dir: string) {
 app.get('/avatars/:filename', servePng(avatarDir));
 app.get('/icons/:filename',   servePng(iconDir));
 app.get('/talkshow-personas/:filename', servePng(talkshowPersonaDir));
+app.get('/archetype-portraits/:filename', servePng(archetypePortraitDir));
 
 // ---------------------------------------------------------------------------
 // Health check — honest one. Returns:

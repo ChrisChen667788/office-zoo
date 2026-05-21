@@ -21,6 +21,10 @@ import {
   extractTribeFromAnswers,
 } from '@furball/shared';
 import {
+  generateArchetypePortrait,
+  hasCachedArchetypePortrait,
+} from '../services/archetypeAvatarGen';
+import {
   generatePersonalizedProfile,
 } from '../services/profileGenerator';
 import { findProfile, saveProfile, type UserProfile } from '../services/profileStore';
@@ -133,4 +137,34 @@ quizRoutes.get('/evolution/me', async (c) => {
   if (!userId) return c.json({ evolution: null });
   const evolution = await getEvolutionPayload(userId);
   return c.json({ evolution });
+});
+
+/** v5.2.0 — archetype portrait (lazy-gen). Three response shapes:
+ *   { ready: true, url: '/archetype-portraits/<id>.png' }  cache hit
+ *   { ready: false, generating: true }                     kick-off fired, poll again in ~20s
+ *   { ready: false, generating: false, error: '...' }      all models in chain failed
+ *
+ *  Client polls until ready or shows the emoji fallback indefinitely.
+ *  Anonymous-friendly — no X-User-Id required since portraits are
+ *  shared content. Validated against ARCHETYPES so an attacker can't
+ *  flood our disk with bogus persona ids. */
+quizRoutes.get('/archetype-portrait/:id', async (c) => {
+  const id = c.req.param('id');
+  if (!ARCHETYPES.some((a) => a.id === id)) {
+    return c.json({ error: 'unknown archetype' }, 404);
+  }
+  if (hasCachedArchetypePortrait(id)) {
+    return c.json({ ready: true, url: `/archetype-portraits/${id}.png` });
+  }
+  // Kick off generation but don't await — return "still cooking" so
+  // the client can show the fallback emoji and poll back. Note that
+  // ConcurrentRequest dedup is NOT bullet-proof here (two simultaneous
+  // requests for the same id will both kick off generation, then the
+  // second writeFileSync overwrites the first). For 24 portraits with
+  // typical access pattern this is fine — the cost is one duplicate
+  // gen per id over the lifetime of the cache.
+  void generateArchetypePortrait(id).catch((e) => {
+    console.warn(`[quiz] archetype-portrait ${id} generation threw`, e);
+  });
+  return c.json({ ready: false, generating: true });
 });

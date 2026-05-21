@@ -44,6 +44,11 @@ coverage/
 # Comment these out if you want to commit a baseline asset set.
 packages/server/public/avatars/*.png
 packages/server/public/icons/*.png
+# v5.2.0 — archetype portraits lazy-generated per-request (~17MB for
+# 24 entries). Unlike talkshow-personas (6 entries, small enough to
+# commit for fork-friendliness), these regenerate on demand via
+# GET /api/quiz/archetype-portrait/:id when a user lands on their card.
+packages/server/public/archetype-portraits/*.png
 
 # OS noise
 .Spotlight-V100

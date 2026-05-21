@@ -23,6 +23,7 @@ import {
 } from '@furball/shared';
 import { getUserId } from '../utils/userId';
 import { archetypeLabel, useT, type DictKey } from '../utils/i18n';
+import { useArchetypePortrait } from '../utils/archetypePortrait';
 import type { PersonalizedProfile, UserProfile } from '../utils/profileTypes';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
@@ -386,6 +387,9 @@ const ProfileCard = forwardRef<HTMLDivElement, ProfileCardProps>(function Profil
   ref,
 ) {
   const grad = `linear-gradient(135deg, ${archetype.colors.start} 0%, ${archetype.colors.mid} 50%, ${archetype.colors.end} 100%)`;
+  // v5.2.0 — lazy-load the AI portrait. Falls back to emoji while
+  // generating; swaps to the img once the server responds with ready.
+  const portrait = useArchetypePortrait(archetype.id);
   return (
     <div
       ref={ref}
@@ -400,8 +404,29 @@ const ProfileCard = forwardRef<HTMLDivElement, ProfileCardProps>(function Profil
     >
       {/* Hero band */}
       <div className="px-6 py-8 text-center" style={{ background: grad }}>
-        <div className="text-7xl mb-3" style={{ filter: 'drop-shadow(0 4px 0 rgba(0,0,0,0.3))' }}>
-          {archetype.emoji}
+        {/* v5.2.0 — AI portrait. 128px circle (vs the 7xl emoji,
+            which renders ~110px). Emoji fallback behind shows during
+            lazy-gen wait. Black border matches the y2k frame. */}
+        <div className="relative w-32 h-32 mx-auto mb-3 rounded-full overflow-hidden"
+          style={{
+            border: '3px solid #0a0a0a',
+            boxShadow: '4px 4px 0 0 #0a0a0a',
+            background: '#fff',
+          }}>
+          <div className="absolute inset-0 flex items-center justify-center text-6xl"
+            style={{ filter: 'drop-shadow(0 4px 0 rgba(0,0,0,0.3))' }}
+            aria-hidden>
+            {archetype.emoji}
+          </div>
+          {portrait.url && (
+            <img
+              src={portrait.url}
+              alt={archetype.name}
+              className="absolute inset-0 w-full h-full object-cover"
+              draggable={false}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
+          )}
         </div>
         <div
           className="y2k-display text-4xl mb-2"
