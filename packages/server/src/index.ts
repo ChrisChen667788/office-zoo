@@ -30,6 +30,7 @@ import { quizRoutes } from './routes/quiz';
 import { dailyRoutes } from './routes/daily';
 import { squadRoutes } from './routes/squad';
 import { dailyChallengeRoutes } from './routes/dailyChallenge';
+import { fortuneRoutes } from './routes/fortune';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
 
@@ -51,6 +52,9 @@ app.route('/api/daily', dailyRoutes);
 app.route('/api/squad', squadRoutes);
 // v5.0.0 — global today-only challenge (everyone races the same scenario).
 app.route('/api/daily-challenge', dailyChallengeRoutes);
+// v5.4.0 — 班味占卜 daily fortune. Deterministic per (user, date)
+// tarot-ish card pick from a 24-card deck.
+app.route('/api/fortune', fortuneRoutes);
 
 // Serve generated avatars + icons as static PNGs.
 // Two near-identical routes share a helper — not worth abstracting further

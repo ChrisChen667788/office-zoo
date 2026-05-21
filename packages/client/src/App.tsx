@@ -19,6 +19,7 @@ import SquadHistory from './routes/SquadHistory';
 import FiredChallenge from './routes/FiredChallenge';
 import FiredLeaderboard from './routes/FiredLeaderboard';
 import FiredDailyChallenge from './routes/FiredDailyChallenge';
+import Fortune from './routes/Fortune';
 
 export default function App() {
   return (
@@ -56,6 +57,8 @@ export default function App() {
       {/* v5.0.0 — "全网今日挑战" daily public leaderboard. Same scenario
           for everyone today, top-20 by comp ratio + your own rank. */}
       <Route path="/fired/daily-challenge" element={<FiredDailyChallenge />} />
+      {/* v5.4.0 — 班味占卜 tarot-style daily fortune card. */}
+      <Route path="/fortune" element={<Fortune />} />
       {/* v4.0.0 — "X 挑战你这一关" comparison flow. Friend opens this link
           → sees challenger's archetype + grade → accepts → plays the
           same scenario → comparison share card. */}

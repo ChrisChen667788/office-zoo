@@ -8,3 +8,4 @@ export * from './data/talkshow';
 export * from './data/furniture';
 export * from './data/archetypes';
 export * from './data/squad';
+export * from './data/fortune';

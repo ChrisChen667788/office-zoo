@@ -416,18 +416,34 @@ export default function Landing() {
                     leaderboard. Sits right under the personalized
                     daily card so users discover it without it
                     competing for top-of-hero attention. */}
-                <button
-                  onClick={() => navigate('/fired/daily-challenge')}
-                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-bold text-[12px] transition hover-sheen"
-                  style={{
-                    color: '#9be6ff',
-                    background: 'rgba(0,221,255,0.10)',
-                    border: '1px solid rgba(0,221,255,0.40)',
-                  }}
-                  title="今天全网都在玩同一关 · 看自己卡在第几名"
-                >
-                  🌐 全网今日挑战 · 看榜
-                </button>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    onClick={() => navigate('/fired/daily-challenge')}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-bold text-[12px] transition hover-sheen"
+                    style={{
+                      color: '#9be6ff',
+                      background: 'rgba(0,221,255,0.10)',
+                      border: '1px solid rgba(0,221,255,0.40)',
+                    }}
+                    title="今天全网都在玩同一关 · 看自己卡在第几名"
+                  >
+                    🌐 全网今日挑战 · 看榜
+                  </button>
+                  {/* v5.4.0 — 班味占卜入口. 紫色配色跟卡牌主色一致,
+                      跟青色的全网挑战 chip 视觉上区分开. */}
+                  <button
+                    onClick={() => navigate('/fortune')}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-bold text-[12px] transition hover-sheen"
+                    style={{
+                      color: '#c9b3ff',
+                      background: 'rgba(124,58,237,0.14)',
+                      border: '1px solid rgba(124,58,237,0.45)',
+                    }}
+                    title="每天 1 张塔罗式班味卡 · 今日运势 + 一个微行动"
+                  >
+                    🔮 班味占卜 · 抽今天的牌
+                  </button>
+                </div>
               </>
             ) : (
               <button
