@@ -17,9 +17,9 @@
 </div>
 
 <p align="center">
-  <img src="assets/launch-demo/demo-memory.gif" alt="30s demo · AI 同事跨局记仇" width="640" />
+  <img src="assets/launch-demo/game-highlight.gif" alt="30s 真实 game 高光 · 8 个 AI 鼠人开撕" width="720" />
   <br/>
-  <em>v6.0.0 · pgvector + Reflection 让 AI 跨局记仇 · <a href="docs/V6_MEMORY_TECH_BLOG.md">技术博客</a></em>
+  <em>v6.0.0 · 真实游戏录屏 30s · <a href="assets/launch-demo/demo-memory.gif">技术故事板版</a> · <a href="docs/V6_MEMORY_TECH_BLOG.md">技术博客</a></em>
 </p>
 
 ---
