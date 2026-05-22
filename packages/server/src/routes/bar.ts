@@ -33,6 +33,7 @@ import { callLLMWithTimeout } from '../utils/llm';
 import { createOpenAI } from '@ai-sdk/openai';
 import { logger } from '../utils/logger';
 import { createCluster, joinCluster, getCluster } from '../services/barClusterStore';
+import { renderClusterPng, invalidateClusterRender } from '../services/barClusterRenderer';
 
 const barLog = logger.child({ route: 'bar' });
 
@@ -264,10 +265,31 @@ barRoutes.post('/cluster/:id/join', async (c) => {
     transcript: sanitized,
   });
   if (!cluster) return c.json({ error: '拼版不存在或已满 (上限 8 人)' }, 404);
+  // Cluster data changed — drop cached PNG so next render reflects new participant.
+  invalidateClusterRender(clusterId);
   return c.json({
     id: cluster.id,
     archetype: cluster.archetype,
     participantCount: cluster.participants.length,
+  });
+});
+
+/** v6.2 — server-side group portrait PNG.
+ *  1080×1350 @ 2x DPI, IG-portrait. Caches in-process (LRU 200).
+ *  Cache invalidates when new participant joins (see /cluster/:id/join). */
+barRoutes.get('/cluster/:id/render.png', async (c) => {
+  const clusterId = c.req.param('id');
+  const png = await renderClusterPng(clusterId);
+  if (!png) return c.json({ error: '拼版不存在或渲染失败' }, 404);
+  // Buffer is a Uint8Array subclass; Hono/web-standards Response wants
+  // BodyInit which Uint8Array satisfies (Buffer's lib.dom typing is stricter
+  // than needed, so we narrow via Uint8Array constructor).
+  return new Response(new Uint8Array(png), {
+    headers: {
+      'Content-Type': 'image/png',
+      // Short cache: cluster can update when new friend joins.
+      'Cache-Control': 'public, max-age=300',
+    },
   });
 });
 

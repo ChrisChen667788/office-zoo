@@ -104,7 +104,7 @@ function extractSnippets(transcript: Array<{ role: 'user' | 'assistant'; content
       ts: Date.now(),
       score: Math.min(m.content.length, 80) - Math.abs(m.content.length - 50), // 50 字最优
     }))
-    .filter((s) => s.text.length >= 20);
+    .filter((s) => s.text.length >= 10); // v6.2 — 酒馆短回复正常 10-19 字, 不该 filter
   // 取 user / ai 各 top 1.5 = 3 条总
   const userTop = candidates.filter((s) => s.who === 'user').sort((a, b) => b.score - a.score).slice(0, 2);
   const aiTop   = candidates.filter((s) => s.who === 'ai').sort((a, b) => b.score - a.score).slice(0, 2);

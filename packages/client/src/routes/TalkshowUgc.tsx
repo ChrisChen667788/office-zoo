@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getUserId } from '../utils/userId';
+import EventPill from '../components/EventPill';
 
 const TAGS = [
   { value: 'overtime', label: '加班 / 周报', emoji: '🌙' },
@@ -144,9 +145,7 @@ export default function TalkshowUgc() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 段子库
         </button>
-        <span className="text-[11px] uppercase tracking-[0.28em] text-white/55">
-          🎤 段子投稿
-        </span>
+        <EventPill stars={5}>🎤 段子投稿 · 月度精选</EventPill>
         <span className="w-12" />
       </header>
 

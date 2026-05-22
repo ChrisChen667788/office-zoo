@@ -17,9 +17,9 @@
 </div>
 
 <p align="center">
-  <img src="assets/launch-demo/game-highlight.gif" alt="30s 真实 game 高光 · 8 个 AI 鼠人开撕" width="720" />
+  <img src="assets/launch-demo/hero-combined.gif" alt="30s hero · 米哈游风故事 (0-15s) + 真实游戏 (15-30s)" width="720" />
   <br/>
-  <em>v6.0.0 · 真实游戏录屏 30s · <a href="assets/launch-demo/demo-memory.gif">技术故事板版</a> · <a href="docs/V6_MEMORY_TECH_BLOG.md">技术博客</a></em>
+  <em>v6.2 · 米哈游风故事板 + 真实游戏画面合成 30s · <a href="assets/launch-demo/demo-memory.gif">纯故事板版</a> · <a href="assets/launch-demo/game-highlight.gif">纯真实游戏版</a> · <a href="docs/V6_MEMORY_TECH_BLOG.md">技术博客</a></em>
 </p>
 
 ---

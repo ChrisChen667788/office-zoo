@@ -29,6 +29,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getUserId } from '../utils/userId';
 import FortuneShareCardModal from '../components/FortuneShareCardModal';
+import EventPill from '../components/EventPill';
 
 interface FortuneCard {
   id: string;
@@ -97,9 +98,7 @@ export default function Fortune() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 首页
         </button>
-        <span className="text-[11px] uppercase tracking-[0.28em] text-white/55">
-          🔮 班味占卜
-        </span>
+        <EventPill stars={5} subtle>🔮 班味占卜</EventPill>
         {/* v5.7.0 — gallery shortcut. Sits where the date stamp used to,
             because the date is duplicated on the card itself; freeing
             this header slot for navigation has higher utility than

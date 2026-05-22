@@ -27,6 +27,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getUserId } from '../utils/userId';
+import EventPill from '../components/EventPill';
 
 interface MemoryStats {
   total: number;
@@ -117,9 +118,7 @@ export default function Settings() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 首页
         </button>
-        <span className="text-[11px] uppercase tracking-[0.28em] text-white/55">
-          ⚙️ 设置
-        </span>
+        <EventPill stars={4} subtle>⚙️ 设置 · v6.2</EventPill>
         <span className="w-12" />
       </header>
 
