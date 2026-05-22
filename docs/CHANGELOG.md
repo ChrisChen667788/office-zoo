@@ -2,6 +2,396 @@
 
 每个版本一段。最新在最上,语义化版本号。
 
+> v3.1 – v5.4 的条目此处暂缺(代码侧 tag 已落地, 详见各文件版本注释)。
+> v5.5 起恢复完整记录。
+
+---
+
+## v6.0.0 — 2026-05-22 · Phase B 收尾 + 公开发布
+
+### Added
+- `GET /api/memory/beliefs?userId=<id>` — 返回特定 spectator 持有的全部
+  beliefs, group by archetype, 每 archetype cap 5 条 (按 ts DESC)
+- `Settings.tsx` 新增 "💭 他们对你的判断" 面板 — 展示每个 AI 人格对你
+  形成的判断, 配上"反思尚未触发"的引导态
+- `Landing.tsx` 右上 header 加 ⚙️ 入口到 `/settings`
+- `docs/V6_MEMORY_TECH_BLOG.md` — 中英双版技术博客 (中文 ~250 行 +
+  英文 ~120 行, 投稿 HN Show / V2EX / 掘金 / ProductHunt):
+  - 一句话价值主张
+  - 实际产生的 LLM speech 引用
+  - 为什么 RAG 不够 (3 个硬伤)
+  - reflection 涌现 belief 的具体 example
+  - 选型 trade-off + bench 数据
+  - 7 个对手对比 (MetaGPT / AutoGen / ChatDev / Smallville / AI Town /
+    MiniMax 官方狼人杀 / OpenBMB AgentVerse)
+  - 7 项护城河 (含 Phase B 新增的 chunky-style + reflection)
+  - 完整 quickstart + roadmap
+
+### Done-when (RFC §4.3 全部达成)
+- ✅ Memory 跨 game_id 持久 cap 200/agent×player (HNSW + 复合索引保障)
+- ✅ "💭 你的 AI 同事" 面板 (Settings 页, beliefs 实时显示)
+- ✅ Forget mechanism (per-archetype + global, 2-step confirm)
+- ✅ 技术博客出稿
+
+### Phase B 完整里程碑
+
+```
+✅ v5.8.0      pgvector + memoryEmbedder + ensureSchema
+✅ v5.8.1      memoryWrite + memoryRecall + BaseAgent + GameEngine
+✅ v5.8.1.1    bench (HNSW p95 15ms) + 全局 forget
+✅ v5.8.2      chunky-style per-spectator + Settings forget UI
+✅ v5.9.0      Reflection 5 轮触发 + belief × 1.5 加权
+✅ v6.0.0      Belief panel + 技术博客 + 公开发布
+```
+
+按 ITERATION_PLAN §B 估的 80-100 工时,实际 ~10 小时模拟完成。
+RFC-driven + probe-driven 开发模式 ROI 极高。
+
+---
+
+## v5.9.0 — 2026-05-22 · Phase B Reflection 层
+
+### Added
+- `server/src/services/reflectionLoop.ts`(210 行)— `maybeReflect()` 是
+  公共入口,每个 GameEngine round-end 后 fire-and-forget 调用:
+  - **触发策略**: round % 5 == 0 OR 未反思事件 > 10 (RFC §4.2)
+  - **LLM prompt**: 给定 ≤N 条 events, 输出 3-5 条 high-level beliefs
+  - **解析容错**: "- " bullets → "1." 编号 → naked lines, 三层兜底
+  - **缓存**: content-hash(archetype, sorted-event-ids) → beliefs[],
+    LRU 256 slots, 同样 events 集合 0 再生成
+  - **watermark**: pullUnreflectedEvents 用最近一次 belief 的 ts 做高水位,
+    自然避免重复反思同一批 events
+- `server/scripts/probe-reflection.ts` — 5-step done-when 验证
+
+### Changed
+- `memoryRecall.recallMemories` — kind='belief' 的 importance 现在
+  × 1.5 加权 (clamp to 1.0). 同等 relevance 下 belief 必然排在
+  event 之前。从 RFC §4.2 字面落地。
+- `GameEngine.recordRoundMemory` 末尾 fire `maybeReflect()` per
+  unique surviving personality (并行, 各自 self-gated by threshold).
+- `BaseAgent` + `reflectionLoop` 都把 `openai`/`MODEL` 改成 lazy
+  factory 函数。修了一个隐 bug:ESM imports 在 `dotenv.config()`
+  之前被 hoisted,模块级 `const MODEL = process.env.OPENAI_MODEL` 捕获
+  空字符串 + 'gpt-5.4-mini' 兜底名,过去靠 Minimax M2 fallback 救活
+  没显形。reflection 因为 prompt 短不易触发 fallback,直接撞 Qingyun
+  "Invalid token" + 限速 120s。修后 gpt-4o-mini 正常调用。
+
+### Verified
+
+**reflection probe (`probe-reflection`):**
+- 12 events → 5 beliefs LLM 生成质量惊艳, 包括纯推理出来的 "我怀疑钱七和
+  张三暗中勾结" (events 里只各有零散提及, belief 是综合判断)
+- recall after reflection: top-1 是 belief (score 0.776, importance 1.0),
+  top-2 是相关 event (score 0.761, importance 0.5) — × 1.5 加权生效
+- 同 round 第二次 fire: events=0 不触发 (watermark 推进)
+- 5/5 pass
+
+**回归 — cross-game probe (`probe-memory-cross-game`):**
+- BaseAgent lazy-model 修复后, gpt-4o-mini 直接出 speech
+  (不再 fallback 到 Minimax)
+- 仍然引用 memory 里的 "@王五同学" + "颗粒度", 但 LLM 风格不同
+  (没用显式"上次" — 这是 LLM 个性差异, 不是 pipeline 问题)
+
+### 体验意义
+- AI 不再只是"记得发生过什么", 而是"对这场局有判断". 例如:
+  - event: "钱七反常投了赵六" + "张三第一次发言阴阳"
+  - belief: "我怀疑钱七和张三暗中勾结" ← reflection 推理出来的
+- belief 加权让 high-level 判断比 raw event 更早出现在 prompt 里,
+  agent 的人格连续性 + 长期记仇逻辑显著强化。
+
+### TODO 下个版本 (v5.9.1 polish)
+- [ ] reflection LLM model 切到更便宜的 gpt-4o-mini-2024-07-18 specific (现在 OPENAI_MODEL 默认就是 gpt-4o-mini, 已 OK)
+- [ ] UI 暴露 belief — Profile/Settings 加 "💭 你的 AI 同事们对你的判断" 面板
+- [ ] cache 持久化 — 现在 in-process, 重启就丢; 拓展到 Redis / pgvector?
+- [ ] reflection 频率自适应 — 高活跃用户每 5 局调高到每 10 局节省 token
+
+---
+
+## v5.8.2 — 2026-05-22 · chunky-style per-spectator memory
+
+### Added
+- `client/src/routes/Settings.tsx`(200 行)— `/settings` 新页面。
+  Section "🧠 AI 同事记忆":
+  - 顶部总记忆条数 + 来自几个人格
+  - 每个人格一行,可单独"清空"(2-step confirm)
+  - 底部 ☢ 核选项:"清空全部 AI 同事的记忆"(也是 2-step confirm)
+- `server/scripts/probe-memory-per-spectator.ts` — 8-step 验证 spectator
+  scope 隔离 + scoped forget
+
+### Changed
+- `GameCreateSchema` 加 optional `userId` 字段(8-64 字符);
+  `Landing.tsx` + `Immersive.tsx` 的 `socket.emit('game:create')` 现在
+  自动塞 `getUserId()`
+- `GameEngine` constructor 多 1 个 `spectatorUserId` 参数,存为
+  `readonly spectatorUserId: string | null`
+- `BaseAgent` constructor 多 1 个 `spectatorUserId` 参数,recall 时
+  传给 `recallMemories({targetUserId})`
+- `GameEngine.recordRoundMemory` 给每个 entry 打上 `targetUserId`
+- `App.tsx` 注册 `/settings` route
+
+### Verified
+- per-spectator probe 8/8: A 只看到 A 的记忆,B 只看到 B 的,
+  scope=null 看到全部,forget(A) 删 2 条不动 B
+- 兼容性: 老客户端(不传 userId) → 服务端 spectatorUserId=null →
+  memory 走 v5.8.1 globally-keyed 路径(不破)
+
+### 体验意义
+- 同一个 `passive_aggressive` 人格,在 Alice 的游戏里 vs 在 Bob 的游戏
+  里,会进化出**两套不同的人格记忆**。Alice 救过他,他就记 Alice 一辈子;
+  Bob 投过他出局,他就记 Bob 一辈子。
+- 这是 RFC §2 "chunky-style 同事记仇" 的完整实现。
+- 用户主动权:Settings 页一键抹掉自己在 AI 心里留下的所有痕迹。
+
+---
+
+## v5.8.1.1 — 2026-05-22 · polish (benchmark + 全局 forget)
+
+### Added
+- `server/scripts/bench-memory-100games.ts` — write 路径全压测(seed
+  3000 entries via 500 Qingyun embed calls; 慢但完整)
+- `server/scripts/bench-recall-only.ts` — recall 路径压测(对已 seed 的
+  corpus 跑 100 次查询,排除 embed roundtrip 后纯 pg 测)
+- `server/src/routes/memory.ts` — Phase B memory 运维端点:
+  - `POST /api/memory/forget` — 按 archetype/gameId/kind/targetUserId
+    任意组合 DELETE, 全空 → 全库 wipe. 法务安全网, 不依赖 v5.8.2
+    的 spectator userId 绑定 (RFC §5.4 兜底)
+  - `GET /api/memory/stats` — 总数 + 按 archetype 分布
+
+### Bench Result (1836-entry corpus)
+```
+HNSW recall p95 (pg only): 15ms ✅ (SLO ≤ 200ms)
+HNSW recall p95 (含 embed): 1101ms — embedding roundtrip 是瓶颈
+Embedding API roundtrip p95: ~1086ms
+LRU cache: 100% 命中率, 重复 query 0 成本
+
+per-entry: 10.44 KB (data + 1536-dim vector + index)
+Neon 500MB free ceiling: ~49,062 entries
+Neon 3GB ceiling: ~294,372 entries
+≈ 100 个活跃用户 × 100 局 × 30 events 刚好填满 3GB
+```
+
+### Verified
+- forget endpoint UAT: `{"archetype":"bench-archetype-0"}` → 精准删
+  306 行, 其他 archetypes 未触及
+- Memory routes 经 tsx --watch 热加载, 服务端无需重启
+
+---
+
+## v5.8.1 — 2026-05-22 · Phase B 记忆层端到端贯通
+
+### Added
+- `server/src/services/memoryWrite.ts`(125 行)— `writeMemory()` 单条
+  + `writeMemoryBatch()` 多条。fire-and-forget(swallow err 不抛),NULL
+  embedding 兜底(RFC §5.6)。
+- `server/src/services/memoryRecall.ts`(165 行)— `recallMemories({agent,
+  query, k=5})` 二阶段执行: SQL 取 HNSW + LIKE union → JS 算
+  `relevance*0.5 + recency*0.3 + importance*0.2` 排序。recency 24h
+  半衰期指数衰减,LIKE fallback 给 0.3 relevance(低于 vector 命中
+  但非零)。
+- `server/scripts/probe-memory-write-recall.ts` — 6-step round-trip
+  smoke test。
+- `server/scripts/probe-memory-cross-game.ts` — **done-when 验证脚本**。
+
+### Changed
+- `agents/BaseAgent.ts` — `generateSpeech(context, priorSpeeches?, opts?)`
+  签名扩展。当 `personality + opts.gameId` 都有时,recall top-4 跨局
+  memory(score ≥ 0.45, 过滤掉当前 game),拼入 prompt 的`【你跨局的
+  相关记忆】`block。失败完全静默(memory 层是可选增强,绝不阻塞 speech)。
+- `engine/GameEngine.ts`:
+  - speech 调用现在传 `{gameId, round}`
+  - vote 结算后 fire `recordRoundMemory()` 私有方法 — 给每个 surviving
+    agent 写 `kind=event` (importance 0.5), 给被开除的 agent 写 0.9
+    importance 的"我被开除了"自我记忆。batch + lazy-imports 防止 engine
+    硬依赖 pgvector。
+
+### Verified (2026-05-22)
+
+**write+recall round-trip (`probe-memory-write-recall`):**
+```
+✅ 6/6 — write single / batch 5, recall semantic (王五→王五 distance 0.34) /
+       kind=belief filter / gibberish recency-only 1.0, cleanup
+```
+
+**cross-game DONE-WHEN (`probe-memory-cross-game`):**
+- Seed: passive_aggressive 在 game_past 被 @王五 用 "颗粒度不够" 阴阳 +
+  @王五 联合 @赵六 投出局
+- Fresh BaseAgent 同人格、new game id, generateSpeech
+- LLM output 第一句:**"@王五 同学,你这张嘴我还是记忆犹新的哈——上次
+  说我颗粒度不够,回头就联合 @赵六 把我投出局,这波闭环操作真是打得
+  漂亮"**
+- regex 命中 "上次" 关键词,内容精确复现 4 个 memory 信号(加害者 /
+  伤害词 / 联合者 / 跨局指代),人格保留
+
+### Scope note (v5.8.1 vs full chunky-style)
+
+经典模式 `game:create` 目前**不绑 spectator userId**(纯匿名 socket)。
+本版本 memory 只 key 在 `agent_archetype`(personality.id),实现 **"角色
+跨局演化"**(同一个 passive_aggressive 在所有 game 里累积记忆)。
+
+完整 chunky-style "AI 同事记你的仇" 需要在 v5.8.2 给 game:create 加
+X-User-Id 绑定 + `target_user_id` 列回填, schema 已经预留 nullable。
+
+### TODO 下个版本 (v5.8.2)
+- [ ] `game:create` 接受 X-User-Id, 存 spectator userId 到 engine
+- [ ] BaseAgent 把 spectator userId 传给 recall (target_user_id 过滤)
+- [ ] socketHandler 在每个 player 的 speech 写 memory 时打上 target_user_id
+- [ ] Forget mechanism (RFC §5.4): `/settings/fortune` 加 "清空我对 AI
+      同学的记忆" → POST /api/memory/forget?archetype=...
+
+---
+
+## v5.8.0-rc.1 — 2026-05-22 · Phase B 记忆层 infra 三件套
+
+### Added
+- `docker-compose.yml`(repo root)— 本地 pgvector dev 容器 (pgvector/pgvector:pg17),
+  port 5433, named volume 持久化。Prod 走 Neon 托管 (RFC §5.1)。
+- `server/src/services/pgvectorClient.ts`(165 行)— pg Pool 单例 + 幂等
+  `ensureSchema()`。流程:
+  1. `CREATE EXTENSION vector`
+  2. `pgvector.registerType(client)` — pool.on('connect') 给后续连接自动挂
+  3. `CREATE TABLE memory_entries (VECTOR(1536) embedding, ...)`
+  4. 复合索引 `(agent_archetype, target_user_id, kind)` + HNSW 向量索引
+- `server/src/services/memoryEmbedder.ts`(165 行)— OpenAI text-embedding-3-small
+  via Qingyun, content-hash LRU 缓存 (1024 entry cap), 8s timeout, NULL-on-failure
+  (RFC §5.6)。`embedOne()` + `embedMany()` + `clearEmbeddingCache()`。
+- `server/scripts/probe-memory-infra.ts`(180 行)— 端到端 smoke test:
+  ensureSchema → embed → INSERT → cosine recall → cleanup。
+
+### Verified (2026-05-22, 跑了 2 次)
+```
+✅ 1. ensureSchema()       — extension + table + 2 indexes created
+✅ 1b. indexes present     — idx_mem_agent_target, idx_mem_embedding, pkey
+✅ 2. embedOne()           — 1536-dim vector, first val 0.0009
+✅ 2b. embedOne cache hit  — second call zero API roundtrip
+✅ 3. INSERT row           — pgvector.toSql serialisation OK
+✅ 4. recall via cosine    — 张三 投票 记仇 → "...张三投了我..." distance 0.4049
+✅ 5. cleanup              — DELETE OK
+═══ 7 pass · 0 fail ═══
+```
+BIGSERIAL 在两次 probe 间从 1→2,验证数据库持久化跨容器进程。
+
+### 关键决策(锁定在 [`V5.8_MEMORY_RFC.md`](./V5.8_MEMORY_RFC.md))
+- pgvector / Neon prod + Docker dev
+- OpenAI text-embedding-3-small via Qingyun (1536 dim) — Minimax embedding 已下架,
+  三重证据 §5.2
+- classic 7-agent 模式首发
+- chunky-style 同事记仇 (memory keyed by agent_archetype × target_user_id)
+
+### Bug discovered + fixed
+- `pgvector.registerType(pool)` 不能在 `getPool()` 里跑(extension 还没建),
+  也不能传 Pool(只接受 Client)。改成 `ensureSchema` 里:
+  acquire client → `CREATE EXTENSION` → `registerType(client)` →
+  `pool.on('connect')` 挂后续连接的 registerType → release client。
+
+### TODO 下个版本 (v5.8.1)
+- [ ] `memoryWrite.ts` — `writeEvent({agent, targetUid, content, source})` fire-and-forget
+- [ ] `memoryRecall.ts` — `search({agent, targetUid, query, k=5})` 含 relevance × recency × importance 排序
+- [ ] `BaseAgent.generateSpeech` 改造接 recall
+- [ ] socketHandler round-end hook → 写 event memory
+- [ ] 跨局验证脚本 `scripts/test-memory-cross-game.ts`
+
+---
+
+## v5.7.0 — 2026-05-22 · 翻看牌库 Gallery
+
+### Added
+- `client/src/routes/FortuneGallery.tsx` — 新页面 `/fortune/gallery`,
+  read-only 全 24 卡 deck explorer。按 vibe tier 分组(大吉 / 中平 /
+  凶险), 2×3 / 3×3 响应式 grid, 每张 thumbnail 用卡牌自身渐变色。
+- 选中任一张 → bottom-sheet 弹出完整卡面(忠告 + 微行动)+ "把这张牌
+  做成分享卡" CTA, 复用 `FortuneShareCardModal` 让用户能为牌库里
+  *任何* 一张牌生成分享 PNG, 不仅是今日抽签。
+- `Fortune.tsx` header 右上 "牌库 →" 入口(替换原本重复的 date 戳)。
+
+### Why
+- 24 张卡每天只翻 1 张, 用户对 "其它 23 张长啥样" 的好奇是 retention
+  hook。Gallery 满足好奇心 + 提升内容深度感知 (这不是个 3 张卡的
+  小玩具)。
+- 内容创作者(发小红书的人)可能想用某张特定的卡, 而不是今天的卡。
+  Gallery 的"把这张牌做成分享卡" CTA 直接服务这个场景。
+
+---
+
+## v5.6.0 — 2026-05-22 · 7 天占卜历史
+
+### Added
+- `server/src/services/fortuneHistoryStore.ts` — per-user JSON 持久化,
+  cap 30 entries (1 月). 镜像 `squadHistoryStore` 的 in-memory cache +
+  atomic-rename pattern。
+- `GET /api/fortune/me` 内嵌 fire-and-forget `recordFortuneDraw`, 同日
+  重复打开幂等。
+- `GET /api/fortune/history?limit=N` — 最近 N 条(默认 7, max 30)。
+- `client/src/routes/FortuneHistory.tsx` — `/fortune/history` 新页面,
+  顶部 summary strip(avg vibeScore + 主导 tier + 主导 tag 中文化)+
+  纵向时间线列出每天的卡(emoji + 标题 + 日期 + tier 标签)。空状态
+  优雅引导新用户先去 /fortune 抽今天。
+- `Fortune.tsx` footer 加 "📜 看本周" 链接, 跟原 "明天的牌" 提示并列。
+
+### Why
+- "回访 hook" — "明天再来" 是 1 步; "看本周积累" 是已经累积的价值,
+  心理拉力强一档。当用户连续 3-5 天后, history 页变成 personal
+  catharsis artefact (每周班味曲线)。
+
+---
+
+## v5.5.1 — 2026-05-22 · Web Share API
+
+### Added
+- `utils/fortuneShareCard.ts` 新增 `canSystemShareImage()` 二段
+  capability detection(navigator.share + canShare file probe), 和
+  `systemShareFortuneCard(data, opts)` 直出 OS share sheet。
+- `FortuneShareCardModal.tsx` 在 iOS Safari / Chrome Android 上把主
+  CTA 升级为 "📲 一键分享到 微信 / 小红书 / 微博" 全宽渐变按钮,
+  复制 / 下载 降级为下方小 chip。Desktop 等不支持的浏览器 UI 不变。
+
+### Why
+- 在 iOS/Android 上, 用户从"看到分享卡" → "发到微信" 原本是 3 步
+  (复制 → 切应用 → 粘贴), 系统 share sheet 砍到 1 步。
+- Feature-detect 双段(navigator.share + canShare file probe)避免在
+  desktop Chrome / 老 Safari 上误推不可用的按钮。
+
+---
+
+## v5.5.0 — 2026-05-22 · 占卜卡一键分享 PNG
+
+### Added
+- `utils/fortuneShareCard.ts` — 纯 Canvas 2D 渲染 1080×1350 IG-portrait
+  PNG, 复刻 v1.5.0 `dailyShareCard.ts` 的 pattern。塔罗卡(渐变 + vibe 槽 +
+  大 emoji + 标题 + 副标 + date stamp)+ 今日忠告 / 微行动 双 panel +
+  `#班味占卜` hashtag footer。
+- `components/FortuneShareCardModal.tsx` — preview + 📋复制 / 📥下载 双按钮,
+  blob URL 自动回收。
+- `Fortune.tsx` CTA 升级: 单"复制链接"按钮 → 双按钮(📤 生成分享卡 PNG 占
+  2/3 主 weight + 🔗 复制链接 占 1/3 副 weight)。
+
+### Why
+- v5.4 分享路径"复制 URL → 用户截图 → 发圈"3 步摩擦, viral 损耗大。
+- 一键 PNG 直接交付"完成的图像", 跳过截图环节, 朋友圈/小红书/Twitter
+  通吃; 自带 `#班味占卜` + `officezoo.app` 水印, 二次曝光归我们。
+- 复用 v1.5.0 已经验证过的 canvas pattern, 零依赖、零后端、纯客户端。
+
+### Verified
+- 3 个 vibe tier (大吉 92 / 小吉 65 / 大凶 18) 渲染正确, 5 档 VIBE_COLOR
+  正确映射 (green / lime / red bar)。
+- modal preview img 在 modal 内 4:5 槽对齐, 复制 + 下载按钮全功能。
+
+---
+
+## v5.4.1 — 2026-05-22 · 班味占卜视觉打磨
+
+### Changed
+- `VIBE_COLOR` 3 档 → **5 档**, 跟 `VIBE_LABEL` 一一对齐。
+  解决"小吉 65 → 黄色警告 bar" 这种 label-color 错位的认知摩擦。
+  大吉 → `#22c55e` / 小吉 → `#a3e635` / 中平 → `#fbbf24` /
+  小凶 → `#fb923c` / 大凶 → `#ef4444`。
+- 卡片顶部 vibe label + 评分加 `textShadow`, 在暖色渐变上(KPI 神助攻 /
+  PUA 雷暴日) 不再被吃掉。
+- 卡底 `OFFICE ZOO · {date}` 日期戳 white/55 → white/75 + shadow。
+- Footer 拆 2 段: pre-CTA 行 "截图发朋友圈 / 小红书 → 标签 #班味占卜"
+  (white/65 + 金色 hashtag, 贴 CTA 上方促分享) + post-CTA 行
+  "✦ 明天的牌 · 子时(UTC 00:00) 重新洗牌" (white/55, 独立成行,
+  daily-habit hook 不被分享提示挤压)。
+
 ---
 
 ## v3.0.0 — 2026-05-18 · 化学反应导演

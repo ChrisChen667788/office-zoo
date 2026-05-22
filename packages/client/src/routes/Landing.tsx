@@ -222,7 +222,9 @@ export default function Landing() {
     if (target === 'talkshow')  { navigate('/talkshow'); return; }
     if (target === 'immersive') { navigate('/immersive/new'); return; }
     setIsCreating(true);
-    socket.emit('game:create', { playerCount, mode: target });
+    // v5.8.2 — userId enables per-spectator chunky-style memory in
+    // BaseAgent. Server treats it as optional (back-compat).
+    socket.emit('game:create', { playerCount, mode: target, userId: getUserId() });
   }, [isCreating, mode, playerCount, navigate, socket]);
 
   const activeSpec = MODES.find((m) => m.key === mode)!;
@@ -348,6 +350,17 @@ export default function Landing() {
             className="text-xs tracking-wider text-white/55 hover:text-white/90 transition px-3 py-2"
           >
             {t('header.howToPlay')}
+          </button>
+          {/* v6.0.0 — Settings entry. Tiny gear icon, intentionally
+              understated so it doesn't compete with the play CTAs.
+              Houses AI-memory controls + forget mechanism. */}
+          <button
+            onClick={() => navigate('/settings')}
+            className="text-base text-white/55 hover:text-white/90 transition px-2 py-2"
+            title="设置 / AI 记忆"
+            aria-label="settings"
+          >
+            ⚙️
           </button>
           <SfxToggle />
         </div>

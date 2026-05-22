@@ -1,13 +1,22 @@
 /**
- * Fortune — v5.4.0 班味占卜 / 今日运势 page.
+ * Fortune — 班味占卜 / 今日运势 page.
  *
- * Tarot-style daily card surface. Server picks one card from
- * FORTUNE_DECK deterministic per (userId, UTC date). User sees:
+ * v5.4.0 — initial tarot-style daily card surface.
+ * v5.4.1 — visual polish: 5-tier VIBE_COLOR aligned with VIBE_LABEL,
+ *          textShadow on small labels for warm-gradient legibility,
+ *          footer split into pre-CTA share hint + post-CTA return hook.
+ * v5.5.0 — one-tap PNG share via FortuneShareCardModal (1080×1350,
+ *          mirrors the v1.5.0 dailyShareCard pattern). The plain
+ *          "复制链接" CTA stays but is demoted to secondary; the
+ *          primary CTA becomes "📤 生成分享卡" because a finished
+ *          image beats a copied URL on every social platform.
+ *
+ * Server picks one card from FORTUNE_DECK deterministic per
+ * (userId, UTC date). User sees:
  *  - Big draw animation on first mount (the "翻牌" reveal)
  *  - Card hero (emoji + title + subtitle + vibe gauge)
  *  - 今日忠告 + 微行动 blocks
- *  - Share-card export (1080×1350 PNG, similar pattern to v1.5.0
- *    daily share card — separate component for now)
+ *  - Share-card export (1080×1350 PNG)
  *  - "明天的牌" tease at the bottom that points to come-back behavior
  *
  * Design intent: Z-gen 玄学 / 塔罗 aesthetic, fully shareable,
@@ -19,6 +28,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getUserId } from '../utils/userId';
+import FortuneShareCardModal from '../components/FortuneShareCardModal';
 
 interface FortuneCard {
   id: string;
@@ -37,8 +47,16 @@ interface Payload {
   card: FortuneCard;
 }
 
+/** Vibe accent color — 5 tiers, aligned 1:1 with VIBE_LABEL's bands so a
+ *  "小吉 65" card no longer shows a "warning yellow" bar (the previous
+ *  3-tier mapping was off-by-one: yellow under a label that read 小吉
+ *  felt contradictory). 大吉 green → 小吉 lime → 中平 amber → 小凶 orange → 大凶 red. */
 const VIBE_COLOR = (score: number): string =>
-  score >= 80 ? '#22c55e' : score >= 40 ? '#fbbf24' : '#ef4444';
+  score >= 80 ? '#22c55e'
+  : score >= 60 ? '#a3e635'
+  : score >= 40 ? '#fbbf24'
+  : score >= 20 ? '#fb923c'
+  : '#ef4444';
 
 const VIBE_LABEL = (score: number): string =>
   score >= 80 ? '大吉' : score >= 60 ? '小吉' : score >= 40 ? '中平' : score >= 20 ? '小凶' : '大凶';
@@ -52,6 +70,10 @@ export default function Fortune() {
    *  Auto-flips ~600ms after data arrives so the "draw" reveal feels
    *  intentional, not laggy. */
   const [revealed, setRevealed] = useState(false);
+  /** v5.5.0 — share-card modal open state. Mirrors the v1.5.0
+   *  DailyShareCardModal usage pattern: open via primary CTA,
+   *  closes on backdrop click / ✕ / Esc-handled-by-modal. */
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/fortune/me', { headers: { 'X-User-Id': myId } })
@@ -78,9 +100,15 @@ export default function Fortune() {
         <span className="text-[11px] uppercase tracking-[0.28em] text-white/55">
           🔮 班味占卜
         </span>
-        <span className="text-[10px] text-white/30 tabular-nums">
-          {data?.date ?? '...'}
-        </span>
+        {/* v5.7.0 — gallery shortcut. Sits where the date stamp used to,
+            because the date is duplicated on the card itself; freeing
+            this header slot for navigation has higher utility than
+            showing the date twice. */}
+        <button onClick={() => navigate('/fortune/gallery')}
+          className="text-[11px] text-white/55 hover:text-white/95 transition px-2 py-1 rounded"
+          style={{ background: 'rgba(176,134,255,0.10)', border: '1px solid rgba(176,134,255,0.25)' }}>
+          牌库 →
+        </button>
       </header>
 
       <main className="max-w-md mx-auto px-4 md:px-6 pb-16">
@@ -128,8 +156,11 @@ export default function Fortune() {
                     boxShadow: `0 30px 80px ${data.card.gradient[1]}55`,
                     backfaceVisibility: 'hidden',
                   }}>
-                  {/* Top — vibe gauge + label */}
-                  <div className="flex items-center justify-between text-[10px] tracking-[0.22em] uppercase text-white/95 font-bold">
+                  {/* Top — vibe gauge + label. textShadow keeps the small
+                      uppercase tracking legible on bright warm gradients
+                      (orange-pink "KPI 神助攻" / magenta "PUA 雷暴日"). */}
+                  <div className="flex items-center justify-between text-[10px] tracking-[0.22em] uppercase text-white font-bold"
+                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.55)' }}>
                     <span>{VIBE_LABEL(data.card.vibeScore)}</span>
                     <span className="tabular-nums">运势 · {data.card.vibeScore}</span>
                   </div>
@@ -171,8 +202,11 @@ export default function Fortune() {
                     </motion.p>
                   </div>
 
-                  {/* Footer — date stamp */}
-                  <div className="text-center text-[9px] tracking-[0.3em] uppercase text-white/55">
+                  {/* Footer — date stamp. Bumped opacity + textShadow so
+                      the stamp survives both dark (千万别开群会) and bright
+                      (KPI 神助攻) backgrounds without re-tinting per card. */}
+                  <div className="text-center text-[9px] tracking-[0.3em] uppercase text-white/75"
+                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
                     OFFICE ZOO · {data.date}
                   </div>
                 </div>
@@ -213,23 +247,61 @@ export default function Fortune() {
                     </p>
                   </div>
 
-                  <div className="flex gap-2 mt-4">
+                  {/* Pre-CTA share hint — sits just above the share button
+                      so the WHERE-to-share guidance primes the action.
+                      Highlighted #班味占卜 hashtag gives users a concrete
+                      hook they remember after the link is in clipboard. */}
+                  <div className="text-center text-[10px] text-white/65 mt-4 mb-2 leading-relaxed">
+                    截图发朋友圈 / 小红书 → 标签{' '}
+                    <span className="font-bold" style={{ color: '#ffd58a' }}>#班味占卜</span>
+                  </div>
+                  {/* v5.5.0 — primary CTA = generate share card (finished
+                      image beats a copied URL on every social platform).
+                      Secondary CTA = original copy-link path, kept for
+                      users who specifically want to send the LINK rather
+                      than the IMAGE (eg group chats where image previews
+                      lose context). Two-thirds / one-third split keeps
+                      the visual weight on the primary action. */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShareOpen(true)}
+                      className="py-3 rounded-xl text-xs font-bold tracking-wide text-white"
+                      style={{
+                        flex: 2,
+                        background: 'linear-gradient(135deg,#ff5588,#7c3aed)',
+                        boxShadow: '0 6px 18px rgba(124,58,237,0.32)',
+                      }}>
+                      📤 生成分享卡 PNG
+                    </button>
                     <button
                       onClick={() => {
                         const url = `${window.location.origin}/fortune`;
                         navigator.clipboard.writeText(url).catch(() => {});
                       }}
-                      className="flex-1 py-3 rounded-xl text-xs font-bold tracking-wide text-white"
+                      className="py-3 rounded-xl text-xs font-bold tracking-wide"
                       style={{
-                        background: 'linear-gradient(135deg,#ff5588,#7c3aed)',
-                        boxShadow: '0 6px 18px rgba(124,58,237,0.32)',
-                      }}>
-                      🔗 复制链接, 让朋友也抽一张
+                        flex: 1,
+                        background: 'rgba(176,134,255,0.14)',
+                        border: '1px solid rgba(176,134,255,0.40)',
+                        color: '#b086ff',
+                      }}
+                      title="复制 /fortune 链接, 让朋友自己抽">
+                      🔗 复制链接
                     </button>
                   </div>
-                  <div className="text-center text-[10px] text-white/40 mt-3 leading-relaxed">
-                    明天的牌 · 子时(UTC 00:00) 重新洗牌<br/>
-                    截图发朋友圈 / 小红书 → 标签 #班味占卜
+                  {/* Post-CTA return hook — distinct intent from the share
+                      hint above (this drives next-day reopen, not share).
+                      v5.6.0 — paired with the 📜 history button so users
+                      with >1 day of records can see their pattern
+                      forming. Anonymous-friendly: empty history page
+                      handles first-time users gracefully. */}
+                  <div className="flex items-center justify-center gap-3 mt-3 text-[10px] text-white/55">
+                    <span>✦ 明天的牌 · 子时(UTC 00:00) 重洗</span>
+                    <span className="text-white/25">·</span>
+                    <button onClick={() => navigate('/fortune/history')}
+                      className="hover:text-white/95 transition underline decoration-dotted underline-offset-4">
+                      📜 看本周
+                    </button>
                   </div>
                 </motion.div>
               )}
@@ -237,6 +309,25 @@ export default function Fortune() {
           </>
         )}
       </main>
+
+      {/* v5.5.0 — share-card modal. Stays mounted in the tree so the
+          enter/exit animation runs; data comes from the same card the
+          page is currently showing. Renders nothing visible when
+          shareOpen=false (AnimatePresence inside the modal handles it). */}
+      <FortuneShareCardModal
+        open={shareOpen}
+        data={data ? {
+          date: data.date,
+          emoji: data.card.emoji,
+          title: data.card.title,
+          subtitle: data.card.subtitle,
+          vibeScore: data.card.vibeScore,
+          gradient: data.card.gradient,
+          advice: data.card.advice,
+          microAction: data.card.microAction,
+        } : null}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   );
 }

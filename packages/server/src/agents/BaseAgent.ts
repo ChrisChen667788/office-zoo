@@ -2,15 +2,29 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { Team, Role, ROLE_REGISTRY, Personality, PERSONALITY_REGISTRY } from '@furball/shared';
 import { callLLMWithTimeout } from '../utils/llm';
 import { logger } from '../utils/logger';
+import { recallMemories } from '../services/memoryRecall';
 
 const agentLog = logger.child({ component: 'agent' });
 
-const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY ?? '',
-  baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.vectorengine.ai/v1',
-});
-
-const MODEL = process.env.OPENAI_MODEL ?? 'gpt-5.4-mini';
+// Lazy provider construction. ESM imports are hoisted ABOVE the
+// dotenv.config() call in entrypoints / scripts, so reading process.env
+// at module-init time captures empty strings + the bogus 'gpt-5.4-mini'
+// fallback. We caught this in v5.9.0 reflection probe — primary call
+// silently failed "Invalid token", traffic survived only because
+// callLLMWithTimeout's Minimax fallback caught it. Build at call time.
+let _openai: ReturnType<typeof createOpenAI> | null = null;
+function openai() {
+  if (!_openai) {
+    _openai = createOpenAI({
+      apiKey: process.env.OPENAI_API_KEY ?? '',
+      baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.qingyuntop.top/v1',
+    });
+  }
+  return _openai;
+}
+function model() {
+  return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
+}
 
 function buildSystemPrompt(role: Role, team: Team, personality?: Personality): string {
   const info = ROLE_REGISTRY[role];
@@ -102,14 +116,24 @@ export class BaseAgent {
   readonly role: Role;
   readonly team: Team;
   readonly personality?: Personality;
+  /** v5.8.2 — the spectator's X-User-Id when this agent was constructed
+   *  (i.e. who is watching this game). When set, memory recall scopes
+   *  to this spectator's chunky-style chain — "your version of sass-master
+   *  remembers". When null (anonymous game), falls back to v5.8.1
+   *  global archetype memory. */
+  readonly spectatorUserId: string | null;
   private systemPrompt: string;
 
-  constructor(playerId: string, playerName: string, role: Role, team: Team, personality?: Personality) {
+  constructor(
+    playerId: string, playerName: string, role: Role, team: Team,
+    personality?: Personality, spectatorUserId?: string | null,
+  ) {
     this.playerId = playerId;
     this.playerName = playerName;
     this.role = role;
     this.team = team;
     this.personality = personality;
+    this.spectatorUserId = spectatorUserId ?? null;
     this.systemPrompt = buildSystemPrompt(role, team, personality);
   }
 
@@ -119,11 +143,52 @@ export class BaseAgent {
    * @param context   Full game state summary (who's alive/dead, events this round)
    * @param priorSpeeches  Speeches already given this round (by earlier speakers) —
    *                       enables cascading reactions instead of 8 independent monologues.
+   * @param opts.gameId / opts.round — used for memory recall scoping + provenance.
+   *        When omitted, memory recall is skipped (back-compat with tests + any
+   *        future caller that doesn't have a game context). v5.8.1.
    */
   async generateSpeech(
     context: string,
     priorSpeeches?: Array<{ name: string; text: string }>,
+    opts?: { gameId?: string; round?: number },
   ): Promise<string> {
+    // v5.8.1 — memory recall. Best-effort, fully fail-safe: if pgvector
+    // is down / OPENAI embedding fails / table empty, we silently fall
+    // back to memory-less prompt. Speech generation must NEVER block on
+    // the memory layer.
+    let memoryBlock = '';
+    if (this.personality && opts?.gameId) {
+      try {
+        // v5.8.2 — when we know the spectator, narrow recall to memories
+        // tagged with THEIR user_id (chunky-style). Anonymous spectators
+        // fall through to global archetype recall (v5.8.1 behaviour).
+        const recalled = await recallMemories({
+          agentArchetype: this.personality,
+          targetUserId: this.spectatorUserId ?? undefined,
+          query: context,
+          k: 4,
+        });
+        // Filter: only show memories from PREVIOUS games (current-game
+        // events would be redundant with `context`). Plus a low-score cutoff
+        // — score < 0.45 means barely related, would just confuse the LLM.
+        const fromOtherGames = recalled.filter(
+          (m) => m.sourceGameId !== opts.gameId && m.score >= 0.45,
+        );
+        if (fromOtherGames.length > 0) {
+          memoryBlock = `\n\n【你跨局的相关记忆 — 你是 ${this.personality} 这个人格,以下是你在之前游戏里的经历】\n${fromOtherGames
+            .map((m) => `- ${m.content}`)
+            .join('\n')}\n请把这些过往经历自然融入发言, 比如"上次那个 ..." 或 "我之前就吃过 ... 的亏" — 但不要原话照搬, 要像真人回忆一样自然.`;
+          agentLog.debug({
+            agent: this.playerName, personality: this.personality,
+            recalled: fromOtherGames.length, topScore: fromOtherGames[0]?.score,
+          }, 'memory recall hit');
+        }
+      } catch (err) {
+        // Don't even log at warn — memory layer optional, noise harmful.
+        agentLog.debug({ err: (err as Error).message }, 'memory recall skipped');
+      }
+    }
+
     const priorBlock = (priorSpeeches ?? []).length
       ? `\n\n【本轮前面同学的发言】\n${priorSpeeches!
           .map((s, i) => `${i + 1}. ${s.name}: ${s.text}`)
@@ -131,9 +196,9 @@ export class BaseAgent {
       : '\n\n你是本轮会议的第一个发言者,负责定调——直接抛出你怀疑的同学和理由,把战场点燃,越狠越好。';
 
     const res = await callLLMWithTimeout('SPEECH', {
-      model: openai(MODEL),
+      model: openai()(model()),
       system: this.systemPrompt,
-      prompt: `你是${this.playerName}。当前职场状况: ${context}${priorBlock}
+      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${priorBlock}
 
 请发表你的看法(2-4 句话,每句都要有戏,总字数 60-120 字)。硬性要求:
 
@@ -196,7 +261,7 @@ export class BaseAgent {
       .join(', ');
 
     const res = await callLLMWithTimeout('VOTE', {
-      model: openai(MODEL),
+      model: openai()(model()),
       system: this.systemPrompt,
       prompt: `你是${this.playerName}。当前职场状况: ${context}\n可投票开除的对象: ${candidateList}\n也可选择 skip 弃票。${this.personality && PERSONALITY_REGISTRY[this.personality] ? `\n投票倾向提示: ${PERSONALITY_REGISTRY[this.personality].voteBias}` : ''}\n\n请只回复一个员工ID(如player_0)或skip，不要其他内容。`,
       maxTokens: 20,
@@ -238,7 +303,7 @@ export class BaseAgent {
    */
   async generateGhostComment(context: string): Promise<string> {
     const res = await callLLMWithTimeout('GHOST', {
-      model: openai(MODEL),
+      model: openai()(model()),
       system: `你是${this.playerName}，已经被公司开除/裁员了。你现在以"离职员工"的身份旁观前同事们的撕逼大会。
 你知道自己的真实身份是${ROLE_REGISTRY[this.role]?.displayNameCN || this.role}(${this.team === Team.DOG ? '资本家' : this.team === Team.CAT ? '打工人' : '摸鱼党'})。
 作为已离职的旁观者，你可以:
@@ -274,7 +339,7 @@ export class BaseAgent {
       .join(', ');
 
     const res = await callLLMWithTimeout('VOTE', {
-      model: openai(MODEL),
+      model: openai()(model()),
       system: `你是${this.playerName}，已被公司开除。你拥有最后一次"劳动仲裁投票"权——这是你唯一的复仇机会，用完就没有了。
 你的真实身份是${ROLE_REGISTRY[this.role]?.displayNameCN || this.role}(${this.team === Team.DOG ? '资本家' : this.team === Team.CAT ? '打工人' : '摸鱼党'})。
 策略考量:

@@ -1,0 +1,38 @@
+# v5.8.0 — Phase B memory infrastructure.
+#
+# Single-service compose for local dev: pgvector-enabled Postgres on port
+# 5433 (avoids clashing with any pre-existing 5432). Production uses Neon
+# managed Postgres (see docs/V5.8_MEMORY_RFC.md §5.1) — this file is dev
+# only.
+#
+# Usage:
+#   docker compose up -d           # start
+#   docker compose down            # stop (volume preserved)
+#   docker compose down -v         # stop + wipe volume (reset all memory)
+#
+# After up: `psql 'postgresql://furball:furball@localhost:5433/furball'`
+# to inspect. The first `pgvectorClient.ensureSchema()` call on the Node
+# side will CREATE EXTENSION + CREATE TABLE idempotently.
+
+services:
+  pgvector:
+    image: pgvector/pgvector:pg17
+    container_name: furball-pgvector
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: furball
+      POSTGRES_PASSWORD: furball
+      POSTGRES_DB: furball
+    volumes:
+      # Named volume for persistence — survives `down`, wiped by `down -v`.
+      - furball_pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U furball -d furball"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  furball_pgvector_data:

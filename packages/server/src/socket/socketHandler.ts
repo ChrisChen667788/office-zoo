@@ -18,6 +18,11 @@ const GameCreateSchema = z.object({
   // Supported player counts — match ROLE_PRESETS in shared/src/data.
   playerCount: z.number().int().min(4).max(20),
   mode: z.string().max(32).optional(),
+  // v5.8.2 — spectator's X-User-Id, optional for back-compat (older
+  // clients that haven't been updated still create games successfully,
+  // they just don't accumulate per-user memory). Length cap mirrors
+  // utils/userId.ts contract on the client (8-64 chars).
+  userId: z.string().min(8).max(64).optional(),
 });
 
 // gameId shape is `game_<timestamp>` — just enforce a reasonable cap.
@@ -106,7 +111,9 @@ export function setupSocketHandler(io: SocketServer) {
       }
       const config = v.data;
 
-      const engine = new GameEngine(config.playerCount);
+      // v5.8.2 — userId optional in payload; engine stores it for
+      // per-spectator chunky-style memory (RFC §3.2 target_user_id key).
+      const engine = new GameEngine(config.playerCount, config.userId);
       const gameId = engine.state.id;
       games.set(gameId, engine);
       currentGameId = gameId;

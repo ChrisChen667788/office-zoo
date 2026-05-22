@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
+import { getUserId } from '../utils/userId';
 import {
   type GhostCommentItem,
   useGameId, usePhase, usePlayers, useRound, useTaskProgress,
@@ -279,7 +280,8 @@ export default function Immersive() {
     if (!connected || createdRef.current) return;
     createdRef.current = true;
     reset();
-    socket.emit('game:create', { playerCount: 8, mode: 'immersive' });
+    // v5.8.2 — userId enables per-spectator chunky-style AI memory.
+    socket.emit('game:create', { playerCount: 8, mode: 'immersive', userId: getUserId() });
   }, [connected, socket, reset]);
 
   // Pause any playing TTS audio when leaving the route.

@@ -31,6 +31,7 @@ import { dailyRoutes } from './routes/daily';
 import { squadRoutes } from './routes/squad';
 import { dailyChallengeRoutes } from './routes/dailyChallenge';
 import { fortuneRoutes } from './routes/fortune';
+import { memoryRoutes } from './routes/memory';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
 
@@ -55,6 +56,10 @@ app.route('/api/daily-challenge', dailyChallengeRoutes);
 // v5.4.0 — 班味占卜 daily fortune. Deterministic per (user, date)
 // tarot-ish card pick from a 24-card deck.
 app.route('/api/fortune', fortuneRoutes);
+// v5.8.1 — Phase B memory ops (forget mechanism, stats). per-user scoped
+// forget arrives in v5.8.2; this version covers global / by-archetype /
+// by-game wipes (法务安全网 per RFC §5.4).
+app.route('/api/memory', memoryRoutes);
 
 // Serve generated avatars + icons as static PNGs.
 // Two near-identical routes share a helper — not worth abstracting further

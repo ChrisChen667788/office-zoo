@@ -62,6 +62,11 @@ export class GameEngine extends EventEmitter {
   readonly state: GameState;
   /** Wall-clock when this engine was created — used by TTL sweeper. */
   readonly createdAt: number = Date.now();
+  /** v5.8.2 — spectator's X-User-Id (from game:create payload). Optional:
+   *  anonymous-friendly games keep null here, in which case memory entries
+   *  for this game store target_user_id=NULL (degrades to v5.8.1 behaviour:
+   *  agent-archetype-only memory chain, not per-spectator). */
+  readonly spectatorUserId: string | null;
   private agents: Map<string, BaseAgent> = new Map();
   private taskManager: TaskManager;
   private timeline: GameEvent[] = [];
@@ -77,8 +82,9 @@ export class GameEngine extends EventEmitter {
     return this._log;
   }
 
-  constructor(configOrPlayerCount: Partial<GameConfig> | number = {}) {
+  constructor(configOrPlayerCount: Partial<GameConfig> | number = {}, spectatorUserId?: string) {
     super();
+    this.spectatorUserId = spectatorUserId ?? null;
     const config: Partial<GameConfig> =
       typeof configOrPlayerCount === 'number'
         ? { playerCount: configOrPlayerCount }
@@ -127,7 +133,12 @@ export class GameEngine extends EventEmitter {
       this.state.players.push(player);
 
       // Create AI agent for this player (with personality)
-      const agent = new BaseAgent(player.id, player.name, role, info.team, personality as Personality);
+      // v5.8.2 — engine pipes its spectatorUserId into every agent so
+      // memory recall + write scope to this watcher's chunky-style chain.
+      const agent = new BaseAgent(
+        player.id, player.name, role, info.team,
+        personality as Personality, this.spectatorUserId,
+      );
       this.agents.set(player.id, agent);
     }
 
@@ -565,7 +576,13 @@ export class GameEngine extends EventEmitter {
           // fallback on failure), but wrap anyway — any future change that
           // lets it throw shouldn't short-circuit the wave.
           try {
-            const text = await agent.generateSpeech(context, priorSpeeches);
+            // v5.8.1 — pass game scope so BaseAgent can recall cross-game
+            // memories for this personality archetype. Safe to pass even
+            // when memory subsystem is down (recall fails open).
+            const text = await agent.generateSpeech(context, priorSpeeches, {
+              gameId: this.state.id,
+              round: this.state.round,
+            });
             return { player, text };
           } catch {
             return { player, text: this.fallbackSpeech(player) };
@@ -778,9 +795,134 @@ export class GameEngine extends EventEmitter {
       eliminatedRole,
     });
 
+    // v5.8.1 — round-end memory writes. Fire-and-forget; failure must
+    // not block the engine tick. We snapshot the data the hook needs
+    // BEFORE the void IIFE because the engine state mutates as the
+    // game advances and we don't want races.
+    const eliminatedSnapshot = eliminated && eliminated !== 'skip'
+      ? this.state.players.find((p) => p.id === eliminated)
+      : null;
+    const survivorsSnapshot = this.state.players
+      .filter((p) => p.isAlive)
+      .map((p) => ({ id: p.id, name: p.name, personality: p.personality }));
+    const gameId = this.state.id;
+    const round = this.state.round;
+    void this.recordRoundMemory({
+      gameId, round,
+      eliminated: eliminatedSnapshot
+        ? { id: eliminatedSnapshot.id, name: eliminatedSnapshot.name, personality: eliminatedSnapshot.personality }
+        : null,
+      survivors: survivorsSnapshot,
+    });
+
     this.state.deadBodyLocation = undefined;
     this.state.meetingCaller = undefined;
     this.emitState();
+  }
+
+  /** v5.8.1 — per-round memory batch. One entry per surviving agent
+   *  (witness summary) + a high-importance self-entry for whoever got
+   *  eliminated. Skips agents without a personality (memory is keyed by
+   *  personality archetype — no personality = no chunky-style identity).
+   *
+   *  Importance ranks:
+   *  - 0.5 default for witness ("我看到了 X 被投出")
+   *  - 0.9 for self-elimination ("我被开除了") — strongest signal
+   *  - 0.8 for skip-round ("没人被投, 我活下来一轮")
+   *
+   *  Fully best-effort: a single failed embedding or DB hiccup loses
+   *  the round's memories but doesn't impact the live game. */
+  private async recordRoundMemory(args: {
+    gameId: string;
+    round: number;
+    eliminated: { id: string; name: string; personality?: string } | null;
+    survivors: Array<{ id: string; name: string; personality?: string }>;
+  }): Promise<void> {
+    try {
+      // Lazy-require so engine doesn't carry a hard dependency on pgvector
+      // for tests that stand it up in isolation. Dynamic ESM import keeps
+      // the module unloaded until the first round-end actually fires.
+      const { writeMemoryBatch } = await import('../services/memoryWrite');
+      const entries = [];
+      const elimDescriptor = args.eliminated
+        ? `${args.eliminated.name} 被投票开除`
+        : '本轮平票, 没人被开除';
+      // v5.8.2 — tag every entry with the spectator's userId (null for
+      // anonymous games). Future recalls filtered by target_user_id only
+      // see memories from games THIS spectator watched.
+      const spectator = this.spectatorUserId;
+      // Witness entries for survivors
+      for (const s of args.survivors) {
+        if (!s.personality) continue;
+        // Don't write a witness entry to the eliminated agent here —
+        // they get a higher-importance self-entry below.
+        if (args.eliminated && s.id === args.eliminated.id) continue;
+        entries.push({
+          agentArchetype: s.personality,
+          targetUserId: spectator,
+          sourceGameId: args.gameId,
+          sourceRound: args.round,
+          kind: 'event' as const,
+          content: `在 game ${args.gameId} 第${args.round}轮全员会议, ${elimDescriptor}, 我活了下来`,
+          importance: args.eliminated ? 0.5 : 0.6,
+          targetPlayerId: args.eliminated?.id ?? null,
+        });
+      }
+      // Self-elimination entry — strongest memory signal.
+      if (args.eliminated && args.eliminated.personality) {
+        entries.push({
+          agentArchetype: args.eliminated.personality,
+          targetUserId: spectator,
+          sourceGameId: args.gameId,
+          sourceRound: args.round,
+          kind: 'event' as const,
+          content: `在 game ${args.gameId} 第${args.round}轮全员会议, 我被同事们投票开除了`,
+          importance: 0.9,
+        });
+      }
+      if (entries.length === 0) return;
+      await writeMemoryBatch(entries);
+      this._log?.debug({ count: entries.length, round: args.round }, 'wrote round memory');
+
+      // v5.9.0 — reflection trigger. Every ROUND_TRIGGER (=5) rounds, the
+      // surviving agents' accumulated event memories get condensed into
+      // 3-5 high-level beliefs. We fire reflection per unique personality
+      // so we don't waste LLM calls on duplicate (archetype, spectator)
+      // pairs (an 8-player game has 8 personalities, but each only
+      // needs one reflection pass).
+      const { maybeReflect } = await import('../services/reflectionLoop');
+      const uniqueArchetypes = Array.from(
+        new Set(args.survivors.map((s) => s.personality).filter((p): p is string => !!p))
+      );
+      const spectator = this.spectatorUserId;
+      // Fire in parallel — each reflection is independent. Each call is
+      // self-gated by maybeReflect's threshold check, so calling it on
+      // every round-end is safe and cheap when no trigger has fired.
+      const results = await Promise.allSettled(
+        uniqueArchetypes.map((arche) =>
+          maybeReflect({
+            agentArchetype: arche,
+            targetUserId: spectator,
+            sourceGameId: args.gameId,
+            currentRound: args.round,
+          })
+        )
+      );
+      const triggered = results.filter(
+        (r): r is PromiseFulfilledResult<{ triggered: boolean; beliefsWritten?: number }> =>
+          r.status === 'fulfilled' && r.value.triggered === true
+      );
+      if (triggered.length > 0) {
+        const totalBeliefs = triggered.reduce((s, r) => s + (r.value.beliefsWritten ?? 0), 0);
+        this._log?.info({
+          archetypes: triggered.length,
+          beliefs: totalBeliefs,
+          round: args.round,
+        }, 'reflection fired');
+      }
+    } catch (err) {
+      this._log?.debug({ err: (err as Error).message }, 'memory write skipped');
+    }
   }
 
   // ---------- Win condition check ----------
