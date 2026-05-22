@@ -32,6 +32,7 @@ import { recallMemories } from '../services/memoryRecall';
 import { callLLMWithTimeout } from '../utils/llm';
 import { createOpenAI } from '@ai-sdk/openai';
 import { logger } from '../utils/logger';
+import { createCluster, joinCluster, getCluster } from '../services/barClusterStore';
 
 const barLog = logger.child({ route: 'bar' });
 
@@ -206,4 +207,83 @@ barRoutes.post('/reply', async (c) => {
     barLog.error({ err: (err as Error).message }, 'bar reply threw');
     return c.json({ error: 'internal error' }, 500);
   }
+});
+
+/* ─── v6.1 朋友拼版 cluster 端点 ───────────────────────────────────────
+ * 用户 A 在酒馆聊完, 创建 cluster → 拿到 share URL
+ * 用户 B 点开 URL → 也跟同 archetype 聊几句 → 自动 join cluster
+ * Cluster 数据可用于后续生成"群像拼版"截图 (v6.2)
+ * ──────────────────────────────────────────────────────────────────── */
+
+barRoutes.post('/cluster/create', async (c) => {
+  const userId = c.req.header('x-user-id')?.slice(0, 64);
+  if (!userId || userId.length < 8) {
+    return c.json({ error: '需要 X-User-Id header' }, 400);
+  }
+  const body = await c.req.json().catch(() => null) as {
+    archetype?: string;
+    transcript?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    displayName?: string;
+  } | null;
+  if (!body?.archetype || !Array.isArray(body.transcript) || body.transcript.length < 2) {
+    return c.json({ error: '需要 archetype + transcript (≥2 messages)' }, 400);
+  }
+  if (body.archetype.length > 64) return c.json({ error: 'archetype too long' }, 400);
+  const sanitized = body.transcript
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 500) }));
+  const cluster = await createCluster({
+    hostUserId: userId,
+    archetype: body.archetype,
+    hostDisplayName: body.displayName?.slice(0, 20),
+    transcript: sanitized,
+  });
+  return c.json({ id: cluster.id, archetype: cluster.archetype });
+});
+
+barRoutes.post('/cluster/:id/join', async (c) => {
+  const userId = c.req.header('x-user-id')?.slice(0, 64);
+  if (!userId || userId.length < 8) {
+    return c.json({ error: '需要 X-User-Id header' }, 400);
+  }
+  const clusterId = c.req.param('id');
+  const body = await c.req.json().catch(() => null) as {
+    transcript?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    displayName?: string;
+  } | null;
+  if (!body || !Array.isArray(body.transcript) || body.transcript.length < 2) {
+    return c.json({ error: '需要 transcript (≥2 messages)' }, 400);
+  }
+  const sanitized = body.transcript
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 500) }));
+  const cluster = await joinCluster({
+    clusterId,
+    userId,
+    displayName: body.displayName?.slice(0, 20),
+    transcript: sanitized,
+  });
+  if (!cluster) return c.json({ error: '拼版不存在或已满 (上限 8 人)' }, 404);
+  return c.json({
+    id: cluster.id,
+    archetype: cluster.archetype,
+    participantCount: cluster.participants.length,
+  });
+});
+
+barRoutes.get('/cluster/:id', async (c) => {
+  const clusterId = c.req.param('id');
+  const cluster = await getCluster(clusterId);
+  if (!cluster) return c.json({ error: 'not found' }, 404);
+  // Anonymize: 不返回 hostUserId, displayName 或者 "朋友 N"
+  return c.json({
+    id: cluster.id,
+    archetype: cluster.archetype,
+    createdAt: cluster.createdAt,
+    participants: cluster.participants.map((p, i) => ({
+      displayName: p.displayName ?? `朋友 ${i + 1}`,
+      joinedAt: p.joinedAt,
+      snippets: p.snippets,
+    })),
+  });
 });

@@ -18,7 +18,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getUserId } from '../utils/userId';
 import { mihoyo, stigmaChipStyle } from '../constants/design';
@@ -84,6 +84,13 @@ export default function Bar() {
   const [sending, setSending] = useState(false);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  // v6.1 — 朋友拼版 cluster 检测 + 自动 join。如果 URL ?cluster=<id>
+  // 就是别人邀你来拼版, 你聊够 3 条之后自动加入。
+  const [searchParams] = useSearchParams();
+  const incomingClusterId = searchParams.get('cluster');
+  const [clusterId, setClusterId] = useState<string | null>(incomingClusterId);
+  const [clusterMeta, setClusterMeta] = useState<{ participantCount: number } | null>(null);
+  const [joinedCluster, setJoinedCluster] = useState(false);
 
   useEffect(() => {
     fetch(`/api/bar/profile/${archetype}`)
@@ -132,8 +139,31 @@ export default function Bar() {
   };
 
   const share = async () => {
-    const url = `${window.location.origin}/bar/${archetype}`;
-    const text = `Chris 邀请你到「${ARCHETYPE_DISPLAY[archetype]}」的酒馆喝一杯 🍺  #班味剧场`;
+    // v6.1 — 朋友拼版: share 前先创建 cluster, 让 URL 带 ?cluster=<id>。
+    // 朋友点开会自动加入这个 cluster, 多人对话合并成"拼版"。
+    let url = `${window.location.origin}/bar/${archetype}`;
+    if (!clusterId && messages.length >= 3) {
+      try {
+        const resp = await fetch('/api/bar/cluster/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': myId },
+          body: JSON.stringify({
+            archetype,
+            transcript: messages.map((m) => ({ role: m.role, content: m.content })),
+          }),
+        });
+        const json = await resp.json() as { id?: string };
+        if (json.id) {
+          setClusterId(json.id);
+          url = `${url}?cluster=${json.id}`;
+        }
+      } catch { /* fall through to plain share URL */ }
+    } else if (clusterId) {
+      url = `${url}?cluster=${clusterId}`;
+    }
+    const text = clusterId || messages.length >= 3
+      ? `我开了个朋友拼版 — 来跟同一个「${ARCHETYPE_DISPLAY[archetype]}」聊几句, 我们的金句会拼成一张图 🍷  #班味剧场`
+      : `Chris 邀请你到「${ARCHETYPE_DISPLAY[archetype]}」的酒馆喝一杯 🍺  #班味剧场`;
     try {
       if (typeof navigator.share === 'function') {
         await navigator.share({ title: '约一杯?', text, url });
@@ -142,13 +172,40 @@ export default function Bar() {
     } catch { /* user cancelled */ }
     try {
       await navigator.clipboard.writeText(`${text}\n${url}`);
-      setShareMsg('✓ 邀请文案已复制, 发给朋友吧');
+      setShareMsg(clusterId ? '✓ 拼版链接已复制, 发给朋友吧' : '✓ 邀请文案已复制');
       setTimeout(() => setShareMsg(null), 2400);
     } catch {
       setShareMsg('复制失败, 长按地址栏发吧');
       setTimeout(() => setShareMsg(null), 2400);
     }
   };
+
+  // v6.1 — 自动加入别人邀请的 cluster: 当 ?cluster=<id> 且用户聊够 3 条,
+  // POST join 一次, 后续不再重复。
+  useEffect(() => {
+    if (!incomingClusterId || joinedCluster) return;
+    const userMessages = messages.filter((m) => m.role === 'user').length;
+    if (userMessages < 2) return; // 至少聊 2 句再 join (避免空 join)
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch(`/api/bar/cluster/${incomingClusterId}/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': myId },
+          body: JSON.stringify({
+            transcript: messages.map((m) => ({ role: m.role, content: m.content })),
+          }),
+        });
+        if (cancelled) return;
+        const json = await resp.json() as { id?: string; participantCount?: number; error?: string };
+        if (json.id) {
+          setJoinedCluster(true);
+          setClusterMeta({ participantCount: json.participantCount ?? 1 });
+        }
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [messages, incomingClusterId, joinedCluster, myId]);
 
   return (
     <div className="relative min-h-screen overflow-hidden flex flex-col"
@@ -188,6 +245,24 @@ export default function Bar() {
           style={mihoyo.type.caption}>
           凌晨 2 点 · lo-fi · 没人催 KPI
         </div>
+
+        {/* v6.1 — 朋友拼版状态 banner */}
+        {(incomingClusterId || clusterId) && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-3 text-center text-[11px] font-bold py-2 rounded-xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,215,0,0.10), rgba(176,134,255,0.06))',
+              border: '1px solid rgba(255,215,0,0.32)',
+              color: '#FFD58A',
+            }}>
+            {incomingClusterId && !joinedCluster && '🔗 朋友邀你加入拼版 · 再聊 2 句就自动加进去'}
+            {incomingClusterId && joinedCluster && clusterMeta &&
+              `✓ 已加入拼版 · 你是第 ${clusterMeta.participantCount} 位金句贡献者`}
+            {!incomingClusterId && clusterId && '✦ 你已开拼版 · 把链接发给朋友收集更多金句'}
+          </motion.div>
+        )}
 
         {/* Messages stream */}
         <div ref={scrollerRef} className="flex-1 overflow-y-auto pr-1 space-y-3 pb-4">

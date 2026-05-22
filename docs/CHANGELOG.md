@@ -7,6 +7,83 @@
 
 ---
 
+## v6.1.0 — 2026-05-22 · Z 世代趣味升级 (米哈游风 + UGC + 拼版)
+
+### Why
+基于"对 Z 世代有吸引力 + 玩法更黏 + 朋友分享"的产品方向, 落地 4 件套:
+1. UI/UX 升级到米哈游典型游戏画风 (深紫宇宙 + 5★ 金边 + 元素 chip)
+2. 段子库走向 UGC 共创, 月度精选机制留住头部贡献者
+3. 酒馆 1v1 体验扩展成"朋友拼版" - 多人共享同 AI 视角
+4. 现场截图 + LLM 实际生成的中英对照文案全面迭代
+
+### Added — Phase A: 米哈游风新 hero
+- `assets/launch-demo/storyboard.html` 重做 — 米哈游 design tokens:
+  - 深紫宇宙 + starfield + 6 方向 hex texture
+  - 5★ 角色卡边框 + shimmer gradient
+  - EVENT pill + skill-card description style
+  - 金色 wordmark + 月光白文本对比
+- `demo-memory.gif` (1.87 MB) / `demo-memory.mp4` (561 KB) — 5 个 scene
+  × 6 秒, 视觉冲击力比 v6.0 storyboard 强一档
+- 5 张 PR Hunt gallery 静态帧重抓
+
+### Added — Phase B: Landing hero 米哈游升级
+- `Landing.tsx` eyebrow 区域改造:
+  - 旧粉红 pill → 金色 + 紫色 + 玫红 gradient pill
+  - 加 "v6.1 · NEW EVENT · AI 同事会记住你" 文案
+  - 末尾 ★★★★★ 5 星 chip (金色高亮)
+  - 文案使用 -webkit-background-clip + 白→金渐变
+- 整个 hero 第一屏视觉接近米哈游"新版本上线"页风格
+
+### Added — Phase C: 朋友拼版彩蛋
+- `server/src/services/barClusterStore.ts` (180 行) — JSON 持久化, cap
+  8 人/cluster, 30 天 TTL, 自动抽 "金句" (用户 + AI 各最长的 1-2 条)
+- 3 个新端点:
+  - `POST /api/bar/cluster/create` — host 创建 cluster (带自己 transcript)
+  - `POST /api/bar/cluster/:id/join` — friend 加入 (追加 transcript)
+  - `GET  /api/bar/cluster/:id` — 拉所有 participants + snippets
+- `Bar.tsx` 改造:
+  - share() 现在先 POST create, URL 带 ?cluster=<id>
+  - useSearchParams 检测 incomingClusterId, 用户聊够 2 条自动 POST join
+  - 状态 banner: "朋友邀你加入拼版 · 再聊 2 句就自动加进去" /
+    "✓ 已加入拼版 · 第 N 位金句贡献者" / "✦ 你已开拼版 · 发链接给朋友"
+
+### Added — Phase D: 段子 UGC 投稿 + 月度精选
+- `server/src/services/talkshowUgcStore.ts` (170 行):
+  - 投稿状态机: pending → approved / rejected (auto-moderation)
+  - 黑名单刻意保守: 直接公司点名 / 政治 / 色情 / 暴力, 调侃 HR 婉辞全允许
+  - 月度精选: 过去 30d approved 段子按 likes desc
+  - per-user cap 50, total cap 5000
+- 4 个新端点 (挂到 `/api/talkshow/`):
+  - `POST /ugc/submit` — 投稿 (rate-limit 1h × 3)
+  - `GET  /ugc/monthly` — 本月精选 top N
+  - `GET  /ugc/me` — 我的投稿史 (含 status)
+  - `POST /ugc/like/:id` — per-IP 防刷点赞
+- `client/src/routes/TalkshowUgc.tsx` (305 行) — `/talkshow/ugc` 新页面:
+  - ⭐ 本月精选 — 卡片列表, 点赞按钮
+  - 🎤 投稿表单 — 标题 / 正文 / tag / region, 字数计数, 自动错误提示
+  - 📋 我的投稿 — 含 pending / approved / rejected 状态徽章
+- `Talkshow.tsx` header 加 "🎤 投稿 ★" 金色入口 chip
+
+### Verified
+- typecheck 0 新 regression (talkshow / bar 新代码 clean)
+- UGC submit endpoint UAT: 投稿"周一早会的灵魂第一问" → pending 通过
+- Cluster create endpoint UAT: 返回 `bcl-mphikvb8-0ghcvk` (TTL 30d)
+- Server hot-reload 全部生效
+
+### Files (净增 / 改)
+- 新增 6: `storyboard.html` (重写) / `talkshowUgcStore.ts` / `barClusterStore.ts`
+  / `TalkshowUgc.tsx` / `demo-memory.gif` (重生成) / `demo-memory.mp4` (重生成)
+- 改 5: `Landing.tsx` / `Talkshow.tsx` / `Bar.tsx` / `App.tsx` / talkshow + bar routes
+- 5 张 storyboard 静态帧 (`01..05-*.png`) 重抓
+
+### 体验意义
+- 视觉: 从"还行的工具风" → "看起来像真游戏" (米哈游 design system)
+- 黏性: 段子库从"看别人写的" → "自己也能上墙", UGC viral loop
+- 分享: 酒馆从"1v1 私聊" → "朋友拼版", 多人共享 AI 视角的群体记忆
+- 共鸣: tagline 全面切到 "拥抱变化 / 颗粒度 / 班味 / 精神工位" Z 世代词汇
+
+---
+
 ## v6.0.0 — 2026-05-22 · Phase B 收尾 + 公开发布
 
 ### Added

@@ -380,22 +380,41 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           >
-            {/* Eyebrow pill — Gen-Z phrasing instead of corporate "Workplace Deduction". */}
-            <div className="flex items-center gap-3 mb-5">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+            {/* v6.1 — 米哈游风 EVENT BANNER. 替代旧 eyebrow pill,
+                凸显"新版本上线"的活动感, 配 5★ 装饰 + 金色 gradient. */}
+            <motion.div className="flex items-center gap-3 mb-5"
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.6 }}
+            >
+              <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full"
                 style={{
-                  background: 'rgba(255,85,136,0.10)',
-                  border: '1px solid rgba(255,85,136,0.28)',
+                  background: 'linear-gradient(90deg, rgba(255,215,0,0.18), rgba(176,134,255,0.18), rgba(255,79,163,0.16))',
+                  border: '1px solid rgba(255,215,0,0.55)',
+                  boxShadow: '0 6px 22px rgba(255,215,0,0.18), inset 0 1px 0 rgba(255,255,255,0.16)',
                 }}
               >
-                <span className="w-1.5 h-1.5 rounded-full"
-                  style={{ background: '#ff5588', boxShadow: '0 0 10px #ff5588' }} />
-                <span className="text-[11px] tracking-[0.2em] uppercase text-white/80 font-bold">
-                  班味剧场 · AI 员工内卷模拟
+                <motion.span className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: '#FFD700', boxShadow: '0 0 10px #FFD700' }}
+                  animate={{ opacity: [1, 0.4, 1] }}
+                  transition={{ duration: 1.6, repeat: Infinity }}
+                />
+                <span className="text-[11px] tracking-[0.22em] uppercase font-black"
+                  style={{
+                    background: 'linear-gradient(180deg, #fff 0%, #FFD58A 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}>
+                  v6.1 · NEW EVENT · AI 同事会记住你
                 </span>
+                <span className="text-[9px] tracking-[0.18em] font-black px-1.5 py-0.5 rounded"
+                  style={{
+                    background: 'linear-gradient(90deg, #FFD700, #FFA947)',
+                    color: '#1a0d35',
+                  }}>★★★★★</span>
               </div>
               <LottieAsset src={lottie.helloBot} size={40} />
-            </div>
+            </motion.div>
 
             {/* Wordmark — bilingual, gradient, low-key huge. */}
             <h1

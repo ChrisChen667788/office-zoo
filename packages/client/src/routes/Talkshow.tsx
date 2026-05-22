@@ -362,7 +362,19 @@ export default function Talkshow() {
             {scripts.length > 0 && `${scripts.length} 段`}
           </span>
         </div>
-        <div className="w-20" />
+        {/* v6.1 — UGC 段子投稿 + 月度精选入口 */}
+        <button
+          onClick={() => navigate('/talkshow/ugc')}
+          className="text-[11px] font-bold tracking-wider px-2.5 py-1 rounded transition"
+          style={{
+            background: 'linear-gradient(135deg, rgba(255,215,0,0.18), rgba(255,169,71,0.12))',
+            border: '1px solid rgba(255,215,0,0.42)',
+            color: '#FFD58A',
+          }}
+          title="投稿你写的段子 · 月底精选上墙"
+        >
+          🎤 投稿 ★
+        </button>
       </header>
 
       {/* Player view — slides in over the list */}

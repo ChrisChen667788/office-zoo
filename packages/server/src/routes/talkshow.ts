@@ -34,6 +34,12 @@ import {
 import { validateBody } from '../utils/validate';
 import { createRateLimiter } from '../utils/rateLimit';
 import { recordEvolutionEvent, talkshowCreateDelta } from '../services/archetypeEvolution';
+import {
+  submitTalkshow,
+  getMonthlyHighlights,
+  listUserSubmissions,
+  likeSubmission,
+} from '../services/talkshowUgcStore';
 
 // v0.7.6 — generate is the most expensive route (LLM body + LLM title +
 // disk write). Cap it at 5 requests per IP per hour so a single user
@@ -411,4 +417,87 @@ talkshowRoutes.get('/like-state', (c) => {
   const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 200);
   const liked = ids.filter((id) => likedByIp.has(`${ip}::${id}`));
   return c.json({ liked });
+});
+
+/* ─── v6.1 UGC 段子 ─────────────────────────────────────────────────────
+ * 用户提交段子 → auto-moderation → pending (等 maker 手动 approve)
+ * Maker 通过的段子进入月度精选池, 按 likes desc 排序
+ * 给 talkshow 主页 "★ 本月精选 UGC" section 用
+ * ────────────────────────────────────────────────────────────────────── */
+const ugcSubmitLimiter = createRateLimiter({ windowMs: 3600_000, max: 3 });
+
+const UgcSubmitSchema = z.object({
+  title: z.string().min(4).max(40),
+  text: z.string().min(30).max(800),
+  tag: z.enum(['overtime', 'kpi', 'pua', 'age', 'slacking', 'jargon', 'hr', 'boss', 'meta']),
+  region: z.enum(['beijing', 'shanghai', 'shenzhen', 'hangzhou', 'chengdu', 'overseas']).optional(),
+});
+
+talkshowRoutes.post('/ugc/submit', async (c) => {
+  const userId = c.req.header('x-user-id')?.slice(0, 64);
+  if (!userId || userId.length < 8) {
+    return c.json({ error: '需要 X-User-Id header' }, 400);
+  }
+  const rateCheck = ugcSubmitLimiter.check(ipFrom(c));
+  if (!rateCheck.ok) {
+    return c.json({ error: '投稿太快, 1 小时最多 3 条' }, 429);
+  }
+  const v = await validateBody(c, UgcSubmitSchema);
+  if (!v.ok) return v.response;
+  const result = await submitTalkshow({
+    userId,
+    title: v.data.title,
+    text: v.data.text,
+    tag: v.data.tag,
+    region: v.data.region,
+  });
+  if (!result.ok) return c.json({ error: result.reason }, 400);
+  return c.json({
+    id: result.entry.id,
+    status: result.entry.status,
+    // pending: 等 maker 审核, rejected: auto-moderation 被拒
+    message: result.entry.status === 'pending'
+      ? '✓ 投稿成功, 等待审核 (通常 24h 内)'
+      : `✗ ${result.entry.rejectionReason ?? '审核未通过'}`,
+  });
+});
+
+talkshowRoutes.get('/ugc/monthly', async (c) => {
+  const limit = Math.max(1, Math.min(20, parseInt(c.req.query('limit') ?? '5', 10) || 5));
+  const entries = await getMonthlyHighlights(limit);
+  return c.json({
+    period: 'last_30d',
+    entries: entries.map((e) => ({
+      id: e.id, title: e.title, text: e.text, tag: e.tag, region: e.region,
+      likes: e.likes, createdAt: e.createdAt,
+    })),
+  });
+});
+
+talkshowRoutes.get('/ugc/me', async (c) => {
+  const userId = c.req.header('x-user-id')?.slice(0, 64);
+  if (!userId || userId.length < 8) {
+    return c.json({ submissions: [] });
+  }
+  const entries = await listUserSubmissions(userId);
+  return c.json({
+    submissions: entries.map((e) => ({
+      id: e.id, title: e.title, text: e.text, tag: e.tag,
+      status: e.status, rejectionReason: e.rejectionReason,
+      likes: e.likes, createdAt: e.createdAt,
+    })),
+  });
+});
+
+talkshowRoutes.post('/ugc/like/:id', async (c) => {
+  const id = c.req.param('id');
+  const ip = ipFrom(c);
+  const dedupKey = `ugc::${ip}::${id}`;
+  if (likedByIp.has(dedupKey)) {
+    return c.json({ error: '已经点过赞了' }, 409);
+  }
+  const e = await likeSubmission(id);
+  if (!e) return c.json({ error: '段子不存在或未审核' }, 404);
+  likedByIp.add(dedupKey);
+  return c.json({ id: e.id, likes: e.likes });
 });

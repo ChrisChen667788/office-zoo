@@ -23,6 +23,7 @@ import Fortune from './routes/Fortune';
 import FortuneGallery from './routes/FortuneGallery';
 import FortuneHistory from './routes/FortuneHistory';
 import Settings from './routes/Settings';
+import TalkshowUgc from './routes/TalkshowUgc';
 import Bar from './routes/Bar';
 
 export default function App() {
@@ -42,6 +43,9 @@ export default function App() {
           spawns a fresh room; existing rooms join via ?role=worker|hr. */}
       <Route path="/fired/room/:roomId" element={<FiredRoom />} />
       <Route path="/talkshow" element={<Talkshow />} />
+      {/* v6.1 — UGC 段子投稿 + 月度精选展示。Lives ABOVE /talkshow
+          isn't needed (different segment); flat route. */}
+      <Route path="/talkshow/ugc" element={<TalkshowUgc />} />
       {/* v1.0.0 — Premium paywall + demo checkout. */}
       <Route path="/premium" element={<Premium />} />
       {/* v1.1.0 — B2B white-label builder + iframe embed target. */}

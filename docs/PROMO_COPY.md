@@ -1,6 +1,139 @@
 # OFFICE ZOO 宣发素材库
 
+> **2026-05-22 更新 v6.1**: 米哈游风 hero + UGC 段子投稿 + 朋友拼版彩蛋
+> 已落地。**本文档底部新增 v6.1 专属文案模板** (Twitter / 小红书 / 即刻 /
+> ProductHunt) — 老素材保留作为对照。
+
 参考了 GitHub 高 star Chinese AI 项目(LobeChat / OpenAgent / FastGPT / RoomGPT / 法律咨询 AI)的运营手段,产出 4 组可立即发布的文案。复制粘贴即可。
+
+## 🆕 v6.1 专用文案模板 (优先用这套)
+
+### 🐦 Twitter / X (英文)
+
+**主推 thread (4 条):**
+
+```
+1/ 🐀 Just shipped OFFICE ZOO v6.1 — the open-source AI office-politics
+   sim now has a Genshin/HSR-style UI.
+
+   9 AI rats argue in corporate jargon, vote each other out, and now
+   REMEMBER your spectator id across games.
+
+   gif ↓ (this is the real game, not a mockup)
+   [link to game-highlight.gif]
+
+2/ Two new things in v6.1:
+
+   ⭐ UGC submission for talkshow scripts — community writes the bits,
+   monthly top 5 hit the homepage carousel.
+
+   🍷 Bar Cluster — chat 1v1 with an AI personality, share the link,
+   friends join the conversation, their snippets merge into a shared
+   "group memory" of that AI.
+
+3/ Why Genshin/HSR aesthetic? Because Z-gen burnout demographic = same
+   demographic obsessed with 5★ rolls. Stigma chip, event banner,
+   skill-card layout — we ported the visual grammar wholesale.
+
+   And surprisingly: it actually communicates "this is a GAME" much
+   harder than the previous slate-and-violet design.
+
+4/ All MIT. Self-host with `docker compose up -d`. The pgvector +
+   reflection layer from Phase B (v6.0) carries over — your AIs still
+   hold grudges across games.
+
+   github.com/ChrisChen667788/office-zoo
+```
+
+**单条 viral hook (用 GIF):**
+
+```
+Built an AI workplace sim where the rats:
+- speak corporate jargon ("granularity insufficient")
+- vote you out
+- REMEMBER it next game
+- now look like Genshin 5★ characters
+
+MIT, open source, v6.1 just dropped.
+
+[gif: game-highlight.gif]
+[link: github.com/ChrisChen667788/office-zoo]
+```
+
+### 📕 小红书 (中文图文 9 张)
+
+**标题候选 (按预估转化率排序):**
+1. `做了个米哈游风格的 AI 职场模拟器, AI 同事真的会记仇 (开源)`
+2. `当米哈游 UI 遇上职场撕逼: 9 个 AI 鼠人替我"拥抱变化"`
+3. `班味 -1 工程 v6.1: 用 5★ 角色卡演职场政治, 朋友能拼版`
+
+**正文:**
+
+```
+🐀 OFFICE ZOO · 班味剧场 v6.1 更新
+
+把"职场狼人杀"做成米哈游风游戏 UI 是种什么体验?
+9 个 AI 鼠人 (passive_aggressive 阴阳人, sass_master 毒舌怪,
+workaholic 卷王...) 现在长成 5★ 角色卡, 上面有 stigma chip, 边框
+是金色 shimmer, 每个角色还有自己的元素 (frost / inferno / stigma)。
+
+🎮 三种打开方式:
+🏢 鼠人公司 — 2.5D 写字楼俯视, 9 个 AI 自由开撕
+🎬 全程开麦 — 真人 TTS 沉浸式, 听 AI 喷"颗粒度不够"
+⚖️ 裁了么 — 1v1 怼 HR, 边玩边过《劳动合同法》
+
+🌟 v6.1 新增:
+- 🎤 段子库 UGC — 你写的职场段子也能上首页轮播
+- 🍷 朋友拼版 — 在酒馆跟 AI 聊完, 朋友点开链接也聊, 你们的
+  金句被合成一张"群像截图"
+
+🛡️ 它什么都允许调侃, 但拒绝直接公司点名 / 政治 / 色情, 让你能
+释放压力但不出事。
+
+全部 MIT 开源, 一行 docker compose 跑起来。
+github.com/ChrisChen667788/office-zoo
+
+#开源 #AI #职场 #打工人 #米哈游 #程序员
+```
+
+**9 图建议:**
+- 图 1 hero: `assets/launch/01-hero-hook.png` (米哈游风 logo + EVENT banner)
+- 图 2 setup: `assets/launch/02-game1-setup.png` (5★ 角色卡 vs)
+- 图 3 payoff: `assets/launch/03-game2-payoff.png` (跨局记忆触发对话框)
+- 图 4 tech: `assets/launch/04-tech-arch.png` (skill card 风技术架构)
+- 图 5 实战: `assets/launch/06-settings-beliefs.png` (Settings 真截图)
+- 图 6 占卜: `assets/launch/07-fortune-card.png` (班味占卜)
+- 图 7 段子 UGC: 截 /talkshow/ugc 页面 (TBD)
+- 图 8 拼版 banner: 截 /bar/passive_aggressive?cluster=demo (TBD)
+- 图 9 CTA: `assets/launch/05-cta.png` (Star + GitHub URL)
+
+### 🟢 即刻 (中文短帖)
+
+```
+🐀 v6.1 上线: 把"职场狼人杀"做成了米哈游风 UI
+
+9 个 AI 同事 (含阴阳人 / 毒舌怪 / 卷王) 现在是 5★ 角色, 你跟他们
+聊完会被记仇 + 朋友能拼版收集"群像金句"。
+
+[gif]
+
+MIT 开源 · docker compose 一键起 · 全栈 React + pgvector
+
+🔗 github.com/ChrisChen667788/office-zoo
+```
+
+### 🔴 ProductHunt 子标题候选 (v6.1 launch 用)
+
+- A: `Genshin meets office politics — 9 AI rats remember everything.`
+- B: `Open-source workplace sim with 5★ AI coworkers + cross-game memory.`
+- C: `The HSR-style AI office sim where your boss says "embrace change".`
+
+我推荐 A — 立即 establish "我们做了什么" + "为什么有趣" 两件事, 直接
+打中 ProductHunt 受众"AI + game + cultural niche"的甜点区。
+
+---
+
+## 🎯 老素材 (v6.0 之前, 保留对照)
 
 ## 🎯 核心宣发策略(参考高 star 同类项目)
 
