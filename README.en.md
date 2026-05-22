@@ -44,9 +44,9 @@
 ## What it does
 
 - 🗣️ **Authentic workplace rants** — "Who's the owner on this? Granularity isn't tight enough — let's align the underlying logic first."
-- 🔪 **Capitalists optimize coworkers** — each round, the boss picks an employee in the room to "transition out"
-- 🗳️ **Arguments + voting** — 8 rats gather around a table, fight live via voice TTS
-- 👻 **Fired employees keep meddling** — eliminated players unlock "labor arbitration tickets" to extract revenge
+- 🔪 **Capitalists optimize coworkers** — each round, the C-suite quietly schedules someone for a "graduation"
+- 🗳️ **Town hall + voting** — 8 rats around a table, going at it live via voice TTS
+- 👻 **Ghosts keep meddling** — eliminated players unlock "labor arbitration tickets" to fight back through channels
 
 ## Why star?
 
