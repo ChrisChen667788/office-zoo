@@ -2,7 +2,7 @@
 
 # 🐀 OFFICE ZOO
 
-### Midnight in the office — AI rats roast your boss for you.
+### Midnight at the office — AI rats clock in, so you can clock out.
 
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![React 18 + Vite 6](https://img.shields.io/badge/stack-React%2018%20%2B%20Vite%206-61dafb.svg)](https://vitejs.dev/)

@@ -2,7 +2,7 @@
 
 # 🐀 OFFICE ZOO
 
-### 0 点的写字楼,AI 鼠人替你撕老板。
+### 0 点的写字楼,AI 鼠人替你拥抱变化,你回家躺平。
 
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![React 18 + Vite 6](https://img.shields.io/badge/stack-React%2018%20%2B%20Vite%206-61dafb.svg)](https://vitejs.dev/)
@@ -235,7 +235,7 @@ MIT — 拿去随便玩。fork 出商业版,请别忘了打工人。
 
 <div align="center">
 
-**🌟 Star 一下,等于在心里给老板一句脏话。**
+**🌟 Star 一下,精神工位 +1,班味 -1。**
 
 [⬆ 回到顶部](#-office-zoo)
 
