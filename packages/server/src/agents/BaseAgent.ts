@@ -1,5 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { Team, Role, ROLE_REGISTRY, Personality, PERSONALITY_REGISTRY } from '@furball/shared';
+import { Team, Role, ROLE_REGISTRY, Personality, PERSONALITY_REGISTRY, snippetsForArchetype } from '@furball/shared';
 import { callLLMWithTimeout } from '../utils/llm';
 import { logger } from '../utils/logger';
 import { recallMemories } from '../services/memoryRecall';
@@ -189,6 +189,20 @@ export class BaseAgent {
       }
     }
 
+    // v6.3.0 — 30% 概率注入 1-2 个 2026 新痛点段子作为"参考素材",
+    // LLM 可以引用其中的具体场景或包袱, 不引用也 OK。让发言不只是
+    // 重复经典阿里黑话, 也会带新一代职场新型坑 (调休骗局 / AI 焦虑 /
+    // 反向背调 等)。30% 是经验值: 太高会变成段子集锦, 太低没存在感.
+    let snippetBlock = '';
+    if (this.personality && Math.random() < 0.3) {
+      const snippets = snippetsForArchetype(this.personality, 2);
+      if (snippets.length > 0) {
+        snippetBlock = `\n\n【可借鉴的 2026 职场新段子 (选 0-1 个化用, 不要原话照抄)】\n${snippets
+          .map((s) => `- [${s.tag}] ${s.text}`)
+          .join('\n')}`;
+      }
+    }
+
     const priorBlock = (priorSpeeches ?? []).length
       ? `\n\n【本轮前面同学的发言】\n${priorSpeeches!
           .map((s, i) => `${i + 1}. ${s.name}: ${s.text}`)
@@ -198,7 +212,7 @@ export class BaseAgent {
     const res = await callLLMWithTimeout('SPEECH', {
       model: openai()(model()),
       system: this.systemPrompt,
-      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${priorBlock}
+      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${snippetBlock}${priorBlock}
 
 请发表你的看法(2-4 句话,每句都要有戏,总字数 60-120 字)。硬性要求:
 

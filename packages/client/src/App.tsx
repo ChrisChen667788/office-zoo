@@ -23,6 +23,7 @@ import Fortune from './routes/Fortune';
 import FortuneGallery from './routes/FortuneGallery';
 import FortuneHistory from './routes/FortuneHistory';
 import Settings from './routes/Settings';
+import Bar from './routes/Bar';
 
 export default function App() {
   return (
@@ -75,6 +76,8 @@ export default function App() {
       <Route path="/fired/challenge/:code" element={<FiredChallenge />} />
       {/* v5.8.2 — settings (AI memory forget mechanism). */}
       <Route path="/settings" element={<Settings />} />
+      {/* v6.2.0 — 🍺 深夜酒馆 1v1 (with an archetype, sharing via deeplink). */}
+      <Route path="/bar/:archetype" element={<Bar />} />
     </Routes>
   );
 }

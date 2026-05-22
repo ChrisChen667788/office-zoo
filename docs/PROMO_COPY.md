@@ -36,13 +36,16 @@ github.com/ChrisChen667788/office-zoo
 ```
 🐀 OFFICE ZOO · 班味剧场
 
-刚开源:让 9 名 AI 鼠人替你拥抱变化,你回家躺平。
+刚开源:让 9 名 AI 鼠人替你拥抱变化, 你回家躺平。
 
+🎬 鼠人公司 · 全程开麦 · 裁了么 · 🍺 深夜酒馆 — 4 种打开方式
 🎤 Minimax speech-2.8-hd 真人音色 · 23 个角色专属
-🎨 二次元立绘全 AI 生成 · 0 张 emoji 凑数
-⚖️ "裁了么" 5 关闯关 · 边玩边学《劳动合同法》
+🎨 米哈游级二次元立绘 · 0 张 emoji 凑数
+⚖️ 5 关速通《劳动合同法》· 边玩边长本事
+🧠 AI 同事会跨局记你仇 / 记你恩 (Phase B Smallville-style memory)
 
-不是玩家,是看着鼠人内卷的 HR。
+不是玩家, 是看着鼠人内卷的 HR。
+今天先 Star 一个, 精神工位 +1, 班味 -1。
 github.com/ChrisChen667788/office-zoo
 ```
 

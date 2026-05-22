@@ -22,7 +22,12 @@
  * with brand.violet it still signals "打工人". The red/yellow semantic
  * pair comes from the "vote" (劳动仲裁 amber) and "kill" (danger red) beats
  * that already lived in the game's visual vocabulary.
+ *
+ * v6.1 addendum: see the bottom-of-file `mihoyo` namespace for the new
+ * Z-gen game-UI token set (additive, opt-in per surface).
  */
+
+import type React from 'react';
 
 export const colors = {
   /** Layered surface colors — use `elev` for cards, `surface` for nested panels. */
@@ -312,3 +317,135 @@ export const cardStyle = {
 export function cssVar(name: string): string {
   return `var(--${name})`;
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// v6.1.0 · miHoYo-flavoured Z-gen token set.
+//
+// Why a new namespace (not overriding `colors`):
+//   - back-compat: 60+ files reference the old tokens; tearing them out
+//     all-at-once is a multi-PR rewrite with high regression risk
+//   - opt-in: callers `import { mihoyo } from '../constants/design'` and
+//     get the new look just on the surfaces they choose
+//   - A/B-able: easy to dim down to 30% intensity per surface if too loud
+//
+// Aesthetic vocabulary borrowed from:
+//   - Honkai 3rd "stigma" UI — cyan/magenta complementary duos
+//   - Genshin elemental colors — saturated cores with desaturated halos
+//   - Star Rail "warp" — gradient meshes + particle drift
+//   - Wuthering Waves UI — angular hexagonal cuts
+//
+// Full design spec: docs/V6.1_MIHOYO_DESIGN_VISION.md
+// ──────────────────────────────────────────────────────────────────────────
+// Element palette extracted as a stand-alone const so callers in `mihoyo`
+// (notably `glow.cardHover`) can reference its `keyof typeof` without
+// triggering TS7022 "implicitly any due to self-reference" on `mihoyo`.
+const mihoyoElement = {
+  /** Frost (类似冰元素) — 摸鱼 archetype 的主色调 */
+  frost:   { core: '#7fd4ff', halo: 'rgba(127,212,255,0.18)', glow: 'rgba(127,212,255,0.42)' },
+  /** Inferno (类似火) — 卷王 / hot_tempered */
+  inferno: { core: '#ff5566', halo: 'rgba(255,85,102,0.18)', glow: 'rgba(255,85,102,0.45)' },
+  /** Stigma (类似雷) — passive_aggressive 阴阳人 */
+  stigma:  { core: '#c084fc', halo: 'rgba(192,132,252,0.20)', glow: 'rgba(192,132,252,0.45)' },
+  /** Aurora (类似草) — sycophant 舔狗 */
+  aurora:  { core: '#a3e635', halo: 'rgba(163,230,53,0.18)', glow: 'rgba(163,230,53,0.42)' },
+  /** Solar (类似岩 / 黄金) — workaholic 卷王特殊态 / 5★ */
+  solar:   { core: '#ffd58a', halo: 'rgba(255,213,138,0.22)', glow: 'rgba(255,213,138,0.50)' },
+  /** Void (类似虚 / 主舞台) — 中性主色, 与 frost 互补 */
+  void:    { core: '#ff5588', halo: 'rgba(255,85,136,0.18)', glow: 'rgba(255,85,136,0.45)' },
+} as const;
+
+export type MihoyoElement = keyof typeof mihoyoElement;
+
+export const mihoyo = {
+  /** Element tier — each element gets a (core, halo, glow) triple.
+   *  Use core for text/border, halo for backgrounds, glow for boxShadow. */
+  element: mihoyoElement,
+  /** Rarity stars — for archetype cards, gacha-style. */
+  rarity: {
+    /** 3★ — base archetype */
+    r3: '#a8a8c0',
+    /** 4★ — evolved archetype */
+    r4: '#a78bfa',
+    /** 5★ — peak archetype (rare evolution) */
+    r5: '#ffb84c',
+  },
+  /** Gradient meshes — multi-stop bg replacements for plain dark navy.
+   *  Use as `background: mihoyo.mesh.heroDawn`. */
+  mesh: {
+    /** 黄昏 — magenta → indigo → deep navy. Hero / Landing 主背景 */
+    heroDawn:
+      'radial-gradient(at 18% 12%, rgba(192,132,252,0.45) 0%, transparent 45%),' +
+      'radial-gradient(at 82% 18%, rgba(255,85,136,0.35) 0%, transparent 42%),' +
+      'radial-gradient(at 50% 96%, rgba(127,212,255,0.25) 0%, transparent 50%),' +
+      'linear-gradient(180deg, #0a0820 0%, #050510 100%)',
+    /** 深夜酒馆 — amber → wine → black. v6.2 bar 模式背景 */
+    barNight:
+      'radial-gradient(at 30% 20%, rgba(255,184,76,0.20) 0%, transparent 45%),' +
+      'radial-gradient(at 80% 80%, rgba(192,38,82,0.30) 0%, transparent 50%),' +
+      'linear-gradient(160deg, #1a0d18 0%, #050308 100%)',
+    /** 玄学塔罗 — purple → cobalt → black. v5.4 占卜背景升级 */
+    tarotMystic:
+      'radial-gradient(at 25% 25%, rgba(124,58,237,0.32) 0%, transparent 50%),' +
+      'radial-gradient(at 75% 75%, rgba(76,158,255,0.20) 0%, transparent 50%),' +
+      'linear-gradient(180deg, #150a30 0%, #050510 100%)',
+  },
+  /** Hexagon clipping — for stigma-style cards. Apply via
+   *  `clipPath: mihoyo.shape.hexCard` */
+  shape: {
+    /** 8-vertex chamfered rectangle — Honkai stigma frame. */
+    hexCard: 'polygon(8% 0, 92% 0, 100% 12%, 100% 88%, 92% 100%, 8% 100%, 0 88%, 0 12%)',
+    /** Slim ribbon for section headers — slanted parallelogram. */
+    ribbon: 'polygon(0 0, 100% 0, 96% 100%, 4% 100%)',
+  },
+  /** Glow presets — drop-in boxShadow / textShadow strings. */
+  glow: {
+    /** Soft hero text shadow with two layers. */
+    heroText: '0 0 14px rgba(255,85,136,0.35), 0 2px 24px rgba(124,58,237,0.40)',
+    /** Card hover lift — element-tinted. */
+    cardHover: (elem: MihoyoElement) =>
+      `0 12px 36px ${mihoyoElement[elem].glow}, 0 0 0 1px ${mihoyoElement[elem].core}40, inset 0 1px 0 rgba(255,255,255,0.08)`,
+    /** "5★ obtained" celebration glow — for evolution events. */
+    fivestar:
+      '0 0 20px rgba(255,213,138,0.6), 0 0 60px rgba(255,213,138,0.3), 0 0 120px rgba(255,184,76,0.18)',
+  },
+  /** Font stack — display vs body. Stays system-font for perf + license,
+   *  but with heavier weights to read more "game UI" than "web copy". */
+  type: {
+    /** Display — for hero titles, archetype names. Heavy weight + tighter tracking. */
+    display: {
+      fontFamily: '"PingFang SC", "Hiragino Sans GB", "Source Han Sans CN", "Microsoft YaHei", sans-serif',
+      fontWeight: 900,
+      letterSpacing: '0.01em',
+    },
+    /** Numeric — for vibe scores, KPI numbers. Tabular + monospace fallback. */
+    numeric: {
+      fontFamily: '"SF Mono", "JetBrains Mono", "Source Han Sans CN", monospace',
+      fontVariantNumeric: 'tabular-nums',
+      fontWeight: 800,
+    },
+    /** Caption — for "STIGMA · TYPE 4★" style chips, ALL CAPS look. */
+    caption: {
+      fontFamily: '"PingFang SC", system-ui, sans-serif',
+      fontWeight: 800,
+      letterSpacing: '0.28em',
+      textTransform: 'uppercase' as const,
+      fontSize: '11px',
+    },
+  },
+} as const;
+
+/** Tiny helper for the stigma-style chip: combines caption typography +
+ *  element-tinted bg + 1px element border. */
+export function stigmaChipStyle(elem: MihoyoElement): React.CSSProperties {
+  return {
+    ...mihoyo.type.caption,
+    color: mihoyoElement[elem].core,
+    background: mihoyoElement[elem].halo,
+    border: `1px solid ${mihoyoElement[elem].core}55`,
+    padding: '3px 10px',
+    borderRadius: 999,
+    display: 'inline-block',
+  };
+}
+
+// (React type import lives at the top of file, see header comment.)
