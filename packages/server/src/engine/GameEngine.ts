@@ -894,7 +894,7 @@ export class GameEngine extends EventEmitter {
       const uniqueArchetypes = Array.from(
         new Set(args.survivors.map((s) => s.personality).filter((p): p is string => !!p))
       );
-      const spectator = this.spectatorUserId;
+      // Reuse the spectator binding declared above for the witness writes.
       // Fire in parallel — each reflection is independent. Each call is
       // self-gated by maybeReflect's threshold check, so calling it on
       // every round-end is safe and cheap when no trigger has fired.

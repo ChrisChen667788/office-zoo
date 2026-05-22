@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>OFFICE ZOO · Phase B "AI 同事记仇" 30s 故事板</title>
+<style>
+  :root {
+    --bg-deep: #050510;
+    --bg-mid: #1a0d35;
+    --accent-pink: #ff5588;
+    --accent-purple: #7c3aed;
+    --accent-cyan: #9be6ff;
+    --accent-gold: #ffd58a;
+    --text-soft: rgba(255,255,255,0.85);
+    --text-dim: rgba(255,255,255,0.55);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 720px; height: 720px; overflow: hidden; }
+  body {
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, sans-serif;
+    color: #fff;
+    background: radial-gradient(circle at 30% 20%, var(--bg-mid) 0%, var(--bg-deep) 70%);
+    position: relative;
+  }
+  /* Subtle diagonal grid texture — matches the in-app feel */
+  body::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(45deg,
+      rgba(255,255,255,0.018) 0 1px,
+      transparent 1px 72px);
+    pointer-events: none;
+  }
+
+  /* All scenes stack on top of each other; we control which is visible via .active */
+  .scene {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+    opacity: 0;
+    transition: opacity 280ms ease-in;
+    text-align: center;
+  }
+  .scene.active { opacity: 1; }
+  .stage-no {
+    position: absolute;
+    top: 28px;
+    right: 36px;
+    font-size: 11px;
+    letter-spacing: 0.35em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .stage-title {
+    font-size: 13px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, var(--accent-pink), var(--accent-purple));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 26px;
+    font-weight: 800;
+  }
+  h1.line {
+    font-size: 38px;
+    font-weight: 900;
+    line-height: 1.3;
+    margin-bottom: 18px;
+    text-shadow: 0 2px 12px rgba(124,58,237,0.4);
+  }
+  p.sub {
+    font-size: 16px;
+    color: var(--text-soft);
+    line-height: 1.7;
+    max-width: 540px;
+  }
+  .brand-bar {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  /* ===== Scene 1 — Hook ===== */
+  .scene-1 .logo-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 30px;
+  }
+  .scene-1 .logo-emoji { font-size: 58px; filter: drop-shadow(0 4px 14px rgba(124,58,237,0.6)); }
+  .scene-1 .logo-name {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+  }
+  .scene-1 .tagline {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    margin-bottom: 14px;
+    text-shadow: 0 2px 12px rgba(155,230,255,0.32);
+  }
+  .scene-1 .meta {
+    font-size: 14px;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+  }
+  .scene-1 .meta strong { color: #fff; }
+
+  /* ===== Scene 2 — Game 1 round 3 ===== */
+  .scene-2 .vote-card {
+    background: linear-gradient(160deg, rgba(255,85,136,0.18), rgba(124,58,237,0.10));
+    border: 2px solid rgba(255,85,136,0.55);
+    border-radius: 24px;
+    padding: 36px 40px;
+    max-width: 540px;
+    margin-top: 12px;
+  }
+  .scene-2 .vote-line {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+  .scene-2 .vote-line .victim { color: #ff5588; }
+  .scene-2 .vote-line .killer { color: #ffd58a; }
+  .scene-2 .vote-line .ally { color: #9be6ff; }
+  .scene-2 .pgvector-write {
+    background: rgba(34,197,94,0.10);
+    border: 1px solid rgba(34,197,94,0.45);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-top: 22px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    color: #4ade80;
+    line-height: 1.65;
+    max-width: 540px;
+    text-align: left;
+  }
+  .scene-2 .pgvector-write .ok { color: #86efac; font-weight: 700; }
+
+  /* ===== Scene 3 — Game 2 opens ===== */
+  .scene-3 .game-card {
+    width: 540px;
+    height: 360px;
+    border-radius: 24px;
+    background: linear-gradient(180deg, #0d0b25 0%, #050510 100%);
+    border: 1px solid rgba(255,255,255,0.10);
+    display: flex;
+    flex-direction: column;
+    padding: 28px;
+    margin-top: 14px;
+  }
+  .scene-3 .game-header {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .scene-3 .speaker-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .scene-3 .speaker-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff5588, #7c3aed);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  .scene-3 .speaker-name {
+    font-size: 16px;
+    font-weight: 800;
+  }
+  .scene-3 .speaker-tag {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .scene-3 .speech-bubble {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 14px;
+    padding: 16px 18px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-soft);
+    flex: 1;
+  }
+  .scene-3 .speech-bubble .highlight {
+    color: #ffd58a;
+    font-weight: 700;
+  }
+  .scene-3 .speech-bubble .ref {
+    color: #9be6ff;
+    font-weight: 700;
+  }
+  .scene-3 .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    background: rgba(155,230,255,0.15);
+    border: 1px solid rgba(155,230,255,0.35);
+    color: #9be6ff;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  /* ===== Scene 4 — Tech reveal ===== */
+  .scene-4 .arch-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+    width: 580px;
+  }
+  .scene-4 .arch-cell {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 16px;
+    text-align: left;
+  }
+  .scene-4 .arch-cell .label {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+    margin-bottom: 6px;
+    font-weight: 800;
+  }
+  .scene-4 .arch-cell .val {
+    font-size: 14px;
+    color: var(--text-soft);
+    line-height: 1.5;
+    font-weight: 600;
+  }
+  .scene-4 .arch-cell .val strong { color: #fff; }
+  .scene-4 .arch-cell.bench { grid-column: 1 / -1; background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.32); }
+  .scene-4 .arch-cell.bench .label { color: #4ade80; }
+  .scene-4 .arch-cell.bench .val { color: #86efac; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; }
+
+  /* ===== Scene 5 — CTA ===== */
+  .scene-5 .cta-emoji {
+    font-size: 64px;
+    margin-bottom: 14px;
+    filter: drop-shadow(0 6px 18px rgba(255,184,76,0.35));
+  }
+  .scene-5 .cta-line {
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 30px;
+    color: var(--accent-gold);
+  }
+  .scene-5 .cta-url {
+    background: linear-gradient(135deg, var(--accent-pink), var(--accent-purple));
+    padding: 16px 28px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgba(124,58,237,0.4);
+    letter-spacing: 0.04em;
+  }
+  .scene-5 .cta-footer {
+    margin-top: 22px;
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<!-- Scene 1 — Hook (0-5s) -->
+<section class="scene scene-1" data-stage="1">
+  <span class="stage-no">01 / 05</span>
+  <div class="logo-bar">
+    <span class="logo-emoji">🐀</span>
+    <span class="logo-name">OFFICE ZOO</span>
+  </div>
+  <div class="tagline">AI 同事会记得你。</div>
+  <h1 class="line" style="font-size: 28px; line-height: 1.45;">9 个 AI 鼠人, 替你在 0 点的写字楼里, 拥抱变化。</h1>
+  <p class="sub">v6.0.0 上线 · pgvector + Reflection 让 AI 跨局记仇</p>
+  <div class="meta" style="margin-top: 32px;">— <strong>OPEN SOURCE</strong> · MIT · github.com/ChrisChen667788/office-zoo —</div>
+</section>
+
+<!-- Scene 2 — Game 1, Round 3: setup -->
+<section class="scene scene-2" data-stage="2">
+  <span class="stage-no">02 / 05</span>
+  <div class="stage-title">第 1 局 · 第 3 轮 · 写字楼</div>
+  <h1 class="line">王五 联合 赵六, 把"李四同学"投出局了。</h1>
+  <div class="vote-card">
+    <div class="vote-line">"<span class="killer">@王五同学</span> 阴阳说我'颗粒度不够'"</div>
+    <div class="vote-line">"<span class="killer">@王五</span> 联合 <span class="ally">@赵六</span> 投我出局"</div>
+    <div class="vote-line"><span class="victim">李四 (passive_aggressive)</span> 被开除 · N+1 已结算</div>
+  </div>
+  <div class="pgvector-write">
+    <span class="ok">▷</span> pgvector INSERT memory_entries (3 rows)<br/>
+    <span class="ok">▷</span> embedding: text-embedding-3-small · 1536d<br/>
+    <span class="ok">✓</span> "@王五同学一开口就阴阳, 我下不来台"
+  </div>
+</section>
+
+<!-- Scene 3 — Game 2, Round 1: payoff -->
+<section class="scene scene-3" data-stage="3">
+  <span class="stage-no">03 / 05</span>
+  <div class="stage-title">第 2 局 · 同一个玩家 · 第 1 轮开局</div>
+  <h1 class="line" style="font-size: 26px;">李四 (sass-master) 第一个发言:</h1>
+  <div class="game-card">
+    <div class="game-header">🗣️ FIRST SPEECH · ROUND 1</div>
+    <div class="speaker-row">
+      <div class="speaker-avatar">🐀</div>
+      <div>
+        <div class="speaker-name">李四同学 <span class="badge">记忆 · 跨局</span></div>
+        <div class="speaker-tag">passive_aggressive · CAT 阵营</div>
+      </div>
+    </div>
+    <div class="speech-bubble">
+      "<span class="ref">@王五</span> 同学, 你这张嘴我还是<span class="highlight">记忆犹新</span>的哈——<span class="highlight">上次</span>说我<span class="highlight">颗粒度不够</span>, 回头就联合 <span class="ref">@赵六</span> 把我投出局, 这波闭环操作真是打得漂亮。你这次又想拿什么抓手来包装?"
+    </div>
+  </div>
+</section>
+
+<!-- Scene 4 — Tech reveal -->
+<section class="scene scene-4" data-stage="4">
+  <span class="stage-no">04 / 05</span>
+  <div class="stage-title">幕后 · Stanford Smallville 同款架构</div>
+  <h1 class="line" style="font-size: 26px;">events → reflection → beliefs<br/>三层记忆, 全开源</h1>
+  <div class="arch-row">
+    <div class="arch-cell">
+      <div class="label">VECTOR DB</div>
+      <div class="val"><strong>pgvector</strong> @ pg17<br/>HNSW · 1536 dim</div>
+    </div>
+    <div class="arch-cell">
+      <div class="label">EMBEDDING</div>
+      <div class="val">OpenAI <strong>text-embedding-3-small</strong><br/>via Qingyun</div>
+    </div>
+    <div class="arch-cell">
+      <div class="label">REFLECTION</div>
+      <div class="val">每 5 轮 events → <strong>3-5 条 belief</strong><br/>importance × 1.5 加权</div>
+    </div>
+    <div class="arch-cell">
+      <div class="label">PRIVACY</div>
+      <div class="val">chunky-style <strong>per-spectator</strong><br/>+ 一键 Forget</div>
+    </div>
+    <div class="arch-cell bench">
+      <div class="label">BENCH</div>
+      <div class="val">HNSW recall p95 = <strong>15ms</strong> · Neon 3GB 撑 ~30 万 entry</div>
+    </div>
+  </div>
+</section>
+
+<!-- Scene 5 — CTA -->
+<section class="scene scene-5" data-stage="5">
+  <span class="stage-no">05 / 05</span>
+  <div class="cta-emoji">🌟</div>
+  <div class="cta-line">Star 一下, 精神工位 +1, 班味 -1。</div>
+  <div class="cta-url">github.com/ChrisChen667788/office-zoo</div>
+  <div class="cta-footer">MIT · 全栈开源 · Phase B v6.0.0 已上线</div>
+</section>
+
+<div class="brand-bar">🐀 OFFICE ZOO · 班味剧场 · v6.0.0</div>
+
+<script>
+  const scenes = document.querySelectorAll('.scene');
+  const DUR = 6000; // 6s per scene × 5 scenes = 30s total
+  let i = 0;
+  scenes[0].classList.add('active');
+  setInterval(() => {
+    scenes[i].classList.remove('active');
+    i = (i + 1) % scenes.length;
+    scenes[i].classList.add('active');
+  }, DUR);
+  // Expose timing for Playwright to know when to start/stop
+  window.SCENE_COUNT = scenes.length;
+  window.SCENE_DUR = DUR;
+</script>
+</body>
+</html>

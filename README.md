@@ -16,6 +16,12 @@
 
 </div>
 
+<p align="center">
+  <img src="assets/launch-demo/demo-memory.gif" alt="30s demo · AI 同事跨局记仇" width="640" />
+  <br/>
+  <em>v6.0.0 · pgvector + Reflection 让 AI 跨局记仇 · <a href="docs/V6_MEMORY_TECH_BLOG.md">技术博客</a></em>
+</p>
+
 ---
 
 > "卷不动也别躺平,看 AI 替你卷。"
