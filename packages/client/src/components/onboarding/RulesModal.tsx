@@ -76,7 +76,7 @@ export default function RulesModal({ open, onClose }: RulesModalProps) {
               怎么玩 · How to Play
             </h2>
             <p className="text-xs tracking-[0.2em] uppercase mb-6 text-white/40">
-              Office Arena · 三分钟上手
+              OFFICE ZOO · 三分钟上手
             </p>
 
             {/* Mode overview */}

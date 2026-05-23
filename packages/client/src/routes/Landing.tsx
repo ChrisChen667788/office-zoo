@@ -416,13 +416,34 @@ export default function Landing() {
               <LottieAsset src={lottie.helloBot} size={40} />
             </motion.div>
 
-            {/* Wordmark — bilingual, gradient, low-key huge. */}
-            <h1
-              className="font-black leading-[0.92] tracking-[-0.04em] mb-4"
-              style={{ fontSize: 'clamp(3rem, 8vw, 7rem)' }}
-            >
-              <span className="text-gradient-brand">OFFICE ZOO</span>
-            </h1>
+            {/* v6.7 — brand mark + wordmark. AI-generated mihoyo-style
+                cyberpunk rat logo lives left of the wordmark on desktop,
+                above it on mobile (flex-col → md:flex-row). Glow ring
+                shadow keeps it visible on the dark hero background. */}
+            <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 mb-4">
+              <motion.img
+                src="/brand-logo.png"
+                alt="OFFICE ZOO 鼠人 logo"
+                width={120}
+                height={120}
+                className="rounded-2xl"
+                style={{
+                  width: 'clamp(96px, 14vw, 140px)',
+                  height: 'clamp(96px, 14vw, 140px)',
+                  boxShadow:
+                    '0 0 32px rgba(255,79,163,0.45), 0 0 80px rgba(124,58,237,0.32), inset 0 0 0 2px rgba(255,215,0,0.45)',
+                }}
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.18, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              />
+              <h1
+                className="font-black leading-[0.92] tracking-[-0.04em]"
+                style={{ fontSize: 'clamp(3rem, 8vw, 7rem)' }}
+              >
+                <span className="text-gradient-brand">OFFICE ZOO</span>
+              </h1>
+            </div>
             <p className="text-white/85 text-base md:text-xl font-semibold tracking-tight mb-3">
               0 点散场,鼠人不睡
             </p>

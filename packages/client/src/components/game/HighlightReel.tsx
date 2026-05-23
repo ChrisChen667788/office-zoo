@@ -128,7 +128,7 @@ function normalizeWinner(w: string): string {
 }
 
 function makeFileName(d: ShareCardData): string {
-  return `office-arena-${d.winner}-${d.date.replace(/-/g, '')}.png`;
+  return `office-zoo-${d.winner}-${d.date.replace(/-/g, '')}.png`;
 }
 
 export default function HighlightReel() {

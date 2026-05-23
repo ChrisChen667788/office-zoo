@@ -209,7 +209,7 @@ function drawHeader(ctx: CanvasRenderingContext2D, data: ShareCardData) {
   grad.addColorStop(0, '#2fb8ff');
   grad.addColorStop(1, '#a855f7');
   ctx.fillStyle = grad;
-  ctx.fillText('职场杀 · OFFICE ARENA', PAD, 60);
+  ctx.fillText('班味剧场 · OFFICE ZOO', PAD, 60);
 
   // Right-side date + live dot
   ctx.textAlign = 'right';
@@ -493,7 +493,7 @@ function drawFooter(ctx: CanvasRenderingContext2D, data: ShareCardData) {
   ctx.textBaseline = 'alphabetic';
   ctx.font = `700 14px ${SANS}`;
   ctx.fillStyle = 'rgba(255,255,255,0.3)';
-  ctx.fillText('office-arena.app', PAD, H - 40);
+  ctx.fillText('github.com/ChrisChen667788/office-zoo', PAD, H - 40);
 
   ctx.textAlign = 'right';
   ctx.fillText(`${data.date} · made with AI drama`, W - PAD, H - 40);
@@ -560,7 +560,7 @@ export async function copyShareCardToClipboard(
 /** Triggers a browser download of the generated PNG. */
 export async function downloadShareCard(
   data: ShareCardData,
-  filename = 'office-arena.png',
+  filename = 'office-zoo.png',
 ): Promise<void> {
   const blob = await generateShareCard(data);
   const url = URL.createObjectURL(blob);
