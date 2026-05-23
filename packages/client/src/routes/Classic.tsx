@@ -162,7 +162,14 @@ export default function Classic() {
     'game:speech_start': (data: { playerId: string }) => setSpeaker(data.playerId),
     'game:speech_end': () => setSpeaker(null),
 
-    'game:speech': (data: { playerId: string; playerName: string; text: string; role?: string; team?: string }) => {
+    'game:speech': (data: {
+      playerId: string; playerName: string; text: string;
+      role?: string; team?: string;
+      evidence?: Array<{
+        refToPlayerId: string; refToPlayerName: string;
+        refToTextSnippet: string; kind: 'mention' | 'at_tag' | 'fuzzy';
+      }>;
+    }) => {
       addSpeech(data);
       pushEvent('speech', `${data.playerName}: ${data.text}`);
       // Schedule a browser-TTS fallback in case the server can't generate
@@ -509,11 +516,13 @@ export default function Classic() {
               const speaker = players.find((p) => p.id === s.playerId);
               const pLabel = speaker?.personality ? PERSONALITY_LABELS[speaker.personality] : null;
               return (
-                <div key={i} style={{
-                  fontSize: 12, padding: '4px 0',
-                  borderBottom: '1px solid rgba(255,255,255,0.03)',
-                  color: 'rgba(255,255,255,0.7)',
-                }}>
+                <div key={i}
+                  data-speech-player={s.playerId}
+                  style={{
+                    fontSize: 12, padding: '4px 0',
+                    borderBottom: '1px solid rgba(255,255,255,0.03)',
+                    color: 'rgba(255,255,255,0.7)',
+                  }}>
                   {/* v6.8 — wrap speaker name in PersonaCard so the user
                        can hover/click to see this rat's epithet + 反差 chip
                        + catchphrases. Keeps the original color coding
@@ -540,6 +549,48 @@ export default function Classic() {
                   )}
                   <span style={{ color: 'rgba(255,255,255,0.4)' }}>: </span>
                   {s.text}
+                  {/* v6.8 P4.1 — evidence chips: who this speaker is citing
+                       from earlier in the round. Click jumps to the cited
+                       speech (scrolls into view + golden flash). */}
+                  {s.evidence && s.evidence.length > 0 && (
+                    <div style={{
+                      marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4,
+                      paddingLeft: 8, borderLeft: '2px solid rgba(255,215,0,0.18)',
+                    }}>
+                      {s.evidence.map((ev, j) => (
+                        <button
+                          key={j}
+                          type="button"
+                          title={`${ev.refToPlayerName}: ${ev.refToTextSnippet}`}
+                          onClick={() => {
+                            // Find the cited row in the same scroll list and
+                            // flash-highlight it for ~1.5s. Uses data-speech-id
+                            // selector below.
+                            const el = document.querySelector(
+                              `[data-speech-player="${ev.refToPlayerId}"]`,
+                            ) as HTMLElement | null;
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              el.style.transition = 'background 0.25s ease-out';
+                              el.style.background = 'rgba(255,215,0,0.12)';
+                              setTimeout(() => { el.style.background = ''; }, 1500);
+                            }
+                          }}
+                          style={{
+                            fontSize: 9.5, padding: '1px 6px', borderRadius: 999,
+                            background: ev.kind === 'at_tag'
+                              ? 'rgba(255,215,0,0.16)' : 'rgba(124,58,237,0.16)',
+                            color: ev.kind === 'at_tag' ? '#FFD700' : '#B086FF',
+                            border: `1px solid ${ev.kind === 'at_tag' ? 'rgba(255,215,0,0.45)' : 'rgba(124,58,237,0.45)'}`,
+                            cursor: 'pointer', fontWeight: 700,
+                            letterSpacing: '0.02em',
+                          }}
+                        >
+                          ↳ 引用 {ev.refToPlayerName}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}

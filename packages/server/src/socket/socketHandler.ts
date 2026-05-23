@@ -2,6 +2,7 @@ import { Server as SocketServer, Socket } from 'socket.io';
 import { z } from 'zod';
 import { GameEngine } from '../engine/GameEngine';
 import { generateTTSAudio } from '../services/tts';
+import { extractEvidenceRefs } from '../services/evidenceParser';
 import { generateAvatar, getAllCachedAvatars } from '../services/imageGen';
 import { logger, gameLogger } from '../utils/logger';
 import { validateEvent } from '../utils/validate';
@@ -343,13 +344,24 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
           playerName: item.playerName,
         });
 
-        // 2. Send speech text
+        // 2. Send speech text. v6.8 P4.1 — also scan the text for
+        //    mentions of prior round speakers and attach as evidence
+        //    refs, so the client can render "↳ 引用 Tony" chips +
+        //    jump-to-cited affordance.
+        const evidence = extractEvidenceRefs(
+          item.text,
+          item.playerId,
+          speechQueue.slice(0, i).map((p) => ({
+            playerId: p.playerId, playerName: p.playerName, text: p.text,
+          })),
+        );
         room.emit('game:speech', {
           playerId: item.playerId,
           playerName: item.playerName,
           text: item.text,
           role: item.role,
           team: item.team,
+          ...(evidence.length > 0 ? { evidence } : {}),
         });
 
         // 3. Generate and send TTS audio + compute accurate wait time.

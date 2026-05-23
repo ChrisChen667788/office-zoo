@@ -78,6 +78,16 @@ interface SpeechItem {
   text: string;
   role?: string;
   team?: string;
+  /** v6.8 P4.1 — evidence references parsed from the speech text
+   *  server-side. Each ref points back to a prior round speech the
+   *  current speaker is citing. Optional — older speeches and ghost
+   *  comments don't carry this. */
+  evidence?: Array<{
+    refToPlayerId: string;
+    refToPlayerName: string;
+    refToTextSnippet: string;
+    kind: 'mention' | 'at_tag' | 'fuzzy';
+  }>;
 }
 
 /** 离职员工弹幕 */

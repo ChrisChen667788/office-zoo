@@ -51,6 +51,35 @@ export interface SerializedGameState {
   ghostVotes: Record<string, string>;
 }
 
+/**
+ * v6.8 P4.1 — evidence reference.
+ *
+ * When the LLM mentions another player in its speech, the server-side
+ * parser (see socketHandler:emitSpeechWithEvidence) scans for the
+ * mentioned name in the prior speeches of THIS round and emits an
+ * EvidenceRef so the client can render a "↳ 引用 Tony" chip + jump-to
+ * affordance.
+ *
+ * `refToTextSnippet` is a ≤ 40-char excerpt of the referenced speech —
+ * enough to give context in the chip tooltip without re-emitting the
+ * full speech. The full text is already in the client's speechHistory
+ * keyed by `refToPlayerId`.
+ *
+ * `kind` tracks how confidence the parser was:
+ *   - `mention`  → the name appears verbatim ("@Tony" or "Tony 同学")
+ *   - `at_tag`   → explicit @ prefix ("@Tony")
+ *   - `fuzzy`    → the name appears in a less-direct form ("某位说颗粒度的同学")
+ *
+ * Multiple evidence refs per speech are allowed; the client renders them
+ * as a horizontal chip strip.
+ */
+export interface EvidenceRef {
+  refToPlayerId: string;
+  refToPlayerName: string;
+  refToTextSnippet: string;
+  kind: 'mention' | 'at_tag' | 'fuzzy';
+}
+
 /** 离职员工弹幕吐槽 */
 export interface GhostComment {
   playerId: string;
@@ -72,7 +101,7 @@ export interface ServerToClientEvents {
   'game:state': (state: SerializedGameState) => void;
   'game:phase_change': (data: { phase: GamePhase; round: number }) => void;
   'game:speech_start': (data: { playerId: string; playerName: string }) => void;
-  'game:speech': (data: { playerId: string; playerName: string; text: string; role?: string; team?: string }) => void;
+  'game:speech': (data: { playerId: string; playerName: string; text: string; role?: string; team?: string; evidence?: EvidenceRef[] }) => void;
   'game:speech_audio': (data: { playerId: string; audioUrl: string }) => void;
   'game:speech_end': (data: { playerId: string }) => void;
   'game:ghost_comment': (data: GhostComment) => void;

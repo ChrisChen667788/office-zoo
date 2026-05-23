@@ -165,7 +165,14 @@ export default function Immersive() {
       setSpeaker(data.playerId);
       setSpeechText('');
     },
-    'game:speech': (data: { playerId: string; playerName: string; text: string; role?: string; team?: string }) => {
+    'game:speech': (data: {
+      playerId: string; playerName: string; text: string;
+      role?: string; team?: string;
+      evidence?: Array<{
+        refToPlayerId: string; refToPlayerName: string;
+        refToTextSnippet: string; kind: 'mention' | 'at_tag' | 'fuzzy';
+      }>;
+    }) => {
       addSpeech(data);
       setSpeechText(data.text);
       // Schedule a browser-TTS fallback. If `game:speech_audio` arrives within
