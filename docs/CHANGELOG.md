@@ -7,6 +7,65 @@
 
 ---
 
+## v6.6.1 — 2026-05-23 · 趋势图 (events 时间戳记录 + SVG 折线)
+
+### Why
+v6.6.0 的 `/weekly/me` 只有"累计 + 当前 dominant"两个数据维度,
+缺最初任务里点名要求的**时间趋势**子项 — 原因是 store 只存 running
+counts, 没有 event-level timestamps 可绘制 over time。本版本把
+schema 升级为 counts + events log, 并加 SVG cumulative line chart。
+
+### Changed — store schema (back-compat)
+- `weeklyPreferenceStore.ts`:
+  - 旧 shape: `Record<userId, LikeCounts>`
+  - 新 shape: `Record<userId, { counts: LikeCounts; events: LikeEvent[] }>`
+  - `recordLike` 现在同时 bump counts + push `{style, ts}` 到 events
+  - events 上限 500 条/user (≈1.5 年日点击量), 超出 LRU drop oldest
+  - **loader 含 back-compat**: 旧 user 自动 wrap 成 new shape, events=[]
+    (历史无时间戳粒度, UI 显示"v6.6.1 起开始记录"友好提示)
+- 新增 `getEvents(userId)` API — 返回完整 events 数组
+- `/api/weekly/preferences` 响应现在含 `events` 字段 (全量传, 单用户
+  ≤8 KB)
+
+### Added — Trend chart in /weekly/me
+- `WeeklyMe.tsx` 加 `<TrendChart events={prefs.events} />` 子组件 (130 行):
+  - 按 UTC calendar day bucket aggregation
+  - 算每天每风格 cumulative running total (4 条折线 over time)
+  - 50 行纯 SVG (无第三方图表库)
+  - y 轴 3-tick + dashed grid · x 轴首/中/尾 3 个 day label
+  - end-of-line dot anchor 4 条线终点
+  - Legend chips 含当前累计值 (e.g. "🧩 阿里黑话版 · 3")
+  - 边界:
+    - 单天 → 退化为 4 dot 垂直堆叠 (单 x 位置)
+    - 空 events (migrated user) → "📭 还没有时间戳记录" 友好提示
+
+### Verified
+- ✓ typecheck server / client 0 新 regression
+- ✓ Schema migration: 老用户 wrap 成 new shape, events=[]
+- ✓ UAT 6 likes (3 alibaba + 2 pua + 1 direct over 3 秒):
+  - counts {alibaba:3, pua:2, posh:0, direct:1} ✓
+  - dominantStyle = alibaba ✓
+  - 6 events 带 ts 排序正确 ✓
+- ✓ Visual probe: trend chart 单天数据正常退化 + legend 显示
+
+### 闭环完成度
+```
+v6.6.0 + v6.6.1 = self-tuning 完整闭环
+  ✅ 点赞反馈 (Weekly ❤ + ⚡ TUNED + tuning chip)
+  ✅ 具象证据 (A/B compare modal)
+  ✅ 累计可视化 (4 风格 bar chart)
+  ✅ 时间趋势 (cumulative SVG line chart, v6.6.1 新加)
+  ✅ Forget (Settings 清空按钮)
+  ✅ 跨用户聚合 (bar cluster team chemistry)
+```
+
+### 用户答复说明 (Honest)
+用户在 v6.6.0 后又列了 3 项,实际 2 项已在 v6.6.0 交付 (Forget 全量 +
+team chemistry 全量), 1 项部分完成 (历史可视化的累计 + dominant ✓, 时间
+趋势 ✗) — v6.6.1 补上 trend chart 缺口。完整 4 task 闭环至此完毕。
+
+---
+
 ## v6.6.0 — 2026-05-23 · self-tuning 完整闭环 (forget + A/B + 历史 + 团队)
 
 ### Why

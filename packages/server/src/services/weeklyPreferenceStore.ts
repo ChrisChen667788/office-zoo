@@ -28,11 +28,29 @@ export type WeeklyStyle = 'alibaba' | 'pua' | 'posh' | 'direct';
 /** Likes per style. 0 = never liked. */
 export type LikeCounts = Record<WeeklyStyle, number>;
 
+/** v6.6.1 — single like event (for time-trend visualization). */
+export interface LikeEvent {
+  style: WeeklyStyle;
+  ts: number; // unix ms
+}
+
+/** Per-user record: running counts + the event log. Counts kept for fast
+ *  reads (most callers only need totals). Events log lets `/weekly/me`
+ *  draw a time-trend chart without re-scanning all users. */
+export interface UserPrefs {
+  counts: LikeCounts;
+  /** Capped at MAX_EVENTS_PER_USER newest. Oldest dropped on overflow. */
+  events: LikeEvent[];
+}
+
 interface StoreShape {
-  byUser: Record<string, LikeCounts>;
+  /** v6.6.1: new shape — was Record<string, LikeCounts>; we keep loader
+   *  back-compat with the old shape (see loadFromDisk). */
+  byUser: Record<string, UserPrefs>;
 }
 
 const ZERO_COUNTS: LikeCounts = { alibaba: 0, pua: 0, posh: 0, direct: 0 };
+const MAX_EVENTS_PER_USER = 500; // ≈ 1.5 yrs of daily clicks; cap on growth.
 
 let cache: StoreShape | null = null;
 let loadPromise: Promise<StoreShape> | null = null;
@@ -40,9 +58,28 @@ let loadPromise: Promise<StoreShape> | null = null;
 async function loadFromDisk(): Promise<StoreShape> {
   try {
     const raw = await fs.readFile(DATA_FILE, 'utf8');
-    const parsed = JSON.parse(raw) as Partial<StoreShape>;
+    // v6.6.1 back-compat: old shape was Record<userId, LikeCounts>; new is
+    // Record<userId, UserPrefs>. Detect by looking for the .counts field on
+    // first user value. Old users get { counts: oldValue, events: [] }.
+    const parsed = JSON.parse(raw) as { byUser?: Record<string, unknown> };
     if (!parsed.byUser || typeof parsed.byUser !== 'object') return { byUser: {} };
-    return { byUser: parsed.byUser };
+    const migrated: Record<string, UserPrefs> = {};
+    for (const [uid, val] of Object.entries(parsed.byUser)) {
+      if (val && typeof val === 'object' && 'counts' in (val as object)) {
+        const u = val as UserPrefs;
+        migrated[uid] = {
+          counts: { ...ZERO_COUNTS, ...u.counts },
+          events: Array.isArray(u.events) ? u.events : [],
+        };
+      } else if (val && typeof val === 'object') {
+        // Legacy LikeCounts shape: wrap into new structure
+        migrated[uid] = {
+          counts: { ...ZERO_COUNTS, ...(val as LikeCounts) },
+          events: [], // no historical events for migrated users (timeline starts now)
+        };
+      }
+    }
+    return { byUser: migrated };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { byUser: {} };
     console.error('[weeklyPreferenceStore] load failed:', err);
@@ -63,22 +100,37 @@ async function persist(state: StoreShape): Promise<void> {
   await fs.rename(tmp, DATA_FILE);
 }
 
-/** Add +1 like for (userId, style). Idempotent in the sense of "always
- *  bumps by 1" — no per-IP dedup at this layer (the route layer can add
- *  rate-limit if it wants). Returns the new counts for the user. */
+/** Add +1 like for (userId, style). Bumps the running counter AND
+ *  appends a timestamped event to the user's events log (capped at
+ *  MAX_EVENTS_PER_USER, oldest dropped). Returns the new counts. */
 export async function recordLike(userId: string, style: WeeklyStyle): Promise<LikeCounts> {
   if (!userId) return { ...ZERO_COUNTS };
   const s = await ensureLoaded();
-  if (!s.byUser[userId]) s.byUser[userId] = { ...ZERO_COUNTS };
-  s.byUser[userId][style] = (s.byUser[userId][style] ?? 0) + 1;
+  if (!s.byUser[userId]) s.byUser[userId] = { counts: { ...ZERO_COUNTS }, events: [] };
+  const u = s.byUser[userId];
+  u.counts[style] = (u.counts[style] ?? 0) + 1;
+  u.events.push({ style, ts: Date.now() });
+  if (u.events.length > MAX_EVENTS_PER_USER) {
+    u.events.splice(0, u.events.length - MAX_EVENTS_PER_USER);
+  }
   await persist(s);
-  return { ...s.byUser[userId] };
+  return { ...u.counts };
 }
 
 export async function getCounts(userId: string): Promise<LikeCounts> {
   if (!userId) return { ...ZERO_COUNTS };
   const s = await ensureLoaded();
-  return { ...(s.byUser[userId] ?? ZERO_COUNTS) };
+  return { ...(s.byUser[userId]?.counts ?? ZERO_COUNTS) };
+}
+
+/** v6.6.1 — full event log for time-trend visualisation in /weekly/me.
+ *  Returns events in chronological order (oldest first). For users
+ *  migrated from the v6.5.2 shape, events is [] (no historical
+ *  granularity) — UI should handle empty case gracefully. */
+export async function getEvents(userId: string): Promise<LikeEvent[]> {
+  if (!userId) return [];
+  const s = await ensureLoaded();
+  return [...(s.byUser[userId]?.events ?? [])];
 }
 
 /** Identify the "dominant" style for self-tuning. Only kicks in once
@@ -96,7 +148,8 @@ export function dominantStyle(counts: LikeCounts): WeeklyStyle | null {
   return entries[0][0];
 }
 
-/** Clear (for test / "forget my preferences" surface). */
+/** Clear (for test / "forget my preferences" surface).
+ *  Drops both counts and events — full reset. */
 export async function clearPreferences(userId: string): Promise<void> {
   const s = await ensureLoaded();
   delete s.byUser[userId];

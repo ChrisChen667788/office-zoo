@@ -13,11 +13,19 @@ import { motion } from 'framer-motion';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
 
+type Style = 'alibaba' | 'pua' | 'posh' | 'direct';
+
+interface LikeEvent {
+  style: Style;
+  ts: number;
+}
+
 interface Prefs {
   counts: { alibaba: number; pua: number; posh: number; direct: number };
-  dominantStyle: 'alibaba' | 'pua' | 'posh' | 'direct' | null;
+  dominantStyle: Style | null;
   dominantLabel: string | null;
   total: number;
+  events: LikeEvent[]; // v6.6.1 新加
 }
 
 const STYLE_META = {
@@ -159,6 +167,9 @@ export default function WeeklyMe() {
               })}
             </div>
 
+            {/* v6.6.1 — 时间趋势 (按 calendar day 聚合累计折线) */}
+            <TrendChart events={prefs.events} />
+
             <div className="text-center text-[10px] text-white/40 mt-6 leading-relaxed">
               共 {prefs.total} 次点赞 · 主导风格阈值 ≥ 3<br/>
               清空偏好? <button onClick={() => navigate('/settings')} className="text-white/70 hover:text-white/95 underline decoration-dotted underline-offset-2">去 ⚙️ Settings</button>
@@ -166,6 +177,179 @@ export default function WeeklyMe() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+/* ─── v6.6.1 趋势图组件 (SVG cumulative line chart) ─────────────
+ * 设计:
+ *   - 按 calendar day (UTC) 把事件 bucket 一下
+ *   - 算每天每个 style 的累计 likes (running total over time)
+ *   - SVG 4 条彩色折线 overlay, 共享 x/y 轴
+ *   - 自动填充: 没事件的日期保持前一日累计值
+ *   - 单点情况退化成一个 dot, 视觉上仍可读
+ *   - 空 events (migrated 用户) → 友好提示文案
+ * 不引第三方图表库 — 50 行 SVG + Map 就够。 */
+
+const STYLE_LINE_COLOR: Record<Style, string> = {
+  alibaba: '#4ECDC4',
+  pua:     '#FF4FA3',
+  posh:    '#FFD700',
+  direct:  '#FF6B35',
+};
+
+function dayKey(ts: number): string {
+  // UTC day bucket — 跟服务端时间一致, 用户横跨时区也不会出现"跳天"
+  const d = new Date(ts);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+function shortDate(k: string): string {
+  // "2026-05-23" → "5/23" (轴标签紧凑)
+  const [, m, d] = k.split('-');
+  return `${parseInt(m, 10)}/${parseInt(d, 10)}`;
+}
+
+function TrendChart({ events }: { events: LikeEvent[] }) {
+  // 空状态: migrated 用户 (counts > 0 但 events = []) 或新用户
+  if (events.length === 0) {
+    return (
+      <div className="mt-6">
+        <h3 className="text-[11px] uppercase tracking-[0.22em] text-white/55 mb-2 font-bold">
+          📈 时间趋势
+        </h3>
+        <div className="text-center py-6 text-white/45 text-xs rounded-xl"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.15)' }}>
+          📭 还没有时间戳记录的点赞 — v6.6.1 起开始记录, 多点几次就会有折线
+        </div>
+      </div>
+    );
+  }
+
+  // Bucket by day. 同一天多次点赞累加。
+  // dayBuckets: Map<dayKey, {alibaba, pua, posh, direct}>
+  const dayBuckets = new Map<string, Record<Style, number>>();
+  for (const ev of events) {
+    const k = dayKey(ev.ts);
+    if (!dayBuckets.has(k)) {
+      dayBuckets.set(k, { alibaba: 0, pua: 0, posh: 0, direct: 0 });
+    }
+    dayBuckets.get(k)![ev.style] += 1;
+  }
+  // Sort days chronologically, accumulate running totals
+  const days = [...dayBuckets.keys()].sort();
+  const running: Record<Style, number> = { alibaba: 0, pua: 0, posh: 0, direct: 0 };
+  const series: Array<{ day: string; counts: Record<Style, number> }> = [];
+  for (const d of days) {
+    const inc = dayBuckets.get(d)!;
+    running.alibaba += inc.alibaba;
+    running.pua     += inc.pua;
+    running.posh    += inc.posh;
+    running.direct  += inc.direct;
+    series.push({ day: d, counts: { ...running } });
+  }
+
+  // SVG geometry
+  const W = 460, H = 180;
+  const padL = 32, padR = 12, padT = 12, padB = 28;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const n = series.length;
+  const maxY = Math.max(
+    1,
+    ...series.map((s) => Math.max(s.counts.alibaba, s.counts.pua, s.counts.posh, s.counts.direct)),
+  );
+  // y ticks (3 levels: 0 / maxY/2 / maxY)
+  const yTicks = [0, Math.ceil(maxY / 2), maxY];
+
+  // x coord per index. Single point centers; otherwise even spacing.
+  const xAt = (i: number) => n === 1 ? padL + innerW / 2 : padL + (i * innerW) / (n - 1);
+  const yAt = (v: number) => padT + innerH - (v / maxY) * innerH;
+
+  // Build polyline path strings per style
+  const linePath = (style: Style): string => series.map((s, i) =>
+    `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(1)} ${yAt(s.counts[style]).toFixed(1)}`,
+  ).join(' ');
+
+  // X-axis tick labels: first / middle / last day
+  const xLabels: Array<{ x: number; text: string }> = [];
+  if (n === 1) {
+    xLabels.push({ x: xAt(0), text: shortDate(series[0].day) });
+  } else {
+    xLabels.push({ x: xAt(0), text: shortDate(series[0].day) });
+    if (n >= 3) xLabels.push({ x: xAt(Math.floor(n / 2)), text: shortDate(series[Math.floor(n / 2)].day) });
+    xLabels.push({ x: xAt(n - 1), text: shortDate(series[n - 1].day) });
+  }
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-baseline justify-between mb-2">
+        <h3 className="text-[11px] uppercase tracking-[0.22em] text-white/55 font-bold">
+          📈 时间趋势 · 累计
+        </h3>
+        <span className="text-[10px] text-white/40">
+          {n} 天 · 共 {events.length} 次点赞
+        </span>
+      </div>
+      <div className="rounded-xl p-3"
+        style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.10)',
+        }}>
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          width="100%" height={H}
+          style={{ display: 'block' }}
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          {/* y-axis ticks + grid */}
+          {yTicks.map((v) => {
+            const y = yAt(v);
+            return (
+              <g key={v}>
+                <line x1={padL} y1={y} x2={W - padR} y2={y}
+                  stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="2 4" />
+                <text x={padL - 6} y={y + 4} textAnchor="end"
+                  fontSize="10" fill="rgba(255,255,255,0.55)"
+                  fontFamily="ui-monospace, monospace">
+                  {v}
+                </text>
+              </g>
+            );
+          })}
+          {/* x-axis labels */}
+          {xLabels.map((l, i) => (
+            <text key={i} x={l.x} y={H - 8} textAnchor="middle"
+              fontSize="10" fill="rgba(255,255,255,0.45)"
+              fontFamily="ui-monospace, monospace">
+              {l.text}
+            </text>
+          ))}
+          {/* 4 lines, alpha-low for non-dominant readability */}
+          {(['alibaba', 'pua', 'posh', 'direct'] as Style[]).map((s) => (
+            <g key={s}>
+              <path d={linePath(s)} fill="none"
+                stroke={STYLE_LINE_COLOR[s]} strokeWidth="2"
+                strokeLinejoin="round" strokeLinecap="round" />
+              {/* End-of-line dot to anchor the eye */}
+              {n >= 1 && (
+                <circle cx={xAt(n - 1)} cy={yAt(series[n - 1].counts[s])}
+                  r="3.5" fill={STYLE_LINE_COLOR[s]} />
+              )}
+            </g>
+          ))}
+        </svg>
+        {/* Legend chips */}
+        <div className="flex flex-wrap gap-2 mt-2 justify-center">
+          {(['alibaba','pua','posh','direct'] as Style[]).map((s) => (
+            <span key={s} className="inline-flex items-center gap-1.5 text-[10px] text-white/65">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: STYLE_LINE_COLOR[s] }} />
+              {STYLE_META[s].emoji} {STYLE_META[s].label}
+              <span className="text-white/40">· {series[n - 1].counts[s]}</span>
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -26,7 +26,7 @@ import { validateBody } from '../utils/validate';
 import { createRateLimiter } from '../utils/rateLimit';
 import { logger } from '../utils/logger';
 import {
-  recordLike, getCounts, dominantStyle, clearPreferences,
+  recordLike, getCounts, getEvents, dominantStyle, clearPreferences,
   type WeeklyStyle as PrefStyle,
 } from '../services/weeklyPreferenceStore';
 
@@ -245,15 +245,22 @@ weeklyRoutes.post('/like', async (c) => {
 weeklyRoutes.get('/preferences', async (c) => {
   const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
   if (!userId || userId.length < 8) {
-    return c.json({ counts: { alibaba: 0, pua: 0, posh: 0, direct: 0 }, dominantStyle: null });
+    return c.json({
+      counts: { alibaba: 0, pua: 0, posh: 0, direct: 0 },
+      dominantStyle: null, events: [],
+    });
   }
   const counts = await getCounts(userId);
   const dom = dominantStyle(counts);
+  // v6.6.1 — events 一并返回, /weekly/me 用于绘制时间趋势
+  // 不分页 (单用户事件最多 500 条, 8 KB 量级, 全量传无压力)
+  const events = await getEvents(userId);
   return c.json({
     counts,
     dominantStyle: dom,
     dominantLabel: dom ? STYLES[dom as WeeklyStyle].label : null,
     total: counts.alibaba + counts.pua + counts.posh + counts.direct,
+    events,
   });
 });
 
