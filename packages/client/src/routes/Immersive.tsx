@@ -4,6 +4,7 @@ import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
 import PersonaCard from '../components/character/PersonaCard';
+import IdleBeat from '../components/character/IdleBeat';
 import {
   type GhostCommentItem,
   useGameId, usePhase, usePlayers, useRound, useTaskProgress,
@@ -443,7 +444,10 @@ export default function Immersive() {
                 animate={{ opacity: 1, scale: 1, x, y }}
                 transition={{ delay: i * 0.08, type: 'spring', stiffness: 200, damping: 20 }}>
 
-                {/* Speech bubble */}
+                {/* Speech bubble (when LLM has produced text) OR idle micro-action
+                     (during the speech_start → speech "thinking" window). The
+                     v6.8 P3 IdleBeat replaces what used to be empty space and
+                     gives each personality its own thinking animation. */}
                 <AnimatePresence>
                   {isSpeaking && speechText && (
                     <motion.div className="absolute -top-20 left-1/2 -translate-x-1/2 w-52 z-10"
@@ -467,6 +471,22 @@ export default function Immersive() {
                           borderRight: `1px solid rgba(${visual.glow}, 0.3)`,
                           borderBottom: `1px solid rgba(${visual.glow}, 0.3)`,
                         }} />
+                    </motion.div>
+                  )}
+                  {isSpeaking && !speechText && (
+                    <motion.div
+                      key="idle"
+                      className="absolute -top-14 left-1/2 -translate-x-1/2 z-10"
+                      initial={{ opacity: 0, y: 6, scale: 0.92 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 6, scale: 0.92 }}
+                      transition={{ duration: 0.18 }}
+                    >
+                      <IdleBeat
+                        personality={player.personality}
+                        tint={`rgb(${visual.glow})`}
+                        size={22}
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>

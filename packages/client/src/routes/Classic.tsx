@@ -22,6 +22,7 @@ import HighlightReel from '../components/game/HighlightReel';
 import { ROLE_LABELS, teamForRole } from '../constants/roles';
 import EventPill from '../components/EventPill';
 import PersonaCard from '../components/character/PersonaCard';
+import IdleBeat from '../components/character/IdleBeat';
 import { uid } from '../utils/uid';
 import { playTtsFromUrl, stopTts, speakViaBrowserTTS, hasBrowserTTS } from '../utils/audioUnlock';
 import { phaseIcons, personalityIcons, glyphIcons, Icon } from '../constants/icons';
@@ -482,9 +483,28 @@ export default function Classic() {
             padding: '8px 12px', maxHeight: 200, overflowY: 'auto',
           }}>
             <div style={{
-              fontSize: 11, color: 'rgba(47,184,255,0.4)', marginBottom: 6,
-              fontWeight: 700, letterSpacing: '0.1em',
-            }}>SPEECHES</div>
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 6, minHeight: 22,
+            }}>
+              <div style={{
+                fontSize: 11, color: 'rgba(47,184,255,0.4)',
+                fontWeight: 700, letterSpacing: '0.1em',
+              }}>SPEECHES</div>
+              {/* v6.8 P3 — show the currently-thinking AI's personality-aware
+                   idle beat when LLM hasn't yet emitted a speech event. */}
+              {currentSpeaker && (() => {
+                const speakingPlayer = players.find((p) => p.id === currentSpeaker);
+                if (!speakingPlayer) return null;
+                return (
+                  <IdleBeat
+                    personality={speakingPlayer.personality}
+                    tint="#FFD700"
+                    size={16}
+                    showCaption={true}
+                  />
+                );
+              })()}
+            </div>
             {speechHistory.slice(-5).map((s, i) => {
               const speaker = players.find((p) => p.id === s.playerId);
               const pLabel = speaker?.personality ? PERSONALITY_LABELS[speaker.personality] : null;
