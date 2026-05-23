@@ -28,6 +28,11 @@
 
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { findCharacter, type CharacterCard } from '@furball/shared';
+import {
+  downloadCharacterShareCard,
+  copyCharacterShareCard,
+  type CharacterShareCardData,
+} from '../../utils/characterShareCard';
 
 // v6.8 P5 — lifetime stats returned by GET /api/characters/:name.
 // Optional; shows "首次出战" when null. Cache per character name across
@@ -248,6 +253,93 @@ export default function PersonaCard({ playerName, personality, children }: Props
               <div style={{ fontSize: 10.5, color: 'rgba(248,244,227,0.55)', marginBottom: 8, fontStyle: 'italic' }}>
                 {character.backstory}
               </div>
+
+              {/* v6.8 P-share — share button row, visible only when card is
+                   pinned (click to pin first). Two actions: copy to clipboard
+                   (silent, fast) + download PNG fallback. */}
+              {pinned && character && (
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const data: CharacterShareCardData = {
+                        name: character.name,
+                        epithet: character.epithet,
+                        emoji: character.emoji,
+                        catchphrases: character.catchphrases,
+                        backstory: character.backstory,
+                        stats: stats ? {
+                          totalGames: stats.totalGames,
+                          wins: stats.wins,
+                          votedOut: stats.votedOut,
+                          suspicionsReceived: stats.suspicionsReceived,
+                          favoritePersonality: (() => {
+                            const fav = Object.entries(stats.personalityCounts ?? {})
+                              .sort((a, b) => b[1] - a[1])[0]?.[0];
+                            return fav ? PERSONALITY_LABELS[fav] : undefined;
+                          })(),
+                        } : null,
+                        thisGame: persona ? {
+                          personality: persona,
+                          isReversal: !!isReversal,
+                        } : undefined,
+                      };
+                      try {
+                        await copyCharacterShareCard(data);
+                        // Tiny inline feedback — flash the button briefly.
+                        const btn = e.currentTarget as HTMLButtonElement;
+                        const orig = btn.textContent;
+                        btn.textContent = '✓ 已复制图片';
+                        setTimeout(() => { btn.textContent = orig; }, 1200);
+                      } catch {
+                        await downloadCharacterShareCard(data);
+                      }
+                    }}
+                    style={{
+                      flex: 1, fontSize: 10, padding: '4px 8px', borderRadius: 6,
+                      background: 'linear-gradient(135deg, #FFD700 0%, #FFA947 100%)',
+                      color: '#1a0d35', fontWeight: 800, cursor: 'pointer',
+                      border: 'none', letterSpacing: '0.04em',
+                    }}
+                  >📤 复制图片</button>
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const data: CharacterShareCardData = {
+                        name: character.name,
+                        epithet: character.epithet,
+                        emoji: character.emoji,
+                        catchphrases: character.catchphrases,
+                        backstory: character.backstory,
+                        stats: stats ? {
+                          totalGames: stats.totalGames,
+                          wins: stats.wins,
+                          votedOut: stats.votedOut,
+                          suspicionsReceived: stats.suspicionsReceived,
+                          favoritePersonality: (() => {
+                            const fav = Object.entries(stats.personalityCounts ?? {})
+                              .sort((a, b) => b[1] - a[1])[0]?.[0];
+                            return fav ? PERSONALITY_LABELS[fav] : undefined;
+                          })(),
+                        } : null,
+                        thisGame: persona ? {
+                          personality: persona,
+                          isReversal: !!isReversal,
+                        } : undefined,
+                      };
+                      await downloadCharacterShareCard(data);
+                    }}
+                    style={{
+                      fontSize: 10, padding: '4px 8px', borderRadius: 6,
+                      background: 'rgba(255,255,255,0.06)', color: 'rgba(248,244,227,0.78)',
+                      fontWeight: 700, cursor: 'pointer',
+                      border: '1px solid rgba(255,215,0,0.32)',
+                    }}
+                  >📥 下载</button>
+                </div>
+              )}
 
               {/* v6.8 P5 — lifetime stats (totalGames / wins / votedOut /
                    suspicions). characterStatsStore JSON-file persists,
