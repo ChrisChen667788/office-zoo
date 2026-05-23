@@ -22,6 +22,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getUserId } from '../utils/userId';
 import { mihoyo, stigmaChipStyle } from '../constants/design';
+import BarClusterShareModal from '../components/BarClusterShareModal';
 
 interface Profile {
   archetype: string;
@@ -83,6 +84,7 @@ export default function Bar() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   // v6.1 — 朋友拼版 cluster 检测 + 自动 join。如果 URL ?cluster=<id>
   // 就是别人邀你来拼版, 你聊够 3 条之后自动加入。
@@ -139,10 +141,25 @@ export default function Bar() {
   };
 
   const share = async () => {
-    // v6.1 — 朋友拼版: share 前先创建 cluster, 让 URL 带 ?cluster=<id>。
-    // 朋友点开会自动加入这个 cluster, 多人对话合并成"拼版"。
-    let url = `${window.location.origin}/bar/${archetype}`;
-    if (!clusterId && messages.length >= 3) {
+    // v6.3 — share() 流程改造:
+    //   1. 没聊够 3 条 → 降级为复制纯链接 (没东西做成拼版)
+    //   2. 聊够了 + 没 cluster → 先 POST create, 再开 PNG 预览 modal
+    //   3. 已有 cluster → 直接开 modal (用现有 id)
+    if (messages.length < 3) {
+      const url = `${window.location.origin}/bar/${archetype}`;
+      const text = `Chris 邀请你到「${ARCHETYPE_DISPLAY[archetype]}」的酒馆喝一杯 🍺  #班味剧场`;
+      try {
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        setShareMsg('✓ 邀请文案已复制, 聊几句后再分享就有"拼版"');
+      } catch {
+        setShareMsg('复制失败');
+      }
+      setTimeout(() => setShareMsg(null), 2800);
+      return;
+    }
+    // Need cluster first
+    let cid = clusterId;
+    if (!cid) {
       try {
         const resp = await fetch('/api/bar/cluster/create', {
           method: 'POST',
@@ -154,30 +171,18 @@ export default function Bar() {
         });
         const json = await resp.json() as { id?: string };
         if (json.id) {
-          setClusterId(json.id);
-          url = `${url}?cluster=${json.id}`;
+          cid = json.id;
+          setClusterId(cid);
         }
-      } catch { /* fall through to plain share URL */ }
-    } else if (clusterId) {
-      url = `${url}?cluster=${clusterId}`;
+      } catch { /* fall through */ }
     }
-    const text = clusterId || messages.length >= 3
-      ? `我开了个朋友拼版 — 来跟同一个「${ARCHETYPE_DISPLAY[archetype]}」聊几句, 我们的金句会拼成一张图 🍷  #班味剧场`
-      : `Chris 邀请你到「${ARCHETYPE_DISPLAY[archetype]}」的酒馆喝一杯 🍺  #班味剧场`;
-    try {
-      if (typeof navigator.share === 'function') {
-        await navigator.share({ title: '约一杯?', text, url });
-        return;
-      }
-    } catch { /* user cancelled */ }
-    try {
-      await navigator.clipboard.writeText(`${text}\n${url}`);
-      setShareMsg(clusterId ? '✓ 拼版链接已复制, 发给朋友吧' : '✓ 邀请文案已复制');
+    if (!cid) {
+      setShareMsg('拼版创建失败, 网络可能断了');
       setTimeout(() => setShareMsg(null), 2400);
-    } catch {
-      setShareMsg('复制失败, 长按地址栏发吧');
-      setTimeout(() => setShareMsg(null), 2400);
+      return;
     }
+    // Open the preview modal — let user see the PNG before sharing
+    setShareModalOpen(true);
   };
 
   // v6.1 — 自动加入别人邀请的 cluster: 当 ?cluster=<id> 且用户聊够 3 条,
@@ -345,6 +350,14 @@ export default function Bar() {
           </div>
         </div>
       </main>
+      {/* v6.3 — 拼版分享 PNG 预览 modal. clusterId 由 share() 创建后塞入. */}
+      <BarClusterShareModal
+        open={shareModalOpen}
+        clusterId={clusterId}
+        archetype={archetype}
+        archetypeLabel={ARCHETYPE_DISPLAY[archetype]}
+        onClose={() => setShareModalOpen(false)}
+      />
     </div>
   );
 }

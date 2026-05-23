@@ -25,6 +25,7 @@ import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { isPremium, subscribeEntitlement } from '../utils/entitlement';
 import { findArchetype, type Archetype } from '@furball/shared';
+import EventPill from '../components/EventPill';
 import type { UserProfile } from '../utils/profileTypes';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
@@ -338,9 +339,7 @@ export default function FiredLanding() {
           <span>←</span> 返回首页
         </button>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] tracking-[0.28em] uppercase text-white/40 hidden md:inline">
-            AI Labor Negotiation
-          </span>
+          <EventPill stars={5} subtle>⚖️ 裁了么 · v6.3</EventPill>
           <SfxToggle />
         </div>
       </header>

@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getUserId } from '../utils/userId';
 import type { SquadMember, SquadRecap } from '@furball/shared';
+import EventPill from '../components/EventPill';
 
 interface HistoryEntry {
   roomId: string;
@@ -89,9 +90,7 @@ export default function SquadHistory() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 首页
         </button>
-        <span className="text-[11px] uppercase tracking-[0.28em] text-white/55">
-          🎭 我的攒局
-        </span>
+        <EventPill stars={4} subtle>🎭 我的攒局</EventPill>
         <button onClick={() => navigate('/squad/new')}
           className="text-xs px-3 py-1.5 rounded-full font-bold tracking-wide text-white"
           style={{ background: 'linear-gradient(135deg,#ff5588,#7c3aed)' }}>

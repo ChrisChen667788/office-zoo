@@ -50,21 +50,22 @@
 
 ---
 
-## 🖼️ Gallery — 7 张图顺序 + 单图标题
+## 🖼️ Gallery — 8 张图顺序 + 单图标题(v6.3 升级)
 
 ProductHunt gallery 默认横屏 cover (`1270×760`) + 后续可竖可横。我们的全部
 都是 720×720 方形(自带 demo 视觉一致性),稳定。
 
 | # | 文件 | 用途 / 标题(图片下方 caption)|
 |---|---|---|
-| 1 | `assets/launch-demo/demo-memory.gif` 或 `.mp4` | **HERO** — 30s 演示 "AI 同事跨局记仇" 全流程 |
-| 2 | `assets/launch/01-hero-hook.png` | 一句话开场 — "AI 同事会记得你" + 产品身份 |
+| 1 | `assets/launch-demo/hero-combined.gif` 或 `.mp4` | **HERO** — 30s 米哈游故事 (15s) + 真实游戏 (15s) 合成,**新版本主推** |
+| 2 | `assets/launch/01-hero-hook.png` | 一句话开场 — "AI 同事会记得你" + 产品身份 (米哈游风) |
 | 3 | `assets/launch/02-game1-setup.png` | 场景一:第 1 局,@王五 联合 @赵六 把李四投出局(memory 写入 pgvector)|
 | 4 | `assets/launch/03-game2-payoff.png` | 场景二:第 2 局,李四第一句话:"@王五,你这张嘴我记忆犹新,上次..." |
 | 5 | `assets/launch/04-tech-arch.png` | 幕后架构 — pgvector / OpenAI embedding / Reflection / Privacy / 15ms p95 |
 | 6 | `assets/launch/06-settings-beliefs.png` | 真产品截图 — Settings 页 "💭 他们对你的判断" + 一键 Forget |
 | 7 | `assets/launch/07-fortune-card.png` | 副玩法 — 班味占卜 daily tarot(viral 引流 surface) |
-| 8 | `assets/launch/05-cta.png` | 收尾 — "Star 一下, 精神工位 +1, 班味 -1" + GitHub URL |
+| 8 | `assets/launch/08-ugc-page.png` | **v6.3 新** — 段子库 UGC 投稿页,⭐ 本月精选 + 真实表单状态 |
+| 9 | `assets/launch/05-cta.png` | 收尾 — "Star 一下, 精神工位 +1, 班味 -1" + GitHub URL |
 
 > ProductHunt 允许 1 视频 + 多图,把 GIF 当 cover video 最有效。
 
@@ -308,7 +309,7 @@ I'll be here all day. Ask anything 🙏
 
 把下面 3 个文件 zip 起来发给 hunter:
 - `assets/launch-demo/demo-memory.mp4` (PH cover)
-- `assets/launch/01..07-*.png` (gallery 7 张)
+- `assets/launch/01..08-*.png` (gallery 8 张, 含 v6.3 新增 08-ugc-page)
 - `docs/PRODUCTHUNT_LAUNCH_KIT.md` (本文件, 给 hunter 看上下文)
 
 ```bash
