@@ -23,6 +23,7 @@ import {
 import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
 import { logger } from '../utils/logger';
+import { recordGameResults, recordVoteAgainst } from '../services/characterStatsStore';
 import { assignRoomActivity, commuteCaption, pickAnchor, pickCarriedItem } from './activity';
 // Activity + PlayerTickInfo are new — added separately to keep the diff
 // against the original import block obvious. PlayerState is already imported
@@ -195,6 +196,10 @@ export class GameEngine extends EventEmitter {
 
     // GAME_OVER
     await this.setPhase(GamePhase.GAME_OVER);
+    // v6.8 — fold final state into per-character stats. Fire-and-forget;
+    // recordGameResults swallows its own errors so a stats write can never
+    // block GAME_OVER signaling. Stats power PersonaCard's 战绩 line.
+    void recordGameResults(this.state);
     this.running = false;
   }
 
@@ -744,6 +749,22 @@ export class GameEngine extends EventEmitter {
         },
         'vote promises rejected unexpectedly',
       );
+    }
+
+    // v6.8 — record per-character suspicion tally for PersonaCard stats.
+    // Looks up each vote target's character name (lookup-by-id from the
+    // alive roster) and bumps their suspicionsReceived counter. Ghost
+    // votes count the same — they're still suspicion votes against the
+    // target. Fire-and-forget; recordVoteAgainst swallows its own errors.
+    const idToName = new Map<string, string>();
+    for (const p of this.state.players) idToName.set(p.id, p.name);
+    for (const targetId of [
+      ...Object.values(this.state.votes),
+      ...Object.values(this.state.ghostVotes),
+    ]) {
+      if (targetId === 'skip') continue;
+      const targetName = idToName.get(targetId);
+      if (targetName) void recordVoteAgainst(targetName, this.state.id);
     }
   }
 

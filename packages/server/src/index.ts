@@ -34,6 +34,7 @@ import { fortuneRoutes } from './routes/fortune';
 import { memoryRoutes } from './routes/memory';
 import { weeklyRoutes } from './routes/weekly';
 import { barRoutes } from './routes/bar';
+import { characterRoutes } from './routes/characters';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
 
@@ -53,6 +54,9 @@ app.route('/api/b2b', b2bRoutes);
 app.route('/api/quiz', quizRoutes);
 app.route('/api/daily', dailyRoutes);
 app.route('/api/squad', squadRoutes);
+// v6.8 — character IP roster (epithet + catchphrases + lifetime stats)
+// powering the PersonaCard popover on Classic/Immersive.
+app.route('/api/characters', characterRoutes);
 // v5.0.0 — global today-only challenge (everyone races the same scenario).
 app.route('/api/daily-challenge', dailyChallengeRoutes);
 // v5.4.0 — 班味占卜 daily fortune. Deterministic per (user, date)

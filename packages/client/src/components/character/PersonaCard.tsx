@@ -29,6 +29,23 @@
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { findCharacter, type CharacterCard } from '@furball/shared';
 
+// v6.8 P5 — lifetime stats returned by GET /api/characters/:name.
+// Optional; shows "首次出战" when null. Cache per character name across
+// the session (in-memory, 5-min TTL) so re-opening the same popover
+// doesn't re-hit the server.
+interface LifetimeStats {
+  totalGames: number;
+  wins: number;
+  votedOut: number;
+  suspicionsReceived: number;
+  personalityCounts: Record<string, number>;
+  lastGameId: string;
+  lastAt: number;
+}
+
+const STATS_CACHE: Map<string, { stats: LifetimeStats | null; fetchedAt: number }> = new Map();
+const STATS_TTL_MS = 5 * 60 * 1000;
+
 // Personality presentation map duplicated here from the bottom-up
 // Classic/Immersive copies. A future refactor will lift this into a
 // shared client constants module; not the scope of v6.8.
@@ -83,7 +100,42 @@ interface Props {
 export default function PersonaCard({ playerName, personality, children }: Props) {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false); // click pins so popover stays for inspection
+  const [stats, setStats] = useState<LifetimeStats | null | undefined>(undefined); // undefined = loading
   const wrapRef = useRef<HTMLSpanElement | null>(null);
+
+  // v6.8 P5 — fetch lifetime stats on first open. Cached for 5 min per
+  // character name so re-opens are instant. Fully fail-safe — a 404 /
+  // network error just leaves stats=null which renders "首次出战".
+  useEffect(() => {
+    if (!open || stats !== undefined) return;
+    const cached = STATS_CACHE.get(playerName);
+    if (cached && Date.now() - cached.fetchedAt < STATS_TTL_MS) {
+      setStats(cached.stats);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/characters/${encodeURIComponent(playerName)}`);
+        if (!r.ok) {
+          if (!cancelled) {
+            setStats(null);
+            STATS_CACHE.set(playerName, { stats: null, fetchedAt: Date.now() });
+          }
+          return;
+        }
+        const data = await r.json();
+        const next = (data?.stats as LifetimeStats | null) ?? null;
+        if (!cancelled) {
+          setStats(next);
+          STATS_CACHE.set(playerName, { stats: next, fetchedAt: Date.now() });
+        }
+      } catch {
+        if (!cancelled) setStats(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, playerName, stats]);
 
   // Close pinned popover when clicking outside.
   useEffect(() => {
@@ -197,13 +249,60 @@ export default function PersonaCard({ playerName, personality, children }: Props
                 {character.backstory}
               </div>
 
-              {/* Stats placeholder — characterStatsStore wire-up is v6.8.1 */}
+              {/* v6.8 P5 — lifetime stats (totalGames / wins / votedOut /
+                   suspicions). characterStatsStore JSON-file persists,
+                   updated at every GAME_OVER + vote-cast. */}
               <div style={{
                 paddingTop: 6, borderTop: '1px dashed rgba(255,215,0,0.18)',
-                fontSize: 9.5, color: 'rgba(248,244,227,0.4)',
-                letterSpacing: '0.05em', fontWeight: 600,
               }}>
-                战绩同步中… (v6.8.1)
+                {stats === undefined ? (
+                  <div style={{ fontSize: 9.5, color: 'rgba(248,244,227,0.4)', letterSpacing: '0.05em', fontWeight: 600 }}>
+                    战绩加载中…
+                  </div>
+                ) : stats === null || stats.totalGames === 0 ? (
+                  <div style={{ fontSize: 9.5, color: 'rgba(248,244,227,0.45)', fontWeight: 600 }}>
+                    🆕 首次出战
+                  </div>
+                ) : (() => {
+                  const winRate = stats.totalGames > 0
+                    ? Math.round((stats.wins / stats.totalGames) * 100)
+                    : 0;
+                  const survRate = stats.totalGames > 0
+                    ? Math.round(((stats.totalGames - stats.votedOut) / stats.totalGames) * 100)
+                    : 0;
+                  const favPersonality = Object.entries(stats.personalityCounts ?? {})
+                    .sort((a, b) => b[1] - a[1])[0]?.[0];
+                  const favPersonaLabel = favPersonality
+                    ? PERSONALITY_LABELS[favPersonality]
+                    : null;
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{
+                        display: 'flex', gap: 8,
+                        fontSize: 10, color: 'rgba(248,244,227,0.78)', fontWeight: 700,
+                      }}>
+                        <span title="累计上桌"><span style={{ opacity: 0.55 }}>上桌</span> {stats.totalGames}</span>
+                        <span title="胜率" style={{ color: winRate >= 50 ? '#5be24a' : '#FFD700' }}>
+                          <span style={{ opacity: 0.55, color: 'rgba(248,244,227,0.78)' }}>胜率</span> {winRate}%
+                        </span>
+                        <span title="未被裁率" style={{ color: survRate >= 50 ? '#B086FF' : '#ff6347' }}>
+                          <span style={{ opacity: 0.55, color: 'rgba(248,244,227,0.78)' }}>存活</span> {survRate}%
+                        </span>
+                      </div>
+                      <div style={{
+                        display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap',
+                        fontSize: 9.5, color: 'rgba(248,244,227,0.55)', fontWeight: 600,
+                      }}>
+                        <span title="累计被怀疑票数">疑票 {stats.suspicionsReceived}</span>
+                        {favPersonaLabel && (
+                          <span style={{ color: favPersonaLabel.color }}>
+                            常演 {favPersonaLabel.emoji} {favPersonaLabel.label}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </>
           ) : (
