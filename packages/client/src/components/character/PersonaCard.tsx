@@ -27,7 +27,8 @@
  */
 
 import { useState, useRef, useEffect, ReactNode } from 'react';
-import { findCharacter, type CharacterCard } from '@furball/shared';
+import { findCharacter, localizeCharacter, type CharacterCard } from '@furball/shared';
+import { useT } from '../../utils/i18n';
 import {
   downloadCharacterShareCard,
   copyCharacterShareCard,
@@ -50,6 +51,34 @@ interface LifetimeStats {
 
 const STATS_CACHE: Map<string, { stats: LifetimeStats | null; fetchedAt: number }> = new Map();
 const STATS_TTL_MS = 5 * 60 * 1000;
+
+// v6.10 — minimal local string dict for UI chrome (epithet/catchphrase
+// translations live in CHARACTERS.i18n). Keep tiny + colocated; if this
+// grows past ~10 keys, promote to packages/client/src/utils/i18n.ts.
+const UI_LABELS: Record<string, { 'zh-CN': string; en: string }> = {
+  thisGame:       { 'zh-CN': '本局',           en: 'THIS GAME' },
+  reversal:       { 'zh-CN': '🔄 反差',         en: '🔄 PLOT TWIST' },
+  statsLoading:   { 'zh-CN': '战绩加载中…',     en: 'Loading stats…' },
+  rookie:         { 'zh-CN': '🆕 首次出战',    en: '🆕 ROOKIE' },
+  notInRoster:    { 'zh-CN': '本鼠人暂未入档', en: 'No dossier on this rat yet' },
+  plays:          { 'zh-CN': '上桌',           en: 'PLAYED' },
+  winRate:        { 'zh-CN': '胜率',           en: 'WIN' },
+  survRate:       { 'zh-CN': '存活',           en: 'SURVIVE' },
+  suspicions:     { 'zh-CN': '疑票',           en: 'Suspicions' },
+  oftenPlays:     { 'zh-CN': '常演',           en: 'Often' },
+  unit:           { 'zh-CN': '局',             en: 'games' },
+  votedOut:       { 'zh-CN': '被裁',           en: 'cut' },
+  copyImg:        { 'zh-CN': '📤 复制图片',    en: '📤 Copy as image' },
+  copiedFlash:    { 'zh-CN': '✓ 已复制图片',   en: '✓ Image copied' },
+  download:       { 'zh-CN': '📥 下载',        en: '📥 Download' },
+};
+function tr(key: keyof typeof UI_LABELS, locale: string): string {
+  const sub = locale.split('-')[0];
+  const entry = UI_LABELS[key];
+  if (!entry) return key;
+  if (sub === 'en') return entry.en;
+  return entry['zh-CN'];
+}
 
 // Personality presentation map duplicated here from the bottom-up
 // Classic/Immersive copies. A future refactor will lift this into a
@@ -155,7 +184,11 @@ export default function PersonaCard({ playerName, personality, children }: Props
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [pinned]);
 
-  const character: CharacterCard | null = findCharacter(playerName);
+  const { locale } = useT();
+  const rawCharacter = findCharacter(playerName);
+  const character: CharacterCard | null = rawCharacter
+    ? localizeCharacter(rawCharacter, locale)
+    : null;
   const persona = personality ? PERSONALITY_LABELS[personality] : null;
   const isReversal = character && personality && (REVERSAL[playerName] ?? []).includes(personality);
 
@@ -222,7 +255,7 @@ export default function PersonaCard({ playerName, personality, children }: Props
                     background: `${persona.color}22`, color: persona.color,
                     border: `1px solid ${persona.color}55`, fontWeight: 700,
                   }}>
-                    本局 · {persona.emoji} {persona.label}
+                    {tr('thisGame', locale)} · {persona.emoji} {persona.label}
                   </span>
                   {isReversal && (
                     <span style={{
@@ -231,7 +264,7 @@ export default function PersonaCard({ playerName, personality, children }: Props
                       border: '1px solid rgba(255,79,163,0.45)', fontWeight: 800,
                       letterSpacing: '0.06em',
                     }}>
-                      🔄 反差
+                      {tr('reversal', locale)}
                     </span>
                   )}
                 </div>
@@ -290,7 +323,7 @@ export default function PersonaCard({ playerName, personality, children }: Props
                         // Tiny inline feedback — flash the button briefly.
                         const btn = e.currentTarget as HTMLButtonElement;
                         const orig = btn.textContent;
-                        btn.textContent = '✓ 已复制图片';
+                        btn.textContent = tr('copiedFlash', locale);
                         setTimeout(() => { btn.textContent = orig; }, 1200);
                       } catch {
                         await downloadCharacterShareCard(data);
@@ -302,7 +335,7 @@ export default function PersonaCard({ playerName, personality, children }: Props
                       color: '#1a0d35', fontWeight: 800, cursor: 'pointer',
                       border: 'none', letterSpacing: '0.04em',
                     }}
-                  >📤 复制图片</button>
+                  >{tr('copyImg', locale)}</button>
                   <button
                     type="button"
                     onClick={async (e) => {
@@ -337,7 +370,7 @@ export default function PersonaCard({ playerName, personality, children }: Props
                       fontWeight: 700, cursor: 'pointer',
                       border: '1px solid rgba(255,215,0,0.32)',
                     }}
-                  >📥 下载</button>
+                  >{tr('download', locale)}</button>
                 </div>
               )}
 
@@ -349,11 +382,11 @@ export default function PersonaCard({ playerName, personality, children }: Props
               }}>
                 {stats === undefined ? (
                   <div style={{ fontSize: 9.5, color: 'rgba(248,244,227,0.4)', letterSpacing: '0.05em', fontWeight: 600 }}>
-                    战绩加载中…
+                    {tr('statsLoading', locale)}
                   </div>
                 ) : stats === null || stats.totalGames === 0 ? (
                   <div style={{ fontSize: 9.5, color: 'rgba(248,244,227,0.45)', fontWeight: 600 }}>
-                    🆕 首次出战
+                    {tr('rookie', locale)}
                   </div>
                 ) : (() => {
                   const winRate = stats.totalGames > 0
@@ -373,22 +406,22 @@ export default function PersonaCard({ playerName, personality, children }: Props
                         display: 'flex', gap: 8,
                         fontSize: 10, color: 'rgba(248,244,227,0.78)', fontWeight: 700,
                       }}>
-                        <span title="累计上桌"><span style={{ opacity: 0.55 }}>上桌</span> {stats.totalGames}</span>
-                        <span title="胜率" style={{ color: winRate >= 50 ? '#5be24a' : '#FFD700' }}>
-                          <span style={{ opacity: 0.55, color: 'rgba(248,244,227,0.78)' }}>胜率</span> {winRate}%
+                        <span><span style={{ opacity: 0.55 }}>{tr('plays', locale)}</span> {stats.totalGames}</span>
+                        <span style={{ color: winRate >= 50 ? '#5be24a' : '#FFD700' }}>
+                          <span style={{ opacity: 0.55, color: 'rgba(248,244,227,0.78)' }}>{tr('winRate', locale)}</span> {winRate}%
                         </span>
-                        <span title="未被裁率" style={{ color: survRate >= 50 ? '#B086FF' : '#ff6347' }}>
-                          <span style={{ opacity: 0.55, color: 'rgba(248,244,227,0.78)' }}>存活</span> {survRate}%
+                        <span style={{ color: survRate >= 50 ? '#B086FF' : '#ff6347' }}>
+                          <span style={{ opacity: 0.55, color: 'rgba(248,244,227,0.78)' }}>{tr('survRate', locale)}</span> {survRate}%
                         </span>
                       </div>
                       <div style={{
                         display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap',
                         fontSize: 9.5, color: 'rgba(248,244,227,0.55)', fontWeight: 600,
                       }}>
-                        <span title="累计被怀疑票数">疑票 {stats.suspicionsReceived}</span>
+                        <span>{tr('suspicions', locale)} {stats.suspicionsReceived}</span>
                         {favPersonaLabel && (
                           <span style={{ color: favPersonaLabel.color }}>
-                            常演 {favPersonaLabel.emoji} {favPersonaLabel.label}
+                            {tr('oftenPlays', locale)} {favPersonaLabel.emoji} {favPersonaLabel.label}
                           </span>
                         )}
                       </div>
@@ -399,7 +432,7 @@ export default function PersonaCard({ playerName, personality, children }: Props
             </>
           ) : (
             <div style={{ fontSize: 11, color: 'rgba(248,244,227,0.65)' }}>
-              <strong style={{ color: '#FFD700' }}>{playerName}</strong> · 本鼠人暂未入档
+              <strong style={{ color: '#FFD700' }}>{playerName}</strong> · {tr('notInRoster', locale)}
             </div>
           )}
         </div>
