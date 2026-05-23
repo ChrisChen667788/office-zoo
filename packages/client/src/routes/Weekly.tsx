@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import EventPill from '../components/EventPill';
 import WeeklyShareCardModal from '../components/WeeklyShareCardModal';
+import { getUserId } from '../utils/userId';
 
 // Server /styles returns {id} (a catalog); /generate returns {style} (a per-result).
 // 拆成两个接口对齐 actual server field names.
@@ -35,6 +36,21 @@ interface StyleResult {
   description: string;
   text: string;
   error: boolean;
+  /** v6.5.2 — true when server boosted this style because user had liked it most. */
+  boosted?: boolean;
+}
+
+interface TuningInfo {
+  dominantStyle: 'alibaba' | 'pua' | 'posh' | 'direct';
+  dominantLabel: string;
+  totalLikes: number;
+}
+
+interface Preferences {
+  counts: Record<'alibaba' | 'pua' | 'posh' | 'direct', number>;
+  dominantStyle: 'alibaba' | 'pua' | 'posh' | 'direct' | null;
+  dominantLabel: string | null;
+  total: number;
 }
 
 const STYLE_COLOR: Record<string, { from: string; to: string; accent: string }> = {
@@ -53,12 +69,17 @@ const SAMPLE_EVENTS = [
 
 export default function Weekly() {
   const navigate = useNavigate();
+  const myId = useMemo(() => getUserId(), []);
   const [event, setEvent] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [results, setResults] = useState<StyleResult[] | null>(null);
+  const [tuning, setTuning] = useState<TuningInfo | null>(null);
   const [copiedStyle, setCopiedStyle] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  // v6.5.2 — self-tuning preferences. 自启动时从 server 拉, 点赞后实时更新
+  const [prefs, setPrefs] = useState<Preferences | null>(null);
+  const [likedJustNow, setLikedJustNow] = useState<string | null>(null);
 
   // Load style metadata once for the empty-state preview cards
   const [styleSpecs, setStyleSpecs] = useState<StyleSpec[] | null>(null);
@@ -67,7 +88,13 @@ export default function Weekly() {
       .then((r) => r.json() as Promise<{ styles: StyleSpec[] }>)
       .then((d) => setStyleSpecs(d.styles))
       .catch(() => setStyleSpecs([]));
-  }, []);
+    // v6.5.2 — fetch user prefs on mount, so the "你最爱的: X" chip shows
+    // immediately on page load (before any generate).
+    fetch('/api/weekly/preferences', { headers: { 'X-User-Id': myId } })
+      .then((r) => r.json() as Promise<Preferences>)
+      .then(setPrefs)
+      .catch(() => setPrefs(null));
+  }, [myId]);
 
   const canSubmit = event.trim().length >= 8 && !busy;
 
@@ -76,17 +103,21 @@ export default function Weekly() {
     setBusy(true);
     setErr(null);
     setResults(null);
+    setTuning(null);
     try {
       const resp = await fetch('/api/weekly/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': myId },
         body: JSON.stringify({ event: event.trim() }),
       });
-      const json = await resp.json() as { results?: StyleResult[]; error?: string };
+      const json = await resp.json() as {
+        results?: StyleResult[]; error?: string; tuning?: TuningInfo | null;
+      };
       if (!resp.ok || !json.results) {
         setErr(json.error ?? '生成失败 — 请稍后再试');
       } else {
         setResults(json.results);
+        setTuning(json.tuning ?? null);
       }
     } catch {
       setErr('网络错误, 请重试');
@@ -100,6 +131,22 @@ export default function Weekly() {
       await navigator.clipboard.writeText(text);
       setCopiedStyle(style);
       setTimeout(() => setCopiedStyle(null), 1800);
+    } catch { /* silent */ }
+  };
+
+  /** v6.5.2 — give one upvote to a style. Server bumps user counts;
+   *  next generate will boost dominant style's temperature + prompt. */
+  const likeStyle = async (style: 'alibaba' | 'pua' | 'posh' | 'direct') => {
+    try {
+      const resp = await fetch('/api/weekly/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': myId },
+        body: JSON.stringify({ style }),
+      });
+      const json = await resp.json() as Preferences;
+      setPrefs(json);
+      setLikedJustNow(style);
+      setTimeout(() => setLikedJustNow(null), 1800);
     } catch { /* silent */ }
   };
 
@@ -188,9 +235,18 @@ export default function Weekly() {
         {/* ─── Style preview (empty state) ──────────────────────────── */}
         {!results && styleSpecs && styleSpecs.length > 0 && (
           <section className="mt-2">
-            <h3 className="text-[11px] uppercase tracking-[0.22em] text-white/55 mb-2 font-bold">
-              4 种风格预览
-            </h3>
+            <div className="flex items-baseline justify-between mb-2">
+              <h3 className="text-[11px] uppercase tracking-[0.22em] text-white/55 font-bold">
+                4 种风格预览
+              </h3>
+              {/* v6.5.2 — pre-result hint: 你最爱 X, 下次生成会更突出 */}
+              {prefs && prefs.dominantStyle && (
+                <span className="text-[10px] text-white/55">
+                  你最爱: <span className="text-white/90 font-bold">{prefs.dominantLabel}</span>
+                  <span className="text-white/35"> · 下次自动强化</span>
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               {styleSpecs.map((s) => {
                 const c = STYLE_COLOR[s.id];
@@ -213,9 +269,26 @@ export default function Weekly() {
         {/* ─── Results ───────────────────────────────────────────────── */}
         {results && (
           <section className="mt-4">
-            <h3 className="text-[11px] uppercase tracking-[0.22em] text-white/55 mb-3 font-bold">
-              ✨ 同一件事的 4 种说法
-            </h3>
+            <div className="flex items-baseline justify-between mb-3">
+              <h3 className="text-[11px] uppercase tracking-[0.22em] text-white/55 font-bold">
+                ✨ 同一件事的 4 种说法
+              </h3>
+              {/* v6.5.2 — self-tuning status chip (only when boost happened) */}
+              {tuning && (
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full"
+                  style={{
+                    background: 'linear-gradient(90deg, rgba(255,215,0,0.18), rgba(255,79,163,0.16))',
+                    border: '1px solid rgba(255,215,0,0.55)',
+                    color: '#FFD58A',
+                    letterSpacing: '0.16em',
+                  }}>
+                  ⚡ AI 在听你的 · {tuning.dominantLabel} 已强化
+                </motion.span>
+              )}
+            </div>
             <div className="space-y-3">
               {results.map((r) => {
                 const c = STYLE_COLOR[r.style];
@@ -234,9 +307,37 @@ export default function Weekly() {
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-2xl">{r.emoji}</span>
                       <div className="flex-1">
-                        <div className="text-sm font-black text-white/95">{r.label}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-black text-white/95">{r.label}</span>
+                          {/* v6.5.2 — boosted badge if server tuned this style */}
+                          {r.boosted && (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+                              style={{
+                                background: 'linear-gradient(90deg, #FFD700, #FFA947)',
+                                color: '#1a0d35',
+                                letterSpacing: '0.12em',
+                              }}>
+                              ⚡ TUNED
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-white/45">{r.description}</div>
                       </div>
+                      {/* v6.5.2 — like button (left) + copy (right) */}
+                      <button
+                        onClick={() => likeStyle(r.style)}
+                        className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition active:scale-95"
+                        style={{
+                          background: likedJustNow === r.style
+                            ? 'rgba(255,79,163,0.20)'
+                            : 'rgba(255,255,255,0.05)',
+                          border: `1px solid ${likedJustNow === r.style ? '#FF4FA3' : 'rgba(255,255,255,0.15)'}`,
+                          color: likedJustNow === r.style ? '#FF4FA3' : 'rgba(255,255,255,0.65)',
+                        }}
+                        title="给这种风格点个赞 — 后续生成会更偏向这风格"
+                      >
+                        {likedJustNow === r.style ? '❤ +1' : `❤ ${prefs?.counts[r.style] ?? 0}`}
+                      </button>
                       <button
                         onClick={() => copyText(r.style, r.text)}
                         className="text-[11px] font-bold px-3 py-1.5 rounded-lg transition"

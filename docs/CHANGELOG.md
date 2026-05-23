@@ -7,6 +7,64 @@
 
 ---
 
+## v6.5.2 — 2026-05-23 · 周报 LLM 风格 self-tuning ("AI 在听你的")
+
+### Why
+v6.5.x 周报生成器原本 4 风格固定 temperature 0.85, 用户没有 "下次更
+偏向某种风格" 的影响力。v6.5.2 加入 like → preference → 下次 generate
+自动 boost 主导风格 的反馈闭环, 让用户有"AI 在听我的"体验。
+
+### Added
+- `server/src/services/weeklyPreferenceStore.ts` (95 行):
+  - 持久化 per-user × per-style 点赞计数 (4 个 style 各一个 int)
+  - `recordLike` 累加, `getCounts` 读, `dominantStyle` 阈值判定
+  - 阈值: 总点赞 ≥ 3 才判定 dominance, 避免单次点赞触发
+  - 平局时 dominant = null (不偏袒)
+  - JSON file 持久化, sibling of squadHistoryStore pattern
+- `server/src/routes/weekly.ts`:
+  - 新 `POST /api/weekly/like` — 累加点赞 + 返回新 counts + dominant
+    (rate-limit 30/min/IP-user)
+  - 新 `GET /api/weekly/preferences` — 读用户偏好状态
+  - 新 `DELETE /api/weekly/preferences` — 清空 (Forget pattern)
+  - **`POST /generate` 改造**:
+    - 读用户 X-User-Id → 拉 counts → dominant
+    - dominant style 的 LLM call: temperature 0.85 → 1.0,
+      system prompt 末尾追加 "用户最爱你这种, 极致化, 不超 250 字"
+    - 返回 results 每条带 `boosted: bool` 字段
+    - 顶级响应新加 `tuning: { dominantStyle, dominantLabel, totalLikes }`
+      或 null
+- `client/src/routes/Weekly.tsx`:
+  - 每张 result card header 加 ❤ 按钮 (显示当前 like 计数, 点击 +1)
+  - boosted style 加金色 "⚡ TUNED" badge
+  - 结果区顶部加 "⚡ AI 在听你的 · {label} 已强化" chip (仅 dominant 存在时)
+  - empty state "4 种风格预览" 旁加 "你最爱: X · 下次自动强化" hint
+  - 启动时从 `/preferences` 拉用户当前偏好
+
+### Verified UAT
+```
+like × 4 alibaba (uid=u-tuning-uat-001):
+  count 1, 2  → dominantStyle: null    (below MIN_TOTAL=3)
+  count 3, 4  → dominantStyle: alibaba (boost armed)
+
+generate {event, styles: [alibaba, direct]}:
+  tuning: { dominantStyle: 'alibaba', dominantLabel: '阿里黑话版', totalLikes: 4 }
+  result[0] alibaba.boosted = true
+            text 明显加密:
+            "深度打磨...全力以赴...拉齐了各项资源...闭环体验...
+             战斗力调动至极致...梳一梳体感与颗粒度..."
+  result[1] direct.boosted = false (没被 boost, 跟之前一样)
+```
+
+### typecheck
+- ✓ server / client 0 新 regression
+
+### v6.5.2 体验意义
+原来 generate 是 4 个独立 black box; 现在变成"我反馈 → AI 学习 → 下次
+更对路"的闭环。这是把"工具"升级到"个性化助手"的关键体验点, 对 Z 世代
+留存影响很大 (类似 TikTok 的 for-you 推荐感)。
+
+---
+
 ## v6.5.1 — 2026-05-23 · 周报 PNG 分享卡 + Landing 入口 + PROMO 补段
 
 ### Added — Phase A: 周报 PNG 分享卡

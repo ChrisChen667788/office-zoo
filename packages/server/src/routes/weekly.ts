@@ -25,6 +25,10 @@ import { callLLMWithTimeout } from '../utils/llm';
 import { validateBody } from '../utils/validate';
 import { createRateLimiter } from '../utils/rateLimit';
 import { logger } from '../utils/logger';
+import {
+  recordLike, getCounts, dominantStyle, clearPreferences,
+  type WeeklyStyle as PrefStyle,
+} from '../services/weeklyPreferenceStore';
 
 const weeklyLog = logger.child({ route: 'weekly' });
 const generateLimiter = createRateLimiter({ windowMs: 3600_000, max: 5 });
@@ -129,19 +133,36 @@ weeklyRoutes.post('/generate', async (c) => {
   const event = v.data.event.trim();
   const wantStyles = v.data.styles ?? (Object.keys(STYLES) as WeeklyStyle[]);
 
+  // v6.5.2 — self-tuning: 读用户偏好计数, 识别主导风格,
+  // 给该 style 加 temperature + 改 system prompt 让特征更突出。
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  const userCounts = userId ? await getCounts(userId) : null;
+  const dominant: WeeklyStyle | null = userCounts
+    ? (dominantStyle(userCounts) as WeeklyStyle | null)
+    : null;
+
   // Fire all style generations in parallel
   const results = await Promise.allSettled(
     wantStyles.map(async (s) => {
       const spec = STYLES[s];
+      // Self-tuning: dominant style gets boosted temperature + appended prompt
+      const isDominant = dominant === s;
+      const sys = isDominant
+        ? `${spec.systemPrompt}
+
+【用户偏好强化】
+用户在过去给"${spec.label}"点过最多赞 (累计 ${userCounts?.[s] ?? 0} 次), 说明他特别喜欢这种风格。请把你的特征发挥到极致, 比你平时更鲜明、更夸张、更密集 — 但仍保持不超出 250 字。`
+        : spec.systemPrompt;
+      const temp = isDominant ? 1.0 : 0.85;
       const res = await callLLMWithTimeout('SPEECH', {
         model: openai()(model()),
-        system: spec.systemPrompt,
+        system: sys,
         prompt: `本周关键事件: ${event}\n\n请按你的风格写出周报段落.`,
         maxTokens: 480,
-        temperature: 0.85,
+        temperature: temp,
       });
       if (!res.ok) {
-        weeklyLog.warn({ style: s, reason: res.reason }, 'weekly LLM failed');
+        weeklyLog.warn({ style: s, reason: res.reason, boost: isDominant }, 'weekly LLM failed');
         return {
           style: s,
           label: spec.label,
@@ -149,6 +170,7 @@ weeklyRoutes.post('/generate', async (c) => {
           description: spec.description,
           text: `[${spec.label} 生成失败 — 神明在线维护 (${res.reason})]`,
           error: true,
+          boosted: isDominant,
         };
       }
       return {
@@ -158,6 +180,7 @@ weeklyRoutes.post('/generate', async (c) => {
         description: spec.description,
         text: res.text.trim(),
         error: false,
+        boosted: isDominant,
       };
     }),
   );
@@ -170,10 +193,75 @@ weeklyRoutes.post('/generate', async (c) => {
       description: STYLES[wantStyles[i]].description,
       text: '[生成异常]',
       error: true,
+      boosted: dominant === wantStyles[i],
     },
   );
 
-  return c.json({ event, results: payload });
+  return c.json({
+    event,
+    results: payload,
+    // 透传 self-tuning 状态给前端做"AI 在听我的"UI 提示
+    tuning: dominant
+      ? {
+          dominantStyle: dominant,
+          dominantLabel: STYLES[dominant].label,
+          totalLikes: userCounts
+            ? (userCounts.alibaba + userCounts.pua + userCounts.posh + userCounts.direct)
+            : 0,
+        }
+      : null,
+  });
+});
+
+/* ─── v6.5.2 self-tuning endpoints ───────────────────────────── */
+
+const LikeSchema = z.object({
+  style: z.enum(['alibaba', 'pua', 'posh', 'direct']),
+});
+const likeLimiter = createRateLimiter({ windowMs: 60_000, max: 30 }); // 30/min
+
+weeklyRoutes.post('/like', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId || userId.length < 8) {
+    return c.json({ error: '需要 X-User-Id header (≥ 8 char)' }, 400);
+  }
+  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? c.req.header('host') ?? 'unknown';
+  if (!likeLimiter.check(`${ip}::${userId}`).ok) {
+    return c.json({ error: '点赞太快了' }, 429);
+  }
+  const v = await validateBody(c, LikeSchema);
+  if (!v.ok) return v.response;
+  const counts = await recordLike(userId, v.data.style as PrefStyle);
+  const dom = dominantStyle(counts);
+  return c.json({
+    counts,
+    dominantStyle: dom,
+    dominantLabel: dom ? STYLES[dom as WeeklyStyle].label : null,
+    total: counts.alibaba + counts.pua + counts.posh + counts.direct,
+  });
+});
+
+weeklyRoutes.get('/preferences', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId || userId.length < 8) {
+    return c.json({ counts: { alibaba: 0, pua: 0, posh: 0, direct: 0 }, dominantStyle: null });
+  }
+  const counts = await getCounts(userId);
+  const dom = dominantStyle(counts);
+  return c.json({
+    counts,
+    dominantStyle: dom,
+    dominantLabel: dom ? STYLES[dom as WeeklyStyle].label : null,
+    total: counts.alibaba + counts.pua + counts.posh + counts.direct,
+  });
+});
+
+weeklyRoutes.delete('/preferences', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId || userId.length < 8) return c.json({ error: '需要 X-User-Id' }, 400);
+  await clearPreferences(userId);
+  return c.json({ cleared: true });
 });
 
 /** Static catalogue — frontend uses this to render style cards before submit. */
