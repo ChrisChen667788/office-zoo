@@ -19,6 +19,7 @@ import EmergencyMeetingTransition from '../components/game/EmergencyMeetingTrans
 import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
 import HighlightReel from '../components/game/HighlightReel';
 import { ROLE_LABELS, teamForRole } from '../constants/roles';
+import EventPill from '../components/EventPill';
 import { uid } from '../utils/uid';
 import { playTtsFromUrl, stopTts, speakViaBrowserTTS, hasBrowserTTS } from '../utils/audioUnlock';
 import { phaseIcons, personalityIcons, glyphIcons, Icon } from '../constants/icons';
@@ -332,11 +333,8 @@ export default function Classic() {
         borderBottom: '1px solid rgba(76,158,255,0.1)',
       }}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <span style={{
-            fontWeight: 800, fontSize: 15, letterSpacing: '-0.02em',
-            background: 'linear-gradient(135deg, #4c9eff 0%, #7c3aed 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>职场杀</span>
+          {/* v6.4 — EventPill 替换旧 gradient text title, 跟其他路由统一 */}
+          <EventPill stars={5} subtle>🏢 职场杀 · v6</EventPill>
           <span style={{
             fontSize: 10, fontWeight: 700, letterSpacing: '0.22em',
             padding: '3px 10px', borderRadius: 999,

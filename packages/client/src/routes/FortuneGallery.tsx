@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import FortuneShareCardModal from '../components/FortuneShareCardModal';
+import EventPill from '../components/EventPill';
 
 interface FortuneCard {
   id: string;
@@ -108,9 +109,7 @@ export default function FortuneGallery() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 今日的牌
         </button>
-        <span className="text-[11px] uppercase tracking-[0.28em] text-white/55">
-          🔮 牌库 · 24 张
-        </span>
+        <EventPill stars={5} subtle>🔮 牌库 · 24 张</EventPill>
         <span className="text-[10px] text-white/30 tabular-nums">{today}</span>
       </header>
 

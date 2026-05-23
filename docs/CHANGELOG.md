@@ -7,6 +7,74 @@
 
 ---
 
+## v6.4.0 — 2026-05-23 · launch-ready (视觉收尾 + 真实游戏重录 + 提交包)
+
+### Why
+v6.3 留了 4 个未迁移路由 (Talkshow / FortuneGallery / Classic / Immersive),
+真实游戏 footage 还是 v5.x 拍的 (没有米哈游 EventPill),
+launch 各平台提交也没成稿。v6.4 把这些坑全踩平 — 真发布前 5 分钟就能 ctrl-V。
+
+### Added
+- **完整 design migration 收官**:
+  - `Talkshow.tsx` header "🎤 班味单口" → EventPill subtle stars=5
+  - `FortuneGallery.tsx` header "🔮 牌库 · 24 张" → EventPill subtle stars=5
+  - `Classic.tsx` 顶部 bar 旧"职场杀"渐变文字 → EventPill subtle stars=5
+    "🏢 职场杀 · v6"
+  - `Immersive.tsx` 新增 top-left 浮动 badge "🎬 沉浸 · v6"
+    (不干扰中间 phase chip 居中布局)
+- **assets/launch-demo/game-highlight.{mp4,gif}** 重录:
+  - 17.1 MB v6.x webm (4 min 自动游戏 capture)
+  - 30s 高光 = 5s intro + 5×5s speech moment
+  - 含 6 个全阿里黑话 speech: 优化 / 颗粒度 / 闭环典范 / owner /
+    心智 / 借假修真 / 第二曲线
+  - mp4 3.0 MB / gif 4.3 MB
+  - 画面含 v6.4 新加的 "🎬 沉浸 · v6" 浮动 EventPill
+- **assets/launch-demo/hero-combined.{mp4,gif}** 同步重生:
+  - storyboard 米哈游故事 15s + 新 v6.x 真实游戏 15s = 30s
+- **assets/launch-demo/cluster-modal-demo.{mp4,gif}** 新增:
+  - 24s Playwright 端到端录屏: 进酒馆 → 聊 3 条 → 点 "约一杯"
+    → cluster create → modal 弹出 → 服务端 PNG 渲染加载完成
+  - mp4 744 KB / gif 5.4 MB
+- **`docs/LAUNCH_SUBMISSION_PACK.md`** (新增 305 行):
+  - 24h 倒计时时间表 (PST + 北京双时区)
+  - ProductHunt 完整表单 9 字段 paste-ready
+    (name / tagline / short pitch / long desc / topics / first comment /
+     9 张 gallery 顺序)
+  - Hacker News Show 完整 title + URL + text
+  - 即刻 / 小红书 / Twitter thread 4 推全部成稿
+  - launch 当天 4 种高频问题回评模板
+  - 24h 数据收集 KPI 表
+
+### Verified
+- ✓ typecheck 0 新 regression
+- ✓ Classic / Immersive / Talkshow / FortuneGallery EventPill 渲染对齐
+- ✓ 真实游戏录屏含 v6.4 浮动 EventPill (visible in top-left frame)
+- ✓ Modal demo 完整流: chat 3 条 → share btn → cluster create →
+  PNG 预览 + 3 按钮全部出现
+
+### 累计 v6.x 视觉迁移完整地图
+```
+✅ 主入口      Landing (v6.1)
+✅ 占卜系     Fortune / FortuneHistory (v6.2)
+✅ 用户操作    Settings (v6.2)
+✅ UGC        TalkshowUgc (v6.2)
+✅ 攒局       Squad / SquadHistory (v6.3)
+✅ 裁员       FiredLanding (v6.3)
+✅ 单口       Talkshow (v6.4)
+✅ 牌库       FortuneGallery (v6.4)
+✅ 主玩法     Classic / Immersive (v6.4)
+🟡 保留 Y2K   Profile (刻意复古, 永不迁移)
+```
+11 / 12 路由统一了米哈游设计语言。Profile 保留 Y2K 独立美学。
+
+### Files
+- 改 4: Talkshow / FortuneGallery / Classic / Immersive (各加 EventPill)
+- 重录 2: game-highlight.{mp4,gif} / hero-combined.{mp4,gif}
+- 新 1: cluster-modal-demo.{mp4,gif} (24s 端到端 modal flow)
+- 新 1: LAUNCH_SUBMISSION_PACK.md (305 行)
+
+---
+
 ## v6.1.0 — 2026-05-22 · Z 世代趣味升级 (米哈游风 + UGC + 拼版)
 
 ### Why

@@ -28,6 +28,7 @@ import {
   getTtsPlaybackSpeed,
 } from '../utils/audioUnlock';
 import { getUserId } from '../utils/userId';
+import EventPill from '../components/EventPill';
 import {
   ARCHETYPE_TO_TALKSHOW_PERSONA,
   findArchetype,
@@ -355,9 +356,7 @@ export default function Talkshow() {
           ← 返回首页
         </button>
         <div className="flex items-baseline gap-3">
-          <span className="text-[11px] uppercase tracking-[0.28em] text-white/55">
-            🎤 班味单口
-          </span>
+          <EventPill stars={5} subtle>🎤 班味单口</EventPill>
           <span className="text-[10px] text-white/35">
             {scripts.length > 0 && `${scripts.length} 段`}
           </span>

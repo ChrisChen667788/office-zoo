@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import { getUserId } from '../utils/userId';
+import EventPill from '../components/EventPill';
 import {
   type GhostCommentItem,
   useGameId, usePhase, usePlayers, useRound, useTaskProgress,
@@ -352,6 +353,11 @@ export default function Immersive() {
           animate={{ width: `${Math.min(taskProgress, 100)}%` }}
           style={{ background: 'linear-gradient(90deg, #4c9eff 0%, #7c3aed 100%)', boxShadow: '0 0 12px rgba(76,158,255,0.55)' }}
           transition={{ duration: 0.5 }} />
+      </div>
+
+      {/* v6.4 — floating mihoyo badge top-left, 不干扰 phase chip 居中布局 */}
+      <div className="absolute top-4 left-4 z-30">
+        <EventPill stars={5} subtle>🎬 沉浸 · v6</EventPill>
       </div>
 
       {/* Audio-autoplay fallback banner. Only shows if the shared audio
