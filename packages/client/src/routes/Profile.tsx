@@ -26,6 +26,7 @@ import EventPill from '../components/EventPill';
 import { archetypeLabel, useT, type DictKey } from '../utils/i18n';
 import { useArchetypePortrait } from '../utils/archetypePortrait';
 import type { PersonalizedProfile, UserProfile } from '../utils/profileTypes';
+import TopRatsPanel from '../components/character/TopRatsPanel';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
   { key: 'grind',      label: '内卷' },
@@ -164,6 +165,12 @@ export default function Profile() {
           there's at least one drift event so brand-new users aren't
           shown an empty band that says "你还没演化". */}
       <EvolutionPanel myId={myId} />
+
+      {/* v6.9 P-profile — global Top 3 rat leaderboard. Each card opens
+          PersonaCard popover with full IP + stats + share buttons. Will
+          switch to per-user "你看过的 Top 3" in v6.10 once spectator
+          → game attendance tracking lands. */}
+      <TopRatsPanel />
     </div>
   );
 }
