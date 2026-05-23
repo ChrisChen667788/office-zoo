@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
+import SquadMemberCard from '../components/character/SquadMemberCard';
 import { renderChemistryHint, type ChemistryHint } from '../utils/chemistryHint';
 import { useT } from '../utils/i18n';
 import {
@@ -265,8 +266,15 @@ function MembersStrip({ members, maxMembers }: { members: SquadMember[]; maxMemb
           }}>
           {m ? (
             <>
-              <div className="text-xl mb-0.5">{m.archetypeEmoji ?? '🐀'}</div>
-              <div className="text-[11px] font-bold text-white/90 truncate">{m.displayName}</div>
+              {/* v6.10 P4 — wrap the seat in SquadMemberCard so hover/click
+                   pops archetype + host chip + soft 12-rat IP cross-link. */}
+              <SquadMemberCard member={m}>
+                <div className="text-xl mb-0.5" style={{ cursor: 'help' }}>{m.archetypeEmoji ?? '🐀'}</div>
+                <div className="text-[11px] font-bold text-white/90 truncate"
+                  style={{ borderBottom: '1px dashed rgba(176,134,255,0.4)', display: 'inline-block' }}>
+                  {m.displayName}
+                </div>
+              </SquadMemberCard>
               <div className="text-[9px] text-white/55 truncate">
                 {m.archetypeName ?? '未测试'}
               </div>
@@ -843,9 +851,22 @@ function EndedView({ room, recap, myId, amHost, onRerun, onShare }: {
                   style={{ color: isMe ? '#ffb84c' : 'rgba(255,255,255,0.55)' }}>
                   {a.label}{isMe && ' · 你'}
                 </div>
-                <div className="text-sm font-bold text-white truncate">
-                  {m?.displayName ?? '某位'}
-                </div>
+                {/* v6.10 P4 — wrap speaker name with SquadMemberCard.
+                     Fallback to plain text when member is missing (e.g.
+                     narrator beats). */}
+                {m ? (
+                  <SquadMemberCard member={m}>
+                    <div className="text-sm font-bold text-white truncate"
+                      style={{
+                        borderBottom: '1px dashed rgba(176,134,255,0.4)',
+                        display: 'inline-block',
+                      }}>
+                      {m.displayName}
+                    </div>
+                  </SquadMemberCard>
+                ) : (
+                  <div className="text-sm font-bold text-white truncate">某位</div>
+                )}
                 <div className="text-[11px] text-white/65 leading-snug mt-0.5 line-clamp-2">
                   {a.line}
                 </div>
