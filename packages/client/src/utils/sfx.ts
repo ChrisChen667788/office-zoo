@@ -272,6 +272,32 @@ class SfxPlayer {
   }
 
   /**
+   * v6.8 P2 — phase transition stinger. Short metallic sweep + sparkle,
+   * ~400 ms total. Used by PhaseTransitionOverlay when the engine moves
+   * between phases that DON'T have their own dedicated cinematic
+   * (meeting → EmergencyMeetingTransition; vote_result → EliminationReveal).
+   *
+   * Tuned to feel like a mihoyo "wave start" stinger — bright, ascending,
+   * with a brief tail. Quieter than playAlert so it can fire 4-6 times
+   * per game without fatiguing the ear.
+   */
+  playPhaseTransition() {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    // Main sweep — triangle 440 → 1320 Hz over 280 ms, rising third
+    this.tone(440, t,        0.28, { type: 'triangle', peak: 0.36, sweepTo: 1320 });
+    // Brass-y harmonic doubling for body
+    this.tone(660, t + 0.02, 0.22, { type: 'sine',     peak: 0.22, sweepTo: 1980 });
+    // Sparkle tail (2 short pings)
+    this.tone(1568, t + 0.22, 0.18, { type: 'sine',    peak: 0.18 });
+    this.tone(2093, t + 0.30, 0.14, { type: 'sine',    peak: 0.12 });
+    // High-air noise hiss for "wipe" feel
+    this.noise(t,        0.12, { peak: 0.16, filter: 6500, type: 'highpass' });
+    this.noise(t + 0.15, 0.18, { peak: 0.10, filter: 9000, type: 'highpass' });
+  }
+
+  /**
    * v0.5.1-C — emergency meeting siren. Two-tone klaxon (high → low → high)
    * over ~600 ms, then a low rumbling tail. Sits well under the 1.4 s
    * EmergencyMeetingTransition cinematic so the headline lands on the

@@ -16,6 +16,7 @@ import EliminationReveal, { type EliminationEvent } from '../components/game/Eli
 import KillFlashOverlay from '../components/game/KillFlashOverlay';
 import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
 import EmergencyMeetingTransition from '../components/game/EmergencyMeetingTransition';
+import PhaseTransitionOverlay from '../components/game/PhaseTransitionOverlay';
 import HighlightReel from '../components/game/HighlightReel';
 import LottieAsset from '../components/LottieAsset';
 import { ROLE_LABELS, teamForRole } from '../constants/roles';
@@ -705,6 +706,9 @@ export default function Immersive() {
         playerName={lastElim?.type === 'vote' ? lastElim.playerName : undefined}
       />
       <EmergencyMeetingTransition phase={phase} />
+
+      {/* v6.8 P2 — phase transition stinger for non-cinematic phases */}
+      <PhaseTransitionOverlay />
 
       {/* End-of-game recap — replaces the old winner banner */}
       <HighlightReel />

@@ -16,6 +16,7 @@ import PredictionBar from '../components/game/PredictionBar';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
 import KillFlashOverlay from '../components/game/KillFlashOverlay';
 import EmergencyMeetingTransition from '../components/game/EmergencyMeetingTransition';
+import PhaseTransitionOverlay from '../components/game/PhaseTransitionOverlay';
 import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
 import HighlightReel from '../components/game/HighlightReel';
 import { ROLE_LABELS, teamForRole } from '../constants/roles';
@@ -621,6 +622,12 @@ export default function Classic() {
 
       {/* v0.5.1-C: meeting alert — fires whenever phase flips to 'meeting'. */}
       <EmergencyMeetingTransition phase={phase} />
+
+      {/* v6.8 P2: phase transition stinger (0.62s wipe + EVENT pill + SFX)
+           for non-meeting / non-vote_result phases. The meeting cinematic
+           and EliminationReveal already own their phases, so this layer
+           covers role_reveal / free_roam / discussion / voting / game_over. */}
+      <PhaseTransitionOverlay />
 
       {/* End-of-game recap — appears on phase === 'game_over' with a winner */}
       <HighlightReel />
