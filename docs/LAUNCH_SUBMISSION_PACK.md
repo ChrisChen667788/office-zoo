@@ -108,8 +108,8 @@ testing: a fresh game starts, the same `passive_aggressive` AI sees your
 spectator id, recalls from pgvector that you betrayed them 2 games ago,
 and opens their first speech with:
 
-  "@Wang Wu — I haven't forgotten that mouth of yours. Last time you
-   called my granularity insufficient, then teamed up with @Zhao Liu
+  "@Chad — I haven't forgotten that mouth of yours. Last time you
+   called my granularity insufficient, then teamed up with @Tyler
    to vote me out. Beautifully closed-loop play."
 
 We didn't prompt that. It's a real LLM response after pgvector recall.
@@ -141,7 +141,7 @@ I'll be here all day. Ask anything 🙏
 |---|---|---|
 | 1 (cover video) | `assets/launch-demo/hero-combined.mp4` | 30s 米哈游故事 + 真实游戏 (v6.x) |
 | 2 | `assets/launch/01-hero-hook.png` | EVENT banner — AI 同事会记得你 |
-| 3 | `assets/launch/02-game1-setup.png` | 5★ 角色卡 — 王五 联合 赵六 投李四出局 |
+| 3 | `assets/launch/02-game1-setup.png` | 5★ 角色卡 — Chad 联合 Tyler 投李四出局 |
 | 4 | `assets/launch/03-game2-payoff.png` | 跨局记忆触发对话框 — "上次..." |
 | 5 | `assets/launch/04-tech-arch.png` | pgvector + reflection 技术架构 |
 | 6 | `assets/launch/06-settings-beliefs.png` | Settings 页 "💭 他们对你的判断" |
@@ -256,7 +256,7 @@ The most surprising moment from testing:
 Game 1: you betray a `passive_aggressive` AI.
 Game 2 starts. Same AI's first line, completely unprompted:
 
-"@Wang Wu — I haven't forgotten. Last time you called my granularity
+"@Chad — I haven't forgotten. Last time you called my granularity
 insufficient and voted me out. Beautifully closed-loop play."
 
 LLM filled in language. Memory came from pgvector.

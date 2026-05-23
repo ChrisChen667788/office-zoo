@@ -59,8 +59,8 @@ ProductHunt gallery 默认横屏 cover (`1270×760`) + 后续可竖可横。我�
 |---|---|---|
 | 1 | `assets/launch-demo/hero-combined.gif` 或 `.mp4` | **HERO** — 30s 米哈游故事 (15s) + 真实游戏 (15s) 合成,**新版本主推** |
 | 2 | `assets/launch/01-hero-hook.png` | 一句话开场 — "AI 同事会记得你" + 产品身份 (米哈游风) |
-| 3 | `assets/launch/02-game1-setup.png` | 场景一:第 1 局,@王五 联合 @赵六 把李四投出局(memory 写入 pgvector)|
-| 4 | `assets/launch/03-game2-payoff.png` | 场景二:第 2 局,李四第一句话:"@王五,你这张嘴我记忆犹新,上次..." |
+| 3 | `assets/launch/02-game1-setup.png` | 场景一:第 1 局,@Chad 联合 @Tyler 把李四投出局(memory 写入 pgvector)|
+| 4 | `assets/launch/03-game2-payoff.png` | 场景二:第 2 局,李四第一句话:"@Chad,你这张嘴我记忆犹新,上次..." |
 | 5 | `assets/launch/04-tech-arch.png` | 幕后架构 — pgvector / OpenAI embedding / Reflection / Privacy / 15ms p95 |
 | 6 | `assets/launch/06-settings-beliefs.png` | 真产品截图 — Settings 页 "💭 他们对你的判断" + 一键 Forget |
 | 7 | `assets/launch/07-fortune-card.png` | 副玩法 — 班味占卜 daily tarot(viral 引流 surface) |
@@ -142,8 +142,8 @@ testing: a fresh game starts, the same `passive_aggressive` AI sees
 your username, recalls from pgvector that you betrayed them 2 games
 ago, and opens their first speech with:
 
-  "@Wang Wu — I haven't forgotten that mouth of yours. Last time you
-   called my granularity insufficient, then teamed up with @Zhao Liu
+  "@Chad — I haven't forgotten that mouth of yours. Last time you
+   called my granularity insufficient, then teamed up with @Tyler
    to vote me out. Beautifully closed-loop play."
 
 We didn't prompt that. It's a real LLM response after recall.
@@ -174,8 +174,8 @@ I'll be here all day. Ask anything 🙏
 到你的 userId,从 pgvector 里捞出"2 局前你坑过我"的记忆,第一句话
 直接:
 
-  "@王五 同学,你这张嘴我还是记忆犹新的哈——上次说我颗粒度不够,
-   回头就联合 @赵六 把我投出局,这波闭环操作真是打得漂亮。"
+  "@Chad 同学,你这张嘴我还是记忆犹新的哈——上次说我颗粒度不够,
+   回头就联合 @Tyler 把我投出局,这波闭环操作真是打得漂亮。"
 
 这是 LLM 自己生成的,我们只是把 memory 注入了 prompt。
 

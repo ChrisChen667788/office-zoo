@@ -15,12 +15,12 @@
 
 第二局开始,sass-master(阴阳人格)的 AI 同事 "李四同学" 第一个发言:
 
-> @王五 同学,你这张嘴我还是记忆犹新的哈——**上次**说我颗粒度不够,回头就联合 @赵六 把我投出局,这波闭环操作真是打得漂亮。你这次又想拿什么抓手来包装?
+> @Chad 同学,你这张嘴我还是记忆犹新的哈——**上次**说我颗粒度不够,回头就联合 @Tyler 把我投出局,这波闭环操作真是打得漂亮。你这次又想拿什么抓手来包装?
 
 注意几点:
 1. **跨局**:这是第二局的开局,"上次" 指代第一局
-2. **具体**:"颗粒度不够" 是第一局王五用过的原话(被存为 event memory)
-3. **关系**:"联合 @赵六" 也是第一局发生的具体事件
+2. **具体**:"颗粒度不够" 是第一局Chad用过的原话(被存为 event memory)
+3. **关系**:"联合 @Tyler" 也是第一局发生的具体事件
 4. **人格**:passive_aggressive 的阴阳风骨保留完整("这波闭环操作真是打得漂亮")
 
 这不是 prompt 里硬塞的 few-shot 例子,是 LLM 看到 memory 注入后**自己生成**的句子。
@@ -56,30 +56,30 @@ beliefs      ── 注入下一局 prompt ──>  AI 决策
 
 我们给 reflection LLM 12 条 events:
 ```
-- 王五在第1轮就指名说我是 dog, 完全没证据
-- 赵六救了我一票, 看起来是个老实人
+- Chad在第1轮就指名说我是 dog, 完全没证据
+- Tyler救了我一票, 看起来是个老实人
 - 张三全程不发言, 像个老狐狸
-- 王五又开始阴阳, 这次针对赵六
-- 我和赵六一起反驳了王五
-- 钱七突然投了赵六, 太反常了
-- 赵六被投出局了, 我失去了盟友
-- 钱七在赵六出局后立刻闭嘴, 可疑
+- Chad又开始阴阳, 这次针对Tyler
+- 我和Tyler一起反驳了Chad
+- 钱七突然投了Tyler, 太反常了
+- Tyler被投出局了, 我失去了盟友
+- 钱七在Tyler出局后立刻闭嘴, 可疑
 - 张三第一次发言, 阴阳地说"颗粒度不够"
 - 我开始怀疑钱七和张三是一伙的
-- 王五突然反水, 投了张三
-- 我活到了第5轮, 但盟友只剩王五
+- Chad突然反水, 投了张三
+- 我活到了第5轮, 但盟友只剩Chad
 ```
 
 LLM 输出 5 条 beliefs:
 ```
-- 我相信王五是个狡猾的对手, 随时可能反转立场。
+- 我相信Chad是个狡猾的对手, 随时可能反转立场。
 - 我怀疑钱七和张三暗中勾结, 试图操控局势。  ← 涌现的推理
-- 赵六的出局让我失去了重要的支持, 局势变得更加复杂。
+- Tyler的出局让我失去了重要的支持, 局势变得更加复杂。
 - 张三全程沉默, 说明他在伺机而动, 值得警惕。
 - 我认为当前局势对我非常不利, 必须小心应对。
 ```
 
-第二条 "钱七和张三暗中勾结" 在 events 里**没有任何一条**直接说"勾结",这是 LLM 综合 "钱七反常投赵六" + "张三阴阳" + "在赵六出局后钱七闭嘴" 后**自己推理出来**的判断。
+第二条 "钱七和张三暗中勾结" 在 events 里**没有任何一条**直接说"勾结",这是 LLM 综合 "钱七反常投Tyler" + "张三阴阳" + "在Tyler出局后钱七闭嘴" 后**自己推理出来**的判断。
 
 这就是 Smallville 论文承诺的"emerging beliefs"在中文职场场景下的复现。
 
@@ -226,14 +226,14 @@ We added Smallville-style episodic memory + reflection (pgvector + OpenAI text-e
 
 Player just opened their second game ever; here's the first thing the `passive_aggressive` agent said:
 
-> "@王五 同学，你这张嘴我还是记忆犹新的哈——上次说我颗粒度不够，回头就联合 @赵六 把我投出局，这波闭环操作真是打得漂亮。"
+> "@Chad 同学，你这张嘴我还是记忆犹新的哈——上次说我颗粒度不够，回头就联合 @Tyler 把我投出局，这波闭环操作真是打得漂亮。"
 >
-> (Rough English: "@Wang Wu, I haven't forgotten that mouth of yours — last time you called my granularity insufficient, then teamed up with @Zhao Liu to vote me out, what a beautifully closed-loop play.")
+> (Rough English: "@Chad, I haven't forgotten that mouth of yours — last time you called my granularity insufficient, then teamed up with @Tyler to vote me out, what a beautifully closed-loop play.")
 
 The agent recalled:
-- The specific antagonist (@Wang Wu) from the previous game
+- The specific antagonist (@Chad) from the previous game
 - The specific insult ("granularity insufficient" — characteristic Chinese tech-bro middle-manager jargon)
-- The coalition partner (@Zhao Liu) who voted with them
+- The coalition partner (@Tyler) who voted with them
 
 None of this was in the current game's prompt — it came from pgvector recall of memories tagged with this spectator's userId.
 

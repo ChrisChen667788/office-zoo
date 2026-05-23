@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🐀 OFFICE ZOO
+<img src="assets/brand/logo.png" alt="OFFICE ZOO logo · cyberpunk office rat" width="220" />
+
+# OFFICE ZOO
 
 ### 0 点的写字楼,AI 鼠人替你拥抱变化,你回家躺平。
 

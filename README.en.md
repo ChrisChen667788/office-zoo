@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🐀 OFFICE ZOO
+<img src="assets/brand/logo.png" alt="OFFICE ZOO logo · cyberpunk office rat" width="220" />
+
+# OFFICE ZOO
 
 ### Midnight at the office — AI rats clock in, so you can clock out.
 
