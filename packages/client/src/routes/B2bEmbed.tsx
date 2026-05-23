@@ -28,6 +28,8 @@ import {
 } from '@furball/shared';
 import { useFiredStore } from '../stores/firedStore';
 import { executiveColors } from '../constants/design';
+import PersonaCard from '../components/character/PersonaCard';
+import { ALL_CHARACTER_NAMES, CHARACTERS } from '@furball/shared';
 
 export default function B2bEmbed() {
   const navigate = useNavigate();
@@ -173,6 +175,69 @@ export default function B2bEmbed() {
           ))}
         </div>
       </main>
+
+      {/* v6.9 P-b2b — enterprise IP preview band. Pitches the character
+           IP capability without disrupting the FiredScenario flow above.
+           Shows 3 sample rats; click any → full PersonaCard popover with
+           epithet + stats + share. Frame as "NPC IP 系统 — 可为贵司定制". */}
+      <section className="px-6 py-6"
+        style={{
+          borderTop: `1px solid ${executiveColors.stroke.subtle}`,
+          background: 'rgba(255,255,255,0.015)',
+        }}>
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em]"
+              style={{ color: theme.primary }}>
+              🎭 我们的 NPC IP 系统 · 可为贵司定制
+            </div>
+            <div className="text-[9px]" style={{ color: theme.textTertiary, opacity: 0.7 }}>
+              SAMPLE / 节选 3 角色
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {/* Pick 3 representative rats — 1 卷王 (Tony) / 1 油条 (Kevin) /
+                1 摸鱼 (Amy). Locked to a stable order, not random, so the
+                embed page is deterministic for screenshot/marketing. */}
+            {(['Tony', 'Kevin', 'Amy']
+              .filter((n) => ALL_CHARACTER_NAMES.includes(n))
+              .map((n) => CHARACTERS[n])
+            ).map((char) => (
+              <PersonaCard key={char.name} playerName={char.name} personality={undefined}>
+                <div style={{
+                  cursor: 'pointer', padding: '10px 12px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${theme.primaryBorder}`,
+                  display: 'flex', flexDirection: 'column', gap: 6,
+                  minHeight: 80,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 22 }}>{char.emoji}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 800, color: theme.textPrimary,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>{char.epithet}</span>
+                      <span style={{
+                        fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em',
+                        color: theme.textTertiary, opacity: 0.7,
+                      }}>{char.name.toUpperCase()}</span>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: 9, color: theme.textSecondary, opacity: 0.85,
+                    lineHeight: 1.3,
+                  }}>"{char.catchphrases[0]}"</span>
+                </div>
+              </PersonaCard>
+            ))}
+          </div>
+          <div className="text-[9px] mt-3 text-center"
+            style={{ color: theme.textTertiary, opacity: 0.55 }}>
+            点击任意角色查看完整档案 · 联系销售可基于贵司行业定制鼠人
+          </div>
+        </div>
+      </section>
 
       {/* Footer attribution */}
       <footer className="px-6 py-3 text-center text-[10px]"
