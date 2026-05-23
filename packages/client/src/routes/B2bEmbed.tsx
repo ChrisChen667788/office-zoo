@@ -203,7 +203,7 @@ export default function B2bEmbed() {
               .filter((n) => ALL_CHARACTER_NAMES.includes(n))
               .map((n) => CHARACTERS[n])
             ).map((char) => (
-              <PersonaCard key={char.name} playerName={char.name} personality={undefined}>
+              <PersonaCard key={char.name} playerName={char.name} personality={undefined} disableUgc>
                 <div style={{
                   cursor: 'pointer', padding: '10px 12px', borderRadius: 10,
                   background: 'rgba(255,255,255,0.04)',

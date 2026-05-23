@@ -68,9 +68,32 @@ const UI_LABELS: Record<string, { 'zh-CN': string; en: string }> = {
   oftenPlays:     { 'zh-CN': '常演',           en: 'Often' },
   unit:           { 'zh-CN': '局',             en: 'games' },
   votedOut:       { 'zh-CN': '被裁',           en: 'cut' },
-  copyImg:        { 'zh-CN': '📤 复制图片',    en: '📤 Copy as image' },
+  copyImg:        { 'zh-CN': '📤 复制图片',    en: '📤 Copy image' },
   copiedFlash:    { 'zh-CN': '✓ 已复制图片',   en: '✓ Image copied' },
   download:       { 'zh-CN': '📥 下载',        en: '📥 Download' },
+  ugcSubmit:      { 'zh-CN': '✍️ 编段子',     en: '✍️ Tag in UGC' },
+  ugcSubmitted:   { 'zh-CN': '✓ 已投稿',       en: '✓ Submitted' },
+  ugcRateLimit:   { 'zh-CN': '投稿太快 (3/h)',  en: 'Too fast (3/h)' },
+  ugcFail:        { 'zh-CN': '✗ 投稿失败',     en: '✗ Submit failed' },
+};
+
+// v6.10 P3 — character → talkshow UGC tag mapping. Each rat's epithet
+// is dominated by 1 of 9 tag categories; the mapping makes the auto-
+// generated UGC submission land in a coherent topic bucket without
+// asking the user to pick.
+const CHARACTER_TO_UGC_TAG: Record<string, 'overtime' | 'kpi' | 'pua' | 'age' | 'slacking' | 'jargon' | 'hr' | 'boss' | 'meta'> = {
+  Tony:  'kpi',       // 数据卷王
+  Frank: 'overtime',  // 996 营长
+  Grace: 'meta',      // 颗粒度细节控
+  Kevin: 'meta',      // 复制粘贴流程
+  Helen: 'jargon',    // 灰度术语
+  Mike:  'kpi',       // OKR 拆解
+  Jack:  'jargon',    // 汇报话术
+  Oscar: 'boss',      // 向上管理
+  David: 'slacking',  // 摄像头不开
+  Amy:   'meta',      // 八卦情报
+  Lisa:  'meta',      // 邮件留痕
+  Ruby:  'slacking',  // 永远 +1 不出力
 };
 function tr(key: keyof typeof UI_LABELS, locale: string): string {
   const sub = locale.split('-')[0];
@@ -127,11 +150,15 @@ interface Props {
   /** Personality id the engine assigned this game (workaholic / introvert
    *  / etc). Optional — older replays may lack it. */
   personality?: string;
+  /** v6.10 P3 — hide the "编段子" UGC submit button. B2bEmbed (enterprise
+   *  context) passes true; the C-end community surface shouldn't accept
+   *  submissions from inside the customer's white-label iframe. */
+  disableUgc?: boolean;
   /** Element the popover hangs off. Typically the speaker's name span. */
   children: ReactNode;
 }
 
-export default function PersonaCard({ playerName, personality, children }: Props) {
+export default function PersonaCard({ playerName, personality, disableUgc = false, children }: Props) {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false); // click pins so popover stays for inspection
   const [stats, setStats] = useState<LifetimeStats | null | undefined>(undefined); // undefined = loading
@@ -371,6 +398,64 @@ export default function PersonaCard({ playerName, personality, children }: Props
                       border: '1px solid rgba(255,215,0,0.32)',
                     }}
                   >{tr('download', locale)}</button>
+                  {/* v6.10 P3 — UGC submit. Generates a workplace-tagged
+                       segment from the character's epithet + catchphrase +
+                       backstory (+ stats when present) and POSTs to
+                       /api/talkshow/ugc/submit. Hidden when disableUgc=true
+                       (B2bEmbed). */}
+                  {!disableUgc && (
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const btn = e.currentTarget as HTMLButtonElement;
+                        const orig = btn.textContent;
+                        // Build the auto-segment. Uses raw character data
+                        // (NOT i18n'd) — UGC store is zh-only for now.
+                        // Falls back to undefined stats line gracefully.
+                        const rawChar = rawCharacter!;
+                        const tag = CHARACTER_TO_UGC_TAG[rawChar.name] ?? 'meta';
+                        const statsLine = stats && stats.totalGames > 0
+                          ? ` 上桌 ${stats.totalGames} 局, ${Math.round((stats.wins / stats.totalGames) * 100)}% 胜率`
+                          : '';
+                        const text =
+                          `我们公司有个 ${rawChar.epithet} 名叫 ${rawChar.name}, ` +
+                          `见面口头禅: "${rawChar.catchphrases[0]}". ${rawChar.backstory}.${statsLine} ` +
+                          `— 这就是 2026 班味本色.`;
+                        try {
+                          const r = await fetch('/api/talkshow/ugc/submit', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'X-User-Id': (await import('../../utils/userId')).getUserId(),
+                            },
+                            body: JSON.stringify({
+                              title: rawChar.epithet,
+                              text,
+                              tag,
+                              region: 'beijing',
+                            }),
+                          });
+                          if (r.ok) {
+                            btn.textContent = tr('ugcSubmitted', locale);
+                          } else if (r.status === 429) {
+                            btn.textContent = tr('ugcRateLimit', locale);
+                          } else {
+                            btn.textContent = tr('ugcFail', locale);
+                          }
+                        } catch {
+                          btn.textContent = tr('ugcFail', locale);
+                        }
+                        setTimeout(() => { btn.textContent = orig; }, 1800);
+                      }}
+                      style={{
+                        fontSize: 10, padding: '4px 8px', borderRadius: 6,
+                        background: 'rgba(176,134,255,0.12)', color: '#B086FF',
+                        fontWeight: 700, cursor: 'pointer',
+                        border: '1px solid rgba(176,134,255,0.45)',
+                      }}
+                    >{tr('ugcSubmit', locale)}</button>
+                  )}
                 </div>
               )}
 
