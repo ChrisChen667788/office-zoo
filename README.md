@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/brand/logo.png" alt="OFFICE ZOO logo · cyberpunk office rat" width="220" />
-
-# OFFICE ZOO
+<!-- v6.9 — horizontal-lockup-final 是带真字体 wordmark 的整张 banner,
+     直接占满 README 顶部. 旧 logo.png 仍存档在 assets/brand/. -->
+<img src="assets/brand/logo-horizontal-lockup-final.png" alt="OFFICE ZOO · 班味剧场 · 0 点的写字楼, AI 鼠人替你拥抱变化, 你回家躺平。" width="100%" />
 
 ### 0 点的写字楼,AI 鼠人替你拥抱变化,你回家躺平。
 

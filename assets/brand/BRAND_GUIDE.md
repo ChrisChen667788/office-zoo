@@ -25,8 +25,10 @@
 | `assets/brand/logo-v3-sticker-flat.png` | 1024×1024 | 备选 · sticker 风 | 矢量平面贴纸风 |
 | `assets/brand/square-avatar-group.png` | 1024×1024 | **群头像 / 头像** | 单眼眨眼 chibi 西装鼠 + 浅紫底 |
 | `assets/brand/horizontal-banner-twitter.png` | 16:9 | **Twitter / X cover** | 咖啡杯吐舌 + bokeh 渐变 |
-| `assets/brand/logo-vertical-poster.png` | 9:16 (720×1280) | **竖版海报** · 小红书首图 / 抖音封面 / 手机壁纸 | 全身立绘黄眼鼠端咖啡 + 紫雾 bokeh, 顶/底留白叠 wordmark |
-| `assets/brand/logo-horizontal-lockup.png` | 16:9 (1280×720) | **横版 lockup** · README banner / Notion / Slack header | 左 30% chibi 太阳镜鼠 + 右 70% 纯渐变 negative space 留 wordmark |
+| `assets/brand/logo-vertical-poster.png` | 9:16 (720×1280) | **竖版海报 · 原始** · AI 生立绘, 叠 wordmark 前的源版 | 全身立绘黄眼鼠端咖啡 + 紫雾 bokeh, 顶/底有 garbled 字 |
+| `assets/brand/logo-vertical-poster-final.png` | 9:16 (720×1280) | **✅ 竖版海报 · 终版** · 小红书首图 / 抖音封面 / 手机壁纸 | 同上 + 顶部 navy backdrop 真字体 wordmark + 班味剧场 + 底部 tagline + github URL |
+| `assets/brand/logo-horizontal-lockup.png` | 16:9 (1280×720) | **横版 lockup · 原始** · 留白版, 自配 wordmark 时用 | 左 30% chibi 太阳镜鼠 + 右 70% 纯渐变 negative space |
+| `assets/brand/logo-horizontal-lockup-final.png` | 16:9 (1280×720) | **✅ 横版 banner · 终版** · README 顶 / Notion / Slack header | 同上 + 右侧大字 OFFICE ZOO (gold→pink→violet) + 班味剧场副标 + tagline, 已直接 ship 到 README |
 | `assets/brand/logo-mark-only.png` | 1024×1024 | **纯 mark / 单色印刷** · sticker die-cut / mug / monogram | 鼠头剪影 + 黄眼 + 白门牙, 无边框/文字/glow, flat 灰底易换 |
 
 ### 1.1 Logo 用法 do / don't

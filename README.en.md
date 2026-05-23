@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/brand/logo.png" alt="OFFICE ZOO logo · cyberpunk office rat" width="220" />
-
-# OFFICE ZOO
+<!-- v6.9 — horizontal-lockup-final spans the full README header with
+     baked-in wordmark + tagline. Legacy logo.png still archived. -->
+<img src="assets/brand/logo-horizontal-lockup-final.png" alt="OFFICE ZOO · midnight workplace soap opera" width="100%" />
 
 ### Midnight at the office — AI rats clock in, so you can clock out.
 
