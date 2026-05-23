@@ -19,6 +19,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import EventPill from '../components/EventPill';
 import WeeklyShareCardModal from '../components/WeeklyShareCardModal';
 import { getUserId } from '../utils/userId';
+import {
+  copyABCompareShareCardToClipboard,
+  downloadABCompareShareCard,
+  type ABCompareShareCardData,
+} from '../utils/abCompareShareCard';
 
 // Server /styles returns {id} (a catalog); /generate returns {style} (a per-result).
 // 拆成两个接口对齐 actual server field names.
@@ -84,6 +89,8 @@ export default function Weekly() {
   const [compareStyle, setCompareStyle] = useState<StyleResult | null>(null);
   const [compareData, setCompareData] = useState<{ boosted: string; plain: string; likes: number } | null>(null);
   const [comparing, setComparing] = useState(false);
+  // v6.6.2 — A/B export msg + action
+  const [abExportMsg, setAbExportMsg] = useState<string | null>(null);
 
   // Load style metadata once for the empty-state preview cards
   const [styleSpecs, setStyleSpecs] = useState<StyleSpec[] | null>(null);
@@ -535,6 +542,63 @@ export default function Weekly() {
                     </div>
                     <p className="text-[13px] leading-relaxed text-white/95 whitespace-pre-wrap">{compareData.boosted}</p>
                   </div>
+                  {/* v6.6.2 — 导出对比 PNG 按钮 */}
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={async () => {
+                        if (!compareStyle || !compareData) return;
+                        const data: ABCompareShareCardData = {
+                          event: event.trim(),
+                          style: compareStyle.style,
+                          label: compareStyle.label,
+                          emoji: compareStyle.emoji,
+                          likes: compareData.likes,
+                          plainText: compareData.plain,
+                          boostedText: compareData.boosted,
+                        };
+                        const ok = await copyABCompareShareCardToClipboard(data);
+                        setAbExportMsg(ok ? '✓ 对比图已复制到剪贴板' : '复制失败 — 试试下载');
+                        setTimeout(() => setAbExportMsg(null), 2400);
+                      }}
+                      className="flex-1 py-2 rounded-lg text-[11px] font-bold transition"
+                      style={{
+                        background: 'linear-gradient(135deg, #FFD700, #FFA947)',
+                        color: '#1a0d35',
+                      }}>
+                      📋 复制对比图
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!compareStyle || !compareData) return;
+                        const data: ABCompareShareCardData = {
+                          event: event.trim(),
+                          style: compareStyle.style,
+                          label: compareStyle.label,
+                          emoji: compareStyle.emoji,
+                          likes: compareData.likes,
+                          plainText: compareData.plain,
+                          boostedText: compareData.boosted,
+                        };
+                        try {
+                          await downloadABCompareShareCard(data);
+                          setAbExportMsg('✓ 已下载');
+                        } catch {
+                          setAbExportMsg('下载失败');
+                        }
+                        setTimeout(() => setAbExportMsg(null), 2400);
+                      }}
+                      className="flex-1 py-2 rounded-lg text-[11px] font-bold transition"
+                      style={{
+                        background: 'rgba(176,134,255,0.16)',
+                        border: '1px solid rgba(176,134,255,0.45)',
+                        color: '#b086ff',
+                      }}>
+                      📥 下载对比图 PNG
+                    </button>
+                  </div>
+                  {abExportMsg && (
+                    <div className="text-center text-[11px] text-white/65 mt-2">{abExportMsg}</div>
+                  )}
                   <div className="text-center text-[10px] text-white/45 mt-2">
                     这就是 self-tuning · 截图发圈 #AI在听我的
                   </div>

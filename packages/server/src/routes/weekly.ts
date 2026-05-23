@@ -247,20 +247,43 @@ weeklyRoutes.get('/preferences', async (c) => {
   if (!userId || userId.length < 8) {
     return c.json({
       counts: { alibaba: 0, pua: 0, posh: 0, direct: 0 },
-      dominantStyle: null, events: [],
+      dominantStyle: null, events: [], recent: null,
     });
   }
   const counts = await getCounts(userId);
   const dom = dominantStyle(counts);
-  // v6.6.1 — events 一并返回, /weekly/me 用于绘制时间趋势
-  // 不分页 (单用户事件最多 500 条, 8 KB 量级, 全量传无压力)
   const events = await getEvents(userId);
+
+  // v6.6.2 — "近 30 天" dominant 计算。
+  // 思路: 从 events 数组按 ts 过滤最近 30d (= 30 * 24 * 3600 * 1000 ms),
+  // 重新 bucket 出 counts → dominantStyle。可能跟 all-time dominant
+  // 不同 (e.g. 你过去半年最爱阿里黑话, 但最近 30d 改吃直球版了)。
+  const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const recentEvents = events.filter((e) => e.ts >= cutoff);
+  const recentCounts = { alibaba: 0, pua: 0, posh: 0, direct: 0 } as Record<WeeklyStyle, number>;
+  for (const e of recentEvents) {
+    recentCounts[e.style as WeeklyStyle] += 1;
+  }
+  const recentDom = dominantStyle(recentCounts);
+  const recent = recentEvents.length > 0
+    ? {
+        counts: recentCounts,
+        dominantStyle: recentDom,
+        dominantLabel: recentDom ? STYLES[recentDom as WeeklyStyle].label : null,
+        total: recentCounts.alibaba + recentCounts.pua + recentCounts.posh + recentCounts.direct,
+        windowDays: 30,
+        // 透传 "近 30 天 vs all-time 是否变化" 信号, UI 可决定要不要高亮提示
+        differsFromAllTime: !!(recentDom && dom && recentDom !== dom),
+      }
+    : null;
+
   return c.json({
     counts,
     dominantStyle: dom,
     dominantLabel: dom ? STYLES[dom as WeeklyStyle].label : null,
     total: counts.alibaba + counts.pua + counts.posh + counts.direct,
     events,
+    recent,
   });
 });
 

@@ -7,6 +7,67 @@
 
 ---
 
+## v6.6.2 — 2026-05-23 · 趋势 polish + 双 PNG 分享 + 30 天榜
+
+### Added — Phase A: TrendChart hover tooltip
+- `WeeklyMe.tsx` 的 `<TrendChart>` 加 hover overlay:
+  - 鼠标 snap to nearest day (invisible rect hit zones, edge zones
+    min 8px hit width)
+  - 金色虚线 vertical guide + 4 hover dot (带描边对比)
+  - tooltip 框: 日期 + "第 N 天 / 起点" + 4 风格累计 + 该日增量 +N
+- 实战 verified: 单天数据 hover 显示 "2026-05-23 · 起点 · 🧩3 🎭2 🎩0 💢1"
+
+### Added — Phase D: /preferences 加 recent 30d dominant
+- `server/src/routes/weekly.ts`:
+  GET /api/weekly/preferences 响应加 `recent` 字段
+  - 从 events 过滤最近 30d, 重新 bucket 算 counts → dominantStyle
+  - 透传 `differsFromAllTime` 信号 (recentDom != allTimeDom)
+- `WeeklyMe.tsx` summary 区加 recent section:
+  - "近 30 天 · N 次 · 最近最爱: X" subtitle
+  - differsFromAllTime=true 时高亮 "🔄 你最近变了" 玫红 chip
+  - 隐藏: recent.total === 0 时不渲染整段
+
+### Added — Phase B: 趋势图 PNG 分享卡
+- 新 `client/src/utils/trendShareCard.ts` (~310 行):
+  - 1080×1350 IG-portrait 纯 Canvas 2D
+  - 米哈游 cosmic 渐变底 + summary box (all-time 大数字 + 近 30d 副 box)
+  - 主图 480px 高 chart box: y 轴 3 ticks dashed grid + x 轴日期 +
+    4 条 polyline + end-of-line dot + 底部 4 风格 legend with 当前值
+  - public API: generate / copy / download / preview-url
+- 新 `components/TrendShareCardModal.tsx` (~170 行) — sibling of
+  WeeklyShareCardModal 风格
+- `WeeklyMe.tsx` 趋势图下方加 "📤 把我的偏好曲线导出 PNG" 主按钮
+
+### Added — Phase C: A/B 对比 PNG 分享卡
+- 新 `client/src/utils/abCompareShareCard.ts` (~220 行):
+  - 1080×1350 双栏 (PLAIN 左 / BOOSTED 右)
+  - BOOSTED 右栏带金色 shimmer 边框 (5★ 角色卡风格)
+  - 顶部 EVENT pill: 同事件+同风格+你点赞 N 次
+  - 自动 wrap + 长文 ellipsis
+- `Weekly.tsx` A/B 对比 modal 内嵌"📋 复制对比图 / 📥 下载对比图"
+  按钮 (不另开 modal, 复用现有 compare modal)
+
+### Verified UAT
+- ✓ typecheck server / client 0 新 regression
+- ✓ /preferences UAT: 6 events 全在 30 天内, recent = all-time,
+    differsFromAllTime = false (正确)
+- ✓ Visual probe WeeklyMe: 近 30 天 chip + 趋势导出按钮 + SVG chart
+    全部渲染对齐
+- ✓ Visual hover probe: 金色虚线 + 4 hover dot + tooltip 内容正确
+
+### v6.6.2 体验闭环延伸
+```
+v6.6.1   累计 bar + SVG trend (静态)
+   ↓
+v6.6.2   + hover tooltip (交互)
+        + 近 30 天 dominant (时间敏感)
+        + 趋势 PNG 分享 (viral 出口 1)
+        + A/B PNG 分享 (viral 出口 2)
+       = 偏好闭环 from "数据可视化" → "数据可分享"
+```
+
+---
+
 ## v6.6.1 — 2026-05-23 · 趋势图 (events 时间戳记录 + SVG 折线)
 
 ### Why

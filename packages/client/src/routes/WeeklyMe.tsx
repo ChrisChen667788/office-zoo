@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
+import TrendShareCardModal from '../components/TrendShareCardModal';
 
 type Style = 'alibaba' | 'pua' | 'posh' | 'direct';
 
@@ -26,6 +27,14 @@ interface Prefs {
   dominantLabel: string | null;
   total: number;
   events: LikeEvent[]; // v6.6.1 新加
+  recent?: {
+    counts: { alibaba: number; pua: number; posh: number; direct: number };
+    dominantStyle: Style | null;
+    dominantLabel: string | null;
+    total: number;
+    windowDays: number;
+    differsFromAllTime: boolean;
+  } | null;
 }
 
 const STYLE_META = {
@@ -40,6 +49,7 @@ export default function WeeklyMe() {
   const myId = useMemo(() => getUserId(), []);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [shareTrendOpen, setShareTrendOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/weekly/preferences', { headers: { 'X-User-Id': myId } })
@@ -96,7 +106,7 @@ export default function WeeklyMe() {
         )}
         {prefs && prefs.total > 0 && (
           <>
-            {/* Summary strip */}
+            {/* Summary strip — all-time + (v6.6.2) recent 30d */}
             <div className="rounded-2xl p-4 mb-5 mt-3"
               style={{
                 background: 'linear-gradient(135deg, rgba(255,215,0,0.10), rgba(176,134,255,0.04))',
@@ -116,6 +126,37 @@ export default function WeeklyMe() {
                     : <>还需 {Math.max(0, 3 - prefs.total)} 次点赞触发 boost</>}
                 </div>
               </div>
+              {/* v6.6.2 — 近 30 天最爱榜. 当跟 all-time dominant 不同时
+                  特别高亮 "你最近变了" 信号. */}
+              {prefs.recent && prefs.recent.total > 0 && (
+                <div className="mt-3 pt-3 border-t border-white/10">
+                  <div className="flex items-baseline justify-between mb-1">
+                    <div className="text-[10px] tracking-[0.22em] uppercase" style={{ color: '#9be6ff' }}>
+                      ✦ 近 30 天
+                    </div>
+                    {prefs.recent.differsFromAllTime && (
+                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+                        style={{
+                          background: 'linear-gradient(90deg, #FF4FA3, #7C3AED)',
+                          color: '#fff', letterSpacing: '0.12em',
+                        }}>
+                        🔄 你最近变了
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-lg font-black text-white tabular-nums">
+                      {prefs.recent.total}
+                    </span>
+                    <span className="text-xs text-white/65">
+                      次 ·
+                      {prefs.recent.dominantLabel
+                        ? <> 最近最爱: <span className="font-bold text-white/95">{prefs.recent.dominantLabel}</span></>
+                        : <> 平局, 没有近期主导</>}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 4 个 style 横向 bar */}
@@ -170,6 +211,20 @@ export default function WeeklyMe() {
             {/* v6.6.1 — 时间趋势 (按 calendar day 聚合累计折线) */}
             <TrendChart events={prefs.events} />
 
+            {/* v6.6.2 — 导出 PNG 分享卡 */}
+            {prefs.total > 0 && (
+              <button
+                onClick={() => setShareTrendOpen(true)}
+                className="w-full mt-4 py-3 rounded-xl text-sm font-black tracking-wide"
+                style={{
+                  background: 'linear-gradient(135deg, #FFD700, #FFA947)',
+                  color: '#1a0d35',
+                  boxShadow: '0 6px 22px rgba(255,215,0,0.32)',
+                }}>
+                📤 把我的偏好曲线导出 PNG · 一键发圈
+              </button>
+            )}
+
             <div className="text-center text-[10px] text-white/40 mt-6 leading-relaxed">
               共 {prefs.total} 次点赞 · 主导风格阈值 ≥ 3<br/>
               清空偏好? <button onClick={() => navigate('/settings')} className="text-white/70 hover:text-white/95 underline decoration-dotted underline-offset-2">去 ⚙️ Settings</button>
@@ -177,6 +232,20 @@ export default function WeeklyMe() {
           </>
         )}
       </main>
+
+      {/* v6.6.2 — 偏好曲线 PNG 分享 modal */}
+      <TrendShareCardModal
+        open={shareTrendOpen}
+        data={prefs && prefs.total > 0 ? {
+          total: prefs.total,
+          counts: prefs.counts,
+          dominantStyle: prefs.dominantStyle,
+          dominantLabel: prefs.dominantLabel,
+          events: prefs.events,
+          recent: prefs.recent,
+        } : null}
+        onClose={() => setShareTrendOpen(false)}
+      />
     </div>
   );
 }
@@ -211,6 +280,10 @@ function shortDate(k: string): string {
 }
 
 function TrendChart({ events }: { events: LikeEvent[] }) {
+  // v6.6.2 — hover-tooltip state. Declared before any conditional
+  // return so the hooks order is stable across renders.
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
   // 空状态: migrated 用户 (counts > 0 但 events = []) 或新用户
   if (events.length === 0) {
     return (
@@ -338,7 +411,71 @@ function TrendChart({ events }: { events: LikeEvent[] }) {
               )}
             </g>
           ))}
+
+          {/* v6.6.2 — hover overlay. Invisible rects per data point capture
+              pointer, set hoverIdx → snap-to-nearest-day tooltip. Vertical
+              guide line + per-style dots at hovered x. */}
+          {hoverIdx !== null && (
+            <line x1={xAt(hoverIdx)} y1={padT} x2={xAt(hoverIdx)} y2={H - padB}
+              stroke="rgba(255,215,0,0.45)" strokeWidth="1" strokeDasharray="3 3" />
+          )}
+          {hoverIdx !== null && (['alibaba','pua','posh','direct'] as Style[]).map((s) => (
+            <circle key={s}
+              cx={xAt(hoverIdx)} cy={yAt(series[hoverIdx].counts[s])}
+              r="4.5" fill={STYLE_LINE_COLOR[s]}
+              stroke="#1a0d35" strokeWidth="1.5" />
+          ))}
+          {/* Hit zones — invisible larger rects make hover ergonomic on tiny
+              x spacing. Edge zones get more width to ease pointer landing. */}
+          {series.map((_, i) => {
+            const cx = xAt(i);
+            const half = n === 1 ? innerW / 2 : innerW / (n - 1) / 2;
+            const rx = Math.max(half, 8); // min 8px hit width for tiny days
+            return (
+              <rect key={i}
+                x={cx - rx} y={padT} width={rx * 2} height={innerH}
+                fill="transparent"
+                onMouseEnter={() => setHoverIdx(i)}
+                onMouseLeave={() => setHoverIdx((cur) => cur === i ? null : cur)}
+                style={{ cursor: 'crosshair' }} />
+            );
+          })}
         </svg>
+
+        {/* v6.6.2 — tooltip box (outside SVG for better CSS / line-height) */}
+        {hoverIdx !== null && (
+          <div className="mt-2 rounded-lg px-3 py-2 inline-block"
+            style={{
+              background: 'rgba(15,10,35,0.95)',
+              border: '1px solid rgba(255,215,0,0.45)',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+            }}>
+            <div className="flex items-baseline gap-2 mb-1.5">
+              <span className="text-[11px] font-black text-white/95">
+                {series[hoverIdx].day}
+              </span>
+              <span className="text-[9px] text-white/45 uppercase tracking-[0.18em]">
+                {hoverIdx === 0 ? '起点' : `第 ${hoverIdx + 1} 天`}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              {(['alibaba','pua','posh','direct'] as Style[]).map((s) => {
+                const dayInc = dayBuckets.get(series[hoverIdx].day)?.[s] ?? 0;
+                const cum = series[hoverIdx].counts[s];
+                return (
+                  <div key={s} className="flex items-baseline gap-1.5 text-[11px]">
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: STYLE_LINE_COLOR[s] }} />
+                    <span style={{ color: STYLE_LINE_COLOR[s] }}>{STYLE_META[s].emoji}</span>
+                    <span className="text-white/85 tabular-nums">{cum}</span>
+                    {dayInc > 0 && (
+                      <span className="text-green-400 tabular-nums">+{dayInc}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {/* Legend chips */}
         <div className="flex flex-wrap gap-2 mt-2 justify-center">
           {(['alibaba','pua','posh','direct'] as Style[]).map((s) => (
