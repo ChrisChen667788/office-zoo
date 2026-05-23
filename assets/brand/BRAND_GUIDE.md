@@ -25,6 +25,9 @@
 | `assets/brand/logo-v3-sticker-flat.png` | 1024×1024 | 备选 · sticker 风 | 矢量平面贴纸风 |
 | `assets/brand/square-avatar-group.png` | 1024×1024 | **群头像 / 头像** | 单眼眨眼 chibi 西装鼠 + 浅紫底 |
 | `assets/brand/horizontal-banner-twitter.png` | 16:9 | **Twitter / X cover** | 咖啡杯吐舌 + bokeh 渐变 |
+| `assets/brand/logo-vertical-poster.png` | 9:16 (720×1280) | **竖版海报** · 小红书首图 / 抖音封面 / 手机壁纸 | 全身立绘黄眼鼠端咖啡 + 紫雾 bokeh, 顶/底留白叠 wordmark |
+| `assets/brand/logo-horizontal-lockup.png` | 16:9 (1280×720) | **横版 lockup** · README banner / Notion / Slack header | 左 30% chibi 太阳镜鼠 + 右 70% 纯渐变 negative space 留 wordmark |
+| `assets/brand/logo-mark-only.png` | 1024×1024 | **纯 mark / 单色印刷** · sticker die-cut / mug / monogram | 鼠头剪影 + 黄眼 + 白门牙, 无边框/文字/glow, flat 灰底易换 |
 
 ### 1.1 Logo 用法 do / don't
 
@@ -34,6 +37,9 @@
 - 缩放保持 1:1, 最小不低于 96px (低于这个细节糊)
 - 群头像优先用 square-avatar-group.png(为小尺寸优化过)
 - Twitter banner 在左下/右下叠加 wordmark + tagline(留白预留好)
+- 海报 / 小红书首图用 `logo-vertical-poster.png`, 顶部 25% 叠真字体 wordmark (AI 生的字水印糊, 必须覆盖)
+- README banner / Notion header 用 `logo-horizontal-lockup.png`, 右 70% 叠 wordmark + tagline
+- sticker die-cut / coffee mug / 单色印刷场景用 `logo-mark-only.png`, 可任意换底色 (灰底易抠)
 
 ❌ **不要做的:**
 - 不要拉伸变形 (rat 立绘 比例敏感)
