@@ -155,6 +155,8 @@ interface GameActions {
   }) => void;
   setSpeaker: (playerId: string | null) => void;
   addSpeech: (speech: SpeechItem) => void;
+  setDiscussionProgress: (current: number, total: number, round: number) => void;
+  clearDiscussionProgress: () => void;
   clearSpeeches: () => void;
   addGhostComment: (comment: Omit<GhostCommentItem, 'id' | 'timestamp'>) => void;
   clearGhostComments: () => void;
@@ -179,6 +181,12 @@ interface GameStore {
   currentSpeaker: string | null;
   currentSpeech: SpeechItem | null;
   speechHistory: SpeechItem[];
+
+  /** v6.8 P4.2 — wave progress within the current discussion phase.
+   *  `current` is 1-based (first speech = 1), `total` is the full
+   *  queue size. Both reset to 0 when discussion ends. Last 2 indices
+   *  (current >= total - 1) are the "pressure window" trigger. */
+  discussionProgress: { current: number; total: number; round: number };
 
   // Ghost comments (弹幕)
   ghostComments: GhostCommentItem[];
@@ -207,6 +215,7 @@ const INITIAL_STATE = {
   currentSpeaker: null,
   currentSpeech: null,
   speechHistory: [],
+  discussionProgress: { current: 0, total: 0, round: 0 },
   ghostComments: [],
   eliminationLog: [],
   predictionLog: [],
@@ -345,8 +354,17 @@ export const useGameStore = create<GameStore>((set) => ({
         speechHistory: [...s.speechHistory, speech],
       })),
 
+    setDiscussionProgress: (current, total, round) =>
+      set({ discussionProgress: { current, total, round } }),
+
+    clearDiscussionProgress: () =>
+      set({ discussionProgress: { current: 0, total: 0, round: 0 } }),
+
     clearSpeeches: () =>
-      set({ speechHistory: [], currentSpeech: null, currentSpeaker: null }),
+      set({
+        speechHistory: [], currentSpeech: null, currentSpeaker: null,
+        discussionProgress: { current: 0, total: 0, round: 0 },
+      }),
 
     addGhostComment: (comment) =>
       set((s) => ({
@@ -399,6 +417,7 @@ export const useWinner = () => useGameStore((s) => s.winner);
 export const useCurrentSpeaker = () => useGameStore((s) => s.currentSpeaker);
 export const useCurrentSpeech = () => useGameStore((s) => s.currentSpeech);
 export const useSpeechHistory = () => useGameStore((s) => s.speechHistory);
+export const useDiscussionProgress = () => useGameStore((s) => s.discussionProgress);
 
 export const useGhostComments = () => useGameStore((s) => s.ghostComments);
 export const useAvatarUrls = () => useGameStore((s) => s.avatarUrls);

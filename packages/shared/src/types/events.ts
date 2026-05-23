@@ -101,6 +101,16 @@ export interface ServerToClientEvents {
   'game:state': (state: SerializedGameState) => void;
   'game:phase_change': (data: { phase: GamePhase; round: number }) => void;
   'game:speech_start': (data: { playerId: string; playerName: string }) => void;
+  /**
+   * v6.8 P4.2 — discussion playback progress. Emitted immediately before
+   * each `game:speech_start` event so the client can render a wave
+   * progress bar without inventing a fake countdown. `current` is 1-based
+   * (first speech = 1), `total` = full speech queue size for the round.
+   * The last 2 indices (current >= total - 1) are the "pressure window"
+   * — client renders red pulse + plays sfx.playTick(). Optional payload
+   * — back-compat with clients that don't subscribe.
+   */
+  'game:discussion_progress': (data: { current: number; total: number; round: number }) => void;
   'game:speech': (data: { playerId: string; playerName: string; text: string; role?: string; team?: string; evidence?: EvidenceRef[] }) => void;
   'game:speech_audio': (data: { playerId: string; audioUrl: string }) => void;
   'game:speech_end': (data: { playerId: string }) => void;

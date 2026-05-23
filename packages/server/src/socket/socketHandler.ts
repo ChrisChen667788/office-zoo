@@ -338,6 +338,16 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
         });
         speakerLog.debug('processing speaker');
 
+        // v6.8 P4.2 — emit discussion progress BEFORE speech_start so the
+        // client's progress bar updates atomically with the wave step.
+        // Client uses (current >= total - 1) as "pressure window" trigger
+        // for red pulse + tick SFX.
+        room.emit('game:discussion_progress', {
+          current: i + 1,
+          total: speechQueue.length,
+          round: engine.state.round,
+        });
+
         // 1. Notify speech start
         room.emit('game:speech_start', {
           playerId: item.playerId,

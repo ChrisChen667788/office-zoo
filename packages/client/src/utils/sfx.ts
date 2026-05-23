@@ -272,6 +272,21 @@ class SfxPlayer {
   }
 
   /**
+   * v6.8 P4.2 — discussion pressure tick. Short, dry hi-hat-like click
+   * at ~100 ms, fired by Classic when the discussion enters the last
+   * 2 speeches of a round ("pressure window"). Quiet enough to layer
+   * over an ongoing TTS speech without masking dialogue.
+   */
+  playTick() {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    // Short metallic click — bandpass-filtered noise hit + tiny tone.
+    this.noise(t, 0.05, { peak: 0.32, filter: 8000, type: 'highpass' });
+    this.tone(2400, t + 0.005, 0.06, { type: 'triangle', peak: 0.18 });
+  }
+
+  /**
    * v6.8 P2 — phase transition stinger. Short metallic sweep + sparkle,
    * ~400 ms total. Used by PhaseTransitionOverlay when the engine moves
    * between phases that DON'T have their own dedicated cinematic

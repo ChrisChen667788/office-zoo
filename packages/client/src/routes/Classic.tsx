@@ -6,7 +6,7 @@ import {
   type GhostCommentItem,
   usePhase, usePlayers, useRound, useTaskProgress,
   useSpeechHistory, useGhostComments, useAvatarUrls,
-  useCurrentSpeaker,
+  useCurrentSpeaker, useDiscussionProgress,
   useGameActions,
 } from '../stores/gameStore';
 import GameMap from '../components/game/GameMap';
@@ -25,6 +25,7 @@ import PersonaCard from '../components/character/PersonaCard';
 import IdleBeat from '../components/character/IdleBeat';
 import { uid } from '../utils/uid';
 import { playTtsFromUrl, stopTts, speakViaBrowserTTS, hasBrowserTTS } from '../utils/audioUnlock';
+import { sfx } from '../utils/sfx';
 import { phaseIcons, personalityIcons, glyphIcons, Icon } from '../constants/icons';
 
 // Vite proxies /avatars and /api to :3100 — use relative URLs to keep the
@@ -84,9 +85,10 @@ export default function Classic() {
   const taskProgress = useTaskProgress();
   const speechHistory = useSpeechHistory();
   const currentSpeaker = useCurrentSpeaker();
+  const discussionProgress = useDiscussionProgress();
   const ghostComments = useGhostComments();
   const avatarUrls = useAvatarUrls();
-  const { updateState, applyTick, setSpeaker, addSpeech, addGhostComment, setAvatarUrl, pushElimination, reset } =
+  const { updateState, applyTick, setSpeaker, addSpeech, setDiscussionProgress, clearDiscussionProgress, addGhostComment, setAvatarUrl, pushElimination, reset } =
     useGameActions();
 
   const { socket, connected, connecting, reconnectAttempt } = useSocket();
@@ -155,12 +157,26 @@ export default function Classic() {
       // Event log stores plain text — use the emoji fallback here, not the
       // URL. Rendered phase chip below uses the <Icon> component for image.
       pushEvent('phase', `${p?.emoji || '📌'} ${p?.label || data.phase}`);
+      // v6.8 P4.2 — wave progress is per-discussion. Reset whenever we
+      // leave discussion (server only emits during discussion anyway, but
+      // clearing here lets the UI hide the bar between rounds).
+      if (data.phase !== 'discussion') clearDiscussionProgress();
     },
 
     // Speaker spotlight: GameMap uses currentSpeaker to draw a pulsing
     // ring + scale-bump on the active player's avatar.
     'game:speech_start': (data: { playerId: string }) => setSpeaker(data.playerId),
     'game:speech_end': () => setSpeaker(null),
+
+    // v6.8 P4.2 — wave progress. Updates progress bar + fires tick SFX
+    // when entering the last 2 of the round (pressure window).
+    'game:discussion_progress': (data: { current: number; total: number; round: number }) => {
+      setDiscussionProgress(data.current, data.total, data.round);
+      // Pressure window: last 2 speeches of the round. Tick on entry only.
+      if (data.total > 0 && data.current >= data.total - 1) {
+        sfx.playTick();
+      }
+    },
 
     'game:speech': (data: {
       playerId: string; playerName: string; text: string;
@@ -483,6 +499,53 @@ export default function Classic() {
             </AnimatePresence>
             <div ref={logEndRef} />
           </div>
+
+          {/* v6.8 P4.2 — discussion wave progress bar. Shown only while
+               server is emitting progress for the current discussion. The
+               last 2 speeches (pressure window) flip to red + pulse. */}
+          {discussionProgress.total > 0 && (() => {
+            const { current, total } = discussionProgress;
+            const pct = Math.min(100, Math.round((current / total) * 100));
+            const isPressure = current >= total - 1;
+            const barColor = isPressure ? '#ff4757' : '#FFD700';
+            return (
+              <div style={{
+                borderTop: '1px solid rgba(255,215,0,0.08)',
+                padding: '6px 12px 8px',
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: 4, fontSize: 10, fontWeight: 800,
+                  letterSpacing: '0.15em', textTransform: 'uppercase',
+                  color: isPressure ? '#ff4757' : 'rgba(255,215,0,0.6)',
+                }}>
+                  <span>讨论进度 · 第 {discussionProgress.round} 轮</span>
+                  <span>{current} / {total}{isPressure ? ' · 最后窗口' : ''}</span>
+                </div>
+                <div style={{
+                  position: 'relative', height: 4, borderRadius: 999,
+                  background: 'rgba(255,255,255,0.06)', overflow: 'hidden',
+                }}>
+                  <motion.div
+                    animate={{ width: `${pct}%` }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                    style={{
+                      height: '100%', borderRadius: 999,
+                      background: `linear-gradient(90deg, ${barColor} 0%, ${isPressure ? '#ff6b8a' : '#FFA947'} 100%)`,
+                      boxShadow: `0 0 8px ${barColor}88`,
+                      animation: isPressure ? 'pressurePulse 0.85s ease-in-out infinite' : 'none',
+                    }}
+                  />
+                </div>
+                <style>{`
+                  @keyframes pressurePulse {
+                    0%, 100% { box-shadow: 0 0 8px #ff475788, 0 0 0 rgba(255,71,87,0); }
+                    50%      { box-shadow: 0 0 18px #ff4757cc, 0 0 24px rgba(255,71,87,0.55); }
+                  }
+                `}</style>
+              </div>
+            );
+          })()}
 
           {/* Recent speeches */}
           <div style={{
