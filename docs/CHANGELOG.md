@@ -7,6 +7,65 @@
 
 ---
 
+## v6.5.0 — 2026-05-23 · 周报生成器 + Profile mihoyo + 对比 teaser
+
+### Added — 🎯 Phase C: v6.5.0 周报生成器 (新玩法)
+- `server/src/routes/weekly.ts` (170 行) — `POST /api/weekly/generate`:
+  - 输入 1 句关键事件 (8-300 字)
+  - 4 种风格并行 LLM 生成 (Promise.allSettled, ~10s):
+    - 🧩 **阿里黑话版** — 颗粒度 / 抓手 / 闭环 / 拉齐 / 赋能 高密度
+    - 🎭 **PUA 版** — 老板向下 "心力不够 / 格局打开 / 自驱不到位"
+    - 🎩 **装腔版** — "复盘 / 反思 / 长期主义 / 反脆弱" 鸡汤
+    - 💢 **直球版** — 没装饰口语吐槽, 不归因到"心态"
+  - 每种 style 独立精心调过的 system prompt (硬性要求黑话密度 / 句式)
+  - Rate limit: 1h × 5 (LLM 重活)
+  - `GET /api/weekly/styles` — 静态目录, 前端 empty state 预览用
+- `client/src/routes/Weekly.tsx` (260 行) — `/weekly` 新页面:
+  - 顶部输入框 (300 字上限) + 4 个示例事件 chip
+  - 提交后 4 卡并行展示, 每张独立 element color (青/玫红/金/橙)
+  - 每卡有 📋 复制按钮 (反馈 ✓ 已复制 1.8s)
+  - busy 状态 4 卡 skeleton + ✍️ 脉冲动画
+
+### Added — Phase B: Profile mihoyo 外壳迁移
+- `Profile.tsx` 外壳:
+  - 旧: `<div className="y2k-bg ...">` 静态 Y2K 黄粉紫底
+  - 新: 米哈游 cosmic gradient (radial purple+gold mesh)
+  - Top bar 中间加 `<EventPill subtle stars=5>🪪 我的班味卡</EventPill>`
+- **关键克制**: ProfileCard 内部完整保留 Y2K 视觉 (4px 黑边 / 黄粉紫渐变 /
+  chunky shadow) — 那是"班味卡"的核心 IP, 改了会丢失识别度。
+  米哈游底 + Y2K 卡的对比反而强化"复古玩具感", 像 mihoyo 角色卡里
+  内嵌一张拍立得照片。
+
+### Added — Phase A: v6.x 视觉迁移前后对比 teaser
+- `assets/launch-demo/comparison.html` (240 行) — 5 scene × 6s storyboard:
+  1. Hook: "11 个路由统一为米哈游游戏 UI" + 标记
+  2. 对比 1: 🔮 占卜系 (旧 plain text vs 新 EventPill 5★)
+  3. 对比 2: 🎤 段子 UGC (同上)
+  4. 对比 3: 🏢 鼠人公司 (旧渐变文字 vs 新 EventPill)
+  5. CTA: 11/12 路由迁移完成 + v6.5 增量
+- `assets/launch-demo/comparison-teaser.{mp4,gif}`:
+  - mp4 257 KB · gif 793 KB · 30s (轻量, 适合 Twitter 嵌入)
+
+### Verified
+- ✓ typecheck 0 新 regression
+- ✓ Weekly endpoint UAT 2 风格 (阿里 + 直球): 阿里版"颗粒度/沉淀/CEO视角/
+  透传/闭环/赋能" 6+ 黑话, 直球版"甲方反复折磨" 真实口语
+- ✓ Profile 米哈游外壳 + Y2K 卡内核共存视觉对比正确
+- ✓ Comparison teaser scene 3 split 渲染清晰
+
+### Files
+- 新 2: weekly.ts route + Weekly.tsx page (430 行总)
+- 新 2: comparison.html + comparison-teaser.{mp4,gif}
+- 改 3: index.ts (mount weekly route) + App.tsx (register /weekly) +
+        Profile.tsx (外壳迁移)
+
+### v6.5 体验意义
+- 周报生成器: 最痛的事 (写周报) + 最爆的梗 (公司话术), 直接 viral 引擎
+- Profile: 完成 12/12 路由统一, 同时尊重独立美学 (Y2K 班味卡)
+- Teaser: 给 Twitter / B 站等需要 30s 对比片的人现成素材
+
+---
+
 ## v6.4.0 — 2026-05-23 · launch-ready (视觉收尾 + 真实游戏重录 + 提交包)
 
 ### Why

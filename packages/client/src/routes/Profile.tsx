@@ -22,6 +22,7 @@ import {
   type TraitVector,
 } from '@furball/shared';
 import { getUserId } from '../utils/userId';
+import EventPill from '../components/EventPill';
 import { archetypeLabel, useT, type DictKey } from '../utils/i18n';
 import { useArchetypePortrait } from '../utils/archetypePortrait';
 import type { PersonalizedProfile, UserProfile } from '../utils/profileTypes';
@@ -119,14 +120,27 @@ export default function Profile() {
   const bestie = pair ? findArchetype(pair.bestie) : undefined;
 
   return (
-    <div className="y2k-bg flex flex-col items-center px-4 py-8">
-      {/* Top bar */}
+    // v6.5 — 外壳从 y2k-bg 改成 mihoyo cosmic gradient + 浮动 EventPill,
+    // 但保留 ProfileCard 内部 Y2K 设计 (那是"班味卡" 的核心 IP, 改了
+    // 会失去身份识别). 米哈游底 + Y2K 卡的对比反而强化"复古玩具感"。
+    <div
+      className="flex flex-col items-center px-4 py-8 min-h-screen"
+      style={{
+        background:
+          'radial-gradient(ellipse at 25% 18%, rgba(176,134,255,0.30) 0%, transparent 45%),' +
+          'radial-gradient(ellipse at 78% 82%, rgba(255,215,0,0.18) 0%, transparent 50%),' +
+          'radial-gradient(ellipse at 50% 50%, #2D1B69 0%, #1a0d35 60%, #0a0a1e 100%)',
+      }}
+    >
+      {/* Top bar — v6.5 mihoyo chrome + EventPill center, Y2K buttons 保留色调
+          但加宽以匹配 mihoyo 的金色 accent. */}
       <div className="w-full max-w-lg flex items-center justify-between mb-4">
         <button
           onClick={() => navigate('/')}
           className="text-xs px-3 py-1.5 rounded-full font-bold"
           style={{ background: 'rgba(255,255,255,0.85)', color: '#0a0a0a', border: '2px solid #0a0a0a' }}
         >← 首页</button>
+        <EventPill stars={5} subtle>🪪 我的班味卡</EventPill>
         <button
           onClick={() => navigate('/quiz')}
           className="text-xs px-3 py-1.5 rounded-full font-bold"

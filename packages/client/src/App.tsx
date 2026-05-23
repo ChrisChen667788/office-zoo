@@ -24,6 +24,7 @@ import FortuneGallery from './routes/FortuneGallery';
 import FortuneHistory from './routes/FortuneHistory';
 import Settings from './routes/Settings';
 import TalkshowUgc from './routes/TalkshowUgc';
+import Weekly from './routes/Weekly';
 import Bar from './routes/Bar';
 
 export default function App() {
@@ -46,6 +47,8 @@ export default function App() {
       {/* v6.1 — UGC 段子投稿 + 月度精选展示。Lives ABOVE /talkshow
           isn't needed (different segment); flat route. */}
       <Route path="/talkshow/ugc" element={<TalkshowUgc />} />
+      {/* v6.5.0 — 周报生成器: 1 句关键事件 → 4 风格周报 */}
+      <Route path="/weekly" element={<Weekly />} />
       {/* v1.0.0 — Premium paywall + demo checkout. */}
       <Route path="/premium" element={<Premium />} />
       {/* v1.1.0 — B2B white-label builder + iframe embed target. */}

@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>OFFICE ZOO v6.x · before / after design migration teaser</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 720px; height: 720px; overflow: hidden; }
+  body {
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+                 -apple-system, sans-serif;
+    color: #F8F4E3;
+    background:
+      radial-gradient(ellipse at 25% 18%, rgba(176,134,255,0.30) 0%, transparent 45%),
+      radial-gradient(ellipse at 78% 82%, rgba(255,215,0,0.18) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, #2D1B69 0%, #1a0d35 60%, #0a0a1e 100%);
+    position: relative;
+  }
+  body::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(2px 2px at 20% 30%, rgba(255,255,255,0.4) 30%, transparent 70%),
+      radial-gradient(1.5px 1.5px at 60% 10%, rgba(255,239,107,0.5) 30%, transparent 70%),
+      radial-gradient(1px 1px at 80% 50%, rgba(176,134,255,0.5) 30%, transparent 70%),
+      radial-gradient(2px 2px at 30% 75%, rgba(78,205,196,0.4) 30%, transparent 70%);
+    background-size: 720px 720px;
+    pointer-events: none;
+  }
+
+  .scene { position: absolute; inset: 0; padding: 48px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    opacity: 0; transform: scale(0.97);
+    transition: opacity 280ms ease, transform 280ms ease;
+  }
+  .scene.active { opacity: 1; transform: scale(1); }
+
+  .stage-no {
+    position: absolute; top: 22px; right: 30px;
+    font-size: 11px; letter-spacing: 0.4em; font-weight: 700;
+    color: #FFD58A;
+    padding: 4px 12px;
+    border: 1px solid rgba(255,215,0,0.32);
+    border-radius: 4px;
+    background: rgba(0,0,0,0.35);
+    text-transform: uppercase;
+  }
+
+  /* ─── Scene 1 — Title ─── */
+  .scene-1 .title {
+    font-size: 42px; font-weight: 900; line-height: 1.2;
+    background: linear-gradient(180deg, #fff 0%, #FFD58A 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 24px rgba(255,215,0,0.25);
+    margin-bottom: 18px; text-align: center;
+  }
+  .scene-1 .subtitle {
+    font-size: 17px; color: rgba(248,244,227,0.78);
+    text-align: center; max-width: 560px; line-height: 1.65;
+  }
+  .scene-1 .marker {
+    margin-top: 30px;
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 8px 18px;
+    background: linear-gradient(90deg, rgba(255,215,0,0.18), rgba(176,134,255,0.18));
+    border: 1px solid rgba(255,215,0,0.45);
+    border-radius: 999px;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.22em;
+    color: #FFD58A;
+  }
+  .scene-1 .marker .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #FFD700; box-shadow: 0 0 8px #FFD700;
+  }
+
+  /* ─── Comparison split ─── */
+  .split-scene {
+    display: grid; grid-template-rows: auto 1fr 1fr;
+    padding: 56px 36px 30px;
+    gap: 18px;
+  }
+  .split-scene .label {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-size: 22px; font-weight: 900;
+    background: linear-gradient(90deg, #B086FF, #FFD58A);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .split-scene .row {
+    display: grid; grid-template-columns: 60px 1fr; align-items: center;
+    gap: 14px; padding: 18px 22px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+  }
+  .split-scene .row.before {
+    border: 1px solid rgba(255,255,255,0.10);
+    opacity: 0.7;
+  }
+  .split-scene .row.after {
+    background: linear-gradient(135deg, rgba(255,215,0,0.10), rgba(176,134,255,0.06));
+    border: 1px solid rgba(255,215,0,0.42);
+    box-shadow: 0 6px 22px rgba(255,215,0,0.10);
+  }
+  .split-scene .tag {
+    font-size: 11px; font-weight: 900; letter-spacing: 0.22em;
+    text-transform: uppercase;
+    padding: 4px 8px; border-radius: 4px;
+    text-align: center;
+  }
+  .split-scene .row.before .tag {
+    background: rgba(120,120,140,0.30);
+    color: rgba(255,255,255,0.55);
+  }
+  .split-scene .row.after .tag {
+    background: linear-gradient(90deg, #FFD700, #FFA947);
+    color: #1a0d35;
+  }
+
+  /* ── Plain text "BEFORE" header rendering ── */
+  .plain-header {
+    font-size: 11px; letter-spacing: 0.28em;
+    color: rgba(255,255,255,0.55);
+    text-transform: uppercase; font-weight: 600;
+  }
+
+  /* ── EventPill "AFTER" header rendering ── */
+  .event-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 16px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(255,215,0,0.18), rgba(176,134,255,0.18), rgba(255,79,163,0.16));
+    border: 1px solid rgba(255,215,0,0.55);
+    box-shadow: 0 4px 18px rgba(255,215,0,0.18);
+  }
+  .event-pill .pdot {
+    width: 6px; height: 6px; background: #FFD700;
+    border-radius: 50%; box-shadow: 0 0 8px #FFD700;
+  }
+  .event-pill .label {
+    font-size: 11px; font-weight: 900; letter-spacing: 0.22em;
+    text-transform: uppercase;
+    background: linear-gradient(180deg, #fff 0%, #FFD58A 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .event-pill .stars {
+    font-size: 9px; letter-spacing: 0.16em; font-weight: 900;
+    background: linear-gradient(90deg, #FFD700, #FFA947);
+    color: #1a0d35;
+    padding: 2px 6px; border-radius: 3px;
+  }
+
+  /* ─── Final scene ─── */
+  .scene-final {
+    text-align: center;
+  }
+  .scene-final h1 {
+    font-size: 36px; font-weight: 900; line-height: 1.3;
+    background: linear-gradient(180deg, #fff 0%, #FFD58A 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 14px;
+  }
+  .scene-final .meta {
+    font-size: 14px; color: rgba(248,244,227,0.65); line-height: 1.7;
+    margin-bottom: 22px;
+  }
+  .scene-final .meta strong { color: #FFD58A; font-weight: 800; }
+  .scene-final .cta {
+    display: inline-block;
+    background: linear-gradient(135deg, #FFD700, #FFA947);
+    color: #1a0d35;
+    padding: 14px 24px; border-radius: 8px;
+    font-size: 14px; font-weight: 800;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    box-shadow: 0 8px 24px rgba(255,215,0,0.45);
+    letter-spacing: 0.04em;
+  }
+
+  .brand-bar {
+    position: absolute; bottom: 18px; left: 0; right: 0;
+    text-align: center;
+    font-size: 10px; letter-spacing: 0.45em; font-weight: 700;
+    color: rgba(248,244,227,0.40);
+    text-transform: uppercase;
+  }
+  .brand-bar .v { color: #FFD58A; }
+</style>
+</head>
+<body>
+
+<!-- Scene 1 — Hook -->
+<section class="scene scene-1">
+  <span class="stage-no">01 / 05</span>
+  <h1 class="title">11 个路由<br/>统一为米哈游游戏 UI</h1>
+  <p class="subtitle">
+    旧版每个页面都是"工具感" plain text header<br/>
+    新版统一 <strong style="color: #FFD58A">EventPill</strong>: 金色 gradient + 脉冲 dot + 5★ chip<br/>
+    像活动 banner, 不像设置面板。
+  </p>
+  <div class="marker">
+    <span class="dot"></span>
+    <span>v6.1 → v6.4 · 11 ROUTES MIGRATED</span>
+  </div>
+</section>
+
+<!-- Scene 2 — Fortune / FortuneHistory -->
+<section class="scene split-scene">
+  <span class="stage-no">02 / 05</span>
+  <div class="label">🔮 占卜 / 历史 / 牌库</div>
+  <div class="row before">
+    <span class="tag">BEFORE</span>
+    <span class="plain-header">🔮 班味占卜</span>
+  </div>
+  <div class="row after">
+    <span class="tag">AFTER</span>
+    <span class="event-pill"><span class="pdot"></span><span class="label">🔮 班味占卜</span><span class="stars">★★★★★</span></span>
+  </div>
+</section>
+
+<!-- Scene 3 — Talkshow / UGC -->
+<section class="scene split-scene">
+  <span class="stage-no">03 / 05</span>
+  <div class="label">🎤 段子 / UGC 投稿</div>
+  <div class="row before">
+    <span class="tag">BEFORE</span>
+    <span class="plain-header">🎤 段子投稿</span>
+  </div>
+  <div class="row after">
+    <span class="tag">AFTER</span>
+    <span class="event-pill"><span class="pdot"></span><span class="label">🎤 段子投稿 · 月度精选</span><span class="stars">★★★★★</span></span>
+  </div>
+</section>
+
+<!-- Scene 4 — Classic / Immersive / Squad -->
+<section class="scene split-scene">
+  <span class="stage-no">04 / 05</span>
+  <div class="label">🏢 鼠人公司 / 攒局 / 沉浸</div>
+  <div class="row before">
+    <span class="tag">BEFORE</span>
+    <span class="plain-header" style="background: linear-gradient(135deg,#4c9eff,#7c3aed); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">职场杀</span>
+  </div>
+  <div class="row after">
+    <span class="tag">AFTER</span>
+    <span class="event-pill"><span class="pdot"></span><span class="label">🏢 职场杀 · v6</span><span class="stars">★★★★★</span></span>
+  </div>
+</section>
+
+<!-- Scene 5 — CTA / final -->
+<section class="scene scene-final">
+  <span class="stage-no">05 / 05</span>
+  <h1>11 个路由<br/>一套 design tokens 推开了</h1>
+  <div class="meta">
+    🎮 <strong>米哈游</strong> design system · 5★ gold gradient + EVENT pill<br/>
+    🎤 <strong>新增 v6.5</strong> 周报生成器 (4 风格)<br/>
+    🍷 <strong>v6.3 拼版</strong> server-side PNG renderer<br/>
+    🪪 <strong>Y2K 班味卡</strong> 保留独立美学
+  </div>
+  <div class="cta">github.com/ChrisChen667788/office-zoo</div>
+</section>
+
+<div class="brand-bar">🐀 OFFICE ZOO · 班味剧场 · <span class="v">v6.5</span></div>
+
+<script>
+  const scenes = document.querySelectorAll('.scene');
+  const DUR = 6000;
+  let i = 0;
+  scenes[0].classList.add('active');
+  setInterval(() => {
+    scenes[i].classList.remove('active');
+    i = (i + 1) % scenes.length;
+    scenes[i].classList.add('active');
+  }, DUR);
+</script>
+</body>
+</html>

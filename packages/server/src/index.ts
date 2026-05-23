@@ -32,6 +32,7 @@ import { squadRoutes } from './routes/squad';
 import { dailyChallengeRoutes } from './routes/dailyChallenge';
 import { fortuneRoutes } from './routes/fortune';
 import { memoryRoutes } from './routes/memory';
+import { weeklyRoutes } from './routes/weekly';
 import { barRoutes } from './routes/bar';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -61,6 +62,9 @@ app.route('/api/fortune', fortuneRoutes);
 // forget arrives in v5.8.2; this version covers global / by-archetype /
 // by-game wipes (法务安全网 per RFC §5.4).
 app.route('/api/memory', memoryRoutes);
+// v6.5.0 — 周报生成器. 1 句关键事件 → 4 种风格周报 (阿里黑话 / PUA /
+// 装腔 / 直球). Viral 杠杆: 同一事件被 4 种话术包装后, 对照感强烈。
+app.route('/api/weekly', weeklyRoutes);
 // v6.2.0 — 🍺 深夜酒馆 1v1 dialogue surface. Writes into the same
 // memory_entries table so bar conversations carry over into classic
 // mode AI prompts (see routes/bar.ts header comment).
