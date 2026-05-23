@@ -34,13 +34,16 @@ OFFICE ZOO
 ```
 
 ### 1.2 Tagline (60 char max)
-推荐(英文,主推):
+
+**v6.5 新增首选(主推, 因周报是普世痛点):**
 ```
-AI rats remember everything — open-source workplace sim with memory.
+AI weekly-report generator — one sentence, four corporate voices.
 ```
-备选:
-- A: `Genshin meets office politics — 9 AI rats remember everything.`
-- B: `Open-source sim where AI coworkers hold grudges across games.`
+
+**老 v6.4 备选(AI memory 角度,适合给技术受众看的):**
+- A: `AI rats remember everything — open-source workplace sim with memory.`
+- B: `Genshin meets office politics — 9 AI rats remember everything.`
+- C: `Open-source sim where AI coworkers hold grudges across games.`
 
 ### 1.3 Description (260 char short pitch)
 ```

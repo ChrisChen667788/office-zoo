@@ -17,7 +17,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import EventPill from '../components/EventPill';
+import WeeklyShareCardModal from '../components/WeeklyShareCardModal';
 
+// Server /styles returns {id} (a catalog); /generate returns {style} (a per-result).
+// 拆成两个接口对齐 actual server field names.
 interface StyleSpec {
   id: 'alibaba' | 'pua' | 'posh' | 'direct';
   label: string;
@@ -25,7 +28,11 @@ interface StyleSpec {
   description: string;
 }
 
-interface StyleResult extends StyleSpec {
+interface StyleResult {
+  style: 'alibaba' | 'pua' | 'posh' | 'direct';
+  label: string;
+  emoji: string;
+  description: string;
   text: string;
   error: boolean;
 }
@@ -51,6 +58,7 @@ export default function Weekly() {
   const [err, setErr] = useState<string | null>(null);
   const [results, setResults] = useState<StyleResult[] | null>(null);
   const [copiedStyle, setCopiedStyle] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Load style metadata once for the empty-state preview cards
   const [styleSpecs, setStyleSpecs] = useState<StyleSpec[] | null>(null);
@@ -250,7 +258,18 @@ export default function Weekly() {
               })}
             </div>
 
-            <div className="text-center text-[10px] text-white/35 mt-6 leading-relaxed">
+            {/* v6.5.1 — 4 卡拼成 PNG 分享卡 (一键发圈) */}
+            <button
+              onClick={() => setShareOpen(true)}
+              className="w-full mt-5 py-3 rounded-xl text-sm font-black tracking-wide text-white"
+              style={{
+                background: 'linear-gradient(135deg, #FF5588, #7C3AED)',
+                boxShadow: '0 6px 22px rgba(124,58,237,0.36)',
+              }}>
+              📤 4 卡拼成分享图 PNG · 一键发圈
+            </button>
+
+            <div className="text-center text-[10px] text-white/35 mt-4 leading-relaxed">
               喜欢哪个? 直接发给老板 · 也可以截图发朋友圈 ·
               <button onClick={() => { setResults(null); setEvent(''); }}
                 className="text-white/70 hover:text-white/95 ml-1 underline decoration-dotted underline-offset-2">
@@ -287,6 +306,15 @@ export default function Weekly() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* v6.5.1 — 4 卡 PNG 分享卡 modal. 复用 fortuneShareCard 模式. */}
+      <WeeklyShareCardModal
+        open={shareOpen}
+        data={results ? { event, results: results.map((r) => ({
+          style: r.style, label: r.label, emoji: r.emoji, text: r.text,
+        })) } : null}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   );
 }

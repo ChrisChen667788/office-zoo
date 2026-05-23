@@ -7,6 +7,59 @@
 
 ---
 
+## v6.5.1 — 2026-05-23 · 周报 PNG 分享卡 + Landing 入口 + PROMO 补段
+
+### Added — Phase A: 周报 PNG 分享卡
+- `client/src/utils/weeklyShareCard.ts` (300 行) — 纯 Canvas 2D 渲染
+  1080×1350 IG-portrait PNG:
+  - 米哈游 cosmic 渐变底 + 顶部金色 EVENT pill + 关键事件大字 box
+  - 4 卡 2×2 grid, 每张独立 element color (青/玫红/金/橙) + 5★ shimmer 边框
+  - 自动 wrap + 长文 ellipsis 截断
+  - public API: `generate / copy / download / preview-url / system-share`
+- `client/src/components/WeeklyShareCardModal.tsx` (170 行):
+  - sibling of FortuneShareCardModal / BarClusterShareModal
+  - 4:5 PNG 预览 + 系统分享 / 复制 / 下载 三按钮 + capability detect
+- `Weekly.tsx` 结果区下方加 "📤 4 卡拼成分享图 PNG · 一键发圈" 主按钮
+  (粉紫 gradient, 跟"重新生成" 链接区分主次)
+
+### Added — Phase B: Landing 加 v6.5 入口
+- Landing.tsx 副玩法 chip 行新增:
+  - "📊 周报生成器 · v6.5 NEW ✨" 金色 gradient 按钮
+  - 跟 EventPill 同色系 (金 + 紫), 视觉上"主推新版本"等级感强
+  - title hint: "1 句关键事件 → 4 风格周报"
+- README "副玩法" 行同步:
+  ` 📊 **周报生成器 4 风格** (v6.5 新)`
+
+### Added — Phase C: PROMO 文案补 v6.5 段
+- `docs/PROMO_COPY.md` 顶部新增 "🔥 v6.5 周报生成器专用文案" 段
+  (排在 v6.1 之前, 优先级最高):
+  - Twitter / X 中英双版 hook (1 条爆款)
+  - 小红书 9 图正文 (含 4 风格实际 LLM 输出对比 + 老板反应注解)
+  - 即刻短帖 (含实测输出)
+  - V2EX 标题 2 候选
+- `docs/PROMO_MODELSCOPE.md` 顶部新增 "🔥 v6.5 周报生成器主推 Hook":
+  - Hook 3 行 + 三句话讲清楚
+- `docs/LAUNCH_SUBMISSION_PACK.md` §1.2 tagline:
+  - 新增首选: "AI weekly-report generator — one sentence, four corporate voices."
+  - 老 v6.4 tagline 降级为备选 ABC
+
+### Bug fix
+- Weekly.tsx StyleResult interface 字段名跟 server response 对齐
+  (server 返回 `style` 而不是 `id`)
+
+### Verified
+- ✓ typecheck 0 新 regression
+- ✓ Landing visual probe: 金色周报 chip 在副玩法行突出, 跟 EventPill 同源
+- ✓ Weekly empty state visual: 顶部 5★ EventPill + 4 风格预览 grid
+  渲染对齐
+
+### v6.5.1 体验意义
+周报生成器从 v6.5.0 的"4 卡平铺需要截图"升级到 v6.5.1 的"4 卡一键
+PNG 分享, 用户无需自己截图"。这是 viral coefficient 翻一倍的关键 —
+平台对图片转发的算法权重远高于纯文字 + 链接。
+
+---
+
 ## v6.5.0 — 2026-05-23 · 周报生成器 + Profile mihoyo + 对比 teaser
 
 ### Added — 🎯 Phase C: v6.5.0 周报生成器 (新玩法)

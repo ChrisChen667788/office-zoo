@@ -475,6 +475,21 @@ export default function Landing() {
                   >
                     🔮 班味占卜 · 抽今天的牌
                   </button>
+                  {/* v6.5.0 — 周报生成器入口. 金色配色, 跟米哈游 EventPill
+                      同色系, 视觉上跟其他 chip 形成"主推新版本"的等级感. */}
+                  <button
+                    onClick={() => navigate('/weekly')}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-bold text-[12px] transition hover-sheen"
+                    style={{
+                      color: '#1a0d35',
+                      background: 'linear-gradient(135deg, #FFD700, #FFA947)',
+                      border: '1px solid rgba(255,215,0,0.55)',
+                      boxShadow: '0 4px 14px rgba(255,215,0,0.28)',
+                    }}
+                    title="1 句关键事件 → 4 风格周报 (阿里黑话/PUA/装腔/直球)"
+                  >
+                    📊 周报生成器 · v6.5 NEW ✨
+                  </button>
                 </div>
               </>
             ) : (
