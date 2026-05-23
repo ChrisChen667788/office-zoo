@@ -287,7 +287,123 @@ export default function Settings() {
             <div className="text-center text-[11px] text-white/65 mt-4">{msg}</div>
           )}
         </section>
+
+        {/* v6.6 — 周报风格偏好 forget section */}
+        <WeeklyPrefsForget userId={myId} />
       </main>
     </div>
+  );
+}
+
+interface WeeklyPrefs {
+  counts: { alibaba: number; pua: number; posh: number; direct: number };
+  dominantStyle: string | null;
+  dominantLabel: string | null;
+  total: number;
+}
+
+function WeeklyPrefsForget({ userId }: { userId: string }) {
+  const [prefs, setPrefs] = useState<WeeklyPrefs | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const refetch = () => {
+    fetch('/api/weekly/preferences', { headers: { 'X-User-Id': userId } })
+      .then((r) => r.json() as Promise<WeeklyPrefs>)
+      .then(setPrefs)
+      .catch(() => setPrefs(null));
+  };
+  useEffect(refetch, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const forget = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await fetch('/api/weekly/preferences', {
+        method: 'DELETE',
+        headers: { 'X-User-Id': userId },
+      });
+      setMsg('✓ 周报风格偏好已清空 · 下次生成 4 风格无 boost');
+      setPrefs({ counts: { alibaba: 0, pua: 0, posh: 0, direct: 0 }, dominantStyle: null, dominantLabel: null, total: 0 });
+    } catch {
+      setMsg('清空失败, 请重试');
+    } finally {
+      setBusy(false);
+      setConfirming(false);
+    }
+  };
+
+  if (!prefs || prefs.total === 0) return null; // 没数据不渲染整段
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-base font-black text-white/95 mb-1">📊 周报风格偏好</h2>
+      <p className="text-[11px] text-white/55 leading-relaxed mb-4">
+        你给周报 4 种风格的点赞会累积, 下次生成时最爱的风格会自动 boost。
+        想让 AI 重新学习你的偏好? 一键清空。
+      </p>
+      <div className="rounded-2xl p-4 mb-3"
+        style={{
+          background: 'rgba(255,215,0,0.06)',
+          border: '1px solid rgba(255,215,0,0.32)',
+        }}>
+        <div className="text-[10px] tracking-[0.22em] uppercase mb-2" style={{ color: '#FFD58A' }}>
+          ✦ 当前累积
+        </div>
+        <div className="grid grid-cols-4 gap-2 mb-2">
+          {(['alibaba','pua','posh','direct'] as const).map((s) => {
+            const labels = { alibaba: '🧩 阿里', pua: '🎭 PUA', posh: '🎩 装腔', direct: '💢 直球' };
+            const isDom = prefs.dominantStyle === s;
+            return (
+              <div key={s} className="text-center py-2 rounded-lg"
+                style={{
+                  background: isDom ? 'linear-gradient(135deg, rgba(255,215,0,0.20), rgba(255,169,71,0.10))' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${isDom ? 'rgba(255,215,0,0.55)' : 'rgba(255,255,255,0.10)'}`,
+                }}>
+                <div className="text-xs font-bold" style={{ color: isDom ? '#FFD58A' : 'rgba(255,255,255,0.65)' }}>
+                  {labels[s]}
+                </div>
+                <div className="text-base font-black mt-0.5"
+                  style={{ color: isDom ? '#FFD700' : 'rgba(255,255,255,0.85)' }}>
+                  {prefs.counts[s]}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="text-[10px] text-white/55 text-center">
+          {prefs.dominantLabel
+            ? <>当前主导 · <span className="font-bold" style={{ color: '#FFD58A' }}>{prefs.dominantLabel}</span> 已 armed for boost</>
+            : <>共 {prefs.total} 次点赞 · 需 ≥ 3 才触发 boost</>}
+        </div>
+      </div>
+      {confirming ? (
+        <div className="flex gap-2">
+          <button onClick={forget} disabled={busy}
+            className="flex-1 py-2.5 rounded-xl text-xs font-black text-white disabled:opacity-50"
+            style={{ background: '#ef4444' }}>
+            {busy ? '清空中…' : '确认: 清空我的周报风格偏好'}
+          </button>
+          <button onClick={() => setConfirming(false)} disabled={busy}
+            className="px-4 rounded-xl text-xs text-white/70"
+            style={{ background: 'rgba(255,255,255,0.06)' }}>
+            取消
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => setConfirming(true)}
+          className="w-full py-2.5 rounded-xl text-xs font-bold text-rose-300/95"
+          style={{
+            background: 'rgba(239,68,68,0.10)',
+            border: '1px solid rgba(239,68,68,0.40)',
+          }}>
+          🔄 清空周报风格偏好
+        </button>
+      )}
+      {msg && (
+        <div className="text-center text-[11px] text-white/65 mt-3">{msg}</div>
+      )}
+    </section>
   );
 }

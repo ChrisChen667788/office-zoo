@@ -29,12 +29,22 @@ export interface BarClusterShareModalProps {
   archetypeLabel?: string;
 }
 
+interface TeamProfile {
+  teamLabel: string | null;
+  teamDominant: string | null;
+  teamTotal: number;
+  perFriend: Array<{ name: string; dominantLabel: string | null; total: number }>;
+  chemistry: string;
+}
+
 export default function BarClusterShareModal({
   open, clusterId, archetype, onClose, archetypeLabel,
 }: BarClusterShareModalProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgErr, setImgErr] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  // v6.6 — team style profile (拉自 server)
+  const [teamProfile, setTeamProfile] = useState<TeamProfile | null>(null);
 
   const imgUrl = useMemo(() => {
     if (!clusterId) return null;
@@ -52,8 +62,16 @@ export default function BarClusterShareModal({
       setImgLoaded(false);
       setImgErr(false);
       setActionMsg(null);
+      setTeamProfile(null);
+      return;
     }
-  }, [open]);
+    if (!clusterId) return;
+    // v6.6 — 拉团队风格画像 (异步, 不阻塞 PNG 渲染)
+    fetch(`/api/bar/cluster/${clusterId}/team-style-profile`)
+      .then((r) => r.json() as Promise<TeamProfile>)
+      .then(setTeamProfile)
+      .catch(() => setTeamProfile(null));
+  }, [open, clusterId]);
 
   /** Fetch the rendered PNG as a Blob for clipboard / download / share. */
   const fetchBlob = async (): Promise<Blob | null> => {
@@ -217,6 +235,36 @@ export default function BarClusterShareModal({
                 </div>
               )}
             </div>
+
+            {/* v6.6 — 团队风格画像 (基于 weekly preferences 聚合) */}
+            {teamProfile && teamProfile.teamTotal > 0 && (
+              <div className="rounded-xl p-3 mb-3"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255,215,0,0.10), rgba(176,134,255,0.04))',
+                  border: '1px solid rgba(255,215,0,0.42)',
+                }}>
+                <div className="text-[10px] tracking-[0.22em] uppercase mb-1.5 font-bold" style={{ color: '#FFD58A' }}>
+                  🎭 团队风格画像
+                </div>
+                <p className="text-[12px] text-white/90 leading-relaxed mb-2">
+                  {teamProfile.chemistry}
+                </p>
+                {teamProfile.perFriend.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {teamProfile.perFriend.map((f, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
+                        style={{
+                          background: 'rgba(255,255,255,0.06)',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                          color: 'rgba(255,255,255,0.85)',
+                        }}>
+                        {f.name} {f.dominantLabel ? `· ${f.dominantLabel}` : '· 未点赞'}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Action buttons */}
             {canSystemShare ? (

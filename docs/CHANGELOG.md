@@ -7,6 +7,74 @@
 
 ---
 
+## v6.6.0 — 2026-05-23 · self-tuning 完整闭环 (forget + A/B + 历史 + 团队)
+
+### Why
+v6.5.2 加了 self-tuning, 但缺反向通道 (用户怎么"撤回"偏好), 也没有
+"AI 在听你的"具象证据。v6.6 把闭环 5 个 surface 补齐: forget /
+A/B 对比 / 历史可视化 / 团队画像 + 跨路由 link。
+
+### Added — Phase A: Forget UI (Settings 加按钮)
+- `Settings.tsx` 新增 `<WeeklyPrefsForget />` section:
+  - 自动渲染 4 风格 like counts 矩阵 + dominant 高亮
+  - 2-step confirm "清空我的周报风格偏好" 按钮
+  - 仅当用户已有 ≥ 1 次点赞才渲染整段
+  - 后端复用 v6.5.2 已就绪的 `DELETE /api/weekly/preferences`
+
+### Added — Phase C: A/B 对比 endpoint + modal
+- `server/src/routes/weekly.ts` 新 `POST /api/weekly/compare`:
+  - 输入 {event, style}, 并行生成 boosted (temp 1.0 + 极致化 prompt)
+    和 plain (temp 0.85, 中性) 两版
+  - 返回 { boosted: { text }, plain: { text }, likesForThisStyle }
+- `Weekly.tsx` boosted 卡新增 "🔍 看'你的偏好让 AI 变了多少' · A/B 对比"
+  按钮:
+  - 点击 → 拉 compare endpoint → 弹 modal 左右双栏对比
+  - 左: 🌚 PLAIN (无 boost) / 右: ⚡ BOOSTED (带 boost)
+  - 底部 hint "这就是 self-tuning · 截图发圈 #AI在听我的"
+
+### Added — Phase B: /weekly/me 偏好可视化
+- 新 `client/src/routes/WeeklyMe.tsx` (165 行) — 路由 `/weekly/me`:
+  - 顶部 summary: 总点赞数 + dominant 状态 + 阈值提示
+  - 4 风格 bar chart (横向 progress bar + 配色 + dominant 高光)
+  - 每行配 byline (颗粒度/拉齐/闭环 等关键词提示)
+  - 空状态优雅引导新用户先去 /weekly 点赞
+- `App.tsx` 路由 `/weekly/me` 注册 (ABOVE `/weekly` 防 segment 冲突)
+- `Weekly.tsx` header EventPill 右侧加 "📊 我的" link 入口
+
+### Added — Phase D: 团队风格画像
+- `server/src/routes/bar.ts` 新 `GET /api/bar/cluster/:id/team-style-profile`:
+  - 遍历 cluster 所有 participants → 拉 weeklyPreferences counts
+  - 聚合: 4 风格累计 + teamDominant + perFriend × dominant
+  - 简易 chemistry 一行话生成 (基于风格 set:
+    全员同风格 = "信仰一致同事局" / 全员不同 = "互补型团队" /
+    主导 + 反骨 = "正在分化")
+- `BarClusterShareModal.tsx` 新增 "🎭 团队风格画像" section:
+  - PNG 预览上方显示 chemistry 描述句 + 每朋友 dominant chip
+  - 仅当 teamTotal > 0 时渲染 (新 cluster 无人点赞自然隐藏)
+
+### Verified UAT
+- ✓ typecheck server / client 0 新 regression
+- ✓ A/B compare endpoint: 同 event 同 style 返回 boosted + plain 两版
+- ✓ team-style-profile endpoint: 3 友 cluster (alibaba+pua+empty)
+  返回正确 aggregate + perFriend + chemistry "互补型团队"
+
+### v6.6 闭环总结
+```
+v6.5.0  生成 4 风格
+v6.5.1  PNG 一键拼图分享
+v6.5.2  like → boost (server → client 反馈)
+v6.6    forget (Settings) + A/B 对比 (具象证据) +
+        历史可视化 (/weekly/me) + 团队画像 (bar cluster)
+       = 完整 self-tuning 闭环
+```
+
+### Files
+- 新 3: WeeklyMe.tsx / weeklyPreferenceStore (v6.5.2 已有, 这次复用)
+- 改 6: Settings / Weekly / BarClusterShareModal / weekly.ts /
+  bar.ts / App.tsx
+
+---
+
 ## v6.5.2 — 2026-05-23 · 周报 LLM 风格 self-tuning ("AI 在听你的")
 
 ### Why

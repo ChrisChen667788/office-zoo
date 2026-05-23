@@ -309,3 +309,74 @@ barRoutes.get('/cluster/:id', async (c) => {
     })),
   });
 });
+
+/** v6.6 — 团队风格画像
+ *  遍历 cluster 所有 participants, join weeklyPreferences, 算出团队偏好聚合。
+ *  返回:
+ *    aggregate: 4 风格累计 likes 总和 (该 cluster 全员)
+ *    dominant:  累计最多的 style
+ *    perFriend: 每个朋友的 dominant style (匿名化 displayName)
+ *    chemistry: 简易 1-句话 chemistry 描述 (基于风格分布)
+ *  给 BarClusterShareModal 显示一段"团队画像", 也可以未来塞进 PNG 渲染。
+ */
+barRoutes.get('/cluster/:id/team-style-profile', async (c) => {
+  const clusterId = c.req.param('id');
+  const cluster = await getCluster(clusterId);
+  if (!cluster) return c.json({ error: 'not found' }, 404);
+  // lazy import 避免循环依赖
+  const { getCounts, dominantStyle } = await import('../services/weeklyPreferenceStore');
+  const STYLE_LABEL: Record<string, string> = {
+    alibaba: '🧩 阿里黑话派', pua: '🎭 PUA 受害者', posh: '🎩 装腔派', direct: '💢 直球派',
+  };
+  const aggregate = { alibaba: 0, pua: 0, posh: 0, direct: 0 };
+  const perFriend: Array<{ name: string; dominantStyle: string | null; dominantLabel: string | null; total: number }> = [];
+  for (const [i, p] of cluster.participants.entries()) {
+    const counts = await getCounts(p.userId);
+    aggregate.alibaba += counts.alibaba;
+    aggregate.pua     += counts.pua;
+    aggregate.posh    += counts.posh;
+    aggregate.direct  += counts.direct;
+    const dom = dominantStyle(counts);
+    perFriend.push({
+      name: p.displayName ?? `朋友 ${i + 1}`,
+      dominantStyle: dom,
+      dominantLabel: dom ? STYLE_LABEL[dom] : null,
+      total: counts.alibaba + counts.pua + counts.posh + counts.direct,
+    });
+  }
+  // Team-level dominant (跨所有 friends 累加最多的)
+  const teamTotal = aggregate.alibaba + aggregate.pua + aggregate.posh + aggregate.direct;
+  let teamDominant: string | null = null;
+  let teamLabel: string | null = null;
+  if (teamTotal >= 5) {
+    const sorted = (Object.entries(aggregate) as [string, number][]).sort((a, b) => b[1] - a[1]);
+    if (sorted.length >= 2 && sorted[0][1] > sorted[1][1]) {
+      teamDominant = sorted[0][0];
+      teamLabel = STYLE_LABEL[teamDominant] ?? null;
+    }
+  }
+  // 简易 chemistry 一行话
+  const styles = perFriend.map((f) => f.dominantStyle).filter((s): s is string => !!s);
+  const uniq = new Set(styles);
+  let chemistry: string;
+  if (styles.length === 0) {
+    chemistry = '团队还没有人形成风格偏好 — 多玩几次会更准。';
+  } else if (uniq.size === 1) {
+    chemistry = `全员都偏向${STYLE_LABEL[[...uniq][0]]}, 这是一桌"信仰一致"的同事局 🤝`;
+  } else if (uniq.size === styles.length) {
+    chemistry = `每个朋友风格不同, 这是"互补型团队"——开会发言会精彩 🎭`;
+  } else {
+    chemistry = `主流偏向${teamLabel ?? '混搭'}, 也有一两个反骨 — 团队还在分化, 局够多了再看 ⚖️`;
+  }
+  return c.json({
+    clusterId,
+    archetype: cluster.archetype,
+    participantCount: cluster.participants.length,
+    aggregate,
+    teamDominant,
+    teamLabel,
+    teamTotal,
+    perFriend,
+    chemistry,
+  });
+});

@@ -80,6 +80,10 @@ export default function Weekly() {
   // v6.5.2 — self-tuning preferences. 自启动时从 server 拉, 点赞后实时更新
   const [prefs, setPrefs] = useState<Preferences | null>(null);
   const [likedJustNow, setLikedJustNow] = useState<string | null>(null);
+  // v6.6 — A/B 对比 modal state
+  const [compareStyle, setCompareStyle] = useState<StyleResult | null>(null);
+  const [compareData, setCompareData] = useState<{ boosted: string; plain: string; likes: number } | null>(null);
+  const [comparing, setComparing] = useState(false);
 
   // Load style metadata once for the empty-state preview cards
   const [styleSpecs, setStyleSpecs] = useState<StyleSpec[] | null>(null);
@@ -134,6 +138,40 @@ export default function Weekly() {
     } catch { /* silent */ }
   };
 
+  /** v6.6 — open A/B compare: fetch boosted + plain versions of same
+   *  style for current event, show side-by-side modal. */
+  const openCompare = async (card: StyleResult) => {
+    setCompareStyle(card);
+    setCompareData(null);
+    setComparing(true);
+    try {
+      const resp = await fetch('/api/weekly/compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': myId },
+        body: JSON.stringify({ event: event.trim(), style: card.style }),
+      });
+      const json = await resp.json() as {
+        boosted?: { text: string };
+        plain?: { text: string };
+        likesForThisStyle?: number;
+        error?: string;
+      };
+      if (json.boosted && json.plain) {
+        setCompareData({
+          boosted: json.boosted.text,
+          plain: json.plain.text,
+          likes: json.likesForThisStyle ?? 0,
+        });
+      } else {
+        setCompareData({ boosted: '[对比生成失败]', plain: json.error ?? '[失败]', likes: 0 });
+      }
+    } catch {
+      setCompareData({ boosted: '[网络错误]', plain: '[网络错误]', likes: 0 });
+    } finally {
+      setComparing(false);
+    }
+  };
+
   /** v6.5.2 — give one upvote to a style. Server bumps user counts;
    *  next generate will boost dominant style's temperature + prompt. */
   const likeStyle = async (style: 'alibaba' | 'pua' | 'posh' | 'direct') => {
@@ -165,7 +203,13 @@ export default function Weekly() {
           ← 首页
         </button>
         <EventPill stars={5}>📊 周报生成器 · v6.5</EventPill>
-        <span className="w-12" />
+        {/* v6.6 — 我的偏好仪表盘入口 */}
+        <button onClick={() => navigate('/weekly/me')}
+          className="text-[11px] text-white/55 hover:text-white/95 transition px-2 py-1 rounded"
+          style={{ background: 'rgba(255,215,0,0.10)', border: '1px solid rgba(255,215,0,0.30)' }}
+          title="看我点过的赞 + 当前主导风格">
+          📊 我的
+        </button>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 md:px-6 pb-16">
@@ -354,6 +398,19 @@ export default function Weekly() {
                     <p className={`text-[13px] leading-relaxed whitespace-pre-wrap ${r.error ? 'text-rose-300/70 italic' : 'text-white/90'}`}>
                       {r.text}
                     </p>
+                    {/* v6.6 — A/B 对比按钮 (仅 boosted 卡才有意义) */}
+                    {r.boosted && !r.error && (
+                      <button
+                        onClick={() => openCompare(r)}
+                        className="mt-3 w-full py-2 rounded-lg text-[11px] font-bold transition"
+                        style={{
+                          background: 'rgba(255,215,0,0.10)',
+                          border: '1px dashed rgba(255,215,0,0.45)',
+                          color: '#FFD58A',
+                        }}>
+                        🔍 看"你的偏好让 AI 变了多少" · A/B 对比
+                      </button>
+                    )}
                   </motion.div>
                 );
               })}
@@ -416,6 +473,77 @@ export default function Weekly() {
         })) } : null}
         onClose={() => setShareOpen(false)}
       />
+
+      {/* v6.6 — A/B 对比 modal */}
+      <AnimatePresence>
+        {compareStyle && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center px-4"
+            style={{ background: 'rgba(2,2,12,0.78)', backdropFilter: 'blur(8px)' }}
+            onClick={() => setCompareStyle(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.97 }}
+              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              className="relative w-full max-w-lg rounded-3xl p-5 md:p-6 max-h-[92vh] overflow-y-auto"
+              style={{
+                background: 'linear-gradient(180deg, #15122e, #0d0b25)',
+                border: '1px solid rgba(255,215,0,0.42)',
+                boxShadow: '0 24px 72px rgba(0,0,0,0.6)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="text-base font-black tracking-tight text-white/95">
+                  🔍 A/B 对比 · {compareStyle.emoji} {compareStyle.label}
+                </h3>
+                <button onClick={() => setCompareStyle(null)}
+                  className="text-xs text-white/55 hover:text-white/95 transition px-2 py-1 rounded">
+                  ✕
+                </button>
+              </div>
+              <p className="text-[11px] text-white/55 leading-relaxed mb-4">
+                左: 中性(没有 boost) · 右: 用你的 {compareData?.likes ?? prefs?.counts[compareStyle.style] ?? 0} 次点赞 boost 后的 AI 输出。<br/>
+                <span className="text-white/40">同一事件 · 同一 prompt 骨架 · 只差温度 + 一句"极致化"指令 = 你的影响。</span>
+              </p>
+              {comparing ? (
+                <div className="text-center py-12 text-white/55">
+                  <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.4, repeat: Infinity }}
+                    className="text-3xl mb-2">🔄</motion.div>
+                  <div className="text-xs">并行生成 boosted + plain 两版…</div>
+                </div>
+              ) : compareData ? (
+                <div className="space-y-3">
+                  <div className="rounded-xl p-3"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                    <div className="text-[10px] tracking-[0.2em] uppercase text-white/45 mb-2 font-bold">
+                      🌚 PLAIN (temp 0.85, 无强化)
+                    </div>
+                    <p className="text-[13px] leading-relaxed text-white/85 whitespace-pre-wrap">{compareData.plain}</p>
+                  </div>
+                  <div className="rounded-xl p-3"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(255,215,0,0.10), rgba(255,79,163,0.06))',
+                      border: '1px solid rgba(255,215,0,0.55)',
+                    }}>
+                    <div className="text-[10px] tracking-[0.2em] uppercase mb-2 font-bold" style={{ color: '#FFD58A' }}>
+                      ⚡ BOOSTED (temp 1.0 + 极致化 prompt)
+                    </div>
+                    <p className="text-[13px] leading-relaxed text-white/95 whitespace-pre-wrap">{compareData.boosted}</p>
+                  </div>
+                  <div className="text-center text-[10px] text-white/45 mt-2">
+                    这就是 self-tuning · 截图发圈 #AI在听我的
+                  </div>
+                </div>
+              ) : null}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

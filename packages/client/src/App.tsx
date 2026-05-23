@@ -25,6 +25,7 @@ import FortuneHistory from './routes/FortuneHistory';
 import Settings from './routes/Settings';
 import TalkshowUgc from './routes/TalkshowUgc';
 import Weekly from './routes/Weekly';
+import WeeklyMe from './routes/WeeklyMe';
 import Bar from './routes/Bar';
 
 export default function App() {
@@ -48,6 +49,8 @@ export default function App() {
           isn't needed (different segment); flat route. */}
       <Route path="/talkshow/ugc" element={<TalkshowUgc />} />
       {/* v6.5.0 — 周报生成器: 1 句关键事件 → 4 风格周报 */}
+      {/* /weekly/me lives ABOVE /weekly so the literal segment wins. */}
+      <Route path="/weekly/me" element={<WeeklyMe />} />
       <Route path="/weekly" element={<Weekly />} />
       {/* v1.0.0 — Premium paywall + demo checkout. */}
       <Route path="/premium" element={<Premium />} />

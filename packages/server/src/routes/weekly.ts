@@ -264,6 +264,71 @@ weeklyRoutes.delete('/preferences', async (c) => {
   return c.json({ cleared: true });
 });
 
+/* ─── v6.6 A/B 对比 endpoint ─────────────────────────────────────
+ * 给定 event + 1 个 style, 并行生成"boosted (用 user 偏好)" 和
+ * "ungenboosted (无 boost, 中性)" 两版, 让用户直观看到"自己的偏好
+ * 让 AI 变成什么样"。Viral meta angle: 截图发"我点了几次赞, AI
+ * 的输出就变成了这样"。 */
+const CompareSchema = z.object({
+  event: z.string().min(8).max(300),
+  style: z.enum(['alibaba', 'pua', 'posh', 'direct']),
+});
+
+weeklyRoutes.post('/compare', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId || userId.length < 8) {
+    return c.json({ error: '需要 X-User-Id header (登录后才能 A/B 对比)' }, 400);
+  }
+  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? c.req.header('host') ?? 'unknown';
+  if (!generateLimiter.check(ip).ok) {
+    return c.json({ error: '生成太快, 1 小时最多 5 份周报' }, 429);
+  }
+  const v = await validateBody(c, CompareSchema);
+  if (!v.ok) return v.response;
+
+  const counts = await getCounts(userId);
+  const totalLikes = counts.alibaba + counts.pua + counts.posh + counts.direct;
+  const style = v.data.style as WeeklyStyle;
+  const spec = STYLES[style];
+  const event = v.data.event.trim();
+
+  // 两个并行调用 — 一个 boosted (高 temp + 极致化 prompt), 一个 plain
+  const boostedSys = `${spec.systemPrompt}
+
+【用户偏好强化】
+用户在过去给"${spec.label}"点过最多赞 (累计 ${counts[style]} 次), 说明他特别喜欢这种风格。请把你的特征发挥到极致, 比你平时更鲜明、更夸张、更密集 — 但仍保持不超出 250 字。`;
+
+  const [boostedRes, plainRes] = await Promise.allSettled([
+    callLLMWithTimeout('SPEECH', {
+      model: openai()(model()),
+      system: boostedSys,
+      prompt: `本周关键事件: ${event}\n\n请按你的风格写出周报段落.`,
+      maxTokens: 480, temperature: 1.0,
+    }),
+    callLLMWithTimeout('SPEECH', {
+      model: openai()(model()),
+      system: spec.systemPrompt, // 中性, 没有偏好强化
+      prompt: `本周关键事件: ${event}\n\n请按你的风格写出周报段落.`,
+      maxTokens: 480, temperature: 0.85,
+    }),
+  ]);
+
+  const pick = (r: typeof boostedRes): string =>
+    r.status === 'fulfilled' && r.value.ok ? r.value.text.trim() : '[生成失败]';
+
+  return c.json({
+    event,
+    style,
+    label: spec.label,
+    emoji: spec.emoji,
+    totalLikes,
+    likesForThisStyle: counts[style],
+    boosted: { text: pick(boostedRes), temperature: 1.0, promptSuffix: true },
+    plain:   { text: pick(plainRes),   temperature: 0.85, promptSuffix: false },
+  });
+});
+
 /** Static catalogue — frontend uses this to render style cards before submit. */
 weeklyRoutes.get('/styles', (c) => {
   return c.json({
