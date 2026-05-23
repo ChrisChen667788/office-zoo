@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from 'react';
 import PersonaCard from './PersonaCard';
+import { getUserId } from '../../utils/userId';
 
 interface RatStats {
   name: string;
@@ -34,6 +35,22 @@ interface RatStats {
     lastGameId: string;
     lastAt: number;
   } | null;
+}
+
+/** v6.10 — payload shape of /api/characters/me/top items: static
+ *  CharacterCard + per-user watched ledger. */
+interface WatchedRat {
+  name: string;
+  epithet: string;
+  emoji: string;
+  catchphrases: [string, string, string];
+  backstory: string;
+  watched: {
+    views: number;
+    winsWatched: number;
+    lossesWatched: number;
+    lastAt: number;
+  };
 }
 
 interface CategoryWinner {
@@ -101,12 +118,29 @@ function pickWinners(rats: RatStats[]): CategoryWinner[] {
 
 export default function TopRatsPanel() {
   const [rats, setRats] = useState<RatStats[] | null>(null);
+  const [personalTop, setPersonalTop] = useState<WatchedRat[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        // v6.10 — first try the user's personalized "你看过的 Top 3".
+        // If empty (user hasn't watched any games yet), fall through to
+        // the global leaderboard fetch.
+        const userId = getUserId();
+        const meResp = await fetch('/api/characters/me/top?n=3', {
+          headers: { 'X-User-Id': userId },
+        });
+        if (meResp.ok) {
+          const meData = await meResp.json();
+          const top = (meData?.top ?? []) as WatchedRat[];
+          if (!cancelled && top.length > 0) {
+            setPersonalTop(top);
+            return; // skip global fetch — personalized branch wins
+          }
+        }
+        // Fallback — global leaderboard. Same as the v6.9 behaviour.
         const r = await fetch('/api/characters');
         if (!r.ok) { setError(`HTTP ${r.status}`); return; }
         const data = await r.json();
@@ -118,7 +152,83 @@ export default function TopRatsPanel() {
     return () => { cancelled = true; };
   }, []);
 
-  // While loading — render a slim skeleton so the panel reserves space.
+  // v6.10 — personalized branch wins when present (user has watched ≥ 1
+  // game). Renders "你看过的 Top 3" with per-user watched ledger.
+  if (personalTop && personalTop.length > 0) {
+    return (
+      <div style={{ width: '100%', maxWidth: 512, marginTop: 24 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 10, padding: '0 4px',
+        }}>
+          <div style={{
+            fontSize: 12, fontWeight: 900, letterSpacing: '0.18em',
+            color: '#FFD700', textTransform: 'uppercase',
+          }}>👀 你看过的鼠人 · TOP {personalTop.length}</div>
+          <div style={{ fontSize: 9, color: 'rgba(248,244,227,0.4)', fontWeight: 600 }}>
+            v6.10 个人化
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {personalTop.map((r, i) => {
+            const tint = i === 0 ? '#FFD700' : i === 1 ? '#B086FF' : '#FF4FA3';
+            const winRate = r.watched.winsWatched + r.watched.lossesWatched > 0
+              ? Math.round((r.watched.winsWatched / (r.watched.winsWatched + r.watched.lossesWatched)) * 100)
+              : 0;
+            return (
+              <div key={r.name} style={{ flex: '1 1 150px', minWidth: 150 }}>
+                <PersonaCard playerName={r.name} personality={undefined}>
+                  <div style={{
+                    position: 'relative', cursor: 'pointer',
+                    padding: '12px 12px 14px', borderRadius: 14,
+                    background: `linear-gradient(165deg, rgba(20,15,40,0.85) 0%, ${tint}14 100%)`,
+                    border: `1px solid ${tint}55`,
+                    boxShadow: `0 0 16px ${tint}22, inset 0 0 0 1px rgba(255,255,255,0.04)`,
+                    display: 'flex', flexDirection: 'column', gap: 6,
+                  }}>
+                    {/* Rank chip — 第 N 名 */}
+                    <div style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontSize: 9, padding: '2px 7px', borderRadius: 999,
+                      background: `${tint}28`, color: tint,
+                      fontWeight: 800, letterSpacing: '0.06em',
+                      alignSelf: 'flex-start',
+                    }}>
+                      {i === 0 ? '🥇 你的本命' : i === 1 ? '🥈 老熟人' : '🥉 看过几面'}
+                    </div>
+                    {/* Rat emoji + epithet */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 28 }}>{r.emoji}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 900,
+                          color: '#F8F4E3', letterSpacing: '-0.01em',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>{r.epithet}</span>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+                          color: 'rgba(248,244,227,0.5)',
+                        }}>{r.name.toUpperCase()}</span>
+                      </div>
+                    </div>
+                    {/* Watched stats */}
+                    <div style={{
+                      fontSize: 11, color: tint, fontWeight: 800,
+                      letterSpacing: '0.02em',
+                    }}>
+                      看了 {r.watched.views} 局 · 赢 {winRate}%
+                    </div>
+                  </div>
+                </PersonaCard>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // While loading (no personal data + no global data yet) — slim skeleton.
   if (rats === null && !error) {
     return (
       <div style={{ width: '100%', maxWidth: 512, marginTop: 24 }}>
@@ -170,7 +280,7 @@ export default function TopRatsPanel() {
           color: '#FFD700', textTransform: 'uppercase',
         }}>🏆 全员鼠人榜单 · TOP 3</div>
         <div style={{ fontSize: 9, color: 'rgba(248,244,227,0.4)', fontWeight: 600 }}>
-          v6.10 → 「你看过的」
+          看一局 Classic 解锁个人化
         </div>
       </div>
 

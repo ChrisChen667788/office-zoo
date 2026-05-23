@@ -24,6 +24,7 @@ import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
 import { logger } from '../utils/logger';
 import { recordGameResults, recordVoteAgainst } from '../services/characterStatsStore';
+import { recordSpectatorViews } from '../services/userCharacterViewsStore';
 import { assignRoomActivity, commuteCaption, pickAnchor, pickCarriedItem } from './activity';
 // Activity + PlayerTickInfo are new — added separately to keep the diff
 // against the original import block obvious. PlayerState is already imported
@@ -200,6 +201,13 @@ export class GameEngine extends EventEmitter {
     // recordGameResults swallows its own errors so a stats write can never
     // block GAME_OVER signaling. Stats power PersonaCard's 战绩 line.
     void recordGameResults(this.state);
+    // v6.10 — fold spectator's per-character views into their personal
+    // ledger. Only when spectatorUserId is set (anonymous spectators
+    // don't accumulate personalized history). Powers personalized
+    // "你看过的 Top 3" on /profile.
+    if (this.spectatorUserId) {
+      void recordSpectatorViews(this.spectatorUserId, this.state);
+    }
     this.running = false;
   }
 
