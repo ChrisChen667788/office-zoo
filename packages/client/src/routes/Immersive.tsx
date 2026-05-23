@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
+import PersonaCard from '../components/character/PersonaCard';
 import {
   type GhostCommentItem,
   useGameId, usePhase, usePlayers, useRound, useTaskProgress,
@@ -608,9 +609,19 @@ export default function Immersive() {
                       transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }} />
                   ))}
                 </div>
-                <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.95)' }}>
-                  {currentSpeech.playerName}
-                </span>
+                {/* v6.8 — PersonaCard hover/click for IP + 反差 chip. The
+                     enclosing span keeps the existing color/weight. */}
+                <PersonaCard
+                  playerName={currentSpeech.playerName}
+                  personality={players.find((p) => p.id === currentSpeech.playerId)?.personality}
+                >
+                  <span className="text-sm font-bold" style={{
+                    color: 'rgba(255,255,255,0.95)',
+                    borderBottom: '1px dashed rgba(255,215,0,0.4)',
+                  }}>
+                    {currentSpeech.playerName}
+                  </span>
+                </PersonaCard>
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full tracking-wide"
                   style={{
                     color: ROLE_VISUALS[currentSpeech.role || '']?.color || '#888',

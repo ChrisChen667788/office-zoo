@@ -10,3 +10,4 @@ export * from './data/archetypes';
 export * from './data/squad';
 export * from './data/fortune';
 export * from './data/workplace2026';
+export * from './data/characters';

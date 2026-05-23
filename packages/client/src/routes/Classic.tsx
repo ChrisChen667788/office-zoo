@@ -20,6 +20,7 @@ import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
 import HighlightReel from '../components/game/HighlightReel';
 import { ROLE_LABELS, teamForRole } from '../constants/roles';
 import EventPill from '../components/EventPill';
+import PersonaCard from '../components/character/PersonaCard';
 import { uid } from '../utils/uid';
 import { playTtsFromUrl, stopTts, speakViaBrowserTTS, hasBrowserTTS } from '../utils/audioUnlock';
 import { phaseIcons, personalityIcons, glyphIcons, Icon } from '../constants/icons';
@@ -492,12 +493,19 @@ export default function Classic() {
                   borderBottom: '1px solid rgba(255,255,255,0.03)',
                   color: 'rgba(255,255,255,0.7)',
                 }}>
-                  <span style={{
-                    fontWeight: 700,
-                    color: s.team === 'cat' ? '#2fb8ff' : s.team === 'dog' ? '#ff4757' : '#a855f7',
-                  }}>
-                    {s.playerName}
-                  </span>
+                  {/* v6.8 — wrap speaker name in PersonaCard so the user
+                       can hover/click to see this rat's epithet + 反差 chip
+                       + catchphrases. Keeps the original color coding
+                       (cat blue / dog red / neutral violet) inside. */}
+                  <PersonaCard playerName={s.playerName} personality={speaker?.personality}>
+                    <span style={{
+                      fontWeight: 700,
+                      color: s.team === 'cat' ? '#2fb8ff' : s.team === 'dog' ? '#ff4757' : '#a855f7',
+                      borderBottom: '1px dashed rgba(255,215,0,0.4)',
+                    }}>
+                      {s.playerName}
+                    </span>
+                  </PersonaCard>
                   {pLabel && (
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 2,
