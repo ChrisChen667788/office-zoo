@@ -116,31 +116,56 @@ function pickWinners(rats: RatStats[]): CategoryWinner[] {
   ];
 }
 
+// v6.11 — trend summary shape returned by /api/characters/me/trend.
+interface TrendSummary {
+  windowDays: number;
+  totalEvents: number;
+  dominantPersonality: string | null;
+  personalityCounts: Record<string, number>;
+}
+
+// v6.11 — personality labels for the trend chip. Mirrors the dict in
+// PersonaCard; kept duplicated to avoid coupling. Promote to shared
+// when this dict appears in a 3rd place.
+const PERSONALITY_LABELS_LITE: Record<string, { label: string; emoji: string; color: string }> = {
+  social_butterfly:   { label: '社牛',   emoji: '🦋', color: '#FF6B9D' },
+  introvert:          { label: '社恐',   emoji: '🐢', color: '#7EC8E3' },
+  contrarian:         { label: '杠精',   emoji: '🔨', color: '#FF4444' },
+  sycophant:          { label: '舔狗',   emoji: '🐶', color: '#FFB347' },
+  passive_aggressive: { label: '阴阳人', emoji: '🌗', color: '#B19CD9' },
+  hot_tempered:       { label: '暴躁哥', emoji: '🌋', color: '#FF6347' },
+  smooth_operator:    { label: '老狐狸', emoji: '🦊', color: '#DAA520' },
+  workaholic:         { label: '卷王',   emoji: '📈', color: '#00CED1' },
+};
+
 export default function TopRatsPanel() {
   const [rats, setRats] = useState<RatStats[] | null>(null);
   const [personalTop, setPersonalTop] = useState<WatchedRat[] | null>(null);
+  const [trend, setTrend] = useState<TrendSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        // v6.10 — first try the user's personalized "你看过的 Top 3".
-        // If empty (user hasn't watched any games yet), fall through to
-        // the global leaderboard fetch.
         const userId = getUserId();
-        const meResp = await fetch('/api/characters/me/top?n=3', {
-          headers: { 'X-User-Id': userId },
-        });
+        // v6.10 — personal top; v6.11 — fetch trend in parallel.
+        const [meResp, trendResp] = await Promise.all([
+          fetch('/api/characters/me/top?n=3', { headers: { 'X-User-Id': userId } }),
+          fetch('/api/characters/me/trend?days=30', { headers: { 'X-User-Id': userId } }),
+        ]);
+        if (trendResp.ok) {
+          const trendData = await trendResp.json();
+          if (!cancelled && trendData?.trend) setTrend(trendData.trend as TrendSummary);
+        }
         if (meResp.ok) {
           const meData = await meResp.json();
           const top = (meData?.top ?? []) as WatchedRat[];
           if (!cancelled && top.length > 0) {
             setPersonalTop(top);
-            return; // skip global fetch — personalized branch wins
+            return;
           }
         }
-        // Fallback — global leaderboard. Same as the v6.9 behaviour.
         const r = await fetch('/api/characters');
         if (!r.ok) { setError(`HTTP ${r.status}`); return; }
         const data = await r.json();
@@ -166,9 +191,34 @@ export default function TopRatsPanel() {
             color: '#FFD700', textTransform: 'uppercase',
           }}>👀 你看过的鼠人 · TOP {personalTop.length}</div>
           <div style={{ fontSize: 9, color: 'rgba(248,244,227,0.4)', fontWeight: 600 }}>
-            v6.10 个人化
+            v6.11 个人化
           </div>
         </div>
+
+        {/* v6.11 — 30-day personality trend chip. Sits between section title
+            and the 3 cards. Hides when no events in window. */}
+        {trend && trend.totalEvents > 0 && trend.dominantPersonality && (() => {
+          const p = PERSONALITY_LABELS_LITE[trend.dominantPersonality];
+          if (!p) return null;
+          const count = trend.personalityCounts[trend.dominantPersonality] ?? 0;
+          return (
+            <div style={{
+              marginBottom: 10, padding: '7px 12px', borderRadius: 999,
+              background: `linear-gradient(135deg, ${p.color}18 0%, rgba(255,215,0,0.06) 100%)`,
+              border: `1px solid ${p.color}55`,
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              fontSize: 11, color: p.color, fontWeight: 800,
+              letterSpacing: '0.03em',
+            }}>
+              <span style={{ fontSize: 14 }}>{p.emoji}</span>
+              <span>近 {trend.windowDays} 天最爱看 · {p.label}</span>
+              <span style={{
+                fontSize: 9, padding: '1px 6px', borderRadius: 4,
+                background: `${p.color}28`, fontWeight: 800,
+              }}>{count} 次 / 共 {trend.totalEvents}</span>
+            </div>
+          );
+        })()}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {personalTop.map((r, i) => {
             const tint = i === 0 ? '#FFD700' : i === 1 ? '#B086FF' : '#FF4FA3';

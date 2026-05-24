@@ -60,8 +60,24 @@ interface UserViews {
   [characterName: string]: PerCharacterView;
 }
 
+/** v6.11 — per-event log for trend analysis. One push per (spectator,
+ *  character) at GAME_OVER. Capped at 200 most-recent events per user
+ *  to bound the JSON file size; 30-day windows query rarely exceed this. */
+export interface ViewEvent {
+  ts: number;
+  characterName: string;
+  personality?: string;
+  /** true = the character was on the winning team this game. */
+  won: boolean;
+}
+
+const MAX_EVENTS_PER_USER = 200;
+
 interface StoreShape {
   byUser: Record<string, UserViews>;
+  /** v6.11 — recent event log, keyed by userId. May be missing entirely on
+   *  files written by v6.10 (in-place migration on first write). */
+  events?: Record<string, ViewEvent[]>;
 }
 
 let cache: StoreShape | null = null;
@@ -71,12 +87,12 @@ async function loadFromDisk(): Promise<StoreShape> {
   try {
     const raw = await fs.readFile(DATA_FILE, 'utf8');
     const parsed = JSON.parse(raw) as Partial<StoreShape>;
-    if (!parsed.byUser || typeof parsed.byUser !== 'object') return { byUser: {} };
-    return { byUser: parsed.byUser };
+    if (!parsed.byUser || typeof parsed.byUser !== 'object') return { byUser: {}, events: {} };
+    return { byUser: parsed.byUser, events: parsed.events ?? {} };
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { byUser: {} };
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { byUser: {}, events: {} };
     console.error('[userCharacterViewsStore] load failed:', err);
-    return { byUser: {} };
+    return { byUser: {}, events: {} };
   }
 }
 
@@ -115,11 +131,18 @@ export async function recordSpectatorViews(
       : null;
     const now = Date.now();
 
+    // v6.11 — also push an event per character. Lazy-init the events
+    // map if this file was written by v6.10 (no events field).
+    if (!s.events) s.events = {};
+    if (!s.events[userId]) s.events[userId] = [];
+    const userEvents = s.events[userId];
+
     for (const p of state.players) {
       const entry = userLedger[p.name] ?? {
         views: 0, winsWatched: 0, lossesWatched: 0, lastAt: 0,
       };
       entry.views += 1;
+      const won = !!(winningTeam && p.team === winningTeam);
       if (winningTeam) {
         if (p.team === winningTeam) entry.winsWatched += 1;
         else if (p.team === Team.CAT || p.team === Team.DOG) entry.lossesWatched += 1;
@@ -127,6 +150,18 @@ export async function recordSpectatorViews(
       }
       entry.lastAt = now;
       userLedger[p.name] = entry;
+
+      userEvents.push({
+        ts: now,
+        characterName: p.name,
+        personality: p.personality,
+        won,
+      });
+    }
+    // Cap events buffer — keep most-recent MAX_EVENTS_PER_USER. Cheap O(n)
+    // each call; happens once per game which is fine.
+    if (userEvents.length > MAX_EVENTS_PER_USER) {
+      s.events[userId] = userEvents.slice(-MAX_EVENTS_PER_USER);
     }
     await persist(s);
   } catch (err) {
@@ -159,4 +194,54 @@ export async function getUserViews(userId: string): Promise<UserViews> {
   if (!userId) return {};
   const s = await ensureLoaded();
   return s.byUser[userId] ?? {};
+}
+
+/**
+ * v6.11 — personality trend summary over the last N days. Aggregates
+ * `viewEvents` into personality counts (across all characters this user
+ * watched in the window). Returns:
+ *   - dominantPersonality: top-count id (null when window empty)
+ *   - personalityCounts: full breakdown for client viz
+ *   - totalEvents: how many character-views fell into the window
+ *   - rawEvents: the actual event entries in the window (for SVG trend
+ *     line in a future v6.12)
+ */
+export interface ViewTrendSummary {
+  windowDays: number;
+  totalEvents: number;
+  dominantPersonality: string | null;
+  personalityCounts: Record<string, number>;
+  rawEvents: ViewEvent[];
+}
+
+export async function getUserTrend(
+  userId: string,
+  windowDays = 30,
+): Promise<ViewTrendSummary> {
+  const empty: ViewTrendSummary = {
+    windowDays, totalEvents: 0, dominantPersonality: null,
+    personalityCounts: {}, rawEvents: [],
+  };
+  if (!userId) return empty;
+  const s = await ensureLoaded();
+  const events = s.events?.[userId] ?? [];
+  if (events.length === 0) return empty;
+
+  const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+  const inWindow = events.filter((e) => e.ts >= cutoff);
+  if (inWindow.length === 0) return { ...empty, totalEvents: 0 };
+
+  const counts: Record<string, number> = {};
+  for (const e of inWindow) {
+    if (!e.personality) continue;
+    counts[e.personality] = (counts[e.personality] ?? 0) + 1;
+  }
+  const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  return {
+    windowDays,
+    totalEvents: inWindow.length,
+    dominantPersonality: dominant,
+    personalityCounts: counts,
+    rawEvents: inWindow,
+  };
 }

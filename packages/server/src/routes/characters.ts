@@ -24,6 +24,7 @@ import {
 import {
   getTopForUser,
   getUserViews,
+  getUserTrend,
 } from '../services/userCharacterViewsStore';
 
 export const characterRoutes = new Hono();
@@ -67,6 +68,21 @@ characterRoutes.get('/me/views', async (c) => {
   const views = await getUserViews(userId);
   c.header('Cache-Control', 'no-store');
   return c.json({ views });
+});
+
+/**
+ * v6.11 — personality trend summary over the last N days (default 30).
+ * Powers TopRatsPanel's trend chip "近 30 天你最爱看 X". `rawEvents` is
+ * intended for a v6.12 SVG trend line; current panel only needs
+ * dominantPersonality + counts.
+ */
+characterRoutes.get('/me/trend', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  const days = Math.max(1, Math.min(90, parseInt(c.req.query('days') ?? '30', 10) || 30));
+  if (!userId) return c.json({ trend: null });
+  const trend = await getUserTrend(userId, days);
+  c.header('Cache-Control', 'no-store');
+  return c.json({ trend });
 });
 
 characterRoutes.get('/', async (c) => {
