@@ -117,6 +117,13 @@ export default function Talkshow() {
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  /** v6.15 P3 — approved UGC entries interleaved into the AI script
+   *  grid every 5 cards. Fetched once on mount; quiet-fail if no
+   *  entries yet (carousel hides instead of teasing). */
+  const [ugcEntries, setUgcEntries] = useState<Array<{
+    id: string; title: string; text: string; tag: string;
+    region?: string; likes: number; createdAt: number;
+  }>>([]);
   /** v3.2.0 — "我的圈子" tribe filter. Mirror of FiredLanding's
    *  v2.1.0/v2.4.0 chip but for talkshow scripts. Talkshow scripts
    *  carry only `region?` (no industry), so this is a region filter
@@ -201,6 +208,15 @@ export default function Talkshow() {
     };
     reloadList.current = load;
     load();
+    // v6.15 P3 — also fetch a small batch of approved UGC entries to
+    // interleave into the grid every 5 AI cards. Quiet fail (empty
+    // array means no interleaving, grid renders pure AI).
+    fetch('/api/talkshow/ugc/monthly?limit=6')
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d: { entries: typeof ugcEntries }) => {
+        if (!cancelled) setUgcEntries(d.entries ?? []);
+      })
+      .catch(() => { /* silent — fall back to pure AI grid */ });
     return () => { cancelled = true; stopTts(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortMode]);
@@ -559,31 +575,53 @@ export default function Talkshow() {
                     cta={{ label: '✨ 写第一段', onClick: () => setCreatorOpen(true) }}
                   />
                 )}
-                {visible.map((s, idx) => (
-                  <ScriptCard
-                    key={s.id}
-                    script={s}
-                    liked={likedIds.has(s.id)}
-                    onLikeToggle={() => toggleLike(s.id)}
-                    /* v0.9.2 — show 🥇🥈🥉 medals on top 3 cards, but only
-                       in monthly mode (otherwise the medals are noise). */
-                    medal={sortMode === 'monthly' && idx < 3 ? (idx as 0 | 1 | 2) : undefined}
-                    onSelect={async () => {
-                      // Prime audio inside the click gesture so Safari
-                      // autoplay policy lets us play TTS later.
-                      primeAudio();
-                      try {
-                        const resp = await fetch(`/api/talkshow/script/${s.id}`);
-                        const full = (await resp.json()) as ScriptFull;
-                        setActive(full);
-                      } catch {
-                        // Soft-fail to a stub so the player still renders
-                        // and the user can read the title at least.
-                        setActive({ ...s, text: '(脚本加载失败)' });
-                      }
-                    }}
-                  />
-                ))}
+                {/* v6.15 P3 — interleave approved UGC every 5 AI cards.
+                     Builds a flat virtual list of {kind, payload}.
+                     UGC card click navigates to /talkshow/ugc for full
+                     reading + like + report. */}
+                {(() => {
+                  const items: Array<
+                    | { kind: 'ai'; script: typeof visible[number]; aiIdx: number }
+                    | { kind: 'ugc'; entry: typeof ugcEntries[number] }
+                  > = [];
+                  let ugcCur = 0;
+                  for (let i = 0; i < visible.length; i++) {
+                    items.push({ kind: 'ai', script: visible[i], aiIdx: i });
+                    // Inject UGC card AFTER every 5th AI card (positions 4, 9, 14, …).
+                    if ((i + 1) % 5 === 0 && ugcCur < ugcEntries.length) {
+                      items.push({ kind: 'ugc', entry: ugcEntries[ugcCur++] });
+                    }
+                  }
+                  return items.map((item) => {
+                    if (item.kind === 'ai') {
+                      const s = item.script;
+                      const idx = item.aiIdx;
+                      return (
+                        <ScriptCard
+                          key={s.id}
+                          script={s}
+                          liked={likedIds.has(s.id)}
+                          onLikeToggle={() => toggleLike(s.id)}
+                          medal={sortMode === 'monthly' && idx < 3 ? (idx as 0 | 1 | 2) : undefined}
+                          onSelect={async () => {
+                            primeAudio();
+                            try {
+                              const resp = await fetch(`/api/talkshow/script/${s.id}`);
+                              const full = (await resp.json()) as ScriptFull;
+                              setActive(full);
+                            } catch {
+                              setActive({ ...s, text: '(脚本加载失败)' });
+                            }
+                          }}
+                        />
+                      );
+                    }
+                    return (
+                      <UgcInlineCard key={`ugc-${item.entry.id}`} entry={item.entry}
+                        onSelect={() => navigate('/talkshow/ugc')} />
+                    );
+                  });
+                })()}
               </div>
             )}
           </motion.main>
@@ -1669,5 +1707,63 @@ function PlayerView({
         )}
       </div>
     </motion.main>
+  );
+}
+
+/**
+ * v6.15 P3 — UgcInlineCard. Renders an approved user-submitted segment
+ * inline in the Talkshow grid every 5 AI cards. Visually distinct from
+ * ScriptCard (pink border + 用户投稿 badge) so users immediately register
+ * "this came from another person, not from an AI rat". Click → jumps to
+ * /talkshow/ugc for full reading + like + submission UI.
+ */
+function UgcInlineCard({
+  entry,
+  onSelect,
+}: {
+  entry: {
+    id: string; title: string; text: string; tag: string;
+    region?: string; likes: number; createdAt: number;
+  };
+  onSelect: () => void;
+}) {
+  return (
+    <motion.button
+      onClick={onSelect}
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.98 }}
+      className="text-left rounded-2xl p-4 transition flex flex-col gap-3 min-h-[140px] relative overflow-hidden"
+      style={{
+        background: 'linear-gradient(135deg, rgba(255,79,163,0.10), rgba(176,134,255,0.06))',
+        border: '1px solid rgba(255,79,163,0.35)',
+        boxShadow: '0 0 16px rgba(255,79,163,0.12)',
+      }}
+    >
+      {/* 用户投稿 badge top-right */}
+      <span style={{
+        position: 'absolute', top: 10, right: 10,
+        fontSize: 9, padding: '2px 6px', borderRadius: 999,
+        background: 'rgba(255,79,163,0.22)', color: '#FF4FA3',
+        border: '1px solid rgba(255,79,163,0.55)', fontWeight: 800,
+        letterSpacing: '0.06em',
+      }}>👥 用户投稿</span>
+
+      <div className="text-sm font-black text-white truncate pr-20">
+        {entry.title}
+      </div>
+      <div className="text-xs leading-relaxed text-white/75"
+        style={{
+          overflow: 'hidden', textOverflow: 'ellipsis',
+          display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+        }}>
+        {entry.text}
+      </div>
+
+      <div className="mt-auto flex items-center gap-3 text-[11px] font-bold">
+        <span style={{ color: '#FF4FA3' }}>❤ {entry.likes}</span>
+        <span style={{ color: 'rgba(248,244,227,0.55)' }}>{entry.tag}{entry.region ? ` · ${entry.region}` : ''}</span>
+        <span style={{ marginLeft: 'auto', color: '#FFD700' }}>→ 看全部精选</span>
+      </div>
+    </motion.button>
   );
 }
