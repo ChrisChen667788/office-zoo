@@ -17,6 +17,7 @@ import { motion } from 'framer-motion';
 import { getUserId } from '../utils/userId';
 import type { SquadMember, SquadRecap } from '@furball/shared';
 import EventPill from '../components/EventPill';
+import SquadMemberCard from '../components/character/SquadMemberCard';
 
 interface HistoryEntry {
   roomId: string;
@@ -188,12 +189,21 @@ function HistoryCard({ entry, myId, onJump }: {
           {entry.recap?.headline ?? '(无回顾)'}
         </div>
         <div className="text-[11px] text-white/55 mb-2 flex flex-wrap gap-x-2 gap-y-0.5">
+          {/* v6.16 P3 — wrap each member in SquadMemberCard so the user
+               can hover/click to see archetype + 攒局战绩 + cross-link to
+               12-rat IP. */}
           {entry.members.map((m) => (
-            <span key={m.userId}
-              style={{ color: m.userId === myId ? '#ffb84c' : undefined }}
-              className={m.userId === myId ? 'font-bold' : ''}>
-              {m.archetypeEmoji ?? '🐀'} {m.displayName}{m.userId === myId ? '(你)' : ''}
-            </span>
+            <SquadMemberCard key={m.userId} member={m}>
+              <span
+                style={{
+                  color: m.userId === myId ? '#ffb84c' : undefined,
+                  borderBottom: '1px dashed rgba(176,134,255,0.32)',
+                  cursor: 'help',
+                }}
+                className={m.userId === myId ? 'font-bold' : ''}>
+                {m.archetypeEmoji ?? '🐀'} {m.displayName}{m.userId === myId ? '(你)' : ''}
+              </span>
+            </SquadMemberCard>
           ))}
         </div>
         {/* My award if present in recap */}
@@ -245,12 +255,19 @@ function GroupCard({ group, myId }: {
         </div>
       </div>
       <div className="text-[11px] text-white/65 mb-2 flex flex-wrap gap-x-2">
+        {/* v6.16 P3 — same hover/click affordance as entry view. */}
         {group.members.map((m) => (
-          <span key={m.userId}
-            style={{ color: m.userId === myId ? '#ffb84c' : undefined }}
-            className={m.userId === myId ? 'font-bold' : ''}>
-            {m.archetypeEmoji ?? '🐀'} {m.displayName}{m.userId === myId ? '(你)' : ''}
-          </span>
+          <SquadMemberCard key={m.userId} member={m}>
+            <span
+              style={{
+                color: m.userId === myId ? '#ffb84c' : undefined,
+                borderBottom: '1px dashed rgba(176,134,255,0.32)',
+                cursor: 'help',
+              }}
+              className={m.userId === myId ? 'font-bold' : ''}>
+              {m.archetypeEmoji ?? '🐀'} {m.displayName}{m.userId === myId ? '(你)' : ''}
+            </span>
+          </SquadMemberCard>
         ))}
       </div>
       <div className="flex items-center gap-2 text-[11px]">
