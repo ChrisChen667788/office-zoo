@@ -39,6 +39,8 @@ import {
   getMonthlyHighlights,
   listUserSubmissions,
   likeSubmission,
+  listPending,
+  reviewSubmission,
 } from '../services/talkshowUgcStore';
 
 // v0.7.6 — generate is the most expensive route (LLM body + LLM title +
@@ -500,4 +502,54 @@ talkshowRoutes.post('/ugc/like/:id', async (c) => {
   if (!e) return c.json({ error: '段子不存在或未审核' }, 404);
   likedByIp.add(dedupKey);
   return c.json({ id: e.id, likes: e.likes });
+});
+
+/* ─── v6.11 P2 — Maker (admin) UGC moderation ──────────────────────────
+ * Token-gated. Reads MAKER_TOKEN at request time (not import time) so
+ * a deploy that adds the env var doesn't need a restart. When the token
+ * is missing entirely, all maker routes return 503 (closed) — safer
+ * default than allowing anonymous moderation in prod.
+ * ────────────────────────────────────────────────────────────────────── */
+const MakerReviewSchema = z.object({
+  decision: z.enum(['approved', 'rejected']),
+  rejectionReason: z.string().min(1).max(200).optional(),
+});
+
+function checkMakerAuth(c: any): { ok: true } | { ok: false; resp: Response } {
+  const expected = process.env.MAKER_TOKEN;
+  if (!expected || expected.length < 16 || expected.startsWith('please_set')) {
+    return { ok: false, resp: c.json({ error: 'maker channel closed (no MAKER_TOKEN env)' }, 503) };
+  }
+  const got = c.req.header('x-maker-token') ?? '';
+  if (got !== expected) {
+    return { ok: false, resp: c.json({ error: 'invalid maker token' }, 401) };
+  }
+  return { ok: true };
+}
+
+talkshowRoutes.get('/maker/pending', async (c) => {
+  const auth = checkMakerAuth(c);
+  if (!auth.ok) return auth.resp;
+  const entries = await listPending();
+  return c.json({
+    pending: entries.map((e) => ({
+      id: e.id, userId: e.userId,
+      title: e.title, text: e.text, tag: e.tag, region: e.region,
+      modNotes: e.modNotes, createdAt: e.createdAt,
+    })),
+  });
+});
+
+talkshowRoutes.post('/maker/review/:id', async (c) => {
+  const auth = checkMakerAuth(c);
+  if (!auth.ok) return auth.resp;
+  const id = c.req.param('id');
+  const v = await validateBody(c, MakerReviewSchema);
+  if (!v.ok) return v.response;
+  const entry = await reviewSubmission(id, v.data.decision, v.data.rejectionReason);
+  if (!entry) return c.json({ error: '段子不存在' }, 404);
+  return c.json({
+    id: entry.id, status: entry.status,
+    rejectionReason: entry.rejectionReason,
+  });
 });

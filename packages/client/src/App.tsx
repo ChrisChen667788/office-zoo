@@ -14,6 +14,7 @@ import B2bBuilder from './routes/B2bBuilder';
 import B2bEmbed from './routes/B2bEmbed';
 import Quiz from './routes/Quiz';
 import Profile from './routes/Profile';
+import Maker from './routes/Maker';
 import Squad from './routes/Squad';
 import SquadHistory from './routes/SquadHistory';
 import FiredChallenge from './routes/FiredChallenge';
@@ -60,6 +61,8 @@ export default function App() {
       {/* v1.3.0 — "你是哪种打工人?" personality quiz + shareable profile card. */}
       <Route path="/quiz" element={<Quiz />} />
       <Route path="/profile/me" element={<Profile />} />
+      {/* v6.11 P2 — UGC moderation admin. Not linked from nav; token-gated server-side. */}
+      <Route path="/maker" element={<Maker />} />
       {/* v1.4.1 — "攒局" squad mode (2-4 friends, LLM director, 5-act sitcom). */}
       <Route path="/squad/:roomId" element={<Squad />} />
       {/* v1.4.3 — squad history + group leaderboard. Lives ABOVE /squad/:id
