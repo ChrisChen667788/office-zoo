@@ -132,19 +132,10 @@ function tr(key: keyof typeof UI_LABELS, locale: string): string {
   return entry['zh-CN'];
 }
 
-// Personality presentation map duplicated here from the bottom-up
-// Classic/Immersive copies. A future refactor will lift this into a
-// shared client constants module; not the scope of v6.8.
-const PERSONALITY_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
-  social_butterfly:   { label: '社牛',   emoji: '🦋', color: '#FF6B9D' },
-  introvert:          { label: '社恐',   emoji: '🐢', color: '#7EC8E3' },
-  contrarian:         { label: '杠精',   emoji: '🔨', color: '#FF4444' },
-  sycophant:          { label: '舔狗',   emoji: '🐶', color: '#FFB347' },
-  passive_aggressive: { label: '阴阳人', emoji: '🌗', color: '#B19CD9' },
-  hot_tempered:       { label: '暴躁哥', emoji: '🌋', color: '#FF6347' },
-  smooth_operator:    { label: '老狐狸', emoji: '🦊', color: '#DAA520' },
-  workaholic:         { label: '卷王',   emoji: '📈', color: '#00CED1' },
-};
+// v6.16 P2 — promoted to shared constants/personalityLabels.ts.
+// PERSONALITY_LABELS_LITE matches the prior shape (no icon URL needed
+// in this popover — icon is via emoji glyph only).
+import { PERSONALITY_LABELS_LITE as PERSONALITY_LABELS } from '../../constants/personalityLabels';
 
 /**
  * 反差判定: which personality assignments are obviously OFF-brand for

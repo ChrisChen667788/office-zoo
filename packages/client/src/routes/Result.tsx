@@ -20,16 +20,11 @@ const TEAM_LABELS: Record<string, { label: string; emoji: string; color: string 
   neutral: { label: '摸鱼阵营',  emoji: '😎', color: colors.team.neutral },
 };
 
-const PERSONALITY_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
-  social_butterfly:   { label: '社牛', emoji: '🦋', color: '#FF6B9D' },
-  introvert:          { label: '社恐', emoji: '🐢', color: '#7EC8E3' },
-  contrarian:         { label: '杠精', emoji: '🔨', color: '#ff3355' },
-  sycophant:          { label: '舔狗', emoji: '🐶', color: '#FFB347' },
-  passive_aggressive: { label: '阴阳人', emoji: '🌗', color: '#B19CD9' },
-  hot_tempered:       { label: '暴躁哥', emoji: '🌋', color: '#FF6347' },
-  smooth_operator:    { label: '老狐狸', emoji: '🦊', color: '#DAA520' },
-  workaholic:         { label: '卷王', emoji: '📈', color: '#00CED1' },
-};
+// v6.16 P2 — promoted to shared. Note: Result used `#ff3355` for
+// contrarian, all other files use `#FF4444`. Shared dict picks the
+// majority value; the slight magenta tilt in Result intentionally
+// dropped for brand consistency.
+import { PERSONALITY_LABELS_LITE as PERSONALITY_LABELS } from '../constants/personalityLabels';
 
 type WinLabel = {
   title: string;

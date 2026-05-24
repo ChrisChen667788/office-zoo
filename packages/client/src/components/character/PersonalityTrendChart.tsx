@@ -23,16 +23,8 @@ interface ViewEvent {
   won: boolean;
 }
 
-const PERSONALITY_LABELS_LITE: Record<string, { label: string; emoji: string; color: string }> = {
-  social_butterfly:   { label: '社牛',   emoji: '🦋', color: '#FF6B9D' },
-  introvert:          { label: '社恐',   emoji: '🐢', color: '#7EC8E3' },
-  contrarian:         { label: '杠精',   emoji: '🔨', color: '#FF4444' },
-  sycophant:          { label: '舔狗',   emoji: '🐶', color: '#FFB347' },
-  passive_aggressive: { label: '阴阳人', emoji: '🌗', color: '#B19CD9' },
-  hot_tempered:       { label: '暴躁哥', emoji: '🌋', color: '#FF6347' },
-  smooth_operator:    { label: '老狐狸', emoji: '🦊', color: '#DAA520' },
-  workaholic:         { label: '卷王',   emoji: '📈', color: '#00CED1' },
-};
+// v6.16 P2 — promoted to shared constants module.
+import { PERSONALITY_LABELS_LITE } from '../../constants/personalityLabels';
 const OTHER_COLOR = '#666';
 const OTHER_LABEL = '其他';
 

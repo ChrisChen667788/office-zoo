@@ -81,16 +81,8 @@ const PHASE_LABELS: Record<string, { label: string; emoji: string; icon: string 
   game_over:   { label: '散伙饭',   emoji: '🏆', icon: phaseIcons.game_over },
 };
 
-const PERSONALITY_LABELS: Record<string, { label: string; emoji: string; icon: string; color: string }> = {
-  social_butterfly:   { label: '社牛',   emoji: '🦋', icon: personalityIcons.social_butterfly,   color: '#FF6B9D' },
-  introvert:          { label: '社恐',   emoji: '🐢', icon: personalityIcons.introvert,          color: '#7EC8E3' },
-  contrarian:         { label: '杠精',   emoji: '🔨', icon: personalityIcons.contrarian,         color: '#FF4444' },
-  sycophant:          { label: '舔狗',   emoji: '🐶', icon: personalityIcons.sycophant,          color: '#FFB347' },
-  passive_aggressive: { label: '阴阳人', emoji: '🌗', icon: personalityIcons.passive_aggressive, color: '#B19CD9' },
-  hot_tempered:       { label: '暴躁哥', emoji: '🌋', icon: personalityIcons.hot_tempered,       color: '#FF6347' },
-  smooth_operator:    { label: '老狐狸', emoji: '🦊', icon: personalityIcons.smooth_operator,    color: '#DAA520' },
-  workaholic:         { label: '卷王',   emoji: '📈', icon: personalityIcons.workaholic,         color: '#00CED1' },
-};
+// v6.16 P2 — see Classic.tsx; promoted to shared constants module.
+import { PERSONALITY_LABELS } from '../constants/personalityLabels';
 
 function getTeamForRole(role: string): string {
   if (role.endsWith('_cat')) return 'cat';
