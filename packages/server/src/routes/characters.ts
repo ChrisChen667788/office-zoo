@@ -49,6 +49,13 @@ import {
   getUserTrend,
 } from '../services/userCharacterViewsStore';
 import { getCharacterOgCard } from '../services/ogCardRenderer';
+import {
+  castVote,
+  getCharacterVotes,
+  getUserBallot,
+  getWeeklyLeaders,
+} from '../services/characterVoteStore';
+import { ALL_PERSONALITIES } from '@furball/shared';
 
 export const characterRoutes = new Hono();
 
@@ -115,6 +122,61 @@ characterRoutes.get('/:name/og-card.png', async (c) => {
   c.header('Content-Type', 'image/png');
   c.header('Cache-Control', 'public, max-age=3600');
   return c.body(buf);
+});
+
+/**
+ * v6.16 P1 — character personality vote endpoints.
+ *
+ *   POST /:name/vote     — cast / overwrite this week's ballot for :name
+ *   GET  /:name/votes    — public tally + dominant for :name (current week)
+ *   GET  /votes/me       — user's full weekly ballot (Record<name, personality>)
+ *   GET  /votes/leaders  — 12-rat winning personality this week
+ */
+characterRoutes.post('/:name/vote', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId || userId.length < 8) {
+    return c.json({ error: '需要 X-User-Id header' }, 400);
+  }
+  const name = c.req.param('name');
+  if (!findCharacter(name)) return c.json({ error: 'unknown character' }, 404);
+  let body: unknown;
+  try { body = await c.req.json(); } catch { body = null; }
+  const personality = (body as { personality?: string } | null)?.personality;
+  if (!personality || typeof personality !== 'string' || !ALL_PERSONALITIES.includes(personality as never)) {
+    return c.json({ error: 'invalid personality (must be one of ALL_PERSONALITIES)' }, 400);
+  }
+  const result = await castVote(userId, name, personality);
+  if (!result.ok) return c.json({ error: result.reason }, 500);
+  const tally = await getCharacterVotes(name);
+  return c.json({
+    ok: true,
+    previousPersonality: result.previousPersonality,
+    tally: tally.tally,
+    dominant: tally.dominant,
+    weekKey: tally.weekKey,
+  });
+});
+
+characterRoutes.get('/:name/votes', async (c) => {
+  const name = c.req.param('name');
+  if (!findCharacter(name)) return c.json({ error: 'unknown character' }, 404);
+  const data = await getCharacterVotes(name);
+  c.header('Cache-Control', 'public, max-age=30');
+  return c.json(data);
+});
+
+characterRoutes.get('/votes/me', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId) return c.json({ ballot: {}, weekKey: '' });
+  const data = await getUserBallot(userId);
+  c.header('Cache-Control', 'no-store');
+  return c.json(data);
+});
+
+characterRoutes.get('/votes/leaders', async (c) => {
+  const data = await getWeeklyLeaders();
+  c.header('Cache-Control', 'public, max-age=60');
+  return c.json(data);
 });
 
 characterRoutes.get('/me/trend', async (c) => {

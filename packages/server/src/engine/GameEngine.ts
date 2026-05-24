@@ -25,6 +25,7 @@ import { BaseAgent } from '../agents/BaseAgent';
 import { logger } from '../utils/logger';
 import { recordGameResults, recordVoteAgainst } from '../services/characterStatsStore';
 import { recordSpectatorViews } from '../services/userCharacterViewsStore';
+import { getWeeklyLeaders } from '../services/characterVoteStore';
 import { assignRoomActivity, commuteCaption, pickAnchor, pickCarriedItem } from './activity';
 // Activity + PlayerTickInfo are new — added separately to keep the diff
 // against the original import block obvious. PlayerState is already imported
@@ -108,12 +109,30 @@ export class GameEngine extends EventEmitter {
 
   // ---------- Setup ----------
 
-  createPlayers(): void {
+  createPlayers(weeklyLeaders: Record<string, string> = {}): void {
     const count = this.state.config.playerCount;
     const preset = ROLE_PRESETS[count] ?? ROLE_PRESETS[8];
     const roles: Role[] = shuffle([...preset.cat, ...preset.dog, ...preset.neutral]);
     const names = shuffle([...AI_NAMES]).slice(0, count);
     const personalities = assignPersonalities(count);
+
+    // v6.16 P1 — apply per-character weekly-vote bias. For each named
+    // player whose character has a "this week's winner" personality,
+    // 50% chance to swap (or overwrite) their dealt personality toward
+    // that winner. Reflects user votes back into actual gameplay.
+    for (let i = 0; i < count; i++) {
+      const leader = weeklyLeaders[names[i]];
+      if (!leader || personalities[i] === (leader as Personality) || Math.random() >= 0.5) continue;
+      // Prefer swap (preserves overall personality distribution if count ≤ 8)
+      const swapAt = personalities.findIndex((p, j) => j !== i && p === (leader as Personality));
+      if (swapAt >= 0) {
+        [personalities[i], personalities[swapAt]] = [personalities[swapAt], personalities[i]];
+      } else {
+        // No one has it — accept a duplicate. assignPersonalities already
+        // cycles when count > 8 so duplicates are allowed.
+        personalities[i] = leader as Personality;
+      }
+    }
 
     for (let i = 0; i < count; i++) {
       const role = roles[i];
@@ -158,7 +177,17 @@ export class GameEngine extends EventEmitter {
     if (this.running) return;
     this.running = true;
 
-    this.createPlayers();
+    // v6.16 P1 — pull this week's character vote leaders (Record<name, personality>)
+    // and pipe them to createPlayers as a 50% bias. Fail-open: if the store throws
+    // / file missing, we fall back to pure-random assignment (game still starts).
+    let weeklyLeaders: Record<string, string> = {};
+    try {
+      const wl = await getWeeklyLeaders();
+      weeklyLeaders = wl.leaders;
+    } catch {
+      /* fail-open — vote bias is polish, not gating */
+    }
+    this.createPlayers(weeklyLeaders);
     this.emitState();
 
     // ROLE_REVEAL

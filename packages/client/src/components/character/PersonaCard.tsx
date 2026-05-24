@@ -34,6 +34,7 @@ import {
   copyCharacterShareCard,
   type CharacterShareCardData,
 } from '../../utils/characterShareCard';
+import CharacterVoteModal from './CharacterVoteModal';
 
 // v6.8 P5 — lifetime stats returned by GET /api/characters/:name.
 // Optional; shows "首次出战" when null. Cache per character name across
@@ -100,6 +101,7 @@ const UI_LABELS: Record<string, { 'zh-CN': string; en: string }> = {
   ugcSubmit:      { 'zh-CN': '✍️ 编段子',     en: '✍️ Tag in UGC' },
   ugcSubmitted:   { 'zh-CN': '✓ 已投稿',       en: '✓ Submitted' },
   ugcGotoUgc:     { 'zh-CN': '→ 去看精选',     en: '→ See highlights' },
+  voteBallot:     { 'zh-CN': '🗳️ 选秀',         en: '🗳️ Vote' },
   copyLink:       { 'zh-CN': '🔗 链接',        en: '🔗 Link' },
   linkCopied:     { 'zh-CN': '✓ 已复制链接',   en: '✓ Link copied' },
   ugcRateLimit:   { 'zh-CN': '投稿太快 (3/h)',  en: 'Too fast (3/h)' },
@@ -182,6 +184,7 @@ export default function PersonaCard({ playerName, personality, disableUgc = fals
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false); // click pins so popover stays for inspection
   const [stats, setStats] = useState<LifetimeStats | null | undefined>(undefined); // undefined = loading
+  const [voteOpen, setVoteOpen] = useState(false);
   const wrapRef = useRef<HTMLSpanElement | null>(null);
 
   // v6.8 P5 — fetch lifetime stats on first open. Cached for 5 min per
@@ -518,7 +521,38 @@ export default function PersonaCard({ playerName, personality, disableUgc = fals
                       }}
                     >{tr('ugcSubmit', locale)}</button>
                   )}
+                  {/* v6.16 P1 — vote ballot button. Opens centered modal
+                       with 8 personality vote chips. Hidden in disableUgc
+                       contexts (B2bEmbed) since voting is a C-end social
+                       activity. */}
+                  {!disableUgc && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setVoteOpen(true);
+                      }}
+                      style={{
+                        fontSize: 10, padding: '4px 8px', borderRadius: 6,
+                        background: 'rgba(255,215,0,0.14)', color: '#FFD700',
+                        fontWeight: 700, cursor: 'pointer',
+                        border: '1px solid rgba(255,215,0,0.55)',
+                      }}
+                    >{tr('voteBallot', locale)}</button>
+                  )}
                 </div>
+              )}
+
+              {/* v6.16 P1 — vote modal mount (always inside the popover so
+                   it closes if the popover does). Inert when voteOpen false. */}
+              {character && (
+                <CharacterVoteModal
+                  characterName={character.name}
+                  epithet={character.epithet}
+                  emoji={character.emoji}
+                  open={voteOpen}
+                  onClose={() => setVoteOpen(false)}
+                />
               )}
 
               {/* v6.8 P5 — lifetime stats (totalGames / wins / votedOut /
