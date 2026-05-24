@@ -114,6 +114,16 @@ export default function CharacterVotes() {
             <div style={{ fontSize: 11, color: 'rgba(248,244,227,0.5)', marginTop: 4 }}>
               click 任意鼠人 → 投票 / 看历史 / 完整档案
             </div>
+            <button
+              onClick={() => navigate('/duel/new')}
+              className="mt-3 text-xs px-4 py-1.5 rounded-full font-bold tracking-wide transition hover:scale-105"
+              style={{
+                background: 'linear-gradient(135deg, #FF4FA3 0%, #B086FF 100%)',
+                color: '#FFFFFF', border: 'none',
+                letterSpacing: '0.05em',
+                boxShadow: '0 0 16px rgba(255,79,163,0.32)',
+              }}
+            >⚔️ 跟朋友 1v1 斗投 →</button>
           </div>
 
           {merged.map((rat, i) => {

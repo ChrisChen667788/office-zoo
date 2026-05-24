@@ -16,6 +16,7 @@ import Quiz from './routes/Quiz';
 import Profile from './routes/Profile';
 import Maker from './routes/Maker';
 import CharacterVotes from './routes/CharacterVotes';
+import VoteDuel from './routes/VoteDuel';
 import Squad from './routes/Squad';
 import SquadHistory from './routes/SquadHistory';
 import FiredChallenge from './routes/FiredChallenge';
@@ -68,6 +69,8 @@ export default function App() {
       <Route path="/maker" element={<Maker />} />
       {/* v6.17 P1 — public 全网鼠人选秀排行榜. */}
       <Route path="/character-votes" element={<CharacterVotes />} />
+      {/* v6.18 P3 — 1v1 vote duel. /duel/new 创建, /duel/:id 加入 OR 看结果. */}
+      <Route path="/duel/:id" element={<VoteDuel />} />
       {/* v1.4.1 — "攒局" squad mode (2-4 friends, LLM director, 5-act sitcom). */}
       <Route path="/squad/:roomId" element={<Squad />} />
       {/* v1.4.3 — squad history + group leaderboard. Lives ABOVE /squad/:id

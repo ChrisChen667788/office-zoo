@@ -50,6 +50,13 @@ import {
 } from '../services/userCharacterViewsStore';
 import { getCharacterOgCard } from '../services/ogCardRenderer';
 import {
+  createDuel,
+  joinDuel,
+  getDuel,
+  scoreDuel,
+  BALLOT_SIZE,
+} from '../services/voteDuelStore';
+import {
   castVote,
   getCharacterVotes,
   getUserBallot,
@@ -216,6 +223,43 @@ characterRoutes.get('/votes/history-all', async (c) => {
   const data = await getCharacterHistoryAll(weeks);
   c.header('Cache-Control', 'public, max-age=60');
   return c.json(data);
+});
+
+/* ─── v6.18 P3 — 1v1 vote duel ─────────────────────────────────────── */
+characterRoutes.post('/votes/duels', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId || userId.length < 8) return c.json({ error: '需要 X-User-Id header' }, 400);
+  let body: unknown;
+  try { body = await c.req.json(); } catch { body = null; }
+  const ballot = (body as { ballot?: unknown } | null)?.ballot;
+  const r = await createDuel(userId, ballot);
+  if (!r.ok) return c.json({ error: r.reason }, 400);
+  return c.json({
+    duelId: r.duel.duelId,
+    shareUrl: `/duel/${r.duel.duelId}`,
+    ballotSize: BALLOT_SIZE,
+  });
+});
+
+characterRoutes.get('/votes/duels/:id', async (c) => {
+  const id = c.req.param('id');
+  const duel = await getDuel(id);
+  if (!duel) return c.json({ error: 'duel not found' }, 404);
+  const scores = await scoreDuel(duel);
+  c.header('Cache-Control', 'no-store');
+  return c.json({ duel, scores });
+});
+
+characterRoutes.post('/votes/duels/:id/join', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId || userId.length < 8) return c.json({ error: '需要 X-User-Id header' }, 400);
+  let body: unknown;
+  try { body = await c.req.json(); } catch { body = null; }
+  const ballot = (body as { ballot?: unknown } | null)?.ballot;
+  const r = await joinDuel(c.req.param('id'), userId, ballot);
+  if (!r.ok) return c.json({ error: r.reason }, 400);
+  const scores = await scoreDuel(r.duel);
+  return c.json({ duel: r.duel, scores });
 });
 
 characterRoutes.get('/me/trend', async (c) => {
