@@ -183,3 +183,74 @@ export async function scoreDuel(duel: DuelData): Promise<DuelScores | null> {
     leadersWeekKey: leaders.weekKey,
   };
 }
+
+/**
+ * v6.19 P2 — per-user "斗投 MVP" leaderboard for a given week.
+ *
+ * For every fully-filled duel in the week, computes scores once using
+ * shared weekly leaders (1 fetch, not N). Aggregates per userId:
+ *   - wins:        # duels where their score > opponent's
+ *   - losses:      # duels where their score < opponent's
+ *   - ties:        # duels where their score == opponent's
+ *   - totalPlayed: wins + losses + ties
+ *   - lastDuelAt:  most recent duel timestamp (for sort tiebreaker)
+ *
+ * Sort: wins desc → totalPlayed desc → lastDuelAt desc. Tied users are
+ * stable. Returns top N (default 10). Empty when no fully-filled duels
+ * exist for the week.
+ */
+export interface DuelLeader {
+  userId: string;
+  wins: number;
+  losses: number;
+  ties: number;
+  totalPlayed: number;
+  lastDuelAt: number;
+}
+
+export async function getDuelLeaders(
+  weekKey = currentWeekKey(),
+  n = 10,
+): Promise<{ weekKey: string; leaders: DuelLeader[] }> {
+  const s = await ensureLoaded();
+  const leaders = (await getWeeklyLeaders(weekKey)).leaders;
+
+  // Aggregate userId → counters
+  const agg = new Map<string, DuelLeader>();
+  function bump(userId: string, kind: 'wins' | 'losses' | 'ties', ts: number) {
+    let row = agg.get(userId);
+    if (!row) {
+      row = { userId, wins: 0, losses: 0, ties: 0, totalPlayed: 0, lastDuelAt: 0 };
+      agg.set(userId, row);
+    }
+    row[kind] += 1;
+    row.totalPlayed += 1;
+    if (ts > row.lastDuelAt) row.lastDuelAt = ts;
+  }
+
+  for (const d of Object.values(s.byId)) {
+    if (d.weekKey !== weekKey) continue;
+    if (!d.guestBallot || !d.guestUserId) continue;
+    // Score inline using already-fetched leaders (avoid re-fetch per duel)
+    const hostScore = d.hostBallot.filter((p) => leaders[p.rat] === p.personality).length;
+    const guestScore = d.guestBallot.filter((p) => leaders[p.rat] === p.personality).length;
+    const ts = d.joinedAt ?? d.createdAt;
+    if (hostScore > guestScore) {
+      bump(d.hostUserId, 'wins', ts);
+      bump(d.guestUserId, 'losses', ts);
+    } else if (hostScore < guestScore) {
+      bump(d.hostUserId, 'losses', ts);
+      bump(d.guestUserId, 'wins', ts);
+    } else {
+      bump(d.hostUserId, 'ties', ts);
+      bump(d.guestUserId, 'ties', ts);
+    }
+  }
+
+  const sorted = [...agg.values()].sort((a, b) =>
+    b.wins - a.wins ||
+    b.totalPlayed - a.totalPlayed ||
+    b.lastDuelAt - a.lastDuelAt,
+  );
+  return { weekKey, leaders: sorted.slice(0, n) };
+}

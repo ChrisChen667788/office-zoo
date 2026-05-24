@@ -42,23 +42,40 @@ interface HistoryAllPayload {
   byCharacter: Record<string, HistoryEntry[]>;
 }
 
+interface DuelLeader {
+  userId: string;
+  wins: number;
+  losses: number;
+  ties: number;
+  totalPlayed: number;
+  lastDuelAt: number;
+}
+interface DuelLeadersPayload {
+  weekKey: string;
+  leaders: DuelLeader[];
+}
+
 export default function CharacterVotes() {
   const navigate = useNavigate();
   const [data, setData] = useState<AllPayload | null>(null);
   const [history, setHistory] = useState<HistoryAllPayload | null>(null);
+  const [duelLeaders, setDuelLeaders] = useState<DuelLeadersPayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([
       fetch('/api/characters/votes/all').then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
-      // v6.18 P1 — parallel fetch 4 weeks history for the timeline matrix
+      // v6.18 P1 — 4 周霸榜 matrix
       fetch('/api/characters/votes/history-all?weeks=4').then((r) => (r.ok ? r.json() : null)),
+      // v6.19 P2 — 斗投 MVP top 5
+      fetch('/api/characters/votes/duels/leaders?n=5').then((r) => (r.ok ? r.json() : null)),
     ])
-      .then(([allData, histData]: [AllPayload, HistoryAllPayload | null]) => {
+      .then(([allData, histData, duelData]: [AllPayload, HistoryAllPayload | null, DuelLeadersPayload | null]) => {
         if (cancelled) return;
         setData(allData);
         if (histData) setHistory(histData);
+        if (duelData) setDuelLeaders(duelData);
       })
       .catch(() => { if (!cancelled) setErr('加载失败'); });
     return () => { cancelled = true; };
@@ -125,6 +142,73 @@ export default function CharacterVotes() {
               }}
             >⚔️ 跟朋友 1v1 斗投 →</button>
           </div>
+
+          {/* v6.19 P2 — 斗投 MVP top 5 strip. Hidden when 0 duels.
+               Sits above the 12-rat leaderboard so social proof is the
+               first thing the page surfaces. */}
+          {duelLeaders && duelLeaders.leaders.length > 0 && (
+            <div style={{
+              padding: '12px 14px', borderRadius: 14, marginBottom: 4,
+              background: 'linear-gradient(135deg, rgba(255,79,163,0.10), rgba(176,134,255,0.06))',
+              border: '1px solid rgba(255,79,163,0.32)',
+            }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: 8,
+              }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 900, letterSpacing: '0.18em',
+                  color: '#FF4FA3', textTransform: 'uppercase',
+                }}>🏆 本周斗投 MVP · {duelLeaders.weekKey}</div>
+                <div style={{ fontSize: 9, color: 'rgba(248,244,227,0.45)' }}>
+                  全网 {duelLeaders.leaders.reduce((s, l) => s + l.totalPlayed, 0) / 2 | 0} 局
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {duelLeaders.leaders.map((l, i) => {
+                  const tint = i === 0 ? '#FFD700' : i === 1 ? '#B086FF' : i === 2 ? '#FF4FA3' : 'rgba(248,244,227,0.5)';
+                  const winRate = l.totalPlayed > 0
+                    ? Math.round((l.wins / l.totalPlayed) * 100)
+                    : 0;
+                  return (
+                    <div key={l.userId} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '6px 10px', borderRadius: 8,
+                      background: i === 0 ? 'rgba(255,215,0,0.10)' : 'rgba(255,255,255,0.03)',
+                      border: i === 0 ? '1px solid rgba(255,215,0,0.45)' : 'none',
+                    }}>
+                      <span style={{
+                        width: 22, height: 22, borderRadius: '50%', flex: '0 0 22px',
+                        background: i === 0 ? tint : `${tint}28`,
+                        color: i === 0 ? '#1a0d35' : tint,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 11, fontWeight: 900,
+                      }}>{i === 0 ? '👑' : i + 1}</span>
+                      <span style={{
+                        fontFamily: 'monospace', fontSize: 11, color: 'rgba(248,244,227,0.78)',
+                        fontWeight: 700,
+                      }}>{l.userId.slice(0, 12)}…</span>
+                      <span style={{ flex: 1 }} />
+                      <span style={{ fontSize: 11, fontWeight: 800 }}>
+                        <span style={{ color: '#5be24a' }}>{l.wins}W</span>
+                        <span style={{ color: 'rgba(248,244,227,0.4)', margin: '0 4px' }}>/</span>
+                        <span style={{ color: '#ff6347' }}>{l.losses}L</span>
+                        {l.ties > 0 && (
+                          <>
+                            <span style={{ color: 'rgba(248,244,227,0.4)', margin: '0 4px' }}>/</span>
+                            <span style={{ color: 'rgba(248,244,227,0.55)' }}>{l.ties}T</span>
+                          </>
+                        )}
+                      </span>
+                      <span style={{
+                        fontSize: 11, fontWeight: 900, color: tint, minWidth: 36, textAlign: 'right',
+                      }}>{winRate}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {merged.map((rat, i) => {
             const char = CHARACTERS[rat.name];

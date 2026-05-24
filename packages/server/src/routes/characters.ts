@@ -54,6 +54,7 @@ import {
   joinDuel,
   getDuel,
   scoreDuel,
+  getDuelLeaders,
   BALLOT_SIZE,
 } from '../services/voteDuelStore';
 import {
@@ -239,6 +240,21 @@ characterRoutes.post('/votes/duels', async (c) => {
     shareUrl: `/duel/${r.duel.duelId}`,
     ballotSize: BALLOT_SIZE,
   });
+});
+
+/**
+ * v6.19 P2 — 斗投 MVP leaderboard. Top users by wins this week
+ * (across all duels). Computed live from voteDuelStore + current
+ * /votes/leaders. 30s cache.
+ *
+ * Route order matters: registered BEFORE /votes/duels/:id so Hono
+ * doesn't match `/leaders` as `:id`.
+ */
+characterRoutes.get('/votes/duels/leaders', async (c) => {
+  const n = Math.max(1, Math.min(30, parseInt(c.req.query('n') ?? '10', 10) || 10));
+  const data = await getDuelLeaders(undefined, n);
+  c.header('Cache-Control', 'public, max-age=30');
+  return c.json(data);
 });
 
 characterRoutes.get('/votes/duels/:id', async (c) => {
