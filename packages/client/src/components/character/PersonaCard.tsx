@@ -73,6 +73,7 @@ const UI_LABELS: Record<string, { 'zh-CN': string; en: string }> = {
   download:       { 'zh-CN': '📥 下载',        en: '📥 Download' },
   ugcSubmit:      { 'zh-CN': '✍️ 编段子',     en: '✍️ Tag in UGC' },
   ugcSubmitted:   { 'zh-CN': '✓ 已投稿',       en: '✓ Submitted' },
+  ugcGotoUgc:     { 'zh-CN': '→ 去看精选',     en: '→ See highlights' },
   copyLink:       { 'zh-CN': '🔗 链接',        en: '🔗 Link' },
   linkCopied:     { 'zh-CN': '✓ 已复制链接',   en: '✓ Link copied' },
   ugcRateLimit:   { 'zh-CN': '投稿太快 (3/h)',  en: 'Too fast (3/h)' },
@@ -466,6 +467,22 @@ export default function PersonaCard({ playerName, personality, disableUgc = fals
                           });
                           if (r.ok) {
                             btn.textContent = tr('ugcSubmitted', locale);
+                            // v6.12 P1 — on success, after the 1.8s flash,
+                            // swap to a clickable "去看精选 →" so the user
+                            // discovers where approved segments surface.
+                            // Reverts to original label after another 3s.
+                            setTimeout(() => {
+                              btn.textContent = tr('ugcGotoUgc', locale);
+                              btn.onclick = (ev) => {
+                                ev.stopPropagation();
+                                window.location.href = '/talkshow/ugc';
+                              };
+                            }, 1800);
+                            setTimeout(() => {
+                              btn.textContent = orig;
+                              btn.onclick = null;
+                            }, 4800);
+                            return; // skip the generic revert below
                           } else if (r.status === 429) {
                             btn.textContent = tr('ugcRateLimit', locale);
                           } else {

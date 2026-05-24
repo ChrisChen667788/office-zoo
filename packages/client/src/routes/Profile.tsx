@@ -27,6 +27,7 @@ import { archetypeLabel, useT, type DictKey } from '../utils/i18n';
 import { useArchetypePortrait } from '../utils/archetypePortrait';
 import type { PersonalizedProfile, UserProfile } from '../utils/profileTypes';
 import TopRatsPanel from '../components/character/TopRatsPanel';
+import MySubmissionsPanel from '../components/character/MySubmissionsPanel';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
   { key: 'grind',      label: '内卷' },
@@ -171,6 +172,10 @@ export default function Profile() {
           switch to per-user "你看过的 Top 3" in v6.10 once spectator
           → game attendance tracking lands. */}
       <TopRatsPanel />
+
+      {/* v6.12 P1 — UGC 投稿统计. 关 maker → 用户回路, 让 Maker approve
+          的段子在用户主页有可见性. */}
+      <MySubmissionsPanel />
     </div>
   );
 }
