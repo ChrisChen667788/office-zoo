@@ -9,7 +9,7 @@
  */
 
 import { Hono } from 'hono';
-import { listUserSquadHistory } from '../services/squadHistoryStore';
+import { listUserSquadHistory, getSquadStatsFor } from '../services/squadHistoryStore';
 
 export const squadRoutes = new Hono();
 
@@ -18,4 +18,17 @@ squadRoutes.get('/history/me', async (c) => {
   if (!userId) return c.json({ history: [] });
   const history = await listUserSquadHistory(userId);
   return c.json({ history });
+});
+
+/**
+ * v6.11 P3 — aggregate squad attendance for a userId. Public-ish (no
+ * recap leakage, only counts + co-member display names), so SquadMemberCard
+ * can show "参加过 N 局攒局 / 最近 7 天 X 次" without auth dance.
+ */
+squadRoutes.get('/stats/of/:userId', async (c) => {
+  const userId = c.req.param('userId').slice(0, 64);
+  if (!userId) return c.json({ stats: null }, 400);
+  const stats = await getSquadStatsFor(userId);
+  c.header('Cache-Control', 'public, max-age=60');
+  return c.json({ stats });
 });
