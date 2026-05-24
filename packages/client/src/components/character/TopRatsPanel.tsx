@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from 'react';
 import PersonaCard from './PersonaCard';
+import PersonalityTrendChart from './PersonalityTrendChart';
 import { getUserId } from '../../utils/userId';
 
 interface RatStats {
@@ -117,11 +118,19 @@ function pickWinners(rats: RatStats[]): CategoryWinner[] {
 }
 
 // v6.11 — trend summary shape returned by /api/characters/me/trend.
+// v6.15 — extended with rawEvents for the stacked-area trend chart.
+interface ViewEventLite {
+  ts: number;
+  characterName: string;
+  personality?: string;
+  won: boolean;
+}
 interface TrendSummary {
   windowDays: number;
   totalEvents: number;
   dominantPersonality: string | null;
   personalityCounts: Record<string, number>;
+  rawEvents: ViewEventLite[];
 }
 
 // v6.11 — personality labels for the trend chip. Mirrors the dict in
@@ -219,7 +228,18 @@ export default function TopRatsPanel() {
             </div>
           );
         })()}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+
+        {/* v6.15 — SVG stacked-area trend chart (30 days × top-4
+            personality + 其他). Hover any day shows per-personality
+            breakdown tooltip. Hidden when no events in window. */}
+        {trend && trend.totalEvents > 0 && (
+          <PersonalityTrendChart
+            rawEvents={trend.rawEvents}
+            windowDays={trend.windowDays}
+          />
+        )}
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
           {personalTop.map((r, i) => {
             const tint = i === 0 ? '#FFD700' : i === 1 ? '#B086FF' : '#FF4FA3';
             const winRate = r.watched.winsWatched + r.watched.lossesWatched > 0
