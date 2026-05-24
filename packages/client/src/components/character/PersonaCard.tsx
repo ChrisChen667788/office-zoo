@@ -73,6 +73,8 @@ const UI_LABELS: Record<string, { 'zh-CN': string; en: string }> = {
   download:       { 'zh-CN': '📥 下载',        en: '📥 Download' },
   ugcSubmit:      { 'zh-CN': '✍️ 编段子',     en: '✍️ Tag in UGC' },
   ugcSubmitted:   { 'zh-CN': '✓ 已投稿',       en: '✓ Submitted' },
+  copyLink:       { 'zh-CN': '🔗 链接',        en: '🔗 Link' },
+  linkCopied:     { 'zh-CN': '✓ 已复制链接',   en: '✓ Link copied' },
   ugcRateLimit:   { 'zh-CN': '投稿太快 (3/h)',  en: 'Too fast (3/h)' },
   ugcFail:        { 'zh-CN': '✗ 投稿失败',     en: '✗ Submit failed' },
 };
@@ -398,6 +400,32 @@ export default function PersonaCard({ playerName, personality, disableUgc = fals
                       border: '1px solid rgba(255,215,0,0.32)',
                     }}
                   >{tr('download', locale)}</button>
+                  {/* v6.11 P4 — copy social deep-link. URL points to
+                       /share/character/:name which serves crawler-friendly
+                       HTML with og:* meta tags, then bounces real browsers
+                       into the SPA. Click → clipboard write → flash. */}
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const btn = e.currentTarget as HTMLButtonElement;
+                      const orig = btn.textContent;
+                      const url = `${window.location.origin}/share/character/${encodeURIComponent(character.name)}`;
+                      try {
+                        await navigator.clipboard.writeText(url);
+                        btn.textContent = tr('linkCopied', locale);
+                      } catch {
+                        window.open(url, '_blank');
+                      }
+                      setTimeout(() => { btn.textContent = orig; }, 1500);
+                    }}
+                    style={{
+                      fontSize: 10, padding: '4px 8px', borderRadius: 6,
+                      background: 'rgba(78,205,196,0.12)', color: '#4ECDC4',
+                      fontWeight: 700, cursor: 'pointer',
+                      border: '1px solid rgba(78,205,196,0.45)',
+                    }}
+                  >{tr('copyLink', locale)}</button>
                   {/* v6.10 P3 — UGC submit. Generates a workplace-tagged
                        segment from the character's epithet + catchphrase +
                        backstory (+ stats when present) and POSTs to

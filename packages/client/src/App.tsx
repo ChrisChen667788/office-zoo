@@ -28,9 +28,11 @@ import TalkshowUgc from './routes/TalkshowUgc';
 import Weekly from './routes/Weekly';
 import WeeklyMe from './routes/WeeklyMe';
 import Bar from './routes/Bar';
+import CharacterFocusModal from './components/character/CharacterFocusModal';
 
 export default function App() {
   return (
+    <>
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/classic/:gameId" element={<Classic />} />
@@ -92,5 +94,10 @@ export default function App() {
       {/* v6.2.0 — 🍺 深夜酒馆 1v1 (with an archetype, sharing via deeplink). */}
       <Route path="/bar/:archetype" element={<Bar />} />
     </Routes>
+    {/* v6.11 P4 — global overlay watching ?character=<name> deep-links
+        from /share/character/:name social bounces. Renders nothing when
+        the query is absent so other routes are unaffected. */}
+    <CharacterFocusModal />
+    </>
   );
 }

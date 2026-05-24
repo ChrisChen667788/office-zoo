@@ -35,6 +35,7 @@ import { memoryRoutes } from './routes/memory';
 import { weeklyRoutes } from './routes/weekly';
 import { barRoutes } from './routes/bar';
 import { characterRoutes } from './routes/characters';
+import { shareSocialRoutes } from './routes/shareSocial';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
 
@@ -57,6 +58,10 @@ app.route('/api/squad', squadRoutes);
 // v6.8 — character IP roster (epithet + catchphrases + lifetime stats)
 // powering the PersonaCard popover on Classic/Immersive.
 app.route('/api/characters', characterRoutes);
+// v6.11 P4 — public crawler-friendly share pages. Mounted at /share (NOT
+// /api/share — keeps the path clean for social link sharing). Each route
+// returns full HTML with og:* meta tags for Twitter/Slack/WeChat unfurl.
+app.route('/share', shareSocialRoutes);
 // v5.0.0 — global today-only challenge (everyone races the same scenario).
 app.route('/api/daily-challenge', dailyChallengeRoutes);
 // v5.4.0 — 班味占卜 daily fortune. Deterministic per (user, date)
