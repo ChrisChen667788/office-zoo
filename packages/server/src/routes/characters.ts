@@ -17,6 +17,28 @@
 
 import { Hono } from 'hono';
 import { findCharacter, CHARACTERS, ALL_CHARACTER_NAMES } from '@furball/shared';
+
+/* v6.14 P1 — deterministic daily featured character. The same character
+ * surfaces for ALL users on the same calendar date, which makes it a
+ * shared social conversation hook ("今天的主角是 Tony, 加油") rather than
+ * personalized noise. djb2 string hash → index into ALL_CHARACTER_NAMES.
+ *
+ * Why YYYY-MM-DD in server-local TZ rather than UTC: midnight rollover
+ * lines up with what users perceive as "today". For a multi-region
+ * deploy the surrogate is good enough — we don't need per-region rotation. */
+function djb2(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+function todayYMD(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function pickDailyCharacter(date = todayYMD()): { name: string; date: string } {
+  const idx = djb2(date) % ALL_CHARACTER_NAMES.length;
+  return { name: ALL_CHARACTER_NAMES[idx], date };
+}
 import {
   getCharacterStats,
   getAllCharacterStats,
@@ -102,6 +124,29 @@ characterRoutes.get('/me/trend', async (c) => {
   const trend = await getUserTrend(userId, days);
   c.header('Cache-Control', 'no-store');
   return c.json({ trend });
+});
+
+/**
+ * v6.14 P1 — today's featured rat. Deterministic per server-local date
+ * via djb2 hash → 12-roster index. All users get the same character on
+ * the same day, which is the point (shared social conversation hook).
+ * Includes optional ?date=YYYY-MM-DD override for previews / scheduling.
+ *
+ * Cache: 60s public — even though it's stable for the whole day, a
+ * short TTL means the rollover at local midnight is picked up within a
+ * minute of the new day starting.
+ */
+characterRoutes.get('/daily', async (c) => {
+  const dateOverride = c.req.query('date');
+  const pick = dateOverride && /^\d{4}-\d{2}-\d{2}$/.test(dateOverride)
+    ? pickDailyCharacter(dateOverride)
+    : pickDailyCharacter();
+  const character = CHARACTERS[pick.name];
+  c.header('Cache-Control', 'public, max-age=60');
+  return c.json({
+    date: pick.date,
+    character,
+  });
 });
 
 characterRoutes.get('/', async (c) => {

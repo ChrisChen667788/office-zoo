@@ -21,6 +21,8 @@ import LottieAsset from '../components/LottieAsset';
 import DailyShareCardModal from '../components/DailyShareCardModal';
 import type { DailyShareCardData } from '../utils/dailyShareCard';
 import { prefetchAllCharacterStats } from '../components/character/PersonaCard';
+import DailyRatSpotlight from '../components/character/DailyRatSpotlight';
+import UgcHighlightsCarousel from '../components/character/UgcHighlightsCarousel';
 import { primeAudio } from '../utils/audioUnlock';
 import { colors } from '../constants/design';
 import { lottie } from '../constants/lottie';
@@ -456,6 +458,21 @@ export default function Landing() {
               一家被裁掉的公司,9 名 AI 鼠人 24h 互卷。
               你不是玩家,是那只盯着 KPI 屏的 HR —— 选个模式,看戏。
             </p>
+
+            {/* v6.14 P1 — daily featured rat spotlight. Same character
+                surfaces for ALL users on a given day = shared
+                conversation hook. Click pops PersonaCard via deep-link. */}
+            <div className="mb-4 w-full max-w-md mx-auto">
+              <DailyRatSpotlight />
+            </div>
+
+            {/* v6.14 P2 — approved UGC carousel surface. Hides itself
+                when there are 0 approved entries so an empty product
+                doesn't tease an empty strip. Closes the loop
+                "Maker approve → Landing surface → user sees". */}
+            <div className="mb-4 w-full max-w-2xl mx-auto">
+              <UgcHighlightsCarousel />
+            </div>
 
             {/* v1.4.0 — daily drama card OR v1.3.0 quiz CTA. The card
                 wins when the user has a profile (= taken the quiz);
