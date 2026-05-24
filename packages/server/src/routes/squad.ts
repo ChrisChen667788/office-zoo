@@ -32,3 +32,13 @@ squadRoutes.get('/stats/of/:userId', async (c) => {
   c.header('Cache-Control', 'public, max-age=60');
   return c.json({ stats });
 });
+
+/** v6.15 P2 — alias for current user's own stats (reads X-User-Id).
+ *  Avoids the client constructing self-URLs with its own userId. */
+squadRoutes.get('/stats/me', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId) return c.json({ stats: null });
+  const stats = await getSquadStatsFor(userId);
+  c.header('Cache-Control', 'no-store'); // per-user, don't share
+  return c.json({ stats });
+});

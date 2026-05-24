@@ -28,6 +28,7 @@ import { useArchetypePortrait } from '../utils/archetypePortrait';
 import type { PersonalizedProfile, UserProfile } from '../utils/profileTypes';
 import TopRatsPanel from '../components/character/TopRatsPanel';
 import MySubmissionsPanel from '../components/character/MySubmissionsPanel';
+import SquadBuddiesPanel from '../components/character/SquadBuddiesPanel';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
   { key: 'grind',      label: '内卷' },
@@ -176,6 +177,11 @@ export default function Profile() {
       {/* v6.12 P1 — UGC 投稿统计. 关 maker → 用户回路, 让 Maker approve
           的段子在用户主页有可见性. */}
       <MySubmissionsPanel />
+
+      {/* v6.15 P2 — 你常和谁组队. 拉 /api/squad/stats/me topCoMembers
+          可视化, 三层"OFFICE ZOO 朋友"在 Profile 一处看齐:
+          TopRats (AI 鼠) + MySubmissions (写的段子) + SquadBuddies (真人). */}
+      <SquadBuddiesPanel />
     </div>
   );
 }
