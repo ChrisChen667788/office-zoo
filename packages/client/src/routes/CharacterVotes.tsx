@@ -31,16 +31,35 @@ interface AllPayload {
   rats: RatVotes[];
 }
 
+interface HistoryEntry {
+  weekKey: string;
+  dominant: string | null;
+  totalVotes: number;
+}
+
+interface HistoryAllPayload {
+  weeks: string[];
+  byCharacter: Record<string, HistoryEntry[]>;
+}
+
 export default function CharacterVotes() {
   const navigate = useNavigate();
   const [data, setData] = useState<AllPayload | null>(null);
+  const [history, setHistory] = useState<HistoryAllPayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/characters/votes/all')
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((d: AllPayload) => { if (!cancelled) setData(d); })
+    Promise.all([
+      fetch('/api/characters/votes/all').then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
+      // v6.18 P1 — parallel fetch 4 weeks history for the timeline matrix
+      fetch('/api/characters/votes/history-all?weeks=4').then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([allData, histData]: [AllPayload, HistoryAllPayload | null]) => {
+        if (cancelled) return;
+        setData(allData);
+        if (histData) setHistory(histData);
+      })
       .catch(() => { if (!cancelled) setErr('加载失败'); });
     return () => { cancelled = true; };
   }, []);
@@ -197,6 +216,102 @@ export default function CharacterVotes() {
               </motion.button>
             );
           })}
+
+          {/* v6.18 P1 — 过去 4 周霸榜 timeline matrix. 只在 history
+               有数据时显示. 12 rows × N week cols, 每格 emoji 圆按
+               personality 着色. Rats with 0 history → row 显示
+               '本季无投票'. */}
+          {history && history.weeks.length > 0 && (
+            <div className="mt-8">
+              <div className="text-center mb-3">
+                <div style={{
+                  fontSize: 11, fontWeight: 900, letterSpacing: '0.18em',
+                  color: '#B086FF', textTransform: 'uppercase',
+                }}>📈 过去 {history.weeks.length} 周霸榜</div>
+                <div style={{ fontSize: 10, color: 'rgba(248,244,227,0.45)', marginTop: 4 }}>
+                  每只鼠各周得票最高的 personality (一周 1 格)
+                </div>
+              </div>
+              <div style={{
+                padding: '12px 14px', borderRadius: 14,
+                background: 'rgba(20,15,40,0.85)',
+                border: '1px solid rgba(176,134,255,0.32)',
+              }}>
+                {/* Week header */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: `120px repeat(${history.weeks.length}, 1fr)`,
+                  gap: 4, marginBottom: 8, alignItems: 'center',
+                }}>
+                  <div></div>
+                  {history.weeks.map((wk) => (
+                    <div key={wk} style={{
+                      textAlign: 'center', fontSize: 9, fontWeight: 700,
+                      color: 'rgba(248,244,227,0.55)', letterSpacing: '0.06em',
+                    }}>{wk.replace(/^\d{4}-/, '')}</div>
+                  ))}
+                </div>
+
+                {/* 12 rows */}
+                {ALL_CHARACTER_NAMES.map((name) => {
+                  const char = CHARACTERS[name];
+                  if (!char) return null;
+                  const ratHist = history.byCharacter[name] ?? [];
+                  return (
+                    <div key={name} style={{
+                      display: 'grid',
+                      gridTemplateColumns: `120px repeat(${history.weeks.length}, 1fr)`,
+                      gap: 4, marginBottom: 6, alignItems: 'center',
+                    }}>
+                      <button
+                        type="button"
+                        onClick={() => openCharacter(name)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          background: 'transparent', border: 'none',
+                          padding: '4px 6px', cursor: 'pointer',
+                          color: '#F8F4E3', fontFamily: 'inherit',
+                          textAlign: 'left',
+                        }}>
+                        <span style={{ fontSize: 16 }}>{char.emoji}</span>
+                        <span style={{
+                          fontSize: 10, fontWeight: 800,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>{char.epithet}</span>
+                      </button>
+                      {history.weeks.map((wk) => {
+                        const entry = ratHist.find((e) => e.weekKey === wk);
+                        const dom = entry?.dominant;
+                        const p = dom ? PERSONALITY_LABELS_LITE[dom] : null;
+                        return (
+                          <div key={wk} style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {p ? (
+                              <div title={`${p.label} (${entry?.totalVotes} 票)`}
+                                style={{
+                                  width: 26, height: 26, borderRadius: '50%',
+                                  background: `${p.color}22`,
+                                  border: `1px solid ${p.color}66`,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: 14,
+                                }}>{p.emoji}</div>
+                            ) : (
+                              <div style={{
+                                width: 26, height: 26, borderRadius: '50%',
+                                background: 'rgba(255,255,255,0.02)',
+                                border: '1px dashed rgba(255,255,255,0.08)',
+                              }} />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

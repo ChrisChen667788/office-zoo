@@ -55,6 +55,7 @@ import {
   getUserBallot,
   getWeeklyLeaders,
   getCharacterHistory,
+  getCharacterHistoryAll,
   getWeeklyAll,
 } from '../services/characterVoteStore';
 import { ALL_PERSONALITIES } from '@furball/shared';
@@ -203,6 +204,17 @@ characterRoutes.get('/votes/leaders', async (c) => {
 characterRoutes.get('/votes/all', async (c) => {
   const data = await getWeeklyAll();
   c.header('Cache-Control', 'public, max-age=30');
+  return c.json(data);
+});
+
+/**
+ * v6.18 P1 — last N weeks of weekly winner for every character.
+ * Powers /character-votes "过去 N 周霸榜" timeline matrix.
+ */
+characterRoutes.get('/votes/history-all', async (c) => {
+  const weeks = Math.max(1, Math.min(12, parseInt(c.req.query('weeks') ?? '4', 10) || 4));
+  const data = await getCharacterHistoryAll(weeks);
+  c.header('Cache-Control', 'public, max-age=60');
   return c.json(data);
 });
 

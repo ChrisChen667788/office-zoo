@@ -211,6 +211,36 @@ export async function getCharacterHistory(
   });
 }
 
+/**
+ * v6.18 P1 — last N weeks of weekly winners for ALL characters in one
+ * call. Powers /character-votes leaderboard's "过去 4 周霸榜" timeline
+ * matrix. Returns by-character map; rats with no votes in the window
+ * get an empty array (caller can render gaps).
+ */
+export async function getCharacterHistoryAll(
+  weeks = 4,
+): Promise<{ weeks: string[]; byCharacter: Record<string, CharacterWeekHistory[]> }> {
+  const s = await ensureLoaded();
+  const allWeeks = Object.keys(s.byWeek).sort();
+  const sliced = allWeeks.slice(-weeks);
+  const byCharacter: Record<string, CharacterWeekHistory[]> = {};
+  // Collect every character that ever appeared in the window.
+  const names = new Set<string>();
+  for (const wk of sliced) {
+    for (const n of Object.keys(s.byWeek[wk]?.byCharacter ?? {})) names.add(n);
+  }
+  for (const name of names) {
+    byCharacter[name] = sliced.map((weekKey) => {
+      const tally = s.byWeek[weekKey]?.byCharacter?.[name];
+      if (!tally) return { weekKey, dominant: null, totalVotes: 0 };
+      const dominant = Object.entries(tally.votes)
+        .sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      return { weekKey, dominant, totalVotes: tally.totalVotes };
+    });
+  }
+  return { weeks: sliced, byCharacter };
+}
+
 export async function getWeeklyLeaders(
   weekKey = currentWeekKey(),
 ): Promise<{ leaders: Record<string, string>; weekKey: string }> {
