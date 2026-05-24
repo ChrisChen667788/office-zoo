@@ -30,6 +30,7 @@ import TopRatsPanel from '../components/character/TopRatsPanel';
 import MySubmissionsPanel from '../components/character/MySubmissionsPanel';
 import SquadBuddiesPanel from '../components/character/SquadBuddiesPanel';
 import MyBallotsPanel from '../components/character/MyBallotsPanel';
+import MyDuelsPanel from '../components/character/MyDuelsPanel';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
   { key: 'grind',      label: '内卷' },
@@ -188,6 +189,10 @@ export default function Profile() {
           看到效果"的反馈环, 让 v6.16 P1 voting 在 Profile 有 visible
           retrospective. */}
       <MyBallotsPanel />
+
+      {/* v6.20 P3 — 我参与过的所有 1v1 斗投, 实时 W/L/T 战绩 + click 跳
+          回该 duel result view. 关上 v6.18 P3 voting battle 的 retro 反馈环. */}
+      <MyDuelsPanel />
     </div>
   );
 }

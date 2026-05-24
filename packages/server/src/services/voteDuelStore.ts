@@ -155,6 +155,20 @@ export async function getDuel(duelId: string): Promise<DuelData | null> {
 }
 
 /**
+ * v6.20 P3 — list all duels a user participated in (host OR guest),
+ * newest first. Used by Profile's MyDuelsPanel. Returns full DuelData
+ * so the panel can show ballots + decide W/L on the spot.
+ */
+export async function listUserDuels(userId: string, limit = 20): Promise<DuelData[]> {
+  if (!userId) return [];
+  const s = await ensureLoaded();
+  return Object.values(s.byId)
+    .filter((d) => d.hostUserId === userId || d.guestUserId === userId)
+    .sort((a, b) => (b.joinedAt ?? b.createdAt) - (a.joinedAt ?? a.createdAt))
+    .slice(0, limit);
+}
+
+/**
  * Compute live scores for a duel against the current /votes/leaders.
  * Returns null when either ballot is missing.
  */

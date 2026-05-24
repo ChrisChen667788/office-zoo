@@ -55,6 +55,7 @@ import {
   getDuel,
   scoreDuel,
   getDuelLeaders,
+  listUserDuels,
   BALLOT_SIZE,
 } from '../services/voteDuelStore';
 import {
@@ -255,6 +256,20 @@ characterRoutes.get('/votes/duels/leaders', async (c) => {
   const data = await getDuelLeaders(undefined, n);
   c.header('Cache-Control', 'public, max-age=30');
   return c.json(data);
+});
+
+/**
+ * v6.20 P3 — current user's own duels (host OR guest), newest first.
+ * Powers Profile's MyDuelsPanel. Always registered BEFORE
+ * /votes/duels/:id (else Hono matches "me" as :id).
+ */
+characterRoutes.get('/votes/duels/me', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId) return c.json({ duels: [] });
+  const limit = Math.max(1, Math.min(50, parseInt(c.req.query('limit') ?? '20', 10) || 20));
+  const duels = await listUserDuels(userId, limit);
+  c.header('Cache-Control', 'no-store');
+  return c.json({ duels });
 });
 
 characterRoutes.get('/votes/duels/:id', async (c) => {

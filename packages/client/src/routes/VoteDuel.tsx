@@ -479,34 +479,80 @@ function JoinView({ duel, onJoined }: { duel: DuelData; onJoined: (d: DuelData, 
 }
 
 function ResultView({ duel, scores, myId }: { duel: DuelData; scores: Scores; myId: string }) {
-  const youAreHost = duel.hostUserId === myId;
-  const myScore = youAreHost ? scores.hostScore : scores.guestScore;
-  const theirScore = youAreHost ? scores.guestScore : scores.hostScore;
-  const myPicks = youAreHost ? scores.perPickHost : scores.perPickGuest;
-  const theirPicks = youAreHost ? scores.perPickGuest : scores.perPickHost;
-  const verdict = myScore > theirScore ? '✓ 你 lead' : myScore < theirScore ? '✗ 对方 lead' : '⚖️ 打平';
+  // v6.20 P1 — three viewer roles, not just two. Spectators (visitors
+  // who weren't host or guest) get a neutral "Host vs Guest" third-
+  // person frame instead of being misattributed to one side.
+  const role: 'host' | 'guest' | 'spectator' =
+    duel.hostUserId === myId ? 'host'
+    : duel.guestUserId === myId ? 'guest'
+    : 'spectator';
+
+  // Decide column labels + score attribution per role
+  const left = role === 'guest'
+    ? { label: '你的 ballot', score: scores.guestScore, picks: scores.perPickGuest, accent: '#FFD700' }
+    : { label: 'Host ballot', score: scores.hostScore, picks: scores.perPickHost, accent: '#FFD700' };
+  const right = role === 'guest'
+    ? { label: '对方 ballot', score: scores.hostScore, picks: scores.perPickHost, accent: '#FF4FA3' }
+    : role === 'host'
+      ? { label: '对方 ballot', score: scores.guestScore, picks: scores.perPickGuest, accent: '#FF4FA3' }
+      : { label: 'Guest ballot', score: scores.guestScore, picks: scores.perPickGuest, accent: '#FF4FA3' };
+
+  // Verdict text per role — first-person for host/guest, third-person
+  // for spectator.
+  const winner: 'left' | 'right' | 'tie' =
+    left.score > right.score ? 'left' : left.score < right.score ? 'right' : 'tie';
+  const verdictText = role === 'spectator'
+    ? winner === 'tie' ? '⚖️ 双方打平'
+      : winner === 'left' ? '👑 Host 领先' : '👑 Guest 领先'
+    : winner === 'tie' ? '⚖️ 打平'
+      : (role === 'host' && winner === 'left') || (role === 'guest' && winner === 'left')
+        ? '✓ 你 lead' : '✗ 对方 lead';
+  const verdictGradient =
+    winner === 'tie' ? 'linear-gradient(135deg, #FFD700, #B086FF)'
+    : (role === 'host' && winner === 'left') || (role === 'guest' && winner === 'left')
+      ? 'linear-gradient(135deg, #5be24a, #22c55e)'
+      : role === 'spectator'
+        ? 'linear-gradient(135deg, #FFD700, #FF4FA3)'
+        : 'linear-gradient(135deg, #ff4757, #ff6347)';
+
   return (
     <div className="w-full max-w-2xl">
       <div className="text-center mb-4">
         <div style={{
           fontSize: 11, fontWeight: 900, letterSpacing: '0.18em',
           color: '#FFD700', textTransform: 'uppercase', marginBottom: 6,
-        }}>🏟️ 斗投实时比分 · {duel.weekKey}</div>
+        }}>
+          🏟️ 斗投实时比分 · {duel.weekKey}
+          {role === 'spectator' && (
+            <span style={{
+              marginLeft: 8, padding: '1px 6px', borderRadius: 4,
+              background: 'rgba(176,134,255,0.18)', color: '#B086FF',
+              fontSize: 9, fontWeight: 800, letterSpacing: '0.06em',
+            }}>👁️ 围观</span>
+          )}
+        </div>
         <div style={{
           fontSize: 28, fontWeight: 900,
-          background: myScore > theirScore
-            ? 'linear-gradient(135deg, #5be24a, #22c55e)'
-            : myScore < theirScore
-              ? 'linear-gradient(135deg, #ff4757, #ff6347)'
-              : 'linear-gradient(135deg, #FFD700, #B086FF)',
+          background: verdictGradient,
           WebkitBackgroundClip: 'text', backgroundClip: 'text',
           color: 'transparent', marginBottom: 4,
-        }}>{verdict}</div>
+        }}>{verdictText}</div>
         <div style={{
           fontSize: 16, color: 'rgba(248,244,227,0.75)', fontWeight: 800,
         }}>
-          你 <span style={{ color: '#FFD700' }}>{myScore}</span> ·
-          对方 <span style={{ color: '#FF4FA3' }}>{theirScore}</span>
+          {role === 'spectator' ? (
+            <>
+              Host <span style={{ color: '#FFD700' }}>{scores.hostScore}</span>
+              {' · '}
+              Guest <span style={{ color: '#FF4FA3' }}>{scores.guestScore}</span>
+            </>
+          ) : (
+            <>
+              你 <span style={{ color: '#FFD700' }}>{left.score}</span>
+              {' · '}
+              对方 <span style={{ color: '#FF4FA3' }}>{right.score}</span>
+            </>
+          )}
           <span style={{ marginLeft: 8, fontSize: 10, color: 'rgba(248,244,227,0.4)' }}>
             / 总分 {BALLOT_SIZE_FE}
           </span>
@@ -516,8 +562,8 @@ function ResultView({ duel, scores, myId }: { duel: DuelData; scores: Scores; my
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <PicksColumn title="你的 ballot" picks={myPicks} accent="#FFD700" />
-        <PicksColumn title="对方 ballot" picks={theirPicks} accent="#FF4FA3" />
+        <PicksColumn title={left.label} picks={left.picks} accent={left.accent} />
+        <PicksColumn title={right.label} picks={right.picks} accent={right.accent} />
       </div>
     </div>
   );
