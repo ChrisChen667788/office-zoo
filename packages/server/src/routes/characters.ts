@@ -55,6 +55,7 @@ import {
   getUserBallot,
   getWeeklyLeaders,
   getCharacterHistory,
+  getWeeklyAll,
 } from '../services/characterVoteStore';
 import { ALL_PERSONALITIES } from '@furball/shared';
 
@@ -190,6 +191,18 @@ characterRoutes.get('/votes/me', async (c) => {
 characterRoutes.get('/votes/leaders', async (c) => {
   const data = await getWeeklyLeaders();
   c.header('Cache-Control', 'public, max-age=60');
+  return c.json(data);
+});
+
+/**
+ * v6.17 P1 — current week full tally for all rats. Powers /character-votes
+ * leaderboard page. Sorted by totalVotes desc so high-engagement rats
+ * surface first. Lazy: only includes rats with ≥ 1 vote this week
+ * (caller can render "no votes yet" for the rest).
+ */
+characterRoutes.get('/votes/all', async (c) => {
+  const data = await getWeeklyAll();
+  c.header('Cache-Control', 'public, max-age=30');
   return c.json(data);
 });
 

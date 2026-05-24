@@ -466,6 +466,21 @@ export default function Landing() {
               <DailyRatSpotlight />
             </div>
 
+            {/* v6.17 P1 — small chip to discover the global votes
+                leaderboard. Sits just under the daily spotlight. */}
+            <div className="mb-4 text-center">
+              <button
+                type="button"
+                onClick={() => navigate('/character-votes')}
+                className="text-[10px] px-3 py-1 rounded-full font-bold tracking-wide transition hover:scale-105"
+                style={{
+                  background: 'rgba(255,79,163,0.10)', color: '#FF4FA3',
+                  border: '1px solid rgba(255,79,163,0.45)',
+                  letterSpacing: '0.06em',
+                }}
+              >🗳️ 看本周 12 鼠投票排行榜 →</button>
+            </div>
+
             {/* v6.14 P2 — approved UGC carousel surface. Hides itself
                 when there are 0 approved entries so an empty product
                 doesn't tease an empty strip. Closes the loop

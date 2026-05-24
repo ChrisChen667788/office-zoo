@@ -224,3 +224,33 @@ export async function getWeeklyLeaders(
   }
   return { leaders, weekKey };
 }
+
+/**
+ * v6.17 P1 — return ALL characters' full tally for a given week. Used
+ * by /character-votes leaderboard page. Returns rats sorted by
+ * totalVotes desc so the highest-engagement rats surface first.
+ */
+export interface WeeklyAllPayload {
+  weekKey: string;
+  rats: Array<{
+    name: string;
+    tally: CharacterVoteTally;
+    dominant: string | null;
+  }>;
+}
+
+export async function getWeeklyAll(
+  weekKey = currentWeekKey(),
+): Promise<WeeklyAllPayload> {
+  const s = await ensureLoaded();
+  const week = s.byWeek[weekKey];
+  if (!week) return { weekKey, rats: [] };
+  const rats = Object.entries(week.byCharacter)
+    .map(([name, tally]) => ({
+      name,
+      tally,
+      dominant: Object.entries(tally.votes).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
+    }))
+    .sort((a, b) => b.tally.totalVotes - a.tally.totalVotes);
+  return { weekKey, rats };
+}
