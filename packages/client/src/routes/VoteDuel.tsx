@@ -56,16 +56,48 @@ export default function VoteDuel() {
   useEffect(() => {
     if (isCreating || !id) return;
     let cancelled = false;
-    fetch(`/api/characters/votes/duels/${encodeURIComponent(id)}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status === 404 ? '决斗不存在' : `加载失败 ${r.status}`)))
-      .then((d: { duel: DuelData; scores: Scores | null }) => {
+    async function load() {
+      try {
+        const r = await fetch(`/api/characters/votes/duels/${encodeURIComponent(id!)}`);
+        if (!r.ok) { setLoadErr(r.status === 404 ? '决斗不存在' : `加载失败 ${r.status}`); return; }
+        const d = (await r.json()) as { duel: DuelData; scores: Scores | null };
         if (cancelled) return;
         setDuel(d.duel);
         setScores(d.scores);
-      })
-      .catch((e) => { if (!cancelled) setLoadErr(typeof e === 'string' ? e : '加载失败'); });
+      } catch {
+        if (!cancelled) setLoadErr('加载失败');
+      }
+    }
+    load();
     return () => { cancelled = true; };
   }, [id, isCreating]);
+
+  /**
+   * v6.19 P1 — poll for guest joining while we're the waiting host.
+   * 5s interval (cheap; duel data ~500B). Stops on guest joined OR
+   * unmount. The CharacterFocusModal trick from v6.11 P4 doesn't apply
+   * here since we need explicit re-fetch.
+   */
+  useEffect(() => {
+    if (isCreating || !id || !duel) return;
+    // Already joined → no need to poll
+    if (duel.guestBallot) return;
+    // Only the host needs to poll (guest sees the JoinView directly)
+    if (duel.hostUserId !== myId) return;
+    const timer = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/characters/votes/duels/${encodeURIComponent(id)}`);
+        if (!r.ok) return;
+        const d = (await r.json()) as { duel: DuelData; scores: Scores | null };
+        if (d.duel.guestBallot) {
+          // Guest joined — flip to result view
+          setDuel(d.duel);
+          setScores(d.scores);
+        }
+      } catch { /* silent retry next tick */ }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [id, isCreating, duel, myId]);
 
   return (
     <div className="flex flex-col items-center px-4 py-8 min-h-screen"
@@ -248,12 +280,32 @@ function CreateView({ onCreated }: { onCreated: (duelId: string) => void }) {
 function WaitingHostView({ duel }: { duel: DuelData }) {
   const shareUrl = `${window.location.origin}/duel/${duel.duelId}`;
   const [copied, setCopied] = useState(false);
+  const [bigSuccess, setBigSuccess] = useState(false); // big screen-flash overlay
+  // OS share availability (mobile / Safari macOS support it)
+  const hasOsShare = typeof navigator !== 'undefined' && typeof (navigator as Navigator & { share?: unknown }).share === 'function';
+
   async function copy() {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
+      setBigSuccess(true);
       setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setBigSuccess(false), 900);
     } catch { /* user can manually copy from input */ }
+  }
+  async function osShare() {
+    const navShare = (navigator as Navigator & { share?: (data: { title?: string; text?: string; url?: string }) => Promise<void> }).share;
+    if (!navShare) return;
+    try {
+      await navShare({
+        title: 'OFFICE ZOO · 1v1 鼠人斗投',
+        text: '我押了 3 只鼠人 + personality, 来跟我斗投, 看谁更懂大众心理 ⚔️',
+        url: shareUrl,
+      });
+      // 用户从 native picker 选完 share target 后到这里. 也算"已复制"
+      setBigSuccess(true);
+      setTimeout(() => setBigSuccess(false), 900);
+    } catch { /* user cancelled OR not allowed in iframe — silent */ }
   }
   return (
     <div className="w-full max-w-xl">
@@ -291,8 +343,72 @@ function WaitingHostView({ duel }: { duel: DuelData }) {
             border: 'none', cursor: 'pointer',
             letterSpacing: '0.05em',
           }}>{copied ? '✓ 已复制' : '复制'}</button>
+        {hasOsShare && (
+          <button onClick={osShare}
+            style={{
+              padding: '4px 10px', borderRadius: 6,
+              background: 'linear-gradient(135deg, #FF4FA3, #B086FF)',
+              color: '#FFFFFF', fontWeight: 900, fontSize: 11,
+              border: 'none', cursor: 'pointer',
+              letterSpacing: '0.05em',
+            }}>📤 系统分享</button>
+        )}
       </div>
+
+      {/* v6.19 P1 — polling indicator: "waiting" pulse so user knows
+           we're auto-checking every 5s for guest joining. */}
+      <div style={{
+        marginBottom: 12, textAlign: 'center', fontSize: 11,
+        color: 'rgba(255,215,0,0.65)', letterSpacing: '0.05em',
+      }}>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '4px 10px', borderRadius: 999,
+          background: 'rgba(255,215,0,0.06)',
+          border: '1px dashed rgba(255,215,0,0.32)',
+        }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%',
+            background: '#FFD700',
+            animation: 'duelPulse 1.2s ease-in-out infinite',
+          }} />
+          每 5 秒自动检查朋友是否已加入 …
+        </span>
+        <style>{`
+          @keyframes duelPulse {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.4); }
+          }
+          @keyframes bigSuccessIn {
+            0%   { opacity: 0; transform: scale(0.3) rotate(-8deg); }
+            60%  { opacity: 1; transform: scale(1.15) rotate(2deg); }
+            100% { opacity: 1; transform: scale(1) rotate(0deg); }
+          }
+        `}</style>
+      </div>
+
       <BallotPreview title="你的 ballot" picks={duel.hostBallot} />
+
+      {/* v6.19 P1 — big success overlay after copy / OS share. Fades
+           naturally in 900ms, non-blocking. */}
+      {bigSuccess && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 300,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+        }}>
+          <div style={{
+            padding: '24px 40px', borderRadius: 24,
+            background: 'linear-gradient(135deg, rgba(91,226,74,0.95), rgba(34,197,94,0.92))',
+            color: '#0a3017', fontSize: 48, fontWeight: 900,
+            letterSpacing: '0.04em',
+            boxShadow: '0 20px 60px rgba(34,197,94,0.55), 0 0 80px rgba(91,226,74,0.4)',
+            animation: 'bigSuccessIn 0.42s cubic-bezier(0.22, 1.4, 0.36, 1)',
+          }}>
+            ✓ 已分享
+          </div>
+        </div>
+      )}
     </div>
   );
 }
