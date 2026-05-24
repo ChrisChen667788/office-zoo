@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getUserId } from '../utils/userId';
+import type { CharacterCard } from '@furball/shared';
 
 type Grade = 'S' | 'A' | 'B' | 'C' | 'D';
 
@@ -50,12 +51,22 @@ export default function FiredDailyChallenge() {
   const myId = getUserId();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  /** v6.15 P4 — today's featured rat, joined with the daily challenge.
+   *  Same character that the Landing DailyRatSpotlight shows. Gives
+   *  the daily challenge a guest "narrator" identity. */
+  const [dailyRat, setDailyRat] = useState<{ date: string; character: CharacterCard } | null>(null);
 
   useEffect(() => {
     fetch('/api/daily-challenge/today', { headers: { 'X-User-Id': myId } })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d: { summary: Summary }) => setSummary(d.summary))
       .catch(() => setErr('加载失败 — 待会再来'));
+    // v6.15 P4 — same deterministic-by-date pick that drives the
+    // Landing DailyRatSpotlight. Silent fail (badge just hides).
+    fetch('/api/characters/daily')
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d: { date: string; character: CharacterCard }) => setDailyRat(d))
+      .catch(() => { /* hide badge */ });
   }, [myId]);
 
   return (
@@ -92,6 +103,27 @@ export default function FiredDailyChallenge() {
                 border: '1px solid rgba(0,221,255,0.45)',
                 boxShadow: '0 10px 28px rgba(0,221,255,0.18)',
               }}>
+              {/* v6.15 P4 — 今日鼠人主角联动 badge. Click 跳 Landing
+                   ?character=Name 让 CharacterFocusModal 接管弹 PersonaCard. */}
+              {dailyRat && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/?character=${encodeURIComponent(dailyRat.character.name)}`)}
+                  className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full transition hover:scale-105"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,79,163,0.14) 100%)',
+                    border: '1px solid rgba(255,215,0,0.55)',
+                    color: '#FFD700',
+                    fontSize: 11, fontWeight: 800, letterSpacing: '0.05em',
+                    cursor: 'pointer',
+                  }}
+                  title="今日主角 — 跟 Landing DailyRatSpotlight 同步"
+                >
+                  <span style={{ fontSize: 16 }}>{dailyRat.character.emoji}</span>
+                  <span>🌟 今日主角:{dailyRat.character.epithet}</span>
+                  <span style={{ fontSize: 9, color: 'rgba(248,244,227,0.5)' }}>→ 档案</span>
+                </button>
+              )}
               <div className="text-[10px] tracking-[0.22em] uppercase mb-2"
                 style={{ color: '#9be6ff' }}>
                 ✦ 今日剧本 · {summary.date}
