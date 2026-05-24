@@ -52,6 +52,32 @@ interface LifetimeStats {
 const STATS_CACHE: Map<string, { stats: LifetimeStats | null; fetchedAt: number }> = new Map();
 const STATS_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * v6.13 — batch warm the STATS_CACHE for every known character. Called
+ * once on Landing mount; fire-and-forget. Subsequent PersonaCard hovers
+ * across the app are instant (no /:name round-trip). The single
+ * /api/characters call has a 60s server cache header, so re-calls
+ * within a session are cheap on the server side too.
+ *
+ * Idempotent — checking the cache freshness first means a second call
+ * within the TTL is a no-op.
+ */
+export async function prefetchAllCharacterStats(): Promise<void> {
+  // Skip if every name in the recent cache is fresh (within TTL).
+  const now = Date.now();
+  const allFresh = STATS_CACHE.size >= 12 &&
+    Array.from(STATS_CACHE.values()).every((e) => now - e.fetchedAt < STATS_TTL_MS);
+  if (allFresh) return;
+  try {
+    const r = await fetch('/api/characters');
+    if (!r.ok) return;
+    const data = (await r.json()) as { characters: Array<{ name: string; stats: LifetimeStats | null }> };
+    for (const c of (data.characters ?? [])) {
+      STATS_CACHE.set(c.name, { stats: c.stats, fetchedAt: now });
+    }
+  } catch { /* best-effort, silent */ }
+}
+
 // v6.10 — minimal local string dict for UI chrome (epithet/catchphrase
 // translations live in CHARACTERS.i18n). Keep tiny + colocated; if this
 // grows past ~10 keys, promote to packages/client/src/utils/i18n.ts.

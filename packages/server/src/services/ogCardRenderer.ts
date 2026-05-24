@@ -188,3 +188,38 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
+/**
+ * v6.13 — sweep the OG cache directory and remove files older than
+ * `maxAgeDays` whose mtime hasn't been touched in that window. Files
+ * the current cache-key path would resolve to are protected from
+ * sweep regardless of age (active set).
+ *
+ * Called at server start + once per hour by index.ts setInterval. Cheap:
+ * a directory with 12 characters × a few generations is a few dozen
+ * files at most. No-op when the cache dir doesn't exist yet.
+ */
+export async function sweepOgCache(maxAgeDays = 7): Promise<{ removed: number; kept: number }> {
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  let removed = 0, kept = 0;
+  try {
+    const files = await fs.readdir(CACHE_DIR);
+    for (const f of files) {
+      const fp = path.join(CACHE_DIR, f);
+      try {
+        const stat = await fs.stat(fp);
+        if (stat.mtimeMs < cutoff) {
+          await fs.unlink(fp);
+          removed++;
+        } else {
+          kept++;
+        }
+      } catch { /* race or transient — skip */ }
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.error('[ogCardRenderer.sweep] failed:', err);
+    }
+  }
+  return { removed, kept };
+}

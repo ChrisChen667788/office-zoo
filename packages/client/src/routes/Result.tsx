@@ -12,6 +12,7 @@ import { usePlayers, useWinner, useRound, useGameActions } from '../stores/gameS
 import { colors } from '../constants/design';
 import { lottie } from '../constants/lottie';
 import LottieAsset from '../components/LottieAsset';
+import PersonaCard from '../components/character/PersonaCard';
 
 const TEAM_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
   cat:     { label: '打工人阵营', emoji: '👨‍💻', color: colors.team.cat },
@@ -144,7 +145,15 @@ export default function Result() {
               }}
             >
               <div className="text-2xl mb-1">{teamInfo.emoji}</div>
-              <div className="text-white font-bold text-sm tracking-tight">{player.name}</div>
+              {/* v6.13 — wrap name in PersonaCard so post-game player can
+                   click any rat to see full IP + 反差 + 战绩 + share. The
+                   战后回看 moment is the natural peak for IP exploration. */}
+              <PersonaCard playerName={player.name} personality={player.personality}>
+                <div className="text-white font-bold text-sm tracking-tight inline-block"
+                  style={{ borderBottom: '1px dashed rgba(255,215,0,0.4)' }}>
+                  {player.name}
+                </div>
+              </PersonaCard>
               {player.personality && PERSONALITY_LABELS[player.personality] && (
                 <div className="mt-1.5">
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"

@@ -36,6 +36,7 @@ import { weeklyRoutes } from './routes/weekly';
 import { barRoutes } from './routes/bar';
 import { characterRoutes } from './routes/characters';
 import { shareSocialRoutes } from './routes/shareSocial';
+import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
 
@@ -175,6 +176,14 @@ const wsPort = parseInt(process.env.WS_PORT || '3101');
 serve({ fetch: app.fetch, port }, () => {
   logger.info({ port }, 'HTTP server listening');
 });
+
+// v6.13 — sweep OG cache directory at boot + every hour, dropping files
+// older than 7 days. Keeps the disk bounded as stats invalidations
+// rotate cache keys over time. Cheap (dozens of files).
+sweepOgCache(7).then((r) => logger.info(r, 'og cache swept at boot'));
+setInterval(() => {
+  sweepOgCache(7).then((r) => logger.info(r, 'og cache hourly sweep'));
+}, 60 * 60 * 1000);
 
 // WebSocket server on separate port
 const httpServer = createServer();

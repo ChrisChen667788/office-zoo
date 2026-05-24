@@ -20,6 +20,7 @@ import SfxToggle from '../components/game/SfxToggle';
 import LottieAsset from '../components/LottieAsset';
 import DailyShareCardModal from '../components/DailyShareCardModal';
 import type { DailyShareCardData } from '../utils/dailyShareCard';
+import { prefetchAllCharacterStats } from '../components/character/PersonaCard';
 import { primeAudio } from '../utils/audioUnlock';
 import { colors } from '../constants/design';
 import { lottie } from '../constants/lottie';
@@ -123,6 +124,10 @@ export default function Landing() {
         if (d?.drama) setDaily(d.drama);
       })
       .catch(() => { /* anonymous — keep legacy CTA */ });
+    // v6.13 — warm PersonaCard cache so any rat hover anywhere in the
+    // app (Classic chat / Result / Profile / B2bEmbed) is instant.
+    // Fire-and-forget; failures silently fall back to per-hover fetch.
+    prefetchAllCharacterStats();
   }, []);
 
   // v1.5.0 — share-card modal. Daily card's 📤 button toggles this with
