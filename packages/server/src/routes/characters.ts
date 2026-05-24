@@ -26,6 +26,7 @@ import {
   getUserViews,
   getUserTrend,
 } from '../services/userCharacterViewsStore';
+import { getCharacterOgCard } from '../services/ogCardRenderer';
 
 export const characterRoutes = new Hono();
 
@@ -76,6 +77,24 @@ characterRoutes.get('/me/views', async (c) => {
  * intended for a v6.12 SVG trend line; current panel only needs
  * dominantPersonality + counts.
  */
+/**
+ * v6.12 P2 — per-character OG PNG. Server-side Playwright pre-render
+ * (1200×630), cached to packages/server/data/og-cards/<name>-<lastGameId>.png.
+ * Cache auto-invalidates when stats lastGameId changes. Used as og:image
+ * by /share/character/:name HTML, upgrading from the v6.11 shared logo.
+ *
+ * Cache headers: public, max-age 1 hour. Crawlers cache aggressively;
+ * stats change → URL filename suffix changes → fresh fetch.
+ */
+characterRoutes.get('/:name/og-card.png', async (c) => {
+  const name = c.req.param('name');
+  const buf = await getCharacterOgCard(name);
+  if (!buf) return c.json({ error: 'unknown character' }, 404);
+  c.header('Content-Type', 'image/png');
+  c.header('Cache-Control', 'public, max-age=3600');
+  return c.body(buf);
+});
+
 characterRoutes.get('/me/trend', async (c) => {
   const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
   const days = Math.max(1, Math.min(90, parseInt(c.req.query('days') ?? '30', 10) || 30));

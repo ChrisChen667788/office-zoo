@@ -30,7 +30,10 @@ shareSocialRoutes.get('/character/:name', (c) => {
     return c.html(genericShareHtml(c.req.url), 404);
   }
   const origin = new URL(c.req.url).origin;
-  const ogImage = `${origin}/assets/brand/logo-horizontal-lockup-final.png`;
+  // v6.12 P2 — per-character pre-rendered OG card. Stats change → cache
+  // key rotates → crawlers get a fresh PNG. First-fetch lazy-renders
+  // (~3-5s); after that disk-served (~50ms).
+  const ogImage = `${origin}/api/characters/${encodeURIComponent(character.name)}/og-card.png`;
   const spaUrl = `/?character=${encodeURIComponent(character.name)}`;
   const title = `${character.epithet} · ${character.name} · OFFICE ZOO`;
   const description = `${character.backstory}。口头禅:"${character.catchphrases[0]}"`;
@@ -44,8 +47,8 @@ shareSocialRoutes.get('/character/:name', (c) => {
   <meta property="og:title" content="${esc(title)}" />
   <meta property="og:description" content="${esc(description)}" />
   <meta property="og:image" content="${ogImage}" />
-  <meta property="og:image:width" content="1280" />
-  <meta property="og:image:height" content="720" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta property="og:type" content="profile" />
   <meta property="og:url" content="${esc(c.req.url)}" />
   <meta property="og:site_name" content="OFFICE ZOO · 班味剧场" />
