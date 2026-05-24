@@ -29,6 +29,7 @@ import type { PersonalizedProfile, UserProfile } from '../utils/profileTypes';
 import TopRatsPanel from '../components/character/TopRatsPanel';
 import MySubmissionsPanel from '../components/character/MySubmissionsPanel';
 import SquadBuddiesPanel from '../components/character/SquadBuddiesPanel';
+import MyBallotsPanel from '../components/character/MyBallotsPanel';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
   { key: 'grind',      label: '内卷' },
@@ -182,6 +183,11 @@ export default function Profile() {
           可视化, 三层"OFFICE ZOO 朋友"在 Profile 一处看齐:
           TopRats (AI 鼠) + MySubmissions (写的段子) + SquadBuddies (真人). */}
       <SquadBuddiesPanel />
+
+      {/* v6.17 P3 — 我本周的鼠人选秀票. 闭合"我投票→engine bias→下周
+          看到效果"的反馈环, 让 v6.16 P1 voting 在 Profile 有 visible
+          retrospective. */}
+      <MyBallotsPanel />
     </div>
   );
 }

@@ -54,6 +54,7 @@ import {
   getCharacterVotes,
   getUserBallot,
   getWeeklyLeaders,
+  getCharacterHistory,
 } from '../services/characterVoteStore';
 import { ALL_PERSONALITIES } from '@furball/shared';
 
@@ -163,6 +164,19 @@ characterRoutes.get('/:name/votes', async (c) => {
   const data = await getCharacterVotes(name);
   c.header('Cache-Control', 'public, max-age=30');
   return c.json(data);
+});
+
+/**
+ * v6.17 P2 — last N weeks of winning personality for one character.
+ * Powers CharacterVoteModal's history strip + Profile cross-tab.
+ */
+characterRoutes.get('/:name/votes/history', async (c) => {
+  const name = c.req.param('name');
+  if (!findCharacter(name)) return c.json({ error: 'unknown character' }, 404);
+  const weeks = Math.max(1, Math.min(12, parseInt(c.req.query('weeks') ?? '4', 10) || 4));
+  const history = await getCharacterHistory(name, weeks);
+  c.header('Cache-Control', 'public, max-age=60');
+  return c.json({ history });
 });
 
 characterRoutes.get('/votes/me', async (c) => {

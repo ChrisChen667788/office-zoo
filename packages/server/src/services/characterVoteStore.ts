@@ -180,6 +180,37 @@ export async function getUserBallot(
   return { ballot, weekKey };
 }
 
+/**
+ * v6.17 P2 — return the last `weeks` weeks' winning personality for one
+ * character. Used by CharacterVoteModal's history strip and Profile
+ * MyBallots cross-tab. Returns oldest → newest.
+ *
+ * Missing weeks (gap in voting history) → not included; caller may want
+ * to backfill with `null` if a contiguous timeline is needed.
+ */
+export interface CharacterWeekHistory {
+  weekKey: string;
+  dominant: string | null;
+  totalVotes: number;
+}
+
+export async function getCharacterHistory(
+  name: string,
+  weeks = 4,
+): Promise<CharacterWeekHistory[]> {
+  const s = await ensureLoaded();
+  const all = Object.keys(s.byWeek).sort(); // chronological
+  // Take the most recent `weeks` weeks that have data, oldest → newest.
+  const sliced = all.slice(-weeks);
+  return sliced.map((weekKey) => {
+    const tally = s.byWeek[weekKey]?.byCharacter?.[name];
+    if (!tally) return { weekKey, dominant: null, totalVotes: 0 };
+    const dominant = Object.entries(tally.votes)
+      .sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    return { weekKey, dominant, totalVotes: tally.totalVotes };
+  });
+}
+
 export async function getWeeklyLeaders(
   weekKey = currentWeekKey(),
 ): Promise<{ leaders: Record<string, string>; weekKey: string }> {

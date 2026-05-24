@@ -23,6 +23,12 @@ interface Tally {
   totalVotes: number;
 }
 
+interface HistoryEntry {
+  weekKey: string;
+  dominant: string | null;
+  totalVotes: number;
+}
+
 interface Props {
   characterName: string;
   epithet: string;
@@ -36,6 +42,7 @@ export default function CharacterVoteModal({ characterName, epithet, emoji, open
   const [dominant, setDominant] = useState<string | null>(null);
   const [weekKey, setWeekKey] = useState<string>('');
   const [myVote, setMyVote] = useState<string | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // personality currently being voted
 
   useEffect(() => {
@@ -47,7 +54,10 @@ export default function CharacterVoteModal({ characterName, epithet, emoji, open
         .then((r) => (r.ok ? r.json() : null)),
       fetch('/api/characters/votes/me', { headers: { 'X-User-Id': myId } })
         .then((r) => (r.ok ? r.json() : null)),
-    ]).then(([votesData, meData]) => {
+      // v6.17 P2 — last 4 weeks' winner trend for this rat
+      fetch(`/api/characters/${encodeURIComponent(characterName)}/votes/history?weeks=4`)
+        .then((r) => (r.ok ? r.json() : null)),
+    ]).then(([votesData, meData, historyData]) => {
       if (cancelled) return;
       if (votesData) {
         setTally(votesData.tally);
@@ -56,6 +66,9 @@ export default function CharacterVoteModal({ characterName, epithet, emoji, open
       }
       if (meData?.ballot) {
         setMyVote(meData.ballot[characterName] ?? null);
+      }
+      if (historyData?.history) {
+        setHistory(historyData.history as HistoryEntry[]);
       }
     }).catch(() => { /* silent */ });
     return () => { cancelled = true; };
@@ -221,10 +234,55 @@ export default function CharacterVoteModal({ characterName, epithet, emoji, open
               })}
             </div>
 
+            {/* v6.17 P2 — 4 周 winner 趋势 strip. 只在有 history 数据时显示,
+                 让用户看到这只鼠这季 personality 演化轨迹. */}
+            {history && history.length > 0 && (
+              <div style={{
+                marginTop: 14, padding: '8px 12px', borderRadius: 8,
+                background: 'rgba(176,134,255,0.06)',
+                border: '1px solid rgba(176,134,255,0.18)',
+              }}>
+                <div style={{
+                  fontSize: 9, fontWeight: 900, letterSpacing: '0.15em',
+                  color: '#B086FF', textTransform: 'uppercase', marginBottom: 6,
+                }}>📈 过去 {history.length} 周 winner</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {history.map((h) => {
+                    const isCurrent = h.weekKey === weekKey;
+                    const p = h.dominant ? PERSONALITY_LABELS_LITE[h.dominant] : null;
+                    return (
+                      <div key={h.weekKey} style={{
+                        flex: 1, display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', gap: 3,
+                      }}>
+                        <div style={{
+                          width: 36, height: 36, borderRadius: '50%',
+                          background: p ? `${p.color}22` : 'rgba(255,255,255,0.04)',
+                          border: `1.5px solid ${p ? p.color + '88' : 'rgba(255,255,255,0.08)'}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 18,
+                          boxShadow: isCurrent && p ? `0 0 12px ${p.color}55` : 'none',
+                        }}>{p?.emoji ?? '·'}</div>
+                        <span style={{
+                          fontSize: 8, color: 'rgba(248,244,227,0.5)', fontWeight: 700,
+                          letterSpacing: '0.04em',
+                        }}>{h.weekKey.replace(/^\d{4}-/, '')}</span>
+                        {p && (
+                          <span style={{
+                            fontSize: 8, color: p.color, fontWeight: 800,
+                          }}>{p.label}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Footer hint */}
             <div style={{
               fontSize: 9.5, color: 'rgba(248,244,227,0.4)', textAlign: 'center',
-              fontStyle: 'italic',
+              fontStyle: 'italic', marginTop: 10,
             }}>
               {myVote
                 ? '已投票. 想改可以点其他选项, 本周内随时换.'
