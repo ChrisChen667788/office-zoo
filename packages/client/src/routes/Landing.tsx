@@ -20,7 +20,7 @@ import SfxToggle from '../components/game/SfxToggle';
 import LottieAsset from '../components/LottieAsset';
 import DailyShareCardModal from '../components/DailyShareCardModal';
 import type { DailyShareCardData } from '../utils/dailyShareCard';
-import { prefetchAllCharacterStats } from '../components/character/PersonaCard';
+import { prefetchAllCharacterStats, prefetchWeeklyLeaders } from '../components/character/PersonaCard';
 import DailyRatSpotlight from '../components/character/DailyRatSpotlight';
 import UgcHighlightsCarousel from '../components/character/UgcHighlightsCarousel';
 import { primeAudio } from '../utils/audioUnlock';
@@ -130,6 +130,9 @@ export default function Landing() {
     // app (Classic chat / Result / Profile / B2bEmbed) is instant.
     // Fire-and-forget; failures silently fall back to per-hover fetch.
     prefetchAllCharacterStats();
+    // v6.18 P2 — also warm the weekly-dominant cache so the small "本周
+    // dominant" chip in PersonaCard header reads sync (no fetch latency).
+    prefetchWeeklyLeaders();
   }, []);
 
   // v1.5.0 — share-card modal. Daily card's 📤 button toggles this with

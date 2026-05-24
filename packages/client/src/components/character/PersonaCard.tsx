@@ -54,6 +54,31 @@ const STATS_CACHE: Map<string, { stats: LifetimeStats | null; fetchedAt: number 
 const STATS_TTL_MS = 5 * 60 * 1000;
 
 /**
+ * v6.18 P2 — module-level cache of "this week's dominant personality"
+ * per character. Populated by prefetchWeeklyLeaders() (called from
+ * Landing on mount alongside prefetchAllCharacterStats). Reads in
+ * PersonaCard render are sync — no fetch latency in the popover.
+ *
+ * Why module-level: PersonaCards mount/unmount many times per game;
+ * a React state would re-fetch on every mount. Module Map is shared
+ * across the SPA lifetime, 5-min TTL like stats.
+ */
+let WEEKLY_LEADERS: { leaders: Record<string, string>; fetchedAt: number; weekKey: string } = {
+  leaders: {}, fetchedAt: 0, weekKey: '',
+};
+
+export async function prefetchWeeklyLeaders(): Promise<void> {
+  const now = Date.now();
+  if (now - WEEKLY_LEADERS.fetchedAt < STATS_TTL_MS) return;
+  try {
+    const r = await fetch('/api/characters/votes/leaders');
+    if (!r.ok) return;
+    const data = (await r.json()) as { leaders: Record<string, string>; weekKey: string };
+    WEEKLY_LEADERS = { leaders: data.leaders ?? {}, weekKey: data.weekKey, fetchedAt: now };
+  } catch { /* silent */ }
+}
+
+/**
  * v6.13 — batch warm the STATS_CACHE for every known character. Called
  * once on Landing mount; fire-and-forget. Subsequent PersonaCard hovers
  * across the app are instant (no /:name round-trip). The single
@@ -294,6 +319,28 @@ export default function PersonaCard({ playerName, personality, disableUgc = fals
                     {character.name.toUpperCase()}
                   </span>
                 </div>
+                {/* v6.18 P2 — 本周 dominant 小标. 从模块级 cache 同步读
+                     (Landing prefetch 已 warm), 0 fetch 延迟. 仅当该鼠本周
+                     有人投过票时显示. */}
+                {(() => {
+                  const dominantId = WEEKLY_LEADERS.leaders[playerName];
+                  if (!dominantId) return null;
+                  const dp = PERSONALITY_LABELS[dominantId];
+                  if (!dp) return null;
+                  return (
+                    <span style={{
+                      marginLeft: 'auto', fontSize: 9, padding: '2px 5px',
+                      borderRadius: 4,
+                      background: `${dp.color}28`, color: dp.color,
+                      border: `1px solid ${dp.color}66`,
+                      fontWeight: 800, letterSpacing: '0.04em',
+                      display: 'inline-flex', alignItems: 'center', gap: 3,
+                      whiteSpace: 'nowrap',
+                    }} title={`本周得票最高: ${dp.label}`}>
+                      🗳 {dp.emoji}
+                    </span>
+                  );
+                })()}
               </div>
 
               {/* 本局性格 chip + 反差 indicator (the joke layer) */}
