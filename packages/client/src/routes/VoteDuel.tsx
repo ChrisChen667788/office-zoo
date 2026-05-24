@@ -20,6 +20,7 @@ import { CHARACTERS, ALL_CHARACTER_NAMES } from '@furball/shared';
 import { PERSONALITY_LABELS_LITE, ALL_PERSONALITY_IDS } from '../constants/personalityLabels';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
+import { copyDuelShareCard, downloadDuelShareCard, type DuelShareCardData } from '../utils/duelShareCard';
 
 const BALLOT_SIZE_FE = 3;
 
@@ -565,6 +566,94 @@ function ResultView({ duel, scores, myId }: { duel: DuelData; scores: Scores; my
         <PicksColumn title={left.label} picks={left.picks} accent={left.accent} />
         <PicksColumn title={right.label} picks={right.picks} accent={right.accent} />
       </div>
+
+      {/* v6.20 P2 — share-card buttons. Visible to everyone (incl.
+           spectators — they're allowed to share the duel they're
+           watching). */}
+      <DuelShareRow duel={duel} scores={scores} />
+    </div>
+  );
+}
+
+function DuelShareRow({ duel, scores }: { duel: DuelData; scores: Scores }) {
+  const [busy, setBusy] = useState<'copy' | 'download' | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  function buildData(): DuelShareCardData {
+    return {
+      duelId: duel.duelId,
+      weekKey: duel.weekKey,
+      hostScore: scores.hostScore,
+      guestScore: scores.guestScore,
+      perPickHost: scores.perPickHost,
+      perPickGuest: scores.perPickGuest,
+      hostLabel: `${duel.hostUserId.slice(0, 12)}…`,
+      guestLabel: duel.guestUserId ? `${duel.guestUserId.slice(0, 12)}…` : '',
+    };
+  }
+  async function onCopy() {
+    if (busy) return;
+    setBusy('copy');
+    try {
+      await copyDuelShareCard(buildData());
+      setFlash('✓ 已复制图片');
+    } catch {
+      // Clipboard not available — fallback to download
+      await downloadDuelShareCard(buildData());
+      setFlash('已下载到本地');
+    }
+    setTimeout(() => setFlash(null), 1500);
+    setBusy(null);
+  }
+  async function onDownload() {
+    if (busy) return;
+    setBusy('download');
+    await downloadDuelShareCard(buildData());
+    setFlash('已下载到本地');
+    setTimeout(() => setFlash(null), 1500);
+    setBusy(null);
+  }
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+      <button
+        type="button"
+        onClick={onCopy}
+        disabled={busy !== null}
+        style={{
+          padding: '8px 18px', borderRadius: 999,
+          background: 'linear-gradient(135deg, #FFD700 0%, #FFA947 100%)',
+          color: '#1a0d35', fontWeight: 900, fontSize: 13,
+          border: 'none', cursor: busy ? 'wait' : 'pointer',
+          letterSpacing: '0.05em',
+          boxShadow: '0 0 14px rgba(255,215,0,0.32)',
+        }}>
+        📤 {busy === 'copy' ? '生成中…' : '复制比分图'}
+      </button>
+      <button
+        type="button"
+        onClick={onDownload}
+        disabled={busy !== null}
+        style={{
+          padding: '8px 16px', borderRadius: 999,
+          background: 'rgba(255,255,255,0.06)',
+          color: 'rgba(248,244,227,0.85)', fontWeight: 700, fontSize: 12,
+          border: '1px solid rgba(255,215,0,0.45)',
+          cursor: busy ? 'wait' : 'pointer',
+        }}>
+        📥 {busy === 'download' ? '生成中…' : '下载 PNG'}
+      </button>
+      {flash && (
+        <motion.span
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{
+            padding: '6px 12px', borderRadius: 999,
+            background: 'rgba(91,226,74,0.18)', color: '#5be24a',
+            border: '1px solid rgba(91,226,74,0.55)',
+            fontSize: 11, fontWeight: 800, letterSpacing: '0.05em',
+          }}>{flash}</motion.span>
+      )}
     </div>
   );
 }
