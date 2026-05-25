@@ -109,6 +109,12 @@ export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers
   const [psywarOpen, setPsywarOpen] = useState(false);
   const [psywarTarget, setPsywarTarget] = useState<string>('');
   const [psywarLineIdx, setPsywarLineIdx] = useState<number>(0);
+  // v6.25 P6 — optional free-form override text. When non-empty + valid
+  // (≤ 60 chars), wins over the preset selection. Empty falls back to
+  // preset. Gives user complete agency without losing the canned-pool
+  // convenience for quick taunts.
+  const [psywarCustom, setPsywarCustom] = useState<string>('');
+  const PSYWAR_CUSTOM_MAX = 60;
 
   // ── Synthesize welcome reactions ─────────────────────────────────────
   //
@@ -300,24 +306,65 @@ export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers
                 <select
                   value={psywarLineIdx}
                   onChange={(e) => setPsywarLineIdx(Number(e.target.value))}
+                  disabled={psywarCustom.trim().length > 0}
                   style={{
                     padding: '4px 8px', borderRadius: 6,
                     background: 'rgba(15,14,46,0.85)',
                     color: '#f4f4ff', fontSize: 11,
                     border: '1px solid rgba(176,134,255,0.4)',
+                    opacity: psywarCustom.trim().length > 0 ? 0.4 : 1,
                   }}
                 >
                   {PSYWAR_PRESETS.map((p, i) => (
                     <option key={i} value={i}>{p.replace('{target}', '___')}</option>
                   ))}
                 </select>
+                {/* v6.25 P6 — free-form override. When non-empty wins
+                    over preset. `{target}` token expanded same way as
+                    presets. Char limit visible, prevents abuse. */}
+                <textarea
+                  value={psywarCustom}
+                  onChange={(e) => setPsywarCustom(e.target.value.slice(0, PSYWAR_CUSTOM_MAX))}
+                  placeholder={`或自定义 (≤ ${PSYWAR_CUSTOM_MAX} 字, 用 {target} 插入名字)`}
+                  rows={2}
+                  style={{
+                    padding: '5px 8px', borderRadius: 6,
+                    background: 'rgba(15,14,46,0.85)',
+                    color: '#f4f4ff', fontSize: 11,
+                    border: `1px solid ${psywarCustom.trim().length > 0 ? 'rgba(176,134,255,0.85)' : 'rgba(176,134,255,0.3)'}`,
+                    resize: 'none', fontFamily: 'inherit', lineHeight: 1.35,
+                    outline: 'none',
+                  }}
+                />
+                <div style={{
+                  fontSize: 9, color: 'rgba(255,255,255,0.4)',
+                  textAlign: 'right', marginTop: -2,
+                }}>
+                  {psywarCustom.length}/{PSYWAR_CUSTOM_MAX}
+                  {psywarCustom.trim().length > 0 && (
+                    <span style={{ color: '#B086FF', marginLeft: 6 }}>· 自定义优先</span>
+                  )}
+                </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
                   <button
                     type="button"
                     onClick={() => {
                       const target = alivePlayers.find((p) => p.id === psywarTarget);
                       if (!target || !latestGhost) return;
-                      const text = PSYWAR_PRESETS[psywarLineIdx].replace('{target}', target.name);
+                      // v6.25 P6 — custom override wins. Auto-prefix
+                      // with @target if the user forgot to mention them,
+                      // matching the preset convention.
+                      const raw = psywarCustom.trim();
+                      let text: string;
+                      if (raw.length > 0) {
+                        text = raw.includes('{target}')
+                          ? raw.replace(/\{target\}/g, target.name)
+                          : raw.includes(`@${target.name}`) || raw.startsWith('@')
+                            ? raw
+                            : `@${target.name} ${raw}`;
+                      } else {
+                        text = PSYWAR_PRESETS[psywarLineIdx].replace('{target}', target.name);
+                      }
                       setPsywarSent((prev) => [...prev, {
                         id: `psywar:${latestGhost.playerId}:${target.id}:${Date.now()}`,
                         playerId: latestGhost.playerId,
@@ -329,6 +376,7 @@ export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers
                       }]);
                       setPsywarOpen(false);
                       setPsywarTarget('');
+                      setPsywarCustom('');
                     }}
                     disabled={!psywarTarget}
                     style={{
@@ -344,7 +392,7 @@ export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setPsywarOpen(false); setPsywarTarget(''); }}
+                    onClick={() => { setPsywarOpen(false); setPsywarTarget(''); setPsywarCustom(''); }}
                     style={{
                       padding: '5px 10px', borderRadius: 6,
                       background: 'rgba(255,255,255,0.06)',
