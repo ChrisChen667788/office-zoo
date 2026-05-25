@@ -18,11 +18,12 @@
  *      context on the first tap, so the first in-game SFX isn't swallowed.
  *
  * ## Muted state
- * Persisted to localStorage under `office-arena.sfx.muted`. Muting sets the
+ * Persisted to localStorage under `office-zoo.sfx.muted`. Muting sets the
  * master gain to 0 rather than tearing down the context — cheaper to flip.
+ * v6.25 P8 — migrated from legacy `office-arena.sfx.muted` via lsMigrate.
  */
 
-const STORAGE_KEY = 'office-arena.sfx.muted';
+const STORAGE_KEY = 'office-zoo.sfx.muted';
 const MASTER_GAIN = 0.35;
 
 class SfxPlayer {

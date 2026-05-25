@@ -41,8 +41,9 @@ import { sfx } from '../../utils/sfx';
 import AchievementToast, { type AchievementData } from './AchievementToast';
 import { achievementIcons, glyphIcons, Icon } from '../../constants/icons';
 
-const STATS_KEY = 'office-arena.prediction-stats';
-const PICK_PREFIX = 'office-arena.pick.';
+// v6.25 P8 — migrated from legacy office-arena.* namespace via lsMigrate.
+const STATS_KEY = 'office-zoo.prediction-stats';
+const PICK_PREFIX = 'office-zoo.pick.';
 
 /** Delay after vote_result before firing streak SFX — lets EliminationReveal's
  *  gavel SFX breathe. Badge fanfare uses a longer delay for the same reason. */

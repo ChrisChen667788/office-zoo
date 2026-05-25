@@ -11,7 +11,8 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const FIRST_VISIT_KEY = 'office-arena.seen-rules';
+// v6.25 P8 — migrated from legacy office-arena.* namespace via lsMigrate.
+const FIRST_VISIT_KEY = 'office-zoo.seen-rules';
 
 /** Marks the user as having seen the rules. Idempotent. */
 export function markRulesSeen() {
