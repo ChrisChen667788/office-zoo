@@ -28,7 +28,30 @@ import type { GhostCommentItem } from '../../stores/gameStore';
 interface GhostChatPanelProps {
   comments: GhostCommentItem[];
   avatarUrls?: Record<string, string>;
+  /** v6.23 P3 — alive players for the "战术 @" psy-war dialog. The
+   *  user (real human watching) picks one and a preset taunt; the most
+   *  recent ghost "delivers" it as a highlighted bubble. AI players
+   *  do NOT read these messages — it's purely a UI ritual for drama. */
+  alivePlayers?: Array<{ id: string; name: string }>;
 }
+
+/* ── Psy-war taunt pool ──────────────────────────────────────────────
+ *
+ * v6.23 P3. User picks {target} + one of these templates; the most
+ * recent ghost speaks it. Mix of 落井下石 / 暗示 / 八卦 / 黑色幽默
+ * — match the "已离职但还在群里搅" 班味 调调. `{target}` token gets
+ * replaced with the picked alive player's display name.
+ */
+const PSYWAR_PRESETS = [
+  '小心 @{target}, 表面光鲜内心 OKR 焦虑',
+  '@{target} 偷过我工位的零食 (匿名爆料)',
+  '我离职前看 @{target} 跟 HR 嘀咕半小时',
+  '@{target} 那个 PRD 是抄我离职前的 draft',
+  '@{target} 上次跟我说过, 老板看他不顺眼了',
+  '@{target}, 你下一个 🪦 我们群里等你',
+  '@{target} 出去抽根烟? 我们一起骂老板',
+  '@{target} 别装了, 老板早把你工位标 P0 了',
+];
 
 /* ── Welcome-reaction pool ──────────────────────────────────────────────
  *
@@ -70,11 +93,22 @@ function formatTime(ts: number): string {
 
 /* ── Component ───────────────────────────────────────────────────────── */
 
-export default function GhostChatPanel({ comments, avatarUrls = {} }: GhostChatPanelProps) {
+export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers = [] }: GhostChatPanelProps) {
   const [open, setOpen] = useState(false);
   const [seenCount, setSeenCount] = useState(0);
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // ── Psy-war local state ──────────────────────────────────────────────
+  //
+  // psywarSent — synthesized messages the user has fired via the
+  // "战术 @" button. Lives in component state (not the store) so it
+  // resets on game change but persists during a single match. Each
+  // entry is delivered by the most-recent ghost as its "voice".
+  const [psywarSent, setPsywarSent] = useState<GhostCommentItem[]>([]);
+  const [psywarOpen, setPsywarOpen] = useState(false);
+  const [psywarTarget, setPsywarTarget] = useState<string>('');
+  const [psywarLineIdx, setPsywarLineIdx] = useState<number>(0);
 
   // ── Synthesize welcome reactions ─────────────────────────────────────
   //
@@ -83,7 +117,14 @@ export default function GhostChatPanel({ comments, avatarUrls = {} }: GhostChatP
   // from the previous ghost in front of them. Reactions are virtual —
   // they don't go into the store, only into the rendered list — so the
   // server stays the source of truth for actual ghost lines.
-  const enriched = augmentWithReactions(comments);
+  const enrichedBase = augmentWithReactions(comments);
+  // Merge psywar messages in chronological order
+  const enriched = [...enrichedBase, ...psywarSent].sort((a, b) => a.timestamp - b.timestamp);
+
+  // Latest ghost = speaker for the next psywar message. Falls back to
+  // null when no ghosts exist yet (button disabled in that case).
+  const latestGhost = comments.length > 0 ? comments[comments.length - 1] : null;
+  const canPsywar = latestGhost !== null && alivePlayers.length > 0;
 
   // ── Auto-scroll ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -226,14 +267,124 @@ export default function GhostChatPanel({ comments, avatarUrls = {} }: GhostChatP
               ))}
             </div>
 
-            {/* Footer hint */}
+            {/* v6.23 P3 — psy-war "@" dialog. Inline above footer so the
+                user picks a target + a preset taunt without leaving the
+                panel. The most recent ghost "speaks" it. Closed by
+                default so the panel stays a reader most of the time. */}
+            {psywarOpen && canPsywar && (
+              <div style={{
+                padding: '8px 12px',
+                borderTop: '1px solid rgba(176,134,255,0.35)',
+                background: 'rgba(176,134,255,0.08)',
+                display: 'flex', flexDirection: 'column', gap: 6,
+                fontSize: 11,
+              }}>
+                <div style={{ color: '#B086FF', fontWeight: 800, letterSpacing: '0.06em' }}>
+                  让 {latestGhost!.playerName} 鬼声 · 心理战 @
+                </div>
+                <select
+                  value={psywarTarget}
+                  onChange={(e) => setPsywarTarget(e.target.value)}
+                  style={{
+                    padding: '4px 8px', borderRadius: 6,
+                    background: 'rgba(15,14,46,0.85)',
+                    color: '#f4f4ff', fontSize: 11,
+                    border: '1px solid rgba(176,134,255,0.4)',
+                  }}
+                >
+                  <option value="">@ 选个活人…</option>
+                  {alivePlayers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={psywarLineIdx}
+                  onChange={(e) => setPsywarLineIdx(Number(e.target.value))}
+                  style={{
+                    padding: '4px 8px', borderRadius: 6,
+                    background: 'rgba(15,14,46,0.85)',
+                    color: '#f4f4ff', fontSize: 11,
+                    border: '1px solid rgba(176,134,255,0.4)',
+                  }}
+                >
+                  {PSYWAR_PRESETS.map((p, i) => (
+                    <option key={i} value={i}>{p.replace('{target}', '___')}</option>
+                  ))}
+                </select>
+                <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = alivePlayers.find((p) => p.id === psywarTarget);
+                      if (!target || !latestGhost) return;
+                      const text = PSYWAR_PRESETS[psywarLineIdx].replace('{target}', target.name);
+                      setPsywarSent((prev) => [...prev, {
+                        id: `psywar:${latestGhost.playerId}:${target.id}:${Date.now()}`,
+                        playerId: latestGhost.playerId,
+                        playerName: latestGhost.playerName,
+                        text,
+                        role: latestGhost.role,
+                        team: latestGhost.team,
+                        timestamp: Date.now(),
+                      }]);
+                      setPsywarOpen(false);
+                      setPsywarTarget('');
+                    }}
+                    disabled={!psywarTarget}
+                    style={{
+                      flex: 1, padding: '5px 10px', borderRadius: 6,
+                      background: psywarTarget ? 'linear-gradient(135deg, #B086FF 0%, #7c3aed 100%)' : 'rgba(176,134,255,0.2)',
+                      color: psywarTarget ? '#fff' : 'rgba(255,255,255,0.4)',
+                      border: 'none', fontWeight: 800, fontSize: 11,
+                      cursor: psywarTarget ? 'pointer' : 'not-allowed',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    👻 让他说
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPsywarOpen(false); setPsywarTarget(''); }}
+                    style={{
+                      padding: '5px 10px', borderRadius: 6,
+                      background: 'rgba(255,255,255,0.06)',
+                      color: 'rgba(255,255,255,0.6)',
+                      border: 'none', fontSize: 11, fontFamily: 'inherit',
+                      cursor: 'pointer',
+                    }}
+                  >取消</button>
+                </div>
+              </div>
+            )}
+
+            {/* Footer — hint + 战术 @ button (v6.23 P3) */}
             <div style={{
-              padding: '6px 14px 10px',
+              padding: '6px 12px 10px',
               borderTop: '1px solid rgba(255,255,255,0.06)',
-              fontSize: 10, color: 'rgba(255,255,255,0.35)',
-              textAlign: 'center',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 8,
             }}>
-              AI 鼠人吐槽 · 不输入, 只围观
+              <button
+                type="button"
+                onClick={() => setPsywarOpen((v) => !v)}
+                disabled={!canPsywar}
+                title={canPsywar ? '让最近的鬼魂 @ 一个活人' : '需要至少 1 个鬼魂'}
+                style={{
+                  padding: '3px 8px', borderRadius: 6,
+                  background: psywarOpen ? 'rgba(176,134,255,0.3)' : 'rgba(176,134,255,0.12)',
+                  border: '1px solid rgba(176,134,255,0.45)',
+                  color: '#B086FF',
+                  fontSize: 10, fontWeight: 800,
+                  fontFamily: 'inherit',
+                  cursor: canPsywar ? 'pointer' : 'not-allowed',
+                  opacity: canPsywar ? 1 : 0.4,
+                }}
+              >
+                {psywarOpen ? '收起' : '战术 @'}
+              </button>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+                AI 鼠人吐槽 · 不输入, 只围观
+              </span>
             </div>
           </motion.div>
         )}
@@ -250,6 +401,11 @@ function ChatBubble({ c, avatarUrl }: { c: GhostCommentItem; avatarUrl?: string 
   // style them differently (smaller, italic, no avatar). Distinguished by
   // an id starting with "welcome:" — see augmentWithReactions below.
   const isWelcome = c.id.startsWith('welcome:');
+  // v6.23 P3 — psy-war messages user-triggered via 战术 @, "spoken" by
+  // the most recent ghost. Distinguished by id "psywar:..." prefix —
+  // render with violet rim + 💢 tag so they don't get mistaken for
+  // server-generated lines.
+  const isPsywar = c.id.startsWith('psywar:');
 
   if (isWelcome) {
     return (
@@ -292,13 +448,24 @@ function ChatBubble({ c, avatarUrl }: { c: GhostCommentItem; avatarUrl?: string 
         </div>
         <div style={{
           padding: '6px 10px',
-          background: 'rgba(255,255,255,0.06)',
-          border: `1px solid ${accent}30`,
+          // Psy-war messages get violet rim + filled tint so they pop
+          // visually as "this was player-triggered drama, not LLM".
+          background: isPsywar ? 'rgba(176,134,255,0.14)' : 'rgba(255,255,255,0.06)',
+          border: isPsywar ? '1px dashed rgba(176,134,255,0.7)' : `1px solid ${accent}30`,
           borderRadius: 10,
           fontSize: 12.5, lineHeight: 1.45,
           color: '#f4f4ff',
           wordBreak: 'break-word',
         }}>
+          {isPsywar && (
+            <span style={{
+              display: 'inline-block', marginRight: 6,
+              padding: '0 5px', borderRadius: 4,
+              background: 'rgba(176,134,255,0.35)',
+              fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
+              color: '#FFD58A', verticalAlign: 'middle',
+            }}>💢 战术</span>
+          )}
           {c.text}
         </div>
       </div>

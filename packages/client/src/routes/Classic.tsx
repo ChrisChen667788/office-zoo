@@ -257,6 +257,7 @@ export default function Classic() {
           playerName: data.playerName,
           roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
           team: teamForRole(victim?.role),
+          personality: victim?.personality,
         });
         // Append to persistent recap log so HighlightReel can replay later.
         pushElimination({
@@ -282,6 +283,7 @@ export default function Classic() {
         roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
         team: teamForRole(victim?.role),
         location: data.location,
+        personality: victim?.personality,
       });
       pushElimination({
         round,
@@ -427,8 +429,13 @@ export default function Classic() {
           {/* v6.22 — 前同事吐槽群 panel. Right-bottom floating, collapsed
               by default to a small "👻 N" pill. Re-uses the same
               ghostComments store as the danmaku above, so server-side
-              ghost LLM calls do double duty. */}
-          <GhostChatPanel comments={ghostComments} avatarUrls={avatarUrls} />
+              ghost LLM calls do double duty.
+              v6.23 P3 — alivePlayers fuel the "战术 @" psy-war dialog. */}
+          <GhostChatPanel
+            comments={ghostComments}
+            avatarUrls={avatarUrls}
+            alivePlayers={players.filter((p) => p.isAlive).map((p) => ({ id: p.id, name: p.name }))}
+          />
 
           {/* 弹幕 Danmaku overlay */}
           <div style={{
