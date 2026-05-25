@@ -4,6 +4,144 @@
 
 > v3.1 – v5.4 的条目此处暂缺(代码侧 tag 已落地, 详见各文件版本注释)。
 > v5.5 起恢复完整记录。
+> v6.7 – v6.20 的条目此处暂缺(brand systematization + duel + 各 P 迭代,
+> 详见 git log 与各文件版本注释; v6.21 起恢复完整记录)。
+
+---
+
+## v6.24 — 2026-05-25 · personality 数据流硬化 + 鬼魂 vote 实时流 + README banner v2
+
+### P1 — server attaches personality to kill / vote_result events
+- `GameEngine.emit('kill', { ..., victimPersonality })` +
+  `emit('vote_result', { ..., eliminatedPersonality })` — server 直传
+  personality, client 不再依赖 `players.find` (race-prone).
+- `socketHandler` 透传 + `shared/types/events.ts` 加可选字段.
+- 实测 dev hook 验证: 9/9 鼠人 personality 全有, lastWords 现在 100%
+  走 personality pool, GENERIC fallback 只剩"agent 无人格"罕见情形.
+- Classic + Immersive `vote_result` / `game:kill` handler 改成 event-first
+  读 `data.{eliminatedPersonality,victimPersonality}`, fallback `players.find`.
+
+### P2 — 鬼魂联盟 vote 实时累加
+- 新 socket event `game:ghost_vote_cast` (per-ghost real-time emit).
+- `GameEngine` voting phase 每个鬼魂投完票即 emit, 不再 batch 到
+  vote_result.
+- `gameStore.mergeGhostVote(ghostId, target)` action 增量 merge.
+- Classic + Immersive 新 handler `'game:ghost_vote_cast'` 调用 merge.
+- 投票 phase 进入时 `setGhostVotes({})` 清上轮 tally.
+- GameMap 紫色 👻N dots 现在投票时一只一只亮, 不再 batch 跳出.
+
+### P3 — 入职反衬用真 squad 池
+- `lastWords.ts`: SQUAD_NAMES (20 名镜像 server AI_NAMES pool) +
+  HIRE_PREFIXES ['实习生','应届生','外包同学','校招生','试用期','替补'].
+- `pickNewHire(seed, activeNames?)` — 优先抽 SQUAD_NAMES 里 active
+  没占用的, 加前缀 → "实习生 Tony"; 90%+ pool 占用时 fallback 原 10
+  名 NEW_HIRE_NAMES.
+- EliminationReveal 加 `activeNames` prop, Classic + Immersive 喂
+  `players.map(p => p.name)`.
+
+### P4 — README banner v2 (字更大 + 干净双 tagline)
+- 新 `assets/brand/logo-readme-banner.png` (1280×720):
+  - Arial Black 108pt OFFICE ZOO gold→amber gradient + drop shadow
+  - CN tagline "班味剧场 · 0 点的写字楼" (gold-soft)
+  - EN tagline "Midnight Workplace Soap Opera" (muted pink)
+- README.md + README.en.md 顶 img src 切换.
+- BRAND_GUIDE.md §1 标注 v1 archived / v2 currently shipping.
+
+---
+
+## v6.23 — 2026-05-24 · brand + duel + 鬼魂战术 + 裁员剧场化
+
+### P1 — alpha-keyed logo-mark-transparent.png
+- PIL 抠掉 mark-only-art 的 solid violet bg → 透明 PNG.
+- 用作 die-cut sticker / monogram / 单色印刷的源.
+
+### P2 — 1v1 duel rematch (/duel/new?rematch=<duelId>)
+- VoteDuel 加 `useSearchParams` 读 ?rematch=, fetch 旧 duel.
+- CreateView 加 rematchId / myId props, 拉旧 ballot (host or guest
+  side, 看当前 user 是哪边) 作 initialPicks prefill.
+- 紫色 banner "↻ 已复用你上次对 [opponent] 的 ballot" — user 可继续微调.
+- MyDuelsPanel 的 "↻ 再约" 孤儿 button 现在可工作 (route 一直能 match
+  `:id` = 'new', 缺的只是 query param 处理).
+
+### P3 — 鬼魂 @活人 战术按钮
+- GhostChatPanel footer 加 "战术 @" 按钮 → popover 选活人 + 选 8 个
+  preset 心理战话术 (`{target}` token 替换).
+- 最近一个鬼魂 "说出" 这句话; 注入为 violet rim + dashed border +
+  "💢 战术" tag 的特殊 bubble.
+- alivePlayers prop 从 Classic 传 (server 不改).
+- 纯 UI ritual — AI 不读 (v6.25 P1 升级为 AI 真读).
+
+### P4 — 裁员瞬间剧场化
+- 新 `lastWords.ts` (200 LOC):
+  - LAST_WORDS_POOL — 8 personality × 3 句 personality-driven 离别赠言.
+  - NEW_HIRE_NAMES + NEW_HIRE_TAGLINES — comedic 入职反衬 pool.
+  - pickLastWords(personality, seed) + pickNewHire(seed) — 确定性.
+- EliminationReveal 加:
+  - 离别赠言 quote block — center card 内 italic gold-soft "「XXX」".
+  - 班味物件 drop particles — 🪪/📦/📄/☕/🧷/📎 从顶部落下 (gravity
+    curve + horizontal drift + rotation).
+  - 新员工入职反衬 phase 2 — main reveal dismiss 后 200ms 触发 bottom
+    toast "🎉 HR 系统 · 新员工入职 · Welcome aboard, [name]!" 持 2.2s.
+- EliminationEvent 加 personality 字段; Classic + Immersive 喂
+  `victim?.personality` (v6.24 P1 升级为 server event payload 直传).
+
+---
+
+## v6.22 — 2026-05-24 · 前同事吐槽群 (GhostChatPanel + GameMap 鬼魂 vote dot)
+
+### 新组件 GhostChatPanel (260 LOC)
+- 右下角浮动 pill `👻 前同事吐槽群 · N` (带未读 badge + pulse).
+- 展开为 320×380 IM 风 chat: 头像 + 名字 (team 色) + bubble + HH:MM.
+- 自动滚到底; 用户上滑读 history 时停止 hijack.
+- Welcome reaction 模板 — 新鬼魂入群时, 前一鬼魂自动 +1 句"欢迎进群"
+  / "终于不孤单了" (10 句池, 确定性 hash); 纯 client side, 0 LLM cost.
+
+### GameMap 鬼魂 vote dot
+- ghostVoteTallyRef 重算 (Object.values(ghostVotes) → target 计数).
+- 紫色 "👻N" badge 在被指认活人 sprite 右上方 (sx+16, sy-16) 带 pulse
+  halo (sin(tSec*3.9)*0.09).
+- 单票画 "👻", 多票画 "👻N" (N 金色).
+
+### gameStore
+- 新 selector `useGhostVotes` + action `setGhostVotes`.
+- Classic vote_result handler 加 `setGhostVotes(data.ghostVotes)` 即时
+  灌进 store (不等下一 state snapshot).
+- Dev hook `window.__officeZooStore` (DEV-only, Vite 生产 tree-shake)
+  给 Playwright probe 注入 mock 数据用.
+
+### Classic.tsx 挂载
+- 新组件挂在 GameMap container 内, 右下角. ghostComments + avatarUrls
+  + alivePlayers (v6.23 P3 加) 全部 prop.
+
+Server: 零改动 — 复用已有 `generateGhostComment` + `generateGhostVote`.
+
+---
+
+## v6.21 — 2026-05-24 · GameMap 摸鱼 micro-moment (emoji bubble engine)
+
+### 新文件 idleMoments.ts (170 LOC, 纯逻辑)
+- 每只活鼠头顶每 ~10s 飘 ~4s 一个 20×20 gold-rim 紫底气泡, 一个 emoji.
+- emoji 池按 activity × room × nearest furniture 加权:
+  - **activity** (server-driven `activity.kind`): idle → 🥱💤📱☕🐟,
+    work → 💢⌨️📞🆘, chat → 💬👀🙄, sneak → 🤫🐍🕵️,
+    meeting → 😴🥱📝, commute → 🚶☕📱.
+  - **room vibe modifier**: 老板办公室 → 😨🫣, 茶水间 → ☕🍵,
+    监控室 → 👁️, 文印室 → 📠.
+  - **furniture proximity boost** (≤70px 屏幕距): coffee_machine → ☕,
+    printer → 📠, cctv → 👁️, sofa → 💤.
+- furniture > room (近源胜) — 路过咖啡机就 ☕ 而不是房间的 😨.
+
+### Stagger
+- 9 鼠 hash(playerId) % SLOT_SEC 错峰, 任何时刻只 ~3 bubble 同时可见,
+  不再 all-or-none strobe.
+
+### GameMap.tsx 集成
+- Sprite 绘制循环加 nearest furniture 检测 + pickEmoteForPlayer 调用 +
+  rounded-rect bubble + speech tail + emoji glyph.
+- 系统 emoji font cascade (Apple/Segoe/Noto) 不打包字体.
+- Position sy-50 在 name pill (sy-37..sy-22) 上方, tail 下扎"speech from".
+
+Server: 零改动.
 
 ---
 
