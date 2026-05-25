@@ -467,12 +467,22 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
     io.to(gameId).emit('game:tick', data as never);
   });
 
+  // v6.24 P2 — relay each ghost's vote the instant it lands, so the client
+  // GameMap dot + chat ally tally update incrementally instead of waiting
+  // for the vote_result batch.
+  engine.on('ghost_vote_cast', (data: { ghostId: string; ghostName: string; target: string }) => {
+    io.to(gameId).emit('game:ghost_vote_cast', data);
+  });
+
   engine.on('vote_result', (data) => {
     io.to(gameId).emit('game:vote_result', {
       votes: data.votes,
       ghostVotes: data.ghostVotes || {},
       eliminated: data.eliminated,
       eliminatedRole: data.eliminatedRole,
+      // v6.24 P1 — pass through victim personality so client can drive
+      // the elim剧场化 last-words pool without a stale players.find lookup.
+      eliminatedPersonality: (data as { eliminatedPersonality?: string }).eliminatedPersonality,
     });
     io.to(gameId).emit('game:state', engine.getSerializedState());
   });

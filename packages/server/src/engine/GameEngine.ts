@@ -534,6 +534,11 @@ export class GameEngine extends EventEmitter {
           victimId: victim.id,
           victimName: victim.name,
           location: victim.position.room,
+          // v6.24 P1 — include victim's personality in the event itself so
+          // the client's EliminationReveal doesn't have to look it up in
+          // `players` (race-prone: kill fires concurrently with state
+          // updates that may flag the victim dead before the lookup).
+          victimPersonality: victim.personality,
         });
         this.emitState();
         break; // Only one kill per free-roam
@@ -752,7 +757,12 @@ export class GameEngine extends EventEmitter {
       }
     });
 
-    // Dead players use ghost vote (劳动仲裁投票) - each can only vote once ever
+    // Dead players use ghost vote (劳动仲裁投票) - each can only vote once ever.
+    //
+    // v6.24 P2 — emit a real-time `ghost_vote_cast` event the instant each
+    // ghost picks their target, so the GhostChatPanel ally indicator and
+    // the GameMap 👻N dot can update incrementally during voting phase
+    // (previously the tally arrived in one batch at vote_result).
     const ghostVotePromises = dead.map(async (ghost) => {
       const agent = this.agents.get(ghost.id);
       if (!agent) return;
@@ -763,6 +773,12 @@ export class GameEngine extends EventEmitter {
           this.state.ghostVotes[ghost.id] = target;
           ghost.ghostVoteUsed = true;
           this.addEvent('ghost_vote', `离职员工 ${ghost.name} 发起了劳动仲裁投票!`);
+          // Real-time signal — single ghost just voted.
+          this.emit('ghost_vote_cast', {
+            ghostId: ghost.id,
+            ghostName: ghost.name,
+            target,
+          });
         }
       } catch {
         // Ghost votes default to pass on failure (save for later)
@@ -828,12 +844,14 @@ export class GameEngine extends EventEmitter {
       : undefined; // Tie (2+ players share max) = no elimination
 
     let eliminatedRole: string | undefined;
+    let eliminatedPersonality: string | undefined;
 
     if (eliminated && eliminated !== 'skip') {
       const player = this.state.players.find((p) => p.id === eliminated);
       if (player) {
         player.isAlive = false;
         eliminatedRole = player.role;
+        eliminatedPersonality = player.personality;
         const ghostVoters = Object.keys(this.state.ghostVotes).filter(
           (gid) => this.state.ghostVotes[gid] === eliminated
         );
@@ -851,6 +869,10 @@ export class GameEngine extends EventEmitter {
       ghostVotes: this.state.ghostVotes,
       eliminated,
       eliminatedRole,
+      // v6.24 P1 — include eliminated personality so client's
+      // EliminationReveal can read it directly instead of doing a
+      // potentially-stale players.find lookup.
+      eliminatedPersonality,
     });
 
     // v5.8.1 — round-end memory writes. Fire-and-forget; failure must

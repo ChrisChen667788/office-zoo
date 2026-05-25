@@ -115,8 +115,32 @@ export interface ServerToClientEvents {
   'game:speech_audio': (data: { playerId: string; audioUrl: string }) => void;
   'game:speech_end': (data: { playerId: string }) => void;
   'game:ghost_comment': (data: GhostComment) => void;
-  'game:vote_result': (data: { votes: Record<string, string>; ghostVotes: Record<string, string>; eliminated?: string; eliminatedRole?: string }) => void;
-  'game:kill': (data: { killerId: string; victimId: string; location: string }) => void;
+  'game:vote_result': (data: {
+    votes: Record<string, string>;
+    ghostVotes: Record<string, string>;
+    eliminated?: string;
+    eliminatedRole?: string;
+    /** v6.24 P1 — personality of the eliminated player, passed through
+     *  so the EliminationReveal can drive the personality-flavored
+     *  last-words pool without a stale client-side players.find lookup. */
+    eliminatedPersonality?: string;
+  }) => void;
+  'game:kill': (data: {
+    killerId: string;
+    victimId: string;
+    location: string;
+    /** v6.24 P1 — same defensive personality passthrough as vote_result. */
+    victimPersonality?: string;
+  }) => void;
+  /** v6.24 P2 — real-time signal when a single ghost casts their 劳动
+   *  仲裁 vote. Lets the client incrementally update the GameMap 👻 N
+   *  dot + GhostChatPanel ally tally during voting phase, instead of
+   *  waiting for the vote_result batch. */
+  'game:ghost_vote_cast': (data: {
+    ghostId: string;
+    ghostName: string;
+    target: string;
+  }) => void;
   'game:avatar_ready': (data: { role: string; team: string; url: string }) => void;
   'game:created': (data: { gameId: string }) => void;
   'game:error': (data: { message: string }) => void;
