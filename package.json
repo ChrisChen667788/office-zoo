@@ -8,11 +8,15 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm -w @furball/server run dev",
     "dev:client": "npm -w @furball/client run dev",
-    "build": "npm -w @furball/client run build"
+    "build": "npm -w @furball/client run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p packages/server && tsc --noEmit -p packages/client"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
     "playwright": "^1.60.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.7"
   }
 }

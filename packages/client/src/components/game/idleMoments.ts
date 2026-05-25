@@ -136,10 +136,16 @@ export function pickEmoteForPlayer(args: {
   if (!args.isAlive) return null;
 
   // Per-player phase offset so bubbles don't all flash on at the same
-  // instant. Spreads 9 rats evenly across the SLOT_SEC cycle, giving an
-  // approximate 9 * HOLD/SLOT ≈ 3.6 bubbles visible at any moment
-  // instead of 9-then-0 strobe.
-  const phase = (hash(args.playerId) % (SLOT_SEC * 1000)) / 1000;
+  // instant. Spreads 9 rats evenly across the SLOT_SEC cycle.
+  //
+  // v6.25 P7 fix — original `hash(id) % 10000 / 1000` returned ~6.78
+  // for ALL of player_0..player_8 because djb2's low bits stay nearly
+  // identical for short prefix-similar inputs. Multiplying by Knuth's
+  // 2654435761 (golden-ratio constant) before mod-10000 redistributes
+  // high-bit entropy into the low bits → proper spread. (Verified via
+  // P7 stagger test.)
+  const h = (hash(args.playerId) * 2654435761) >>> 0;
+  const phase = (h % (SLOT_SEC * 1000)) / 1000;
   const t = args.tSec + phase;
   const slotIdx = Math.floor(t / SLOT_SEC);
   const inSlot = t - slotIdx * SLOT_SEC;
