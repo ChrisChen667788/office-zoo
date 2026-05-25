@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from 'react';
 import { activityIcons, itemIcons } from '../../constants/icons';
 import { ROOM_FURNITURE, FURNITURE_TYPES, type FurnitureKind } from '@furball/shared';
 import { drawFurnitureSprite } from './drawFurniture';
+import { pickEmoteForPlayer, PROX_PX } from './idleMoments';
 
 /* ---------- Types ---------- */
 
@@ -1072,6 +1073,71 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
           ctx.strokeStyle = 'rgba(255,255,255,0.22)';
           ctx.lineWidth = 1;
           ctx.stroke();
+        }
+      }
+
+      // ── v6.21 idle-moment emote bubble ─────────────────────────────
+      //
+      // Above the avatar, a tiny rounded bubble drifts up with one
+      // mood-emoji. Pool is activity × room × nearest-furniture so the
+      // moment feels "of this room" — coffee machine → ☕, 老板办公室 → 😨,
+      // free_roam idle → 📱/🥱. Bubble shows 4s every 10s per player.
+      // Deterministic per (id, slot) so frames don't shimmer.
+      if (p.isAlive) {
+        let nearestKind: FurnitureKind | null = null;
+        let nearestDistSq = PROX_PX * PROX_PX;
+        for (const fp of furniturePlaced) {
+          const dx = fp.sx - sx;
+          const dy = fp.sy - sy;
+          const dSq = dx * dx + dy * dy;
+          if (dSq < nearestDistSq) {
+            nearestDistSq = dSq;
+            nearestKind = fp.f.kind as FurnitureKind;
+          }
+        }
+        const frame = pickEmoteForPlayer({
+          playerId: p.id,
+          isAlive: p.isAlive,
+          activityKind: p.activity?.kind,
+          roomId: p.position?.room,
+          nearestFurnitureKind: nearestKind,
+          tSec,
+        });
+        if (frame) {
+          const bx = sx;
+          // sy - 50 puts bubble center well above the name pill (which
+          // lives at sy - 37 to sy - 22). 10-px tail still touches the
+          // name from above so the bubble reads as "speaks for this rat"
+          // not "floats randomly".
+          const by = sy - 50 - frame.yOffset;
+          ctx.save();
+          ctx.globalAlpha = frame.alpha;
+          // Bubble — deep cosmic violet fill, gold rim. Brand-matched
+          // with EventPill so the eye reads bubbles as "OFFICE ZOO UI"
+          // not "random toast". roundRect supported in all evergreen.
+          ctx.fillStyle = 'rgba(15,14,46,0.92)';
+          ctx.strokeStyle = 'rgba(255,215,0,0.55)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(bx - 10, by - 10, 20, 20, 6);
+          ctx.fill();
+          ctx.stroke();
+          // Speech-bubble tail — tiny triangle pointing down at head
+          ctx.beginPath();
+          ctx.moveTo(bx - 3, by + 10);
+          ctx.lineTo(bx + 3, by + 10);
+          ctx.lineTo(bx, by + 14);
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(15,14,46,0.92)';
+          ctx.fill();
+          // Emoji glyph — system emoji font cascade so it renders on
+          // mac/win/linux without bundling a font.
+          ctx.font = '12px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#fff';
+          ctx.fillText(frame.emoji, bx, by + 1);
+          ctx.restore();
         }
       }
     }
