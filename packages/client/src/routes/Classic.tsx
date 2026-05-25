@@ -7,9 +7,11 @@ import {
   usePhase, usePlayers, useRound, useTaskProgress,
   useSpeechHistory, useGhostComments, useAvatarUrls,
   useCurrentSpeaker, useDiscussionProgress,
+  useGhostVotes,
   useGameActions,
 } from '../stores/gameStore';
 import GameMap from '../components/game/GameMap';
+import GhostChatPanel from '../components/game/GhostChatPanel';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
 import PredictionBar from '../components/game/PredictionBar';
@@ -80,8 +82,9 @@ export default function Classic() {
   const currentSpeaker = useCurrentSpeaker();
   const discussionProgress = useDiscussionProgress();
   const ghostComments = useGhostComments();
+  const ghostVotes = useGhostVotes();
   const avatarUrls = useAvatarUrls();
-  const { updateState, applyTick, setSpeaker, addSpeech, setDiscussionProgress, clearDiscussionProgress, addGhostComment, setAvatarUrl, pushElimination, reset } =
+  const { updateState, applyTick, setSpeaker, addSpeech, setDiscussionProgress, clearDiscussionProgress, addGhostComment, setAvatarUrl, pushElimination, reset, setGhostVotes } =
     useGameActions();
 
   const { socket, connected, connecting, reconnectAttempt } = useSocket();
@@ -235,6 +238,11 @@ export default function Classic() {
         msg += ` (含${Object.keys(data.ghostVotes).length}票劳动仲裁)`;
       }
       pushEvent('vote', msg);
+      // v6.22 — push ghost-vote tally into store immediately. The next
+      // full game:state snapshot would carry it too, but we want the
+      // GameMap "👻 N" dot above indicted alives to show up the same
+      // beat as the elimination reveal, not 1-2s later.
+      setGhostVotes(data.ghostVotes);
 
       // Drive the PredictionBar resolution exactly once per vote event.
       setLastVoteEliminated(data.eliminated ?? null);
@@ -413,7 +421,14 @@ export default function Classic() {
             players={players}
             avatarUrls={avatarUrls}
             currentSpeakerId={currentSpeaker}
+            ghostVotes={ghostVotes}
           />
+
+          {/* v6.22 — 前同事吐槽群 panel. Right-bottom floating, collapsed
+              by default to a small "👻 N" pill. Re-uses the same
+              ghostComments store as the danmaku above, so server-side
+              ghost LLM calls do double duty. */}
+          <GhostChatPanel comments={ghostComments} avatarUrls={avatarUrls} />
 
           {/* 弹幕 Danmaku overlay */}
           <div style={{

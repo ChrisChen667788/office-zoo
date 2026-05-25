@@ -160,6 +160,10 @@ interface GameActions {
   clearSpeeches: () => void;
   addGhostComment: (comment: Omit<GhostCommentItem, 'id' | 'timestamp'>) => void;
   clearGhostComments: () => void;
+  /** v6.22 — push the ghost-vote map eagerly from vote_result handler
+   *  so the GhostVoteDot overlay can highlight indicted alives within
+   *  the same tick as the elimination reveal. */
+  setGhostVotes: (ghostVotes: Record<string, string> | null | undefined) => void;
   setAvatarUrl: (role: string, url: string) => void;
   pushElimination: (entry: Omit<EliminationLogEntry, 'id' | 'timestamp'>) => number;
   pushPrediction: (entry: PredictionLogEntry) => void;
@@ -376,6 +380,12 @@ export const useGameStore = create<GameStore>((set) => ({
 
     clearGhostComments: () => set({ ghostComments: [] }),
 
+    // v6.22 — push ghostVotes eagerly from vote_result. The next full
+    // game:state snapshot would re-apply them, but waiting for it means
+    // the GhostVoteDot overlay misses its dramatic "right after vote
+    // reveal" moment.
+    setGhostVotes: (ghostVotes) => set({ ghostVotes: ghostVotes || {} }),
+
     setAvatarUrl: (role, url) =>
       set((s) => ({
         avatarUrls: { ...s.avatarUrls, [role]: url },
@@ -421,9 +431,22 @@ export const useDiscussionProgress = () => useGameStore((s) => s.discussionProgr
 
 export const useGhostComments = () => useGameStore((s) => s.ghostComments);
 export const useAvatarUrls = () => useGameStore((s) => s.avatarUrls);
+// v6.22 — ghostVotes already lived in state (populated via game:state),
+// but consumers (GhostVoteDot overlay) wanted a stable hook + the
+// vote_result handler wanted to push them eagerly without waiting for
+// the next full state snapshot.
+export const useGhostVotes = () => useGameStore((s) => s.ghostVotes);
 
 export const useEliminationLog = () => useGameStore((s) => s.eliminationLog);
 export const usePredictionLog = () => useGameStore((s) => s.predictionLog);
 
 /** Stable actions object — never causes re-render. Destructure freely. */
 export const useGameActions = () => useGameStore((s) => s.actions);
+
+// v6.22 dev-only — expose store on window so Playwright probes (and
+// devtools console) can inject mock ghostComments/ghostVotes without
+// waiting 3 minutes for a real elimination. Tree-shaken in production
+// builds by Vite (import.meta.env.DEV is statically false there).
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  (window as unknown as { __officeZooStore?: typeof useGameStore }).__officeZooStore = useGameStore;
+}

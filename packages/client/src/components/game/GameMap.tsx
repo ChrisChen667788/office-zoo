@@ -41,6 +41,11 @@ interface GameMapProps {
   avatarUrls?: Record<string, string>;
   /** Highlight + pulse the currently-speaking player. */
   currentSpeakerId?: string | null;
+  /** v6.22 — map of ghost playerId → candidate playerId they voted for
+   *  this round. Used to draw a "👻 N" dot above any alive player who
+   *  was indicted by the ex-coworker group. Survives across rounds
+   *  until the next vote_result overwrites. */
+  ghostVotes?: Record<string, string>;
 }
 
 /* ---------- Room definitions ---------- */
@@ -554,7 +559,7 @@ const ACTIVITY_ICON_KEYS: Record<string, keyof typeof activityIcons> = {
 
 /* ---------- Component ----------------------------------------------- */
 
-export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = null }: GameMapProps) {
+export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = null, ghostVotes = {} }: GameMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const loadedImages = useRef<Record<string, HTMLImageElement>>({});
   // Pre-loaded activity icon images, keyed by activityIcons key (work/chat/...).
@@ -585,6 +590,18 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
   speakerRef.current = currentSpeakerId;
   const avatarUrlsRef = useRef(avatarUrls);
   avatarUrlsRef.current = avatarUrls;
+  // v6.22 — ghostVotes tally (target id → count of ghost votes). Recomputed
+  // on prop change (cheap, <10 entries). Stored in a ref so the RAF loop
+  // reads the latest without becoming a dep.
+  const ghostVoteTallyRef = useRef<Map<string, number>>(new Map());
+  ghostVoteTallyRef.current = (() => {
+    const m = new Map<string, number>();
+    for (const target of Object.values(ghostVotes)) {
+      if (!target || target === 'pass') continue;
+      m.set(target, (m.get(target) || 0) + 1);
+    }
+    return m;
+  })();
 
   // Pre-load avatar images when URLs change
   useEffect(() => {
@@ -1138,6 +1155,49 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
           ctx.fillStyle = '#fff';
           ctx.fillText(frame.emoji, bx, by + 1);
           ctx.restore();
+        }
+      }
+
+      // ── v6.22 ghost-vote dot ──────────────────────────────────────
+      //
+      // Tiny "👻 N" badge on the top-right of an alive avatar when one
+      // or more ghosts voted for them this round. Pulses softly so the
+      // user notices "ex-coworker group has opinions about you". Drawn
+      // last in the per-player block so it sits above everything else.
+      const ghostCount = p.isAlive ? (ghostVoteTallyRef.current.get(p.id) || 0) : 0;
+      if (ghostCount > 0) {
+        const dx = sx + 16;
+        const dy = sy - 16;
+        const r = 9;
+        // Pulse 1.0 → 1.18 → 1.0 over 1.6s
+        const pulse = 1 + Math.sin(tSec * 3.9) * 0.09;
+        ctx.save();
+        // Outer glow halo
+        ctx.shadowColor = 'rgba(176,134,255,0.85)';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = 'rgba(15,14,46,0.95)';
+        ctx.beginPath();
+        ctx.arc(dx, dy, r * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        // Crisp violet rim
+        ctx.beginPath();
+        ctx.arc(dx, dy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(176,134,255,0.95)';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        // Glyph + count — "👻N" if N>1 else just "👻"
+        ctx.font = '700 9px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        if (ghostCount === 1) {
+          ctx.fillText('👻', dx, dy + 0.5);
+        } else {
+          ctx.fillText('👻', dx - 4, dy + 0.5);
+          ctx.font = '900 10px ui-sans-serif, system-ui, sans-serif';
+          ctx.fillStyle = '#FFD700';
+          ctx.fillText(String(ghostCount), dx + 4, dy + 0.5);
         }
       }
     }
