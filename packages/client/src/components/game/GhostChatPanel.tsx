@@ -147,13 +147,10 @@ export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers
   const unread = Math.max(0, enriched.length - seenCount);
 
   return (
-    <div style={{
-      position: 'absolute',
-      right: 16,
-      bottom: 16,
-      zIndex: 30,
-      pointerEvents: 'auto',
-    }}>
+    // v6.25 P2 — anchor class handles mobile bottom-sheet override
+    // via index.css media query; desktop uses the existing floating
+    // right-bottom positioning.
+    <div className="ghost-chat-panel-anchor">
       {/* ── Collapsed pill: floating 👻 N badge ────────────────────── */}
       <AnimatePresence initial={false} mode="wait">
         {!open && (
@@ -197,6 +194,7 @@ export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers
         {open && (
           <motion.div
             key="panel"
+            className="ghost-chat-expanded"
             initial={{ opacity: 0, y: 12, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.96 }}

@@ -433,10 +433,11 @@ export default function Classic() {
         </div>
       </div>
 
-      {/* Main content */}
-      <div style={{ position: 'relative', zIndex: 10, display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {/* Main content — v6.25 P2 responsive: row on ≥768px, column-stack
+          on mobile (game-stage on top, game-side scrolls below). */}
+      <div className="game-layout-row">
         {/* Left: Game map + danmaku overlay */}
-        <div style={{ flex: 7, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div className="game-stage">
           <GameMap
             players={players}
             avatarUrls={avatarUrls}
@@ -491,14 +492,9 @@ export default function Classic() {
           </div>
         </div>
 
-        {/* Right: Event panel — frosted glass */}
-        <div style={{
-          flex: 3, display: 'flex', flexDirection: 'column',
-          background: 'rgba(6,6,18,0.45)',
-          backdropFilter: 'blur(20px) saturate(140%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(140%)',
-          borderLeft: '1px solid rgba(76,158,255,0.1)',
-        }}>
+        {/* Right: Event panel — frosted glass (game-side class handles
+            mobile responsiveness via index.css media query). */}
+        <div className="game-side">
           <div style={{
             padding: '14px 16px',
             borderBottom: '1px solid rgba(76,158,255,0.08)',

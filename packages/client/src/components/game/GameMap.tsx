@@ -706,8 +706,11 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
     const dpr = window.devicePixelRatio || 1;
     canvas.width = CANVAS_W * dpr;
     canvas.height = CANVAS_H * dpr;
-    canvas.style.width = `${CANVAS_W}px`;
-    canvas.style.height = `${CANVAS_H}px`;
+    // v6.25 P2 — style.width/height now controlled by the
+    // gamemap-canvas-responsive CSS class (width: 900px max-width: 100%
+    // + aspect-ratio: 900/550), so mobile shrinks gracefully. Internal
+    // pixel buffer above stays full-DPR 900×550 — server position math
+    // never sees the CSS size.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Clear
@@ -1318,12 +1321,16 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
   }, [drawFrame]);
 
   return (
+    // v6.25 P2 — gamemap-canvas-responsive class adds CSS aspect-ratio
+    // + scales to container max-width on mobile. Internal pixel buffer
+    // stays 900×550 (server uses that for position math); CSS only
+    // resizes the display box.
     <canvas
       ref={canvasRef}
+      className="gamemap-canvas-responsive"
       style={{
         borderRadius: 16,
         border: '1px solid rgba(47,184,255,0.12)',
-        maxWidth: '100%',
         background: '#0a0a1e',
         boxShadow: '0 0 40px rgba(47,184,255,0.05)',
       }}

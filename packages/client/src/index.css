@@ -471,3 +471,95 @@ button {
 /* Tilt — slight rotation used on sticker corners for "stuck on" feel. */
 .y2k-tilt-l { transform: rotate(-2deg); }
 .y2k-tilt-r { transform: rotate(2deg); }
+
+/* ─────────────────────────────────────────────────────────────────────
+ * v6.25 P2 — Mobile responsive helpers
+ *
+ * Classic + Immersive routes share a row-flex main layout (GameMap left
+ * flex:7, event panel right flex:3). At ≤ 640px viewport this becomes
+ * unusable — the 900px canvas overflows and the event panel shrinks to
+ * unreadable width. These classes flip the layout to a column stack
+ * (map on top, event panel below) and let the canvas scale down with
+ * its container.
+ * ────────────────────────────────────────────────────────────────── */
+
+.game-layout-row {
+  display: flex;
+  flex: 1;
+  position: relative;
+  z-index: 10;
+  overflow: hidden;
+}
+.game-layout-row > .game-stage {
+  flex: 7;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  min-width: 0;
+}
+.game-layout-row > .game-side {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  background: rgba(6, 6, 18, 0.45);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-left: 1px solid rgba(76, 158, 255, 0.1);
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .game-layout-row {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .game-layout-row > .game-stage {
+    flex: none;
+    padding: 8px;
+    min-height: 52vh;
+  }
+  .game-layout-row > .game-side {
+    flex: none;
+    border-left: none;
+    border-top: 1px solid rgba(76, 158, 255, 0.1);
+    max-height: 48vh;
+    overflow-y: auto;
+  }
+}
+
+/* GameMap canvas — CSS scales it on small viewports while keeping the
+ * 900:550 aspect ratio. Internal pixel buffer stays 900×550 (server
+ * position math is in that space); high-DPR mobile devices still
+ * render sharp via the existing devicePixelRatio multiplier. */
+.gamemap-canvas-responsive {
+  width: 900px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 900 / 550;
+}
+
+/* GhostChatPanel — at ≤ 640px the expanded panel becomes a bottom
+ * sheet spanning viewport width so it doesn't overflow off-screen.
+ * Floating pill stays small + tap-friendly. */
+.ghost-chat-panel-anchor {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  pointer-events: auto;
+}
+@media (max-width: 640px) {
+  .ghost-chat-panel-anchor {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .ghost-chat-panel-anchor > .ghost-chat-expanded {
+    width: 100% !important;
+    max-width: none !important;
+  }
+}
