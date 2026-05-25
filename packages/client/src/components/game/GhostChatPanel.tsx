@@ -40,6 +40,11 @@ interface GhostChatPanelProps {
    *  on the matching bubble. Keyed by trimmed-text-prefix to match
    *  server's slice(0, 80). */
   ackedTexts?: Set<string>;
+  /** v6.26 P1 — set of psy-war texts that an AI actually quoted in
+   *  a discussion speech. Upgrades the badge from 👂 → ✨ on the
+   *  matching bubble. Superset relationship: quotedTexts ⊆ ackedTexts
+   *  in normal flow. */
+  quotedTexts?: Set<string>;
 }
 
 /* ── Psy-war taunt pool ──────────────────────────────────────────────
@@ -106,6 +111,7 @@ export default function GhostChatPanel({
   alivePlayers = [],
   onPsyWarLeak,
   ackedTexts,
+  quotedTexts,
 }: GhostChatPanelProps) {
   const [open, setOpen] = useState(false);
   const [seenCount, setSeenCount] = useState(0);
@@ -285,6 +291,7 @@ export default function GhostChatPanel({
                   c={c}
                   avatarUrl={avatarUrls[c.role || '']}
                   acked={ackedTexts?.has(c.text.slice(0, 80))}
+                  quoted={quotedTexts?.has(c.text.slice(0, 80))}
                 />
               ))}
             </div>
@@ -463,7 +470,7 @@ export default function GhostChatPanel({
 
 /* ── Chat bubble ─────────────────────────────────────────────────────── */
 
-function ChatBubble({ c, avatarUrl, acked }: { c: GhostCommentItem; avatarUrl?: string; acked?: boolean }) {
+function ChatBubble({ c, avatarUrl, acked, quoted }: { c: GhostCommentItem; avatarUrl?: string; acked?: boolean; quoted?: boolean }) {
   const accent = teamColor(c.team);
   // Welcome reactions are tagged via a special prefix on the id so we can
   // style them differently (smaller, italic, no avatar). Distinguished by
@@ -534,10 +541,21 @@ function ChatBubble({ c, avatarUrl, acked }: { c: GhostCommentItem; avatarUrl?: 
               color: '#FFD58A', verticalAlign: 'middle',
             }}>💢 战术</span>
           )}
-          {/* v6.25 P1 — "AI 听到了" badge appears once the server has
-              acked the leak (= it's now in BaseAgent's leakedHints
-              buffer + will surface in next discussion prompt). */}
-          {acked && (
+          {/* v6.25 P1 — "👂 AI 听到了" badge once server acks the leak
+              into the leakedHints buffer. v6.26 P1 upgrades this to
+              "✨ AI 引用了" the moment an AI quotes (substring match)
+              this leak in a real discussion speech — quoted wins over
+              acked since it's the stronger signal. */}
+          {quoted ? (
+            <span style={{
+              display: 'inline-block', marginLeft: 6,
+              padding: '0 5px', borderRadius: 4,
+              background: 'rgba(255,215,0,0.35)',
+              fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
+              color: '#FFD700', verticalAlign: 'middle',
+              boxShadow: '0 0 8px rgba(255,215,0,0.45)',
+            }}>✨ AI 引用了</span>
+          ) : acked && (
             <span style={{
               display: 'inline-block', marginLeft: 6,
               padding: '0 5px', borderRadius: 4,

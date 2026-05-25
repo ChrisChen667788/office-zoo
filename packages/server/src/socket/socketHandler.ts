@@ -391,6 +391,24 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
           ...(evidence.length > 0 ? { evidence } : {}),
         });
 
+        // v6.26 P1 — leak quote detection. If this AI speech reuses a
+        // chunk of any active psy-war leak, emit a separate signal so
+        // the client can flash ✨ "AI 引用了" on both the speech and
+        // the source leak bubble in GhostChatPanel. Fire-and-forget.
+        const quotedHint = engine.detectLeakQuote(item.text);
+        if (quotedHint) {
+          room.emit('game:leak_quoted', {
+            hintText: quotedHint,
+            byPlayerId: item.playerId,
+            byPlayerName: item.playerName,
+            speechText: item.text,
+          });
+          speechLog.debug({
+            hint: quotedHint.slice(0, 20),
+            by: item.playerName,
+          }, 'leak quoted in speech');
+        }
+
         // 3. Generate and send TTS audio + compute accurate wait time.
         //
         // Bug history: we previously used `text.length / 4` (240 字/分钟) as

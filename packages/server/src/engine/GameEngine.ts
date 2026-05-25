@@ -1098,6 +1098,32 @@ export class GameEngine extends EventEmitter {
     return { accepted: true };
   }
 
+  /** v6.26 P1 — detect if a generated speech quotes any of the current
+   *  leakedHints. Uses a sliding 4-char window — short enough to catch
+   *  partial paraphrases (LLM often keeps proper nouns + distinctive
+   *  Chinese 4-字 phrases), long enough to avoid false positives on
+   *  common stopwords. Returns the matched hint or null.
+   *
+   *  Public so socketHandler can call it right after `game:speech`
+   *  emit and broadcast `game:leak_quoted` events. */
+  detectLeakQuote(speechText: string): string | null {
+    const speech = speechText ?? '';
+    if (speech.length === 0 || this.leakedHints.length === 0) return null;
+    for (const hint of this.leakedHints) {
+      const h = hint.trim();
+      if (h.length < 4) continue;
+      // Sliding 4-char window over the hint. Short enough to catch
+      // partial quotes ("Frank 偷过" out of "@Frank 偷过我工位的零食").
+      for (let i = 0; i + 4 <= h.length; i++) {
+        const w = h.slice(i, i + 4);
+        // Reject windows that are all spaces / punctuation / very common.
+        if (/^[\s,，。!?@\-_'"()]+$/.test(w)) continue;
+        if (speech.includes(w)) return hint;
+      }
+    }
+    return null;
+  }
+
   // ---------- Helpers ----------
 
   private alivePlayers(): PlayerState[] {

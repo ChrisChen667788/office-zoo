@@ -95,6 +95,10 @@ export default function Classic() {
   // chat panel queries it to render "👂 AI 听到了" on the matching
   // bubble. Lives in component state (resets on remount).
   const [ackedLeaks, setAckedLeaks] = useState<Set<string>>(new Set());
+  // v6.26 P1 — map of leak text → most recent quote info (which AI
+  // quoted it, when, what speech). Upgrades the badge from 👂 to ✨
+  // and also lets the SpeechHistory bubble mark "✨ 引用前同事爆料".
+  const [quotedLeaks, setQuotedLeaks] = useState<Map<string, { byPlayerId: string; byPlayerName: string; speechText: string; ts: number }>>(new Map());
   // Elimination reveal: monotonic id + payload. Bumping id triggers the overlay.
   const [lastElim, setLastElim] = useState<EliminationEvent | null>(null);
   // v6.26 P5 — DEV hook for Playwright probes. Registers a global
@@ -267,6 +271,18 @@ export default function Classic() {
         return next;
       });
       pushEvent('ghost', `👂 AI 收到匿名爆料 (累计 ${data.total} 条)`);
+    },
+
+    // v6.26 P1 — server detected an AI speech quoting one of the active
+    // leaks. Upgrade the GhostChatPanel badge from 👂 to ✨ and let
+    // the SpeechHistory bubble surface the link via quotedLeaks lookup.
+    'game:leak_quoted': (data: { hintText: string; byPlayerId: string; byPlayerName: string; speechText: string }) => {
+      setQuotedLeaks((prev) => {
+        const next = new Map(prev);
+        next.set(data.hintText, { byPlayerId: data.byPlayerId, byPlayerName: data.byPlayerName, speechText: data.speechText, ts: Date.now() });
+        return next;
+      });
+      pushEvent('ghost', `✨ ${data.byPlayerName} 引用了前同事爆料`);
     },
 
     'game:ghost_comment': (data: { playerId: string; playerName: string; text: string; role?: string; team?: string }) => {
@@ -499,6 +515,9 @@ export default function Classic() {
             // discussion prompt as anonymous ex-coworker tip.
             onPsyWarLeak={(text) => socket.emit('game:psy_war_leak', text)}
             ackedTexts={ackedLeaks}
+            // v6.26 P1 — quotedTexts upgrades badge 👂 → ✨ when AI
+            // actually quotes the leak in a speech.
+            quotedTexts={new Set(quotedLeaks.keys())}
           />
 
           {/* 弹幕 Danmaku overlay */}
@@ -685,6 +704,30 @@ export default function Classic() {
                     </span>
                   )}
                   <span style={{ color: 'rgba(255,255,255,0.4)' }}>: </span>
+                  {/* v6.26 P1 — gold ✨ chip when this speech was the
+                      one that quoted a psy-war leak. Detection happens
+                      on the server (substring match against leakedHints)
+                      and arrives via game:leak_quoted → quotedLeaks Map.
+                      Tooltip exposes which leak got referenced. */}
+                  {(() => {
+                    const matchedQuote = Array.from(quotedLeaks.entries()).find(
+                      ([, info]) => info.speechText === s.text,
+                    );
+                    if (!matchedQuote) return null;
+                    return (
+                      <span
+                        title={`引用了: "${matchedQuote[0].slice(0, 40)}"`}
+                        style={{
+                          display: 'inline-block', marginRight: 6,
+                          padding: '0 6px', borderRadius: 4,
+                          background: 'rgba(255,215,0,0.25)',
+                          fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
+                          color: '#FFD700', verticalAlign: 'middle',
+                          boxShadow: '0 0 8px rgba(255,215,0,0.4)',
+                        }}
+                      >✨ 引用前同事爆料</span>
+                    );
+                  })()}
                   {s.text}
                   {/* v6.8 P4.1 — evidence chips: who this speaker is citing
                        from earlier in the round. Click jumps to the cited

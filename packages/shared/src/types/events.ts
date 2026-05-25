@@ -149,6 +149,17 @@ export interface ServerToClientEvents {
    *  text + current FIFO size so the client can flash "AI 听到了" on
    *  the corresponding chat bubble. */
   'game:psy_war_acked': (data: { text: string; total: number }) => void;
+  /** v6.26 P1 — server detected that this AI speech text quoted one
+   *  of the active leakedHints (sliding 4-char substring match). Lets
+   *  the client upgrade the GhostChatPanel bubble badge from "👂 AI
+   *  听到了" to "✨ AI 引用了" and also highlight the speech itself in
+   *  the discussion log. */
+  'game:leak_quoted': (data: {
+    hintText: string;
+    byPlayerId: string;
+    byPlayerName: string;
+    speechText: string;
+  }) => void;
   'game:avatar_ready': (data: { role: string; team: string; url: string }) => void;
   'game:created': (data: { gameId: string }) => void;
   'game:error': (data: { message: string }) => void;

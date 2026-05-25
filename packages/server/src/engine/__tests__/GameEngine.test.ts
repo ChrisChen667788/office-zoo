@@ -109,6 +109,52 @@ describe('GameEngine — pushLeakedHint (v6.25 P1)', () => {
   });
 });
 
+describe('GameEngine — detectLeakQuote (v6.26 P1)', () => {
+  it('returns null when no hints buffered', () => {
+    const engine = newEngine(8);
+    expect(engine.detectLeakQuote('随便一句话')).toBeNull();
+  });
+
+  it('returns null for empty speech', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('@Frank 偷过我工位的零食');
+    expect(engine.detectLeakQuote('')).toBeNull();
+  });
+
+  it('matches a 4-char window from any hint', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('@Frank 偷过我工位的零食');
+    // Speech contains '偷过我工' — 4-char window from the hint.
+    const r = engine.detectLeakQuote('我听说有人偷过我工位上的咖啡');
+    expect(r).toBe('@Frank 偷过我工位的零食');
+  });
+
+  it('does not match when speech only shares short tokens', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('@Frank 偷过我工位的零食');
+    // No 4-char run from the hint appears.
+    const r = engine.detectLeakQuote('今天天气真好');
+    expect(r).toBeNull();
+  });
+
+  it('returns the matched hint, not just true', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('A 在装大度');
+    engine.pushLeakedHint('B 在偷茶水');
+    // Speech matches the second hint.
+    const r = engine.detectLeakQuote('听说 B 在偷茶水间的零食');
+    expect(r).toBe('B 在偷茶水');
+  });
+
+  it('rejects matches that are only punctuation/whitespace windows', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('   ,,,,    ');
+    // Hint after trim is too short to scan — should return null.
+    const r = engine.detectLeakQuote(',,,,');
+    expect(r).toBeNull();
+  });
+});
+
 describe('GameEngine — ghostVotes tally shape', () => {
   it('initial ghostVotes is empty', () => {
     const engine = newEngine(8);
