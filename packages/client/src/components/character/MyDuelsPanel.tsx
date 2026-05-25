@@ -228,6 +228,29 @@ export default function MyDuelsPanel() {
                   fontSize: 10, color: 'rgba(248,244,227,0.55)', fontStyle: 'italic',
                 }}>等加入</span>
               )}
+              {/* v6.21 P1 — 再约一局: skip row click, jump direct to
+                   /duel/new?rematch=<duelId> with previous picks prefilled.
+                   Only meaningful when duel already concluded (guestBallot
+                   exists) — for waiting duels the user can still send the
+                   share link instead. */}
+              {status === 'live' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/duel/new?rematch=${encodeURIComponent(d.duelId)}`);
+                  }}
+                  title={`再约一局 — 复用你上次的 ballot 当起点, opponent ${oppUserId?.slice(0, 8)}…`}
+                  style={{
+                    padding: '4px 8px', borderRadius: 6,
+                    background: 'rgba(176,134,255,0.16)', color: '#B086FF',
+                    fontWeight: 800, fontSize: 10,
+                    border: '1px solid rgba(176,134,255,0.55)',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                  ↻ 再约
+                </button>
+              )}
               <span style={{ fontSize: 10, color: 'rgba(248,244,227,0.4)' }}>→</span>
             </button>
           );

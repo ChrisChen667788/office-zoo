@@ -14,7 +14,7 @@
  * as more users cast votes, so duel score is alive until week ends.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CHARACTERS, ALL_CHARACTER_NAMES } from '@furball/shared';
 import { PERSONALITY_LABELS_LITE, ALL_PERSONALITY_IDS } from '../constants/personalityLabels';
@@ -46,6 +46,7 @@ interface Scores {
 export default function VoteDuel() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const myId = getUserId();
 
   const [duel, setDuel] = useState<DuelData | null>(null);
@@ -53,6 +54,11 @@ export default function VoteDuel() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const isCreating = id === 'new';
+  // v6.23 P2 — ?rematch=<duelId> on /duel/new means "prefill my picks
+  // with whatever I picked last time against this opponent". Triggered
+  // from MyDuelsPanel "↻ 再约" button. Fetched in CreateView itself
+  // so we don't load it for non-rematch flows.
+  const rematchId = isCreating ? searchParams.get('rematch') : null;
 
   useEffect(() => {
     if (isCreating || !id) return;
@@ -116,7 +122,7 @@ export default function VoteDuel() {
         <div style={{ width: 60 }} />
       </div>
 
-      {isCreating && <CreateView onCreated={(newId) => navigate(`/duel/${newId}`)} />}
+      {isCreating && <CreateView rematchId={rematchId} myId={myId} onCreated={(newId) => navigate(`/duel/${newId}`)} />}
 
       {!isCreating && loadErr && (
         <div className="text-rose-300/85 text-sm py-12">⚠️ {loadErr}</div>
@@ -216,12 +222,67 @@ function BallotPicker({
   );
 }
 
-function CreateView({ onCreated }: { onCreated: (duelId: string) => void }) {
+function CreateView({
+  onCreated,
+  rematchId,
+  myId,
+}: {
+  onCreated: (duelId: string) => void;
+  rematchId: string | null;
+  myId: string;
+}) {
   const [picks, setPicks] = useState<BallotPick[]>(
     Array.from({ length: BALLOT_SIZE_FE }, () => ({ rat: '', personality: '' })),
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // v6.23 P2 — rematch banner state. Holds the prior duel's opponent
+  // name + which ballot side we copied from (host vs guest).
+  const [rematchSrc, setRematchSrc] = useState<{
+    opponent: string;
+    side: 'host' | 'guest';
+  } | null>(null);
+
+  // ── Rematch prefill ────────────────────────────────────────────────
+  //
+  // On mount, if ?rematch=<duelId> was passed, fetch the prior duel
+  // and copy whichever ballot belonged to the current user. Silent
+  // failure (network/404) — we just fall back to an empty ballot, no
+  // error toast (the user can still create from scratch).
+  useEffect(() => {
+    if (!rematchId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/characters/votes/duels/${encodeURIComponent(rematchId)}`);
+        if (!r.ok) return;
+        const data = (await r.json()) as { duel: DuelData };
+        if (cancelled) return;
+        const d = data.duel;
+        if (!d) return;
+        let mine: BallotPick[] | undefined;
+        let opponentId: string | undefined;
+        let side: 'host' | 'guest' = 'host';
+        if (d.hostUserId === myId) {
+          mine = d.hostBallot;
+          opponentId = d.guestUserId;
+          side = 'host';
+        } else if (d.guestUserId === myId) {
+          mine = d.guestBallot;
+          opponentId = d.hostUserId;
+          side = 'guest';
+        }
+        if (mine && mine.length === BALLOT_SIZE_FE) {
+          setPicks(mine.map((p) => ({ rat: p.rat, personality: p.personality })));
+          setRematchSrc({
+            opponent: opponentId ? `${opponentId.slice(0, 8)}…` : '神秘对手',
+            side,
+          });
+        }
+      } catch { /* silent fallback to empty ballot */ }
+    })();
+    return () => { cancelled = true; };
+  }, [rematchId, myId]);
 
   const valid = picks.every((p) => p.rat && p.personality);
 
@@ -258,6 +319,25 @@ function CreateView({ onCreated }: { onCreated: (duelId: string) => void }) {
           多. 每押中 1 票 1 分.
         </div>
       </div>
+      {/* v6.23 P2 — rematch banner. Appears only when we successfully
+          prefilled picks from a prior duel; user can still freely edit
+          them before submitting. */}
+      {rematchSrc && (
+        <div style={{
+          margin: '0 0 14px',
+          padding: '8px 12px',
+          borderRadius: 10,
+          background: 'rgba(176,134,255,0.12)',
+          border: '1px solid rgba(176,134,255,0.45)',
+          fontSize: 12, color: '#B086FF',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 14 }}>↻</span>
+          <span>
+            已复用你上次对 <b>{rematchSrc.opponent}</b> 的{rematchSrc.side === 'host' ? '主场' : '客场'} ballot 作起点 — 可继续微调.
+          </span>
+        </div>
+      )}
       <BallotPicker picks={picks} onChange={setPicks} />
       {err && <div className="mt-3 text-rose-300 text-xs text-center">{err}</div>}
       <button
