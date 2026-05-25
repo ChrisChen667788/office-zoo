@@ -84,7 +84,7 @@ export default function Classic() {
   const ghostComments = useGhostComments();
   const ghostVotes = useGhostVotes();
   const avatarUrls = useAvatarUrls();
-  const { updateState, applyTick, setSpeaker, addSpeech, setDiscussionProgress, clearDiscussionProgress, addGhostComment, setAvatarUrl, pushElimination, reset, setGhostVotes } =
+  const { updateState, applyTick, setSpeaker, addSpeech, setDiscussionProgress, clearDiscussionProgress, addGhostComment, setAvatarUrl, pushElimination, reset, setGhostVotes, mergeGhostVote } =
     useGameActions();
 
   const { socket, connected, connecting, reconnectAttempt } = useSocket();
@@ -157,6 +157,11 @@ export default function Classic() {
       // leave discussion (server only emits during discussion anyway, but
       // clearing here lets the UI hide the bar between rounds).
       if (data.phase !== 'discussion') clearDiscussionProgress();
+      // v6.24 P2 — clear last round's ghost-vote tally when a new voting
+      // round starts so the incremental ghost_vote_cast events land in
+      // a fresh map. (vote_result already overrides on conclusion, but
+      // we want the GameMap dots to fade away when voting begins.)
+      if (data.phase === 'voting') setGhostVotes({});
     },
 
     // Speaker spotlight: GameMap uses currentSpeaker to draw a pulsing
@@ -216,6 +221,14 @@ export default function Classic() {
       }
     },
 
+    // v6.24 P2 — incremental ghost vote signal. One event per ghost
+    // as they vote during voting phase; merge into ghostVotes map so
+    // GameMap dots light up progressively (drama!).
+    'game:ghost_vote_cast': (data: { ghostId: string; ghostName: string; target: string }) => {
+      mergeGhostVote(data.ghostId, data.target);
+      pushEvent('ghost', `👻 ${data.ghostName} 投了劳动仲裁票`);
+    },
+
     'game:ghost_comment': (data: { playerId: string; playerName: string; text: string; role?: string; team?: string }) => {
       addGhostComment(data);
       pushEvent('ghost', `👻 ${data.playerName}: ${data.text}`);
@@ -231,7 +244,7 @@ export default function Classic() {
       }, 6000);
     },
 
-    'game:vote_result': (data: { votes: Record<string, string>; ghostVotes?: Record<string, string>; eliminated?: string; playerName?: string }) => {
+    'game:vote_result': (data: { votes: Record<string, string>; ghostVotes?: Record<string, string>; eliminated?: string; playerName?: string; eliminatedPersonality?: string }) => {
       let msg = data.eliminated && data.playerName
         ? `${data.playerName} 被投票开除` : '投票平局，无人被开除';
       if (data.ghostVotes && Object.keys(data.ghostVotes).length > 0) {
@@ -257,7 +270,11 @@ export default function Classic() {
           playerName: data.playerName,
           roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
           team: teamForRole(victim?.role),
-          personality: victim?.personality,
+          // v6.24 P1 — prefer the personality the server attached to the
+          // event itself; fall back to the players.find lookup. The event
+          // is authoritative since it's set at elimination time on the
+          // server, immune to client-side state-update races.
+          personality: data.eliminatedPersonality ?? victim?.personality,
         });
         // Append to persistent recap log so HighlightReel can replay later.
         pushElimination({
@@ -271,7 +288,7 @@ export default function Classic() {
       }
     },
 
-    'game:kill': (data: { victimId: string; victimName?: string; location?: string }) => {
+    'game:kill': (data: { victimId: string; victimName?: string; location?: string; victimPersonality?: string }) => {
       const victim = players.find((p) => p.id === data.victimId);
       const name = data.victimName || victim?.name || '???';
       pushEvent('kill', `${name} 在${data.location || '某处'}被"优化"了!`);
@@ -283,7 +300,8 @@ export default function Classic() {
         roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
         team: teamForRole(victim?.role),
         location: data.location,
-        personality: victim?.personality,
+        // v6.24 P1 — same authoritative-event-first pattern as vote_result.
+        personality: data.victimPersonality ?? victim?.personality,
       });
       pushElimination({
         round,
@@ -755,7 +773,7 @@ export default function Classic() {
       )}
 
       {/* Dramatic elimination moment — fullscreen 3s overlay */}
-      <EliminationReveal latest={lastElim} />
+      <EliminationReveal latest={lastElim} activeNames={players.map((p) => p.name)} />
 
       {/* v0.5.1-A: kill flash hits ~250ms before EliminationReveal — strictly
           a `kill` event triggers the red overlay; vote ejections route to

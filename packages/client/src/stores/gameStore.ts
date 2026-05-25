@@ -164,6 +164,11 @@ interface GameActions {
    *  so the GhostVoteDot overlay can highlight indicted alives within
    *  the same tick as the elimination reveal. */
   setGhostVotes: (ghostVotes: Record<string, string> | null | undefined) => void;
+  /** v6.24 P2 — incremental merge driven by the real-time
+   *  `game:ghost_vote_cast` event. Each ghost's vote arrives separately
+   *  during voting phase so the 👻 dot tally + GhostChatPanel ally
+   *  count update one-at-a-time instead of in a single vote_result batch. */
+  mergeGhostVote: (ghostId: string, target: string) => void;
   setAvatarUrl: (role: string, url: string) => void;
   pushElimination: (entry: Omit<EliminationLogEntry, 'id' | 'timestamp'>) => number;
   pushPrediction: (entry: PredictionLogEntry) => void;
@@ -385,6 +390,12 @@ export const useGameStore = create<GameStore>((set) => ({
     // the GhostVoteDot overlay misses its dramatic "right after vote
     // reveal" moment.
     setGhostVotes: (ghostVotes) => set({ ghostVotes: ghostVotes || {} }),
+
+    // v6.24 P2 — incremental merge from game:ghost_vote_cast events.
+    // Each call adds/updates one (ghostId → target) entry, preserving
+    // any prior entries from the same voting round.
+    mergeGhostVote: (ghostId, target) =>
+      set((s) => ({ ghostVotes: { ...s.ghostVotes, [ghostId]: target } })),
 
     setAvatarUrl: (role, url) =>
       set((s) => ({

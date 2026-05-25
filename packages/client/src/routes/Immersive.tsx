@@ -124,7 +124,7 @@ export default function Immersive() {
   const avatarUrls = useAvatarUrls();
   const {
     setGameId, updateState, applyTick, setSpeaker, addSpeech, addGhostComment, setAvatarUrl,
-    pushElimination, reset,
+    pushElimination, reset, mergeGhostVote,
   } = useGameActions();
 
   const [speechText, setSpeechText] = useState('');
@@ -215,7 +215,7 @@ export default function Immersive() {
     // Elimination events — newly wired for Immersive (were previously only in Classic).
     // Without these, Immersive had no EliminationReveal trigger and no recap data
     // for HighlightReel, so the dramatic beats went entirely unpublished.
-    'game:vote_result': (data: { votes: Record<string, string>; ghostVotes?: Record<string, string>; eliminated?: string; playerName?: string }) => {
+    'game:vote_result': (data: { votes: Record<string, string>; ghostVotes?: Record<string, string>; eliminated?: string; playerName?: string; eliminatedPersonality?: string }) => {
       setLastVoteEliminated(data.eliminated ?? null);
       setVoteResultTick((n) => n + 1);
       if (data.eliminated && data.playerName) {
@@ -226,7 +226,8 @@ export default function Immersive() {
           playerName: data.playerName,
           roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
           team: teamForRole(victim?.role),
-          personality: victim?.personality,
+          // v6.24 P1 — prefer event-authoritative personality.
+          personality: data.eliminatedPersonality ?? victim?.personality,
         });
         pushElimination({
           round,
@@ -239,7 +240,7 @@ export default function Immersive() {
       }
     },
 
-    'game:kill': (data: { victimId: string; victimName?: string; location?: string }) => {
+    'game:kill': (data: { victimId: string; victimName?: string; location?: string; victimPersonality?: string }) => {
       const victim = players.find((p) => p.id === data.victimId);
       const name = data.victimName || victim?.name || '???';
       setLastElim({
@@ -249,7 +250,8 @@ export default function Immersive() {
         roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
         team: teamForRole(victim?.role),
         location: data.location,
-        personality: victim?.personality,
+        // v6.24 P1 — prefer event-authoritative personality.
+        personality: data.victimPersonality ?? victim?.personality,
       });
       pushElimination({
         round,
@@ -265,6 +267,11 @@ export default function Immersive() {
     'game:over': (data: any) => {
       if (data.winner) updateState({ ...data, phase: 'game_over' });
     },
+    // v6.24 P2 — real-time ghost vote signal (mirrors Classic handler).
+    'game:ghost_vote_cast': (data: { ghostId: string; ghostName: string; target: string }) => {
+      mergeGhostVote(data.ghostId, data.target);
+    },
+
     'game:ghost_comment': (data: { playerId: string; playerName: string; text: string; role?: string; team?: string }) => {
       addGhostComment(data);
       const item: GhostCommentItem = {
@@ -718,7 +725,7 @@ export default function Immersive() {
       )}
 
       {/* Dramatic elimination moment — 3s fullscreen on every kill/vote-out */}
-      <EliminationReveal latest={lastElim} />
+      <EliminationReveal latest={lastElim} activeNames={players.map((p) => p.name)} />
 
       {/* v0.5.1 punchy animation pack — same wiring as Classic.tsx. */}
       <KillFlashOverlay triggerId={lastElim?.type === 'kill' ? lastElim.id : 0} />
