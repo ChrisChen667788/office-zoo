@@ -21,9 +21,10 @@ export const requestIdMiddleware: MiddlewareHandler = async (c, next) => {
   const path = c.req.path;
   const log = logger.child({ reqId, method, path });
 
-  // @ts-expect-error — Hono's c.var is untyped at module scope, we attach ad hoc.
+  // v6.25 P4 — @ts-expect-error directives removed (Hono now infers
+  // c.set keys broadly enough that these don't error, making the
+  // directives themselves into errors via TS2578).
   c.set('reqId', reqId);
-  // @ts-expect-error — same reason.
   c.set('log', log);
 
   const startedAt = Date.now();

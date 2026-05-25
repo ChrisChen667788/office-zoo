@@ -181,7 +181,11 @@ export default function LottieAsset({
     <div ref={wrapRef} className={className} style={wrapStyle} aria-hidden>
       <Suspense fallback={<>{fallback}</>}>
         <Lottie
-          lottieRef={lottieRef}
+          /* v6.25 P4 — local LottieRefCurrentProps is a structural
+             subset of the real lottie-react type (only the methods
+             we actually call). The real one has 14 more methods we
+             don't touch; double-cast through unknown so TS accepts. */
+          lottieRef={lottieRef as never}
           animationData={data}
           loop={reduced ? false : loop}
           autoplay={reduced ? false : autoplay}

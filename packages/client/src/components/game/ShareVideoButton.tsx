@@ -195,7 +195,9 @@ export default function ShareVideoButton() {
         await navigator.share(baseShare);
       } else {
         // Final fallback: copy a deeplink so the user can paste anywhere.
-        await navigator.clipboard.writeText(`${baseShare.text}\n${baseShare.url}`);
+        // v6.25 P4 — TS narrows navigator to `never` here after the
+        // 'share' in branch; cast to widen.
+        await (navigator as Navigator).clipboard.writeText(`${baseShare.text}\n${baseShare.url}`);
         // Lightweight toast via the same status flash mechanism.
         setErrMsg('已复制分享文案到剪贴板');
         setStatus('error');

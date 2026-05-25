@@ -223,7 +223,10 @@ function fallbackStory(members: SquadMember[]): DirectorResult {
     closer: '编剧 AI 在路上,稍后试试 "重新开演" 拿真版本',
   };
 
-  return { acts, recap };
+  // v6.25 P4 — fallback path: no chemistry analysis when LLM is
+  // unavailable. Return empty arrays so the DirectorResult contract
+  // is honored end-to-end.
+  return { acts, recap, chemistryHints: [], chemistryTags: [] };
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -355,7 +358,9 @@ export function analyzeSquadChemistry(members: SquadMember[]): ChemistryHint[] {
     let bestDim: string | null = null;
     let bestSpread = 0;
     for (const dim of Object.keys(TRAIT_LABEL_ZH)) {
-      const vals = arcs.map((x) => x.arc!.traits[dim as keyof typeof x.arc.traits]);
+      // arcs.every(x => x.arc) gate above guarantees non-null; assert
+      // both at the map call and the keyof inference so TS narrows correctly.
+      const vals = arcs.map((x) => x.arc!.traits[dim as keyof NonNullable<typeof x.arc>['traits']]);
       const spread = Math.max(...vals) - Math.min(...vals);
       if (spread > bestSpread) { bestSpread = spread; bestDim = dim; }
     }

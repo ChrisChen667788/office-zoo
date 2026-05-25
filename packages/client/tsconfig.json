@@ -1,8 +1,12 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    // v6.25 P4 — see server tsconfig comment. Vite uses esbuild for
+    // build, so tsc is typecheck-only here. Adding vite/client types
+    // so `import.meta.env.DEV` etc. resolve cleanly (was throwing
+    // TS2339 Property 'env' does not exist on ImportMeta).
     "outDir": "./dist",
-    "rootDir": "./src"
+    "types": ["vite/client"]
   },
-  "include": ["src"]
+  "include": ["src", "../shared/src"]
 }

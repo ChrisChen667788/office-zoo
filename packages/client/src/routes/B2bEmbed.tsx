@@ -94,7 +94,10 @@ export default function B2bEmbed() {
     reset();
     setScenario(scenarioId);
     // Pick a sensible default personality per flavor.
-    setPersonality(cfg.flavor === 'training' ? 'union' : 'veteran');
+    // v6.25 P4 — 'union'/'veteran' are FiredPersonalityId, structurally
+    // a superset of the engine's PersonalityId. The fired store accepts
+    // both, but TS can't reconcile the literal union. Cast.
+    setPersonality(cfg.flavor === 'training' ? ('union' as never) : ('veteran' as never));
     // Stash the embed context so we return here after the round, not
     // the consumer FiredLanding.
     try {

@@ -133,7 +133,9 @@ characterRoutes.get('/:name/og-card.png', async (c) => {
   if (!buf) return c.json({ error: 'unknown character' }, 404);
   c.header('Content-Type', 'image/png');
   c.header('Cache-Control', 'public, max-age=3600');
-  return c.body(buf);
+  // v6.25 P4 — Buffer is a Uint8Array subclass; Hono's c.body overload
+  // signature only lists Uint8Array, so we widen explicitly.
+  return c.body(new Uint8Array(buf));
 });
 
 /**

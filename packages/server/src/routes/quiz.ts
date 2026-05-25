@@ -104,11 +104,11 @@ quizRoutes.post('/score', async (c) => {
   };
   await saveProfile(profile);
 
-  log.info('Quiz scored', {
+  log.info({
     userId: userId.slice(0, 8) + '…',
     top: top3[0],
     score: ranked[0].score.toFixed(2),
-  });
+  }, 'Quiz scored');
 
   return c.json({ profile, ranked: ranked.slice(0, 5).map((r) => ({
     archetypeId: r.archetype.id, score: r.score,

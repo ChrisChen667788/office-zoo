@@ -900,10 +900,10 @@ firedRouter.post('/generate-scenario', async (c) => {
   // (legacy clients) — the row just won't show up under "我的创作".
   const createdBy = (c.req.header('x-user-id') ?? '').slice(0, 64) || undefined;
   await addUserScenario(scenario, { createdBy });
-  routeLog.info('User scenario generated', {
+  routeLog.info({
     id: scenario.id, difficulty, len: scenario.description.length,
     createdBy: createdBy ? createdBy.slice(0, 8) + '…' : 'anon',
-  });
+  }, 'User scenario generated');
   return c.json({ ...scenario, source: 'user', likes: 0, createdBy });
 });
 
@@ -978,9 +978,9 @@ firedRouter.post('/memory/record', async (c) => {
     finalRatio,
   });
 
-  routeLog.info('Memory recorded', {
+  routeLog.info({
     user: userId.slice(0, 8) + '…', scenarioId, outcome, tookRounds, tactic,
-  });
+  }, 'Memory recorded');
 
   // v1.5.1 — archetype evolution. Derive a delta from the same
   // win/ratio/rounds inputs and apply it. Anonymous-quiz users (no
@@ -1283,11 +1283,11 @@ firedRouter.post('/packs', async (c) => {
     likes: 0,
   };
   await addPack(pack);
-  routeLog.info('Pack created', {
+  routeLog.info({
     id: pack.id,
     slots: slots.length,
     createdBy: createdBy ? createdBy.slice(0, 8) + '…' : 'anon',
-  });
+  }, 'Pack created');
   return c.json(pack);
 });
 

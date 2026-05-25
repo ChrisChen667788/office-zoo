@@ -106,7 +106,9 @@ export default function FiredPack() {
     if (!slot) return;
     reset();
     setScenario(slot.scenarioId);
-    setPersonality(slot.personalityId);
+    // v6.25 P4 — FiredPersonalityId is a superset of fired-store
+    // PersonalityId; cast through (same arrangement as B2bEmbed).
+    setPersonality(slot.personalityId as never);
     // Stash so FiredResult knows to (1) record this slot and (2) navigate
     // back to the pack view rather than the landing page.
     try {

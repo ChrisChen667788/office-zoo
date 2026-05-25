@@ -1,11 +1,17 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    // v6.25 P4 — rootDir intentionally NOT set. Server runs via `tsx`
+    // (no tsc build step), so the only role of tsconfig is typecheck.
+    // Setting rootDir caused TS6059 noise for every @furball/shared
+    // import because the .ts files live in a sibling package. The fix
+    // would be a project-references refactor, but that's out of scope
+    // for typecheck cleanup. Without rootDir, tsc picks the monorepo
+    // root as common ancestor — happy.
     "outDir": "./dist",
-    "rootDir": "./src",
-    "noEmit": false,
+    "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "Bundler"
   },
-  "include": ["src"]
+  "include": ["src", "../shared/src"]
 }

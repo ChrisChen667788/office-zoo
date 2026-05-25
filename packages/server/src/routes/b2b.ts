@@ -79,9 +79,9 @@ b2bRoutes.post('/configs', async (c) => {
     createdAt: Date.now(),
   };
   await addConfig(cfg);
-  log.info('B2B embed created', {
+  log.info({
     id: cfg.id, brand: cfg.brandName, flavor: cfg.flavor,
     createdBy: createdBy ? createdBy.slice(0, 8) + '…' : 'anon',
-  });
+  }, 'B2B embed created');
   return c.json(cfg);
 });
