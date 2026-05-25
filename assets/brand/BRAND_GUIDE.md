@@ -30,6 +30,7 @@
 | `assets/brand/logo-horizontal-lockup.png` | 16:9 (1280×720) | **横版 lockup · 原始** · 留白版, 自配 wordmark 时用 | 左 30% chibi 太阳镜鼠 + 右 70% 纯渐变 negative space |
 | `assets/brand/logo-horizontal-lockup-final.png` | 16:9 (1280×720) | **✅ 横版 banner · 终版** · README 顶 / Notion / Slack header | 同上 + 右侧大字 OFFICE ZOO (gold→pink→violet) + 班味剧场副标 + tagline, 已直接 ship 到 README |
 | `assets/brand/logo-mark-only.png` | 1024×1024 | **纯 mark / 单色印刷** · sticker die-cut / mug / monogram | 鼠头剪影 + 黄眼 + 白门牙, 无边框/文字/glow, flat 灰底易换 |
+| `assets/brand/logo-mark-transparent.png` | 1024×1024 透明 | **alpha-keyed mark** · 贴图叠任意底色 / sticker print / overlay 浮窗 | 仿 cyberpunk-zoomer 调色板的鼠头 (紫眼 + 粉耳 + 小门牙), Minimax 生 + PIL 抠紫底, 跟 monogram 互补 — monogram 用于单色低墨场景, 这个用于彩色保留场景 |
 
 ### 1.1 Logo 用法 do / don't
 
