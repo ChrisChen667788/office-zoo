@@ -30,6 +30,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CHARACTERS } from '@furball/shared';
 import { sfx } from '../../utils/sfx';
 import { pickLastWords, pickNewHire } from './lastWords';
 
@@ -194,29 +195,48 @@ export default function EliminationReveal({
           exit={{ opacity: 0, y: 30 }}
           transition={{ type: 'spring', damping: 22, stiffness: 200 }}
         >
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '10px 18px',
-            background: 'rgba(15,14,46,0.96)',
-            border: '1px solid rgba(34,197,94,0.55)',
-            borderRadius: 12,
-            boxShadow: '0 0 40px rgba(34,197,94,0.28), 0 12px 28px rgba(0,0,0,0.45)',
-            backdropFilter: 'blur(20px)',
-          }}>
-            <span style={{ fontSize: 24, filter: 'drop-shadow(0 0 8px rgba(34,197,94,0.7))' }}>🎉</span>
-            <div>
+          {/* v6.25 P5 — circular avatar badge using the character's
+              epithet emoji (Tony → 📈 卷王, Lisa → 🦋, etc.). Falls
+              back to 🎉 for fake interns (newHire.realName === null). */}
+          {(() => {
+            const card = newHire.realName ? CHARACTERS[newHire.realName] : null;
+            const avatarGlyph = card?.emoji ?? '🎉';
+            const epithet = card?.epithet;
+            return (
               <div style={{
-                fontSize: 9.5, fontWeight: 900, letterSpacing: '0.2em',
-                color: 'rgba(34,197,94,0.85)', textTransform: 'uppercase',
-              }}>HR 系统 · 新员工入职</div>
-              <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 1 }}>
-                Welcome aboard, {newHire.name}!
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '10px 18px 10px 14px',
+                background: 'rgba(15,14,46,0.96)',
+                border: '1px solid rgba(34,197,94,0.55)',
+                borderRadius: 12,
+                boxShadow: '0 0 40px rgba(34,197,94,0.28), 0 12px 28px rgba(0,0,0,0.45)',
+                backdropFilter: 'blur(20px)',
+              }}>
+                <div style={{
+                  flexShrink: 0,
+                  width: 42, height: 42, borderRadius: '50%',
+                  background: 'radial-gradient(circle at 30% 30%, rgba(34,197,94,0.32), rgba(34,197,94,0.08))',
+                  border: '2px solid rgba(34,197,94,0.65)',
+                  boxShadow: '0 0 14px rgba(34,197,94,0.45)',
+                  display: 'grid', placeItems: 'center',
+                  fontSize: 22,
+                  filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.55))',
+                }}>{avatarGlyph}</div>
+                <div>
+                  <div style={{
+                    fontSize: 9.5, fontWeight: 900, letterSpacing: '0.2em',
+                    color: 'rgba(34,197,94,0.85)', textTransform: 'uppercase',
+                  }}>HR 系统 · 新员工入职</div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 1 }}>
+                    Welcome aboard, {newHire.name}!
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.55)', marginTop: 1 }}>
+                    {epithet ? `「${epithet}」 · ${newHire.tagline}` : newHire.tagline}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)', marginTop: 1 }}>
-                {newHire.tagline}
-              </div>
-            </div>
-          </div>
+            );
+          })()}
         </motion.div>
       )}
     </AnimatePresence>

@@ -148,11 +148,15 @@ export function pickLastWords(personality: string | undefined, seed: number): st
  *  intern. Falls back to NEW_HIRE_NAMES (the generic 实习生 / 外包 set)
  *  when activeNames covers ≥ 80% of the squad pool or activeNames is
  *  missing entirely.
+ *
+ *  v6.25 P5 — also returns `realName` (the squad rat name without
+ *  prefix decoration) so the caller can look up CharacterCard.emoji
+ *  for the avatar badge. null when fallback path was taken.
  */
 export function pickNewHire(
   seed: number,
   activeNames?: string[],
-): { name: string; tagline: string } {
+): { name: string; tagline: string; realName: string | null } {
   const tIdx = djb2(`tag|${seed}`) % NEW_HIRE_TAGLINES.length;
   const tagline = NEW_HIRE_TAGLINES[tIdx];
 
@@ -164,11 +168,12 @@ export function pickNewHire(
       // Pick from unused squad + prefix with a hire-role decoration.
       const nIdx = djb2(`squad|${seed}`) % unused.length;
       const pIdx = djb2(`prefix|${seed}`) % HIRE_PREFIXES.length;
-      return { name: `${HIRE_PREFIXES[pIdx]} ${unused[nIdx]}`, tagline };
+      const realName = unused[nIdx];
+      return { name: `${HIRE_PREFIXES[pIdx]} ${realName}`, tagline, realName };
     }
   }
 
-  // Fallback: generic 实习生/外包 names.
+  // Fallback: generic 实习生/外包 names. realName=null signals "fake".
   const nIdx = djb2(`name|${seed}`) % NEW_HIRE_NAMES.length;
-  return { name: NEW_HIRE_NAMES[nIdx], tagline };
+  return { name: NEW_HIRE_NAMES[nIdx], tagline, realName: null };
 }
