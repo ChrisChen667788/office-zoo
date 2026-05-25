@@ -4,8 +4,6 @@
 
 > v3.1 – v5.4 的条目此处暂缺(代码侧 tag 已落地, 详见各文件版本注释)。
 > v5.5 起恢复完整记录。
-> v6.7 – v6.20 的条目此处暂缺(brand systematization + duel + 各 P 迭代,
-> 详见 git log 与各文件版本注释; v6.21 起恢复完整记录)。
 
 ---
 
@@ -142,6 +140,148 @@ Server: 零改动 — 复用已有 `generateGhostComment` + `generateGhostVote`.
 - Position sy-50 在 name pill (sy-37..sy-22) 上方, tail 下扎"speech from".
 
 Server: 零改动.
+
+---
+
+## v6.20 — 2026-05-23 · Duel 完善 — spectator + share PNG
+
+- **P1** spectator 视角修 — guest view 看 host ballot 时不再误显 "你的"
+  picks. **P3** MyDuels Profile panel — `/profile/me` 加最近 duel 列表
+  (host/guest 角色 + 比分 + "↻ 再约" — 实际 rematch 在 v6.23 P2 补).
+- **P2** Duel 加 1080×1350 share PNG (第 6 个 share card) — `duelShareCard.ts`,
+  完整 ballot 对比 + 比分 + EventPill 顶, 一键复制 / 下载.
+
+---
+
+## v6.19 — 2026-05-23 · Duel polish + 斗投 MVP
+
+- **P1** WaitingHost 加 5s polling for guest join, OS 原生 share + 大成功
+  动画 (拷贝 link 时绿色 flash + sfx).
+- **P2** 斗投 MVP leaderboard — `/character-votes` 顶部 endpoint, "本周
+  押中之王" 榜.
+
+---
+
+## v6.18 — 2026-05-23 · 双人 1v1 投票 duel
+
+- **P3** 主体 — `/duel/new` 创建 + `/duel/:id` 加入. ballot size 3 (rat
+  + personality 各 3), 实时对比谁押中 weekly leader 多. `BallotPicker` +
+  `WaitingHost` + 完整 join 流.
+- **P1** `/character-votes` 加 "过去 4 周霸榜" timeline matrix (12 rat ×
+  4 周热力图).
+- **P2** PersonaCard 头像旁 "本周 dominant" 小标 (sync-cached, 不打开
+  popover 就能看).
+
+---
+
+## v6.17 — 2026-05-23 · 角色投票全局化
+
+- **P1** `/character-votes` 全网投票排行榜页 — 鼠人 personality 选秀的
+  外面板. Landing 加 "discover" chip 引流.
+- **P2+P3** Vote modal 加 4 周 winner 历史回看 + Profile MyBallotsPanel.
+
+---
+
+## v6.16 — 2026-05-23 · 鼠人选秀 P-iterations
+
+- **P1** 鼠人选秀 — 用户每周投票决定 next-week personality bias (game
+  engine `assignPersonalities` 加 weekly winner override 50% 偏置).
+- **P2** PERSONALITY_LABELS 提取到 `client/constants/personalityLabels.ts`
+  (8 personality × label/emoji/color/icon).
+- **P3** SquadHistory 挂 SquadMemberCard — 2 处 member 列表都可 hover
+  popover.
+
+---
+
+## v6.15 — 2026-05-23 · TopRats + Squad + Talkshow + Daily
+
+- **P1** TopRatsPanel SVG 30 天趋势图 (stacked area).
+- **P2** SquadBuddiesPanel — Profile 加 "你常和谁组队" 可视化.
+- **P3** Talkshow grid 加 inline UGC 卡 (每 5 AI 段插 1 用户投稿, 真假
+  混排).
+- **P4** Daily challenge 加 "今日鼠人主角" 联动 badge.
+
+---
+
+## v6.14 — 2026-05-22 · Landing daily featured rat + UGC carousel
+
+- Landing 加 "今日鼠人聚光灯" — DailyRatSpotlight 选 1 鼠 + 3 段语录.
+- approved UGC carousel — 通过 maker 审核的段子轮播在 Landing hero 下方.
+
+---
+
+## v6.13 — 2026-05-22 · Result polish + Landing prefetch
+
+- **P3** Result 页加 PersonaCard popover (复用 v6.8 P1 系统).
+- **P4** Landing prefetch + OG cache cleanup — 减首屏延迟.
+
+---
+
+## v6.12 — 2026-05-22 · OG 卡 + UGC 闭环
+
+- **P1** UGC 闭环显示 — Profile 加投稿统计 + PersonaCard 引流 ✍️ 编段子.
+- **P2** OG per-character PNG — server Playwright pre-render + 磁盘缓存
+  (社交链接 unfurl 时拿到角色卡).
+
+---
+
+## v6.11 — 2026-05-22 · spectator + UGC + Maker
+
+- **P1** spectator 趋势 — 30 天 personality 演化 + trend chip.
+- **P2** Maker UGC 审核工具 — `/maker` 管理页 + token gate.
+- **P3** Squad stats endpoint — SquadMemberCard 填真数据.
+- **P4** 角色卡 OG image — 社交 unfurl + deep-link bounce.
+
+---
+
+## v6.10 — 2026-05-22 · spectator tracking + i18n + UGC 桥接
+
+- **P1** spectator tracking — "你看过的鼠人 Top 3" (client-only, localStorage).
+- **P2** i18n — 12 角色英文 fallback (CharacterCard.i18n.en) + PersonaCard
+  UI 双语.
+- **P3** PersonaCard 加 ✍️ 编段子 → Talkshow UGC 同步.
+- **P4** PersonaCard 挂 squad mode — 新 SquadMemberCard 桥接.
+
+---
+
+## v6.9 — 2026-05-21 · 单卡分享 + profile 榜 + B2B 预览
+
+- **P-share** 角色单卡 1080×1350 分享 PNG (`utils/characterShareCard.ts`).
+- **P-profile** `/profile` 加 "全员鼠人 Top 3" 榜单.
+- **P-b2b** B2bEmbed 加 NPC IP 预览带 — 企业 demo 卖点 (展示几个签约
+  鼠人头像 + 战绩).
+
+---
+
+## v6.8 — 2026-05-21 · 鼠人 IP 反差萌系统
+
+- **P1** 鼠人花名 + 性格卡 — IP 反差萌 (固定 epithet × 随机 personality
+  → 反差笑点). 12 名英文 CharacterCard 池 (Tony "Excel 永动机" 等).
+  PersonaCard popover 渲染 IP + 本局 personality 组合.
+- **P2** Phase transition 过场 + SFX — 米哈游式仪式感
+  (PhaseTransitionOverlay + sfx).
+- **P3** AI typing idle 微动作 — 8 性格 × 8 动作差异化 (IdleBeat).
+- **P4.1** 证据系统 — 讨论引用 chip + jump-to-cited.
+- **P4.2** 回合压力 — 真 wave 进度 + 最后窗口红色脉动 + tick SFX.
+- **P5** 角色战绩 — characterStatsStore + PersonaCard 填真数据.
+
+---
+
+## v6.7 — 2026-05-23 · brand systematization
+
+- favicon suite — `client/public/favicon.ico` (multi-resolution
+  16+32+48) + favicon-16/32/48x.png + apple-touch-icon.png (180) +
+  icon-192/512.png + manifest.webmanifest (theme #FFD700, name
+  "OFFICE ZOO · 班味剧场"). PIL 生成自 logo-card.png 5★ stigma 源.
+- Landing IP — hero wordmark 左加 `<motion.img>` brand-logo.png
+  (120-140px clamp + glow ring shadow).
+- 3 brand 衍生 — horizontal-banner-twitter.png (16:9 cover) +
+  square-avatar-group.png (1024 chibi 头像) + BRAND_GUIDE.md (6 章
+  brand 圣经: 核心 / logo 系统 / 色卡 / 字体 / 应用样板 / 衍生).
+- 5 处 OFFICE ARENA 旧名洗白 (shareCard / HighlightReel / RulesModal)
+  — localStorage key 保留以免丢用户数据 (v6.25 P8 才一次性迁移).
+- 间插 brand commits: `fe95a8a` 3 个 logo 变体 (vertical / horizontal /
+  mark-only base art) + `b99e5cf` 真字体 wordmark overlay → README ship.
 
 ---
 
