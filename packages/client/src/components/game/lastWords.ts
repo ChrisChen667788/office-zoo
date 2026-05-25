@@ -76,6 +76,9 @@ const GENERIC_POOL = [
  * 池有意挑"新人感"重的搭配 — 实习生 / 校招生 / 外包名, 把"螺丝钉
  * 可替换性"的笑点拉满.
  */
+/** Generic "fresh hire" name pool used as fallback when no real squad
+ *  rats are available — pre-tagged with 实习生/应届生/外包/校招/OD/试用期
+ *  so the role hierarchy reads at a glance. */
 export const NEW_HIRE_NAMES = [
   '实习生小郁',
   '应届生 Kevin',
@@ -87,6 +90,28 @@ export const NEW_HIRE_NAMES = [
   'OD 同学 Bob',
   '试用期 Linda',
   '校招生 Eric',
+];
+
+/** v6.24 P3 — mirror of server's AI_NAMES pool (GameEngine.ts L35-40).
+ *  Used by pickNewHire to pull a real "rat that exists in the squad but
+ *  isn't on the current game's roster" — sells the reveal as "company
+ *  already had 11 backup workers waiting in HR's CRM, you were never
+ *  irreplaceable" instead of always inventing a fictional hire.
+ *
+ *  Keep in sync with server. If they diverge, the worst case is just
+ *  pickNewHire occasionally suggesting a name the user has never seen. */
+export const SQUAD_NAMES = [
+  'Tony', 'Lisa', 'Kevin', 'Amy', 'David', 'Frank',
+  'Grace', 'Helen', 'Jack', 'Mike', 'Ruby', 'Oscar',
+  '张总', '李总', '小王', '小陈', '阿强', '老赵',
+  '陈姐', '实习生小明',
+];
+
+/** Role-prefix decorations applied to a real squad rat name to mark
+ *  them as "the new hire" in the reveal. Picks one with the seed for
+ *  determinism. */
+const HIRE_PREFIXES = [
+  '实习生', '应届生', '外包同学', '校招生', '试用期', '替补',
 ];
 
 export const NEW_HIRE_TAGLINES = [
@@ -115,9 +140,35 @@ export function pickLastWords(personality: string | undefined, seed: number): st
   return pool[idx];
 }
 
-/** Pick a new-hire name + tagline pair for the comedic 反衬 frame. */
-export function pickNewHire(seed: number): { name: string; tagline: string } {
-  const nIdx = djb2(`name|${seed}`) % NEW_HIRE_NAMES.length;
+/** Pick a new-hire name + tagline pair for the comedic 反衬 frame.
+ *
+ *  v6.24 P3 — prefer pulling from the real squad pool minus the names
+ *  currently active in this game. This sells the joke harder ("HR 后
+ *  备工号" — these rats actually exist) than always inventing a fake
+ *  intern. Falls back to NEW_HIRE_NAMES (the generic 实习生 / 外包 set)
+ *  when activeNames covers ≥ 80% of the squad pool or activeNames is
+ *  missing entirely.
+ */
+export function pickNewHire(
+  seed: number,
+  activeNames?: string[],
+): { name: string; tagline: string } {
   const tIdx = djb2(`tag|${seed}`) % NEW_HIRE_TAGLINES.length;
-  return { name: NEW_HIRE_NAMES[nIdx], tagline: NEW_HIRE_TAGLINES[tIdx] };
+  const tagline = NEW_HIRE_TAGLINES[tIdx];
+
+  // Try squad pool first.
+  if (activeNames && activeNames.length > 0) {
+    const active = new Set(activeNames);
+    const unused = SQUAD_NAMES.filter((n) => !active.has(n));
+    if (unused.length >= 2) {
+      // Pick from unused squad + prefix with a hire-role decoration.
+      const nIdx = djb2(`squad|${seed}`) % unused.length;
+      const pIdx = djb2(`prefix|${seed}`) % HIRE_PREFIXES.length;
+      return { name: `${HIRE_PREFIXES[pIdx]} ${unused[nIdx]}`, tagline };
+    }
+  }
+
+  // Fallback: generic 实习生/外包 names.
+  const nIdx = djb2(`name|${seed}`) % NEW_HIRE_NAMES.length;
+  return { name: NEW_HIRE_NAMES[nIdx], tagline };
 }

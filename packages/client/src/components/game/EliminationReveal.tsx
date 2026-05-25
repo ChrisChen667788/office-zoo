@@ -51,6 +51,11 @@ interface Props {
   latest: EliminationEvent | null;
   /** Auto-dismiss after ms (default 3000). */
   dismissAfter?: number;
+  /** v6.24 P3 — names of rats active in this game. pickNewHire uses
+   *  these to bias the 新员工 reveal toward "real squad rat that's not
+   *  currently on the roster" instead of always inventing a fake intern.
+   *  Optional — falls back to the generic 实习生/外包 pool. */
+  activeNames?: string[];
 }
 
 const TYPE_CONFIG: Record<
@@ -119,6 +124,7 @@ function buildParticles(cfg: (typeof TYPE_CONFIG)[keyof typeof TYPE_CONFIG], id:
 export default function EliminationReveal({
   latest,
   dismissAfter = 3000,
+  activeNames,
 }: Props) {
   const [visible, setVisible] = useState(false);
   // v6.23 P4 — 新员工入职反衬: after the elimination card dismisses,
@@ -168,8 +174,8 @@ export default function EliminationReveal({
     [latest?.id, latest?.personality],
   );
   const newHire = useMemo(
-    () => latest ? pickNewHire(latest.id) : null,
-    [latest?.id],
+    () => latest ? pickNewHire(latest.id, activeNames) : null,
+    [latest?.id, activeNames],
   );
 
   return (
