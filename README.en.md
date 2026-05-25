@@ -1,8 +1,9 @@
 <div align="center">
 
-<!-- v6.9 — horizontal-lockup-final spans the full README header with
-     baked-in wordmark + tagline. Legacy logo.png still archived. -->
-<img src="assets/brand/logo-horizontal-lockup-final.png" alt="OFFICE ZOO · midnight workplace soap opera" width="100%" />
+<!-- v6.24 P4 — logo-readme-banner.png is the v2 banner: bigger wordmark
+     (Arial Black gold gradient + drop shadow), clean bilingual tagline
+     stack. Prior -lockup-final.png archived in assets/brand/. -->
+<img src="assets/brand/logo-readme-banner.png" alt="OFFICE ZOO · midnight workplace soap opera · 班味剧场" width="100%" />
 
 ### Midnight at the office — AI rats clock in, so you can clock out.
 

@@ -1,8 +1,10 @@
 <div align="center">
 
-<!-- v6.9 — horizontal-lockup-final 是带真字体 wordmark 的整张 banner,
-     直接占满 README 顶部. 旧 logo.png 仍存档在 assets/brand/. -->
-<img src="assets/brand/logo-horizontal-lockup-final.png" alt="OFFICE ZOO · 班味剧场 · 0 点的写字楼, AI 鼠人替你拥抱变化, 你回家躺平。" width="100%" />
+<!-- v6.24 P4 — logo-readme-banner.png is the v2 lockup: bigger wordmark
+     (Arial Black gold→amber gradient + drop shadow) + clean bilingual
+     tagline stack (CN top / EN bottom). Prior -lockup-final.png stays
+     in assets/brand/ as archive — see BRAND_GUIDE.md history. -->
+<img src="assets/brand/logo-readme-banner.png" alt="OFFICE ZOO · 班味剧场 · 0 点的写字楼 · Midnight Workplace Soap Opera" width="100%" />
 
 ### 0 点的写字楼,AI 鼠人替你拥抱变化,你回家躺平。
 
