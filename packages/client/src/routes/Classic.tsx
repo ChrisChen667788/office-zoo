@@ -97,6 +97,29 @@ export default function Classic() {
   const [ackedLeaks, setAckedLeaks] = useState<Set<string>>(new Set());
   // Elimination reveal: monotonic id + payload. Bumping id triggers the overlay.
   const [lastElim, setLastElim] = useState<EliminationEvent | null>(null);
+  // v6.26 P5 — DEV hook for Playwright probes. Registers a global
+  // function that fires a synthetic elim event with realistic mock data
+  // so we can visual-verify the reveal modal + 班味物件 + 新员工 frame
+  // without waiting ~3 minutes for a real elimination to land.
+  // Tree-shaken in prod (import.meta.env.DEV gate).
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === 'undefined') return;
+    (window as unknown as { __triggerMockElim?: (kind?: 'vote' | 'kill') => void }).__triggerMockElim = (kind = 'vote') => {
+      const victim = players[0] ?? { id: 'mock', name: 'Tony', role: 'engineer_cat', personality: 'workaholic' };
+      setLastElim({
+        id: ++elimIdRef.current,
+        type: kind,
+        playerName: victim.name,
+        roleLabel: '工程师',
+        team: 'cat',
+        location: kind === 'kill' ? '茶水间' : undefined,
+        personality: victim.personality ?? 'workaholic',
+      });
+    };
+    return () => {
+      delete (window as unknown as { __triggerMockElim?: unknown }).__triggerMockElim;
+    };
+  }, [players]);
   // Prediction bar resolution: separate tick so the bar only resolves on a
   // real vote_result event, not on arbitrary phase toggles.
   const [lastVoteEliminated, setLastVoteEliminated] = useState<string | null>(null);

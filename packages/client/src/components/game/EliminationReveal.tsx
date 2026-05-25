@@ -180,7 +180,14 @@ export default function EliminationReveal({
   );
 
   return (
-    <>
+    // v6.26 P5 — was a `<>...</>` fragment in v6.23 P4. Two sibling
+    // AnimatePresence inside a fragment caused React to throw
+    // `insertBefore` exceptions on Framer Motion's portal-ish mount
+    // dance, which unmounted the entire React tree (verified via
+    // probe DOM dump: rootChildren went 1 → 0 the instant the elim
+    // reveal triggered). A regular div wrapper gives Framer a stable
+    // parent node and the crash goes away.
+    <div className="contents">
     {/* v6.23 P4 — phase 2: 新员工入职反衬. Fires ~3s after elim mount,
         holds 2.2s. Bottom-center toast styled as a "HR 系统" message
         — green check, fixed-width strip, almost-corporate. Reads as
@@ -465,6 +472,6 @@ export default function EliminationReveal({
         </motion.div>
       )}
     </AnimatePresence>
-    </>
+    </div>
   );
 }
