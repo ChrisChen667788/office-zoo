@@ -23,12 +23,20 @@
  *    a deterministic mapping. Squad / talkshow / pack hooks can come
  *    later with similar heuristic tables.
  *
- * ## Event types (v1.5.1 ships fired-completion only)
+ * ## Event types — all wired since v2.0.1 / v2.1.x
  *
  *   fired-completion  — POST /api/fired/memory/record fires this
- *   squad-end         — squadHandler when status → 'ended' (TODO)
- *   talkshow-create   — talkshow route on segment creation (TODO)
- *   pack-complete     — fired/pack route on 5/5 slot completion (TODO)
+ *                       (fired.ts:993)
+ *   squad-end         — squadHandler emits when status → 'ended', once
+ *                       per member (squadHandler.ts:292)
+ *   talkshow-create   — talkshow route on segment creation
+ *                       (talkshow.ts:319, with creator userId guard)
+ *   pack-complete     — POST /api/fired/pack/complete from FiredResult
+ *                       (client gated by sessionStorage to dodge
+ *                       double-fire on retry; server: fired.ts:1050)
+ *
+ * v6.26 P3 — TODO comments removed (all 3 hooks have been live since
+ * v2.0.1 / v2.1.x but the doc-string kept the placeholder TODOs).
  */
 
 import type { TraitVector, TraitId } from '@furball/shared';
