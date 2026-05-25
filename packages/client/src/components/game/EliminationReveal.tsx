@@ -31,6 +31,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { sfx } from '../../utils/sfx';
+import { pickLastWords, pickNewHire } from './lastWords';
 
 export interface EliminationEvent {
   /** Monotonic — used as the mount-effect key. Caller bumps per event. */
@@ -41,6 +42,9 @@ export interface EliminationEvent {
   team?: 'cat' | 'dog' | 'neutral';
   /** Only present for `kill` events (crime scene). */
   location?: string;
+  /** v6.23 P4 — personality id (workaholic, sycophant, ...) so we can
+   *  pull a personality-flavored 离别赠言 from the lastWords pool. */
+  personality?: string;
 }
 
 interface Props {
@@ -117,17 +121,34 @@ export default function EliminationReveal({
   dismissAfter = 3000,
 }: Props) {
   const [visible, setVisible] = useState(false);
+  // v6.23 P4 — 新员工入职反衬: after the elimination card dismisses,
+  // show a short comedic "Welcome aboard, [name]" frame for ~2s. The
+  // gag is: company fires someone, immediately ready for the next
+  // replaceable worker. Phase 2 of the same beat.
+  const [newHireVisible, setNewHireVisible] = useState(false);
 
   useEffect(() => {
     if (!latest) return;
     setVisible(true);
+    setNewHireVisible(false);
     // Fire SFX once per event — key is `latest?.id`, matching this effect's
     // dependency, so StrictMode's double-invoke is the only risk. Harmless:
     // a double-played kill SFX is two short tones on top of each other.
     if (latest.type === 'kill') sfx.playKill();
     else sfx.playVote();
-    const t = setTimeout(() => setVisible(false), dismissAfter);
-    return () => clearTimeout(t);
+    // v6.23 P4 — chained timers: main dismiss, then show new-hire frame,
+    // then hide it. All tracked at the effect level so the outer cleanup
+    // can clear all three on unmount / new event (StrictMode safe).
+    const dismissT = setTimeout(() => {
+      setVisible(false);
+    }, dismissAfter);
+    const showHireT = setTimeout(() => setNewHireVisible(true), dismissAfter + 200);
+    const hideHireT = setTimeout(() => setNewHireVisible(false), dismissAfter + 200 + 2200);
+    return () => {
+      clearTimeout(dismissT);
+      clearTimeout(showHireT);
+      clearTimeout(hideHireT);
+    };
   }, [latest?.id, latest?.type, dismissAfter]);
 
   const cfg = latest ? TYPE_CONFIG[latest.type] : null;
@@ -139,7 +160,60 @@ export default function EliminationReveal({
     [latest?.id, cfg],
   );
 
+  // v6.23 P4 — last-words quote + new-hire spin. Both deterministic on
+  // the event id so re-renders during the same elimination give the
+  // same line / name (no shimmer).
+  const lastWords = useMemo(
+    () => latest ? pickLastWords(latest.personality, latest.id) : '',
+    [latest?.id, latest?.personality],
+  );
+  const newHire = useMemo(
+    () => latest ? pickNewHire(latest.id) : null,
+    [latest?.id],
+  );
+
   return (
+    <>
+    {/* v6.23 P4 — phase 2: 新员工入职反衬. Fires ~3s after elim mount,
+        holds 2.2s. Bottom-center toast styled as a "HR 系统" message
+        — green check, fixed-width strip, almost-corporate. Reads as
+        comedic punchline: 公司前脚刚开一个, 后脚已经接入下一只. */}
+    <AnimatePresence>
+      {newHireVisible && newHire && latest && (
+        <motion.div
+          key={`hire-${latest.id}`}
+          className="fixed inset-x-0 bottom-12 z-[78] flex items-center justify-center pointer-events-none"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 30 }}
+          transition={{ type: 'spring', damping: 22, stiffness: 200 }}
+        >
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '10px 18px',
+            background: 'rgba(15,14,46,0.96)',
+            border: '1px solid rgba(34,197,94,0.55)',
+            borderRadius: 12,
+            boxShadow: '0 0 40px rgba(34,197,94,0.28), 0 12px 28px rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(20px)',
+          }}>
+            <span style={{ fontSize: 24, filter: 'drop-shadow(0 0 8px rgba(34,197,94,0.7))' }}>🎉</span>
+            <div>
+              <div style={{
+                fontSize: 9.5, fontWeight: 900, letterSpacing: '0.2em',
+                color: 'rgba(34,197,94,0.85)', textTransform: 'uppercase',
+              }}>HR 系统 · 新员工入职</div>
+              <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 1 }}>
+                Welcome aboard, {newHire.name}!
+              </div>
+              <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)', marginTop: 1 }}>
+                {newHire.tagline}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
     <AnimatePresence>
       {visible && latest && cfg && (
         <motion.div
@@ -174,6 +248,36 @@ export default function EliminationReveal({
               filter: 'blur(22px)',
             }}
           />
+
+          {/* v6.23 P4 — 班味物件 drop particles. Workplace artifacts
+              (工牌 / 纸箱 / 打印纸 / 公司贴纸) fall from top of viewport
+              with gravity + slight horizontal drift. Tonally separates
+              from the radial burst (which reads as "explosion") and
+              adds a "things falling out of pockets" finality. */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {['🪪', '📦', '📄', '☕', '🧷', '🪪', '📎'].map((emo, i) => {
+              const seed = latest.id * 41 + i * 17;
+              const startX = ((seed * 137) % 100); // 0..100 vw
+              const driftX = (((seed >> 3) % 21) - 10); // -10..10 vw
+              const rotate = ((seed >> 5) % 720) - 360;
+              const delay = (i * 0.06) + ((seed % 7) * 0.02);
+              return (
+                <motion.div
+                  key={`drop-${i}`}
+                  initial={{ top: '-12%', left: `${startX}vw`, opacity: 0, rotate: 0 }}
+                  animate={{
+                    top: '110%',
+                    left: `${startX + driftX}vw`,
+                    opacity: [0, 1, 1, 0.4, 0],
+                    rotate,
+                  }}
+                  transition={{ duration: 2.0, delay, ease: [0.32, 0, 0.67, 0.5], times: [0, 0.1, 0.5, 0.85, 1] }}
+                  className="absolute"
+                  style={{ fontSize: 22, filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.6))' }}
+                >{emo}</motion.div>
+              );
+            })}
+          </div>
 
           {/* Particle emojis radiating out */}
           <div className="absolute top-1/2 left-1/2 w-0 h-0 pointer-events-none">
@@ -299,6 +403,33 @@ export default function EliminationReveal({
                 </div>
               )}
 
+              {/* v6.23 P4 — 离别赠言 (personality-driven last words) */}
+              {lastWords && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7, duration: 0.4 }}
+                  style={{
+                    marginTop: 14,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    background: 'rgba(255,215,0,0.08)',
+                    border: '1px solid rgba(255,215,0,0.25)',
+                    fontSize: 12.5,
+                    fontStyle: 'italic',
+                    color: 'rgba(248,244,227,0.92)',
+                    lineHeight: 1.5,
+                    maxWidth: 360,
+                  }}
+                >
+                  <span style={{
+                    fontSize: 9.5, fontWeight: 900, letterSpacing: '0.15em',
+                    color: 'rgba(255,215,0,0.7)', marginRight: 6,
+                  }}>离别赠言</span>
+                  「{lastWords}」
+                </motion.div>
+              )}
+
               {/* Sub footer */}
               <div className="text-[10px] text-white/35 mt-2.5 tracking-wide">
                 {cfg.sub}
@@ -308,5 +439,6 @@ export default function EliminationReveal({
         </motion.div>
       )}
     </AnimatePresence>
+    </>
   );
 }

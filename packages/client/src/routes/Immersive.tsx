@@ -226,6 +226,7 @@ export default function Immersive() {
           playerName: data.playerName,
           roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
           team: teamForRole(victim?.role),
+          personality: victim?.personality,
         });
         pushElimination({
           round,
@@ -248,6 +249,7 @@ export default function Immersive() {
         roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
         team: teamForRole(victim?.role),
         location: data.location,
+        personality: victim?.personality,
       });
       pushElimination({
         round,
