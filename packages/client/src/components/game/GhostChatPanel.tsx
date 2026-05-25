@@ -28,11 +28,18 @@ import type { GhostCommentItem } from '../../stores/gameStore';
 interface GhostChatPanelProps {
   comments: GhostCommentItem[];
   avatarUrls?: Record<string, string>;
-  /** v6.23 P3 — alive players for the "战术 @" psy-war dialog. The
-   *  user (real human watching) picks one and a preset taunt; the most
-   *  recent ghost "delivers" it as a highlighted bubble. AI players
-   *  do NOT read these messages — it's purely a UI ritual for drama. */
+  /** v6.23 P3 — alive players for the "战术 @" psy-war dialog. */
   alivePlayers?: Array<{ id: string; name: string }>;
+  /** v6.25 P1 — callback fired when user submits a psy-war via 战术 @.
+   *  Caller (Classic.tsx) emits `game:psy_war_leak` to server, which
+   *  injects the text into the next discussion prompt as anonymous
+   *  ex-coworker tip. AI may quote, discredit, or absorb. */
+  onPsyWarLeak?: (text: string) => void;
+  /** v6.25 P1 — set of psy-war texts the server has ACK'd (= now in
+   *  the AI's leakedHints buffer). Used to flash "AI 听到了" badge
+   *  on the matching bubble. Keyed by trimmed-text-prefix to match
+   *  server's slice(0, 80). */
+  ackedTexts?: Set<string>;
 }
 
 /* ── Psy-war taunt pool ──────────────────────────────────────────────
@@ -93,7 +100,13 @@ function formatTime(ts: number): string {
 
 /* ── Component ───────────────────────────────────────────────────────── */
 
-export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers = [] }: GhostChatPanelProps) {
+export default function GhostChatPanel({
+  comments,
+  avatarUrls = {},
+  alivePlayers = [],
+  onPsyWarLeak,
+  ackedTexts,
+}: GhostChatPanelProps) {
   const [open, setOpen] = useState(false);
   const [seenCount, setSeenCount] = useState(0);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -267,7 +280,12 @@ export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers
                 </div>
               )}
               {enriched.map((c) => (
-                <ChatBubble key={c.id} c={c} avatarUrl={avatarUrls[c.role || '']} />
+                <ChatBubble
+                  key={c.id}
+                  c={c}
+                  avatarUrl={avatarUrls[c.role || '']}
+                  acked={ackedTexts?.has(c.text.slice(0, 80))}
+                />
               ))}
             </div>
 
@@ -372,6 +390,10 @@ export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers
                         team: latestGhost.team,
                         timestamp: Date.now(),
                       }]);
+                      // v6.25 P1 — fire to server. Parent (Classic) wires
+                      // the actual socket.emit. The text feeds into next
+                      // discussion's AI prompt as anonymous ex-coworker tip.
+                      onPsyWarLeak?.(text);
                       setPsywarOpen(false);
                       setPsywarTarget('');
                       setPsywarCustom('');
@@ -441,7 +463,7 @@ export default function GhostChatPanel({ comments, avatarUrls = {}, alivePlayers
 
 /* ── Chat bubble ─────────────────────────────────────────────────────── */
 
-function ChatBubble({ c, avatarUrl }: { c: GhostCommentItem; avatarUrl?: string }) {
+function ChatBubble({ c, avatarUrl, acked }: { c: GhostCommentItem; avatarUrl?: string; acked?: boolean }) {
   const accent = teamColor(c.team);
   // Welcome reactions are tagged via a special prefix on the id so we can
   // style them differently (smaller, italic, no avatar). Distinguished by
@@ -511,6 +533,18 @@ function ChatBubble({ c, avatarUrl }: { c: GhostCommentItem; avatarUrl?: string 
               fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
               color: '#FFD58A', verticalAlign: 'middle',
             }}>💢 战术</span>
+          )}
+          {/* v6.25 P1 — "AI 听到了" badge appears once the server has
+              acked the leak (= it's now in BaseAgent's leakedHints
+              buffer + will surface in next discussion prompt). */}
+          {acked && (
+            <span style={{
+              display: 'inline-block', marginLeft: 6,
+              padding: '0 5px', borderRadius: 4,
+              background: 'rgba(34,197,94,0.25)',
+              fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
+              color: '#9cff57', verticalAlign: 'middle',
+            }}>👂 AI 听到了</span>
           )}
           {c.text}
         </div>

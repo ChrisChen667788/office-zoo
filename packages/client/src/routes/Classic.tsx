@@ -91,6 +91,10 @@ export default function Classic() {
 
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
   const [activeDanmaku, setActiveDanmaku] = useState<GhostCommentItem[]>([]);
+  // v6.25 P1 — set of psy-war leak texts the server has acked. The
+  // chat panel queries it to render "👂 AI 听到了" on the matching
+  // bubble. Lives in component state (resets on remount).
+  const [ackedLeaks, setAckedLeaks] = useState<Set<string>>(new Set());
   // Elimination reveal: monotonic id + payload. Bumping id triggers the overlay.
   const [lastElim, setLastElim] = useState<EliminationEvent | null>(null);
   // Prediction bar resolution: separate tick so the bar only resolves on a
@@ -227,6 +231,19 @@ export default function Classic() {
     'game:ghost_vote_cast': (data: { ghostId: string; ghostName: string; target: string }) => {
       mergeGhostVote(data.ghostId, data.target);
       pushEvent('ghost', `👻 ${data.ghostName} 投了劳动仲裁票`);
+    },
+
+    // v6.25 P1 — server acked a psy-war leak. Add its text to the
+    // ackedLeaks set so GhostChatPanel shows "👂 AI 听到了" on the
+    // matching bubble. Text is server-trimmed to 80 chars to match
+    // the slice() in pushLeakedHint.
+    'game:psy_war_acked': (data: { text: string; total: number }) => {
+      setAckedLeaks((prev) => {
+        const next = new Set(prev);
+        next.add(data.text);
+        return next;
+      });
+      pushEvent('ghost', `👂 AI 收到匿名爆料 (累计 ${data.total} 条)`);
     },
 
     'game:ghost_comment': (data: { playerId: string; playerName: string; text: string; role?: string; team?: string }) => {
@@ -454,6 +471,11 @@ export default function Classic() {
             comments={ghostComments}
             avatarUrls={avatarUrls}
             alivePlayers={players.filter((p) => p.isAlive).map((p) => ({ id: p.id, name: p.name }))}
+            // v6.25 P1 — promote psy-war from ritual UI to real AI input.
+            // Server stores in leakedHints FIFO → injects into next
+            // discussion prompt as anonymous ex-coworker tip.
+            onPsyWarLeak={(text) => socket.emit('game:psy_war_leak', text)}
+            ackedTexts={ackedLeaks}
           />
 
           {/* 弹幕 Danmaku overlay */}

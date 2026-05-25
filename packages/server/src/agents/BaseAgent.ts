@@ -150,7 +150,15 @@ export class BaseAgent {
   async generateSpeech(
     context: string,
     priorSpeeches?: Array<{ name: string; text: string }>,
-    opts?: { gameId?: string; round?: number },
+    opts?: {
+      gameId?: string;
+      round?: number;
+      /** v6.25 P1 — user-submitted psy-war "leaks" from the GhostChatPanel
+       *  战术 @ button. Up to 5 strings, freshly observed by the AI as
+       *  anonymous leaks from fired ex-coworkers. The AI may believe,
+       *  doubt, or ignore — personality decides the reaction. */
+      leakedHints?: string[];
+    },
   ): Promise<string> {
     // v5.8.1 — memory recall. Best-effort, fully fail-safe: if pgvector
     // is down / OPENAI embedding fails / table empty, we silently fall
@@ -209,10 +217,22 @@ export class BaseAgent {
           .join('\n')}\n\n你必须针对以上发言中至少一位同学的观点进行【直接点名回应】——赞同、反驳、揭穿、追问、或阴阳怪气都可以,但绝对不能假装没看见前面。`
       : '\n\n你是本轮会议的第一个发言者,负责定调——直接抛出你怀疑的同学和理由,把战场点燃,越狠越好。';
 
+    // v6.25 P1 — anonymous psy-war leaks from the fired ex-coworker group.
+    // These came in via the GhostChatPanel 战术 @ button (user-driven UI).
+    // Show them as "anonymous tips" — the AI may believe (and quote them
+    // as evidence), discredit ("已离职的人嚼舌根, 听个屁"), or just absorb
+    // them as vibe shift. Capped to most recent 5 to keep prompt tight.
+    const hints = (opts?.leakedHints ?? []).slice(-5);
+    const leakedBlock = hints.length > 0
+      ? `\n\n【匿名前同事爆料 (近期内网吹哨)】\n${hints
+          .map((h) => `- "${h.slice(0, 80)}"`)
+          .join('\n')}\n你可以引用其中一条作为攻击/质疑的弹药 (e.g. "听说" "群里有人说" "前同事爆料"), 也可以斥为已离职员工的酸话——但绝对不能假装没听到这些料.`
+      : '';
+
     const res = await callLLMWithTimeout('SPEECH', {
       model: openai()(model()),
       system: this.systemPrompt,
-      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${snippetBlock}${priorBlock}
+      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${snippetBlock}${leakedBlock}${priorBlock}
 
 请发表你的看法(2-4 句话,每句都要有戏,总字数 60-120 字)。硬性要求:
 

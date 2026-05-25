@@ -94,6 +94,10 @@ export interface ClientToServerEvents {
   'game:create': (config: { playerCount: number; mode: string }) => void;
   'game:start': (gameId: string) => void;
   'game:join': (gameId: string) => void;
+  /** v6.25 P1 — spectator-submitted psy-war leak (GhostChatPanel 战术 @
+   *  button). Engine appends to leakedHints FIFO buffer (cap 5), surfaces
+   *  in next round's discussion prompt as anonymous ex-coworker tip. */
+  'game:psy_war_leak': (data: string | { text: string }) => void;
 }
 
 // Server → Client events
@@ -141,6 +145,10 @@ export interface ServerToClientEvents {
     ghostName: string;
     target: string;
   }) => void;
+  /** v6.25 P1 — server ack for a psy-war leak. Echoes the trimmed
+   *  text + current FIFO size so the client can flash "AI 听到了" on
+   *  the corresponding chat bubble. */
+  'game:psy_war_acked': (data: { text: string; total: number }) => void;
   'game:avatar_ready': (data: { role: string; team: string; url: string }) => void;
   'game:created': (data: { gameId: string }) => void;
   'game:error': (data: { message: string }) => void;

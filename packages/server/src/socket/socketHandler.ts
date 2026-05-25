@@ -210,6 +210,23 @@ export function setupSocketHandler(io: SocketServer) {
       }
     });
 
+    // v6.25 P1 — psy-war leak submission. Client (GhostChatPanel 战术 @)
+    // emits `game:psy_war_leak` with a string; engine pushes it onto the
+    // FIFO leakedHints buffer (cap 5). pushLeakedHint emits 'leak_acked'
+    // which we relay as `game:psy_war_acked` so the chat panel can
+    // mark the message "AI 听到了".
+    socket.on('game:psy_war_leak', (raw: unknown) => {
+      if (!currentGameId) return;
+      const engine = games.get(currentGameId);
+      if (!engine) return;
+      const text = typeof raw === 'string' ? raw : (raw as { text?: string })?.text;
+      if (typeof text !== 'string') return;
+      const result = engine.pushLeakedHint(text);
+      if (result.accepted) {
+        socketLog.debug({ sid: socket.id, gameId: currentGameId, len: text.length }, 'psy-war leak accepted');
+      }
+    });
+
     socket.on('disconnect', async () => {
       socketLog.debug({ sid: socket.id }, 'client disconnected');
 
@@ -472,6 +489,12 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
   // for the vote_result batch.
   engine.on('ghost_vote_cast', (data: { ghostId: string; ghostName: string; target: string }) => {
     io.to(gameId).emit('game:ghost_vote_cast', data);
+  });
+
+  // v6.25 P1 — relay leak ack so client can mark "AI 听到了" on the
+  // psy-war bubble. Same payload shape as the engine's emit.
+  engine.on('leak_acked', (data: { text: string; total: number }) => {
+    io.to(gameId).emit('game:psy_war_acked', data);
   });
 
   engine.on('vote_result', (data) => {

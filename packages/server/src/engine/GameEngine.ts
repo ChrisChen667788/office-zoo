@@ -78,6 +78,11 @@ export class GameEngine extends EventEmitter {
   private discussionResolver?: () => void;
   /** Compressed record of last round's discussion — fed into next round's context for memory. */
   private lastRoundSpeeches: Array<{ name: string; text: string }> = [];
+  /** v6.25 P1 — psy-war leaks submitted by the spectator via GhostChatPanel's
+   *  战术 @ button. FIFO, cap 5. Fed into BaseAgent.generateSpeech as
+   *  "anonymous ex-coworker tips" the AI can quote/discredit/ignore.
+   *  Cleared each round (`pushLeakedHint` keeps a sliding window). */
+  private leakedHints: string[] = [];
   /** Child logger bound to this engine's gameId — created lazily. */
   private _log?: ReturnType<typeof logger.child>;
   private get log() {
@@ -629,6 +634,10 @@ export class GameEngine extends EventEmitter {
             const text = await agent.generateSpeech(context, priorSpeeches, {
               gameId: this.state.id,
               round: this.state.round,
+              // v6.25 P1 — feed user-submitted psy-war leaks into the
+              // speech prompt. AI may believe / discredit / ignore based
+              // on personality. Capped to 5 in BaseAgent itself.
+              leakedHints: this.leakedHints,
             });
             return { player, text };
           } catch {
@@ -1075,6 +1084,18 @@ export class GameEngine extends EventEmitter {
 
   getState(): GameState {
     return this.state;
+  }
+
+  /** v6.25 P1 — append a spectator-submitted psy-war leak. Sliding
+   *  window cap 5, FIFO. Length cap 80 chars to keep prompt tight.
+   *  Emits 'leak_acked' so socket handler can confirm to client. */
+  pushLeakedHint(rawText: string): { accepted: boolean; reason?: string } {
+    const text = (rawText ?? '').trim().slice(0, 80);
+    if (text.length === 0) return { accepted: false, reason: 'empty' };
+    this.leakedHints.push(text);
+    if (this.leakedHints.length > 5) this.leakedHints.shift();
+    this.emit('leak_acked', { text, total: this.leakedHints.length });
+    return { accepted: true };
   }
 
   // ---------- Helpers ----------
