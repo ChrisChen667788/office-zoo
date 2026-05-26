@@ -45,6 +45,10 @@ interface GhostChatPanelProps {
    *  matching bubble. Superset relationship: quotedTexts ⊆ ackedTexts
    *  in normal flow. */
   quotedTexts?: Set<string>;
+  /** v6.27 P3 — called when user clicks the ✨ "AI 引用了" chip on a
+   *  bubble. Parent scrolls the matching speech bubble in SpeechHistory
+   *  into view + golden-flashes it (mirrors v6.8 P4.1 evidence jump). */
+  onJumpToQuotedSpeech?: (leakText: string) => void;
 }
 
 /* ── Psy-war taunt pool ──────────────────────────────────────────────
@@ -112,6 +116,7 @@ export default function GhostChatPanel({
   onPsyWarLeak,
   ackedTexts,
   quotedTexts,
+  onJumpToQuotedSpeech,
 }: GhostChatPanelProps) {
   const [open, setOpen] = useState(false);
   const [seenCount, setSeenCount] = useState(0);
@@ -292,6 +297,7 @@ export default function GhostChatPanel({
                   avatarUrl={avatarUrls[c.role || '']}
                   acked={ackedTexts?.has(c.text.slice(0, 80))}
                   quoted={quotedTexts?.has(c.text.slice(0, 80))}
+                  onJumpQuoted={onJumpToQuotedSpeech}
                 />
               ))}
             </div>
@@ -470,7 +476,15 @@ export default function GhostChatPanel({
 
 /* ── Chat bubble ─────────────────────────────────────────────────────── */
 
-function ChatBubble({ c, avatarUrl, acked, quoted }: { c: GhostCommentItem; avatarUrl?: string; acked?: boolean; quoted?: boolean }) {
+function ChatBubble({
+  c, avatarUrl, acked, quoted, onJumpQuoted,
+}: {
+  c: GhostCommentItem;
+  avatarUrl?: string;
+  acked?: boolean;
+  quoted?: boolean;
+  onJumpQuoted?: (leakText: string) => void;
+}) {
   const accent = teamColor(c.team);
   // Welcome reactions are tagged via a special prefix on the id so we can
   // style them differently (smaller, italic, no avatar). Distinguished by
@@ -547,14 +561,21 @@ function ChatBubble({ c, avatarUrl, acked, quoted }: { c: GhostCommentItem; avat
               this leak in a real discussion speech — quoted wins over
               acked since it's the stronger signal. */}
           {quoted ? (
-            <span style={{
-              display: 'inline-block', marginLeft: 6,
-              padding: '0 5px', borderRadius: 4,
-              background: 'rgba(255,215,0,0.35)',
-              fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
-              color: '#FFD700', verticalAlign: 'middle',
-              boxShadow: '0 0 8px rgba(255,215,0,0.45)',
-            }}>✨ AI 引用了</span>
+            <button
+              type="button"
+              onClick={onJumpQuoted ? () => onJumpQuoted(c.text.slice(0, 80)) : undefined}
+              title={onJumpQuoted ? '跳到 AI 引用的那条 speech' : undefined}
+              style={{
+                display: 'inline-block', marginLeft: 6,
+                padding: '0 5px', borderRadius: 4,
+                background: 'rgba(255,215,0,0.35)',
+                fontSize: 9, fontWeight: 900, letterSpacing: '0.06em',
+                color: '#FFD700', verticalAlign: 'middle',
+                boxShadow: '0 0 8px rgba(255,215,0,0.45)',
+                border: 'none', cursor: onJumpQuoted ? 'pointer' : 'default',
+                fontFamily: 'inherit',
+              }}
+            >✨ AI 引用了 {onJumpQuoted && <span style={{ opacity: 0.7 }}>↗</span>}</button>
           ) : acked && (
             <span style={{
               display: 'inline-block', marginLeft: 6,

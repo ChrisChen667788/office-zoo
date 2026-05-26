@@ -28,6 +28,7 @@ import IdleBeat from '../components/character/IdleBeat';
 import { uid } from '../utils/uid';
 import { playTtsFromUrl, stopTts, speakViaBrowserTTS, hasBrowserTTS } from '../utils/audioUnlock';
 import { sfx } from '../utils/sfx';
+import { recordLeakSubmit, recordLeakQuoted } from '../utils/leakStats';
 import { phaseIcons, personalityIcons, glyphIcons, Icon } from '../constants/icons';
 
 // Vite proxies /avatars and /api to :3100 — use relative URLs to keep the
@@ -283,6 +284,10 @@ export default function Classic() {
         return next;
       });
       pushEvent('ghost', `✨ ${data.byPlayerName} 引用了前同事爆料`);
+      // v6.27 P4 — mark the leak as quoted in local stats. Profile's
+      // MyLeaksPanel will display the bumped hit rate next time the
+      // user lands there.
+      recordLeakQuoted(data.hintText, data.byPlayerName);
     },
 
     'game:ghost_comment': (data: { playerId: string; playerName: string; text: string; role?: string; team?: string }) => {
@@ -513,11 +518,32 @@ export default function Classic() {
             // v6.25 P1 — promote psy-war from ritual UI to real AI input.
             // Server stores in leakedHints FIFO → injects into next
             // discussion prompt as anonymous ex-coworker tip.
-            onPsyWarLeak={(text) => socket.emit('game:psy_war_leak', text)}
+            onPsyWarLeak={(text) => {
+              socket.emit('game:psy_war_leak', text);
+              // v6.27 P4 — bump local hit-rate stats (MyLeaksPanel reads).
+              recordLeakSubmit(text);
+            }}
             ackedTexts={ackedLeaks}
             // v6.26 P1 — quotedTexts upgrades badge 👂 → ✨ when AI
             // actually quotes the leak in a speech.
             quotedTexts={new Set(quotedLeaks.keys())}
+            // v6.27 P3 — clicking the ✨ badge scrolls the matching
+            // speech bubble into view + golden flash (mirror of v6.8
+            // P4.1 evidence jump). Maps leak text → speech text via
+            // quotedLeaks, computes the hash, queries by data attr.
+            onJumpToQuotedSpeech={(leakText) => {
+              const entry = quotedLeaks.get(leakText);
+              if (!entry) return;
+              let h = 0;
+              for (let k = 0; k < entry.speechText.length; k++) h = ((h << 5) - h) + entry.speechText.charCodeAt(k);
+              const el = document.querySelector(`[data-speech-text-hash="${h}"]`) as HTMLElement | null;
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.style.transition = 'background 0.25s ease-out';
+                el.style.background = 'rgba(255,215,0,0.18)';
+                setTimeout(() => { el.style.background = ''; }, 1500);
+              }
+            }}
           />
 
           {/* 弹幕 Danmaku overlay */}
@@ -674,6 +700,16 @@ export default function Classic() {
               return (
                 <div key={i}
                   data-speech-player={s.playerId}
+                  // v6.27 P3 — text-hash anchor lets the GhostChatPanel
+                  // ✨ chip jump to THIS specific bubble (not just any
+                  // bubble by this speaker). Hash trick (sum char codes)
+                  // is good enough — collisions across a single round's
+                  // speech list are vanishingly rare.
+                  data-speech-text-hash={(() => {
+                    let h = 0;
+                    for (let k = 0; k < s.text.length; k++) h = ((h << 5) - h) + s.text.charCodeAt(k);
+                    return String(h);
+                  })()}
                   style={{
                     fontSize: 12, padding: '4px 0',
                     borderBottom: '1px solid rgba(255,255,255,0.03)',
