@@ -49,6 +49,12 @@ interface GhostChatPanelProps {
    *  bubble. Parent scrolls the matching speech bubble in SpeechHistory
    *  into view + golden-flashes it (mirrors v6.8 P4.1 evidence jump). */
   onJumpToQuotedSpeech?: (leakText: string) => void;
+  /** v6.30 P3 — rate-limit signals from server. `lockedUntilMs` is a
+   *  unix-ms timestamp; if > now, disable the 战术 @ submit button +
+   *  show countdown. `sessionLocked` permanently disables for this
+   *  session (20-cap hit). */
+  lockedUntilMs?: number;
+  sessionLocked?: boolean;
 }
 
 /* ── Psy-war taunt pool ──────────────────────────────────────────────
@@ -117,7 +123,21 @@ export default function GhostChatPanel({
   ackedTexts,
   quotedTexts,
   onJumpToQuotedSpeech,
+  lockedUntilMs,
+  sessionLocked,
 }: GhostChatPanelProps) {
+  // v6.30 P3 — rate-limit countdown ticker. Re-render once a second
+  // while a window lock is active so the "等 Ns" label decreases live.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!lockedUntilMs || lockedUntilMs <= Date.now()) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [lockedUntilMs]);
+  const lockedRemainingSec = lockedUntilMs && lockedUntilMs > nowMs
+    ? Math.ceil((lockedUntilMs - nowMs) / 1000)
+    : 0;
+  const rateLimited = sessionLocked || lockedRemainingSec > 0;
   const [open, setOpen] = useState(false);
   const [seenCount, setSeenCount] = useState(0);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -411,17 +431,27 @@ export default function GhostChatPanel({
                       setPsywarTarget('');
                       setPsywarCustom('');
                     }}
-                    disabled={!psywarTarget}
+                    disabled={!psywarTarget || rateLimited}
+                    title={
+                      sessionLocked ? '本场爆料配额已用完 (20 条上限)' :
+                      lockedRemainingSec > 0 ? `频率限速, 等 ${lockedRemainingSec}s` :
+                      undefined
+                    }
                     style={{
                       flex: 1, padding: '5px 10px', borderRadius: 6,
-                      background: psywarTarget ? 'linear-gradient(135deg, #B086FF 0%, #7c3aed 100%)' : 'rgba(176,134,255,0.2)',
-                      color: psywarTarget ? '#fff' : 'rgba(255,255,255,0.4)',
+                      background: sessionLocked ? 'rgba(239,68,68,0.25)' :
+                        lockedRemainingSec > 0 ? 'rgba(176,134,255,0.18)' :
+                        psywarTarget ? 'linear-gradient(135deg, #B086FF 0%, #7c3aed 100%)' : 'rgba(176,134,255,0.2)',
+                      color: rateLimited ? 'rgba(255,255,255,0.5)' :
+                        psywarTarget ? '#fff' : 'rgba(255,255,255,0.4)',
                       border: 'none', fontWeight: 800, fontSize: 11,
-                      cursor: psywarTarget ? 'pointer' : 'not-allowed',
+                      cursor: (psywarTarget && !rateLimited) ? 'pointer' : 'not-allowed',
                       fontFamily: 'inherit',
                     }}
                   >
-                    👻 让他说
+                    {sessionLocked ? '⛔ 配额已用完' :
+                      lockedRemainingSec > 0 ? `⏳ 等 ${lockedRemainingSec}s` :
+                      '👻 让他说'}
                   </button>
                   <button
                     type="button"

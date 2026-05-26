@@ -100,6 +100,11 @@ export default function Classic() {
   // quoted it, when, what speech). Upgrades the badge from 👂 to ✨
   // and also lets the SpeechHistory bubble mark "✨ 引用前同事爆料".
   const [quotedLeaks, setQuotedLeaks] = useState<Map<string, { byPlayerId: string; byPlayerName: string; speechText: string; ts: number }>>(new Map());
+  // v6.30 P3 — rate-limit signals from server (v6.29 P5). lockedUntilMs
+  // is a one-shot 60s window cool-down; sessionLocked is terminal for
+  // this socket session. Both feed into GhostChatPanel as props.
+  const [lockedUntilMs, setLockedUntilMs] = useState<number | undefined>(undefined);
+  const [sessionLocked, setSessionLocked] = useState(false);
   // Elimination reveal: monotonic id + payload. Bumping id triggers the overlay.
   const [lastElim, setLastElim] = useState<EliminationEvent | null>(null);
   // v6.26 P5 — DEV hook for Playwright probes. Registers a global
@@ -266,14 +271,16 @@ export default function Classic() {
     // matching bubble. Text is server-trimmed to 80 chars to match
     // the slice() in pushLeakedHint.
     // v6.29 P5 — server rejected a psy-war submission due to rate limit.
-    // Surface in the event log so user knows; cooldown also signals
-    // GhostChatPanel to chill (future polish: disable button visually).
+    // Surface in the event log + v6.30 P3 drive GhostChatPanel visible
+    // disabled/cooldown state.
     'game:psy_war_rate_limited': (data: { reason: 'window_cap' | 'session_cap'; retryAfterMs: number }) => {
       if (data.reason === 'session_cap') {
         pushEvent('ghost', '⛔ 本场爆料配额已用完 (20 条上限)');
+        setSessionLocked(true);
       } else {
         const sec = Math.ceil(data.retryAfterMs / 1000);
         pushEvent('ghost', `⏳ 爆料频率限速, 等 ${sec}s 再投`);
+        setLockedUntilMs(Date.now() + data.retryAfterMs);
       }
     },
 
@@ -539,6 +546,9 @@ export default function Classic() {
             // v6.26 P1 — quotedTexts upgrades badge 👂 → ✨ when AI
             // actually quotes the leak in a speech.
             quotedTexts={new Set(quotedLeaks.keys())}
+            // v6.30 P3 — rate-limit signals from server.
+            lockedUntilMs={lockedUntilMs}
+            sessionLocked={sessionLocked}
             // v6.27 P3 — clicking the ✨ badge scrolls the matching
             // speech bubble into view + golden flash (mirror of v6.8
             // P4.1 evidence jump). Maps leak text → speech text via
