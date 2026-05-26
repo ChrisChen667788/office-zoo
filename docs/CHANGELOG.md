@@ -7,6 +7,172 @@
 
 ---
 
+## v6.29 — 2026-05-26 · 周年 mode + rate limit + CHANGELOG hook + onboarding probe
+
+### P1 — RulesModal 3-step deck Playwright probe
+- 6 帧 (mobile/desktop × step1/2/3): 进度 dot 跟读, gold "下一页" → "开始"
+  CTA, step3 surface PSYWAR ritual (👻/💢/✨), max-w-md modal 居中.
+- Visual pass, 无 layout 改动需要.
+
+### P3 + P6 — English leak coverage + typecheck audit
+- `GameEngine.test.ts` +3 tests: pure English substring / paraphrase
+  / unrelated. Coverage gap (prior fixtures 全 CJK or 混合) 关闭.
+- `npm run typecheck` confirmed 零 baseline error (v6.25 P4 后保持).
+- 58 → 61 tests.
+
+### P2 — CHANGELOG pre-push git hook (informational)
+- `scripts/git-hooks/pre-push` — 解析 `^## v\d+\.\d+` heading, 对比
+  git log subjects, 黄色 nudge 未记录版本. 非阻塞.
+- `scripts/install-hooks.sh` — idempotent copy 到 `.git/hooks/`.
+- `npm run hooks:install` — 一键 setup.
+- `OFFICE_ZOO_SKIP_CHANGELOG_NUDGE=1` 静默.
+- 首次跑就 surface 真 gap: docs/CHANGELOG.md @ v6.24 vs git @ v6.28-29.
+
+### P5 — PSYWAR server rate limit (5/min, 20/session)
+- `socketHandler` `game:psy_war_leak` 加 per-socket 滑动窗口: ≤ 5 /
+  60s + ≤ 20 / session. Closure-scoped state, 自动随 disconnect cleanup.
+- Reject emit `game:psy_war_rate_limited` { reason: 'window_cap' |
+  'session_cap', retryAfterMs }.
+- Classic event log surface: ⏳ 等 N s / ⛔ 本场配额用完.
+
+### P4 — 周年纪念 anniversary mode (`/anniversary`)
+- 新 route, 6-milestone time capsule deck (v6.8 IP 反差萌 / v6.16 选秀
+  / v6.21 摸鱼 / v6.22 吐槽群 / v6.25-27 PSYWAR / v6.28 基础设施).
+- Per-card accent color seep: aurora bg + border + CTA gradient 同色.
+- 进度 dot 可点跳, ← → 键盘 nav. EventPill 顶 "v6 周年回顾 · 28 轮".
+- Landing 加 gold "🎉 v6 周年回顾 · 28 轮 →" chip 邻 rose 投票 chip.
+- 用作社交分享 landing (bit-058 talkshow 已引用 OFFICE ZOO IP, 闭环).
+
+---
+
+## v6.28 — 2026-05-26 · 9-player picker + CHANGELOG 自动化 + FP audit + mobile probe + onboarding deck
+
+### P4 — Landing PLAYER_COUNTS 加 9
+- v6.27 P1 已备 ROLE_PRESETS[9] 但 picker 还是 [6, 8, 10]. 现 [6, 8, 9, 10].
+
+### P3 — git-cliff CHANGELOG 自动化骨架
+- `cliff.toml` parser `^v(\d+\.\d+) P\d+:` 按 minor 自动 group.
+- `npm run changelog` → `/tmp/cliff-unreleased.md` (审后人工 splice).
+- `npm run changelog:full` → `docs/CHANGELOG.auto.md` (regen, NOT 主源).
+
+### P2 — detectLeakQuote 假阳性 audit (baseline 1.60%)
+- `leakQuoteAudit.test.ts`: 50 fixture speeches × 10 unrelated hints
+  = 500 pair, 期望 fp < 5%. **实测 baseline 1.60% (8/500)**, 其中 2/8
+  是 borderline-legit. 30% Jaccard threshold 经验证良好.
+- 56 → 58 tests.
+
+### P1 — mobile 响应式 Playwright 系统截图
+- 6 routes (Landing / Talkshow / Profile / WeeklyMe / Fired /
+  CharacterVotes) × 390×844, **零 horizontal overflow** ✓.
+- v6.25 P2 mobile CSS pass 真生效.
+
+### P5 — RulesModal → 3-step swipe deck
+- 250-LOC 长 scroll → 3 step deck (模式 / 阵营+循环 / 新功能 v6.x).
+- 进度 dot click-to-jump, ← → 键盘 nav, Skip 单独.
+- Step 3 surface PSYWAR ritual (战术 @ + ✨) 给新手知情.
+
+---
+
+## v6.27 — 2026-05-26 · ROLE_PRESETS[9] + ✨ jump + 命中率 + token Jaccard + talkshow 内容
+
+### P1 — ROLE_PRESETS[9] 补完
+- 9-player preset: 6 cat + 2 dog + 1 neutral. v6.26 P2 抓的 latent
+  crash bug 闭环. +1 test.
+
+### P3 — ✨ chip jump-to-speech
+- GhostChatPanel ✨ "AI 引用了" 变 button. Click 滚 SpeechHistory 对应
+  bubble + 1.5s 金光闪. djb2 text-hash 锚 (player-id 不够唯一).
+
+### P4 — Profile MyLeaksPanel 引用统计
+- `utils/leakStats.ts` localStorage `office-zoo.leaks.stats` (anonymous-
+  friendly, 50-entry FIFO, schema versioned).
+- 3 stat boxes (已提交 / AI 引用 / 命中率 % 色阶分级) + 最近 N 条 ✨ 标.
+- +10 tests (in-memory Storage shim 绕 jsdom).
+
+### P2 — leak quote 高级检测 (token Jaccard)
+- 混合 tier-1 4-char substring + tier-2 token Jaccard ≥30%. CJK bigram +
+  ASCII alnum runs, stop tokens drop.
+- 抓 paraphrase 不再漏. +5 tests.
+
+### P5 — talkshow +8 AI 主题 bits (bit-051 ~ bit-058)
+- LLM-时代办公室困扰: AI 替我写周报 / Cursor 提 PR 我背锅 / AI 帮我
+  裁同事. bit-058 meta self-ref 把 OFFICE ZOO IP 织进 talkshow narrative.
+- SEED_SCRIPTS 50 → 58.
+
+---
+
+## v6.26 — 2026-05-25 · 真 crash 抓 + CHANGELOG backfill + archetype hook 验证 + GameEngine test + AI 引用闭环
+
+### P5 — EliminationReveal Playwright probe
+- **抓真 React-tree crash**: v6.23 P4 `<>...</>` Fragment 包 sibling
+  AnimatePresence 触发时整树 unmount (rootChildren 1 → 0). 改
+  `<div className="contents">` 解决.
+- DEV-only `window.__triggerMockElim` 给 probe 用 (tree-shaken in prod).
+
+### P4 — CHANGELOG v6.7-v6.20 backfill (14 versions)
+- 填 "v6.7 brand systematization" 到 "v6.20 Duel 完善" 14 个版本 entries.
+- 倒序排好 (latest on top), 每版本 P-iterations bullet 列.
+
+### P3 — archetypeEvolution 3 hook 验证
+- TODO comments stale — squad-end / talkshow-create / pack-complete
+  全 v2.0.1+ 已 wire (`squadHandler.ts:292` / `talkshow.ts:319` /
+  `fired.ts:1050`). 文档化具体 file:line.
+
+### P2 — +16 tests (34 total)
+- `GameEngine.test.ts` +11: ctor / players / pushLeakedHint / ghostVotes.
+- `idleMoments.furniture.test.ts` +5: coffee_machine ☕ 偏置 / printer /
+  sofa / 老板办公室 furniture wins room / 茶水间 vibe.
+- **顺手抓 ROLE_PRESETS[9] 不存在的 latent bug** (v6.27 P1 修).
+
+### P1 — AI 引用 leak 检测 + 高亮链路
+- `GameEngine.detectLeakQuote` 4-char sliding 子串检测.
+- 新 event `game:leak_quoted` { hintText, byPlayerId, byPlayerName,
+  speechText }.
+- GhostChatPanel badge 升级 👂 → ✨, SpeechHistory bubble 加 ✨ chip.
+- 闭 PSYWAR 反馈环: 提交 → 听到 → 引用.
+
+---
+
+## v6.25 — 2026-05-25 · PSYWAR + onboarding + mobile + i18n key + dev hook + 测试骨架 + CHANGELOG initial + typecheck cleanup
+
+### P1 — PSYWAR 升级真影响 AI
+- `BaseAgent.generateSpeech` prompt 注入"[匿名前同事爆料]" — 最多
+  3 条最近 leakedHints. 真改变 AI 行为, 不再纯 ritual.
+- 新 `socket.on('game:psy_war_leak')` → `engine.pushLeakedHint(text)`.
+- `pushLeakedHint` FIFO cap 5 + 80-char clamp + emit `leak_acked`.
+- GhostChatPanel 加 👂 "AI 听到了" badge (ackedTexts set).
+
+### P2 — 系统性 mobile 响应式
+- GameMap canvas + GhostChatPanel + Classic 主布局加 sm: 断点.
+- 触摸目标 ≥ 44×44 px, 文字 ≥ 12 px, viewport 注 viewport meta tag.
+
+### P3 — CHANGELOG 补 v6.21-v6.24 (initial)
+- 4 个版本 entries 加在 v6.6.2 上方. 维持 latest-on-top.
+
+### P4 — typecheck 干净
+- 修 pre-existing baseline: pino overload + requestId @ts-expect-error
+  unused + b2b/fired/characters routes union mismatch. **0 error** 跨
+  server / client / shared.
+
+### P5 — EliminationReveal 新员工加 avatar
+- pickNewHire 返 name + realName. CHARACTERS shared lookup → avatar
+  URL fallback emoji '🎉'. 圆形 42×42 avatar 绿环 + 名字 + tagline.
+
+### P6 — GhostChatPanel 加自定义 @ textarea
+- 8 preset 之外加 textarea (≤60 字 optional). 自定义存在用自定义,
+  没就用 preset. 完全 user agency.
+
+### P7 — 测试基础设施骨架 (vitest)
+- vitest.config.ts + 18 initial tests (pickLastWords 8 personalities /
+  pickNewHire / pickEmoteForPlayer 基础). `npm test` / `test:watch`.
+
+### P8 — localStorage 旧 office-arena.* → office-zoo.* 一次性迁移
+- `utils/lsMigrate.ts` startup hook, 6 known keys (sfx.muted /
+  prediction-stats / pick.* / seen-rules / 其他). 标记 'office-zoo.
+  lsmigrated.v1' = '1' 防重跑.
+
+---
+
 ## v6.24 — 2026-05-25 · personality 数据流硬化 + 鬼魂 vote 实时流 + README banner v2
 
 ### P1 — server attaches personality to kill / vote_result events
