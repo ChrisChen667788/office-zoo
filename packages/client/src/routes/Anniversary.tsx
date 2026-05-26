@@ -18,6 +18,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import EventPill from '../components/EventPill';
+import { setProgress as setAchievementProgress } from '../utils/achievements';
 
 interface Milestone {
   ver: string;
@@ -99,6 +100,14 @@ export default function Anniversary() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [idx, navigate]);
+
+  // v6.30 P4 — mark anniversary deck as "finished" once user reaches
+  // the final slide. setProgress is idempotent (no repeat-bump). Also
+  // covers the via-dot-jump case (user clicks last dot without
+  // walking the deck).
+  useEffect(() => {
+    if (idx === MILESTONES.length - 1) setAchievementProgress('anniversary_finished', 1);
+  }, [idx]);
 
   const m = MILESTONES[idx];
 

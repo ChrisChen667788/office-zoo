@@ -32,6 +32,14 @@ import WeeklyMe from './routes/WeeklyMe';
 import Bar from './routes/Bar';
 import Anniversary from './routes/Anniversary';
 import CharacterFocusModal from './components/character/CharacterFocusModal';
+import AchievementUnlockToast from './components/AchievementUnlockToast';
+import { markDayVisited, refreshAuto } from './utils/achievements';
+
+// v6.30 P4 — fire-once on app boot: mark today + auto-evaluate any
+// achievements whose check predicate is satisfied (e.g. user already
+// has 5 leaks from a prior session but hadn't unlocked yet).
+markDayVisited();
+refreshAuto();
 
 export default function App() {
   return (
@@ -109,6 +117,9 @@ export default function App() {
         from /share/character/:name social bounces. Renders nothing when
         the query is absent so other routes are unaffected. */}
     <CharacterFocusModal />
+    {/* v6.30 P4 — global achievement unlock toast (cumulative spectator
+        ratchet). Distinct from game/AchievementToast which is in-round. */}
+    <AchievementUnlockToast />
     </>
   );
 }

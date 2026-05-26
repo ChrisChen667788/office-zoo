@@ -71,6 +71,8 @@ export function recordLeakSubmit(text: string): void {
   stats.history.push({ text: trimmed, ts: Date.now() });
   if (stats.history.length > HISTORY_CAP) stats.history.shift();
   safeWrite(stats);
+  // v6.30 P4 — re-evaluate count-based achievements (leak_first / leak_5).
+  void maybeRefreshAchievements();
 }
 
 /** Mark a leak as AI-quoted. Matches by trimmed prefix. If never
@@ -94,7 +96,20 @@ export function recordLeakQuoted(text: string, byName: string): void {
   if (mutated) {
     stats.quoted += 1;
     safeWrite(stats);
+    // v6.30 P4 — re-evaluate (quote_first / quote_3).
+    void maybeRefreshAchievements();
   }
+}
+
+/** v6.30 P4 — dynamic import to avoid circular dep: achievements.ts
+ *  imports getLeakStats, and now leakStats wants to call refreshAuto.
+ *  Lazy import + fire-and-forget keeps the dep graph linear at load
+ *  time and just-in-time for runtime. */
+async function maybeRefreshAchievements() {
+  try {
+    const mod = await import('./achievements');
+    mod.refreshAuto();
+  } catch { /* SSR / unit-test env without dynamic-import support */ }
 }
 
 /** Read the current snapshot — for MyLeaksPanel render. */

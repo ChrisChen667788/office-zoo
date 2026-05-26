@@ -32,6 +32,8 @@ import SquadBuddiesPanel from '../components/character/SquadBuddiesPanel';
 import MyBallotsPanel from '../components/character/MyBallotsPanel';
 import MyDuelsPanel from '../components/character/MyDuelsPanel';
 import MyLeaksPanel from '../components/character/MyLeaksPanel';
+import AchievementsPanel from '../components/character/AchievementsPanel';
+import { setProgress as setAchievementProgress } from '../utils/achievements';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
   { key: 'grind',      label: '内卷' },
@@ -71,6 +73,9 @@ export default function Profile() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // v6.30 P4 — mark Profile visit for the achievement check.
+  useEffect(() => { setAchievementProgress('profile_visited', 1); }, []);
 
   useEffect(() => {
     fetch('/api/quiz/me', { headers: { 'X-User-Id': myId } })
@@ -199,6 +204,9 @@ export default function Profile() {
           submitted / quoted / hit-rate, 收尾 v6.25 P1 + v6.26 P1 的
           PSYWAR 反馈环 (战术 @ → AI 听到 → AI 引用 → 在 Profile 看战绩). */}
       <MyLeaksPanel />
+
+      {/* v6.30 P4 — spectator 班味成就 grid (12 achievements). */}
+      <AchievementsPanel />
     </div>
   );
 }
