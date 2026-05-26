@@ -17,8 +17,8 @@ class MemStore implements Storage {
   clear() { this.m.clear(); }
 }
 const memStore = new MemStore();
-// @ts-expect-error — install on globalThis so leakStats module picks it up.
-globalThis.localStorage = memStore;
+// Install on globalThis so leakStats module picks it up at import time.
+(globalThis as unknown as { localStorage: Storage }).localStorage = memStore;
 
 import {
   recordLeakSubmit,
