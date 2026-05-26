@@ -31,6 +31,7 @@ import MySubmissionsPanel from '../components/character/MySubmissionsPanel';
 import SquadBuddiesPanel from '../components/character/SquadBuddiesPanel';
 import MyBallotsPanel from '../components/character/MyBallotsPanel';
 import MyDuelsPanel from '../components/character/MyDuelsPanel';
+import MyLeaksPanel from '../components/character/MyLeaksPanel';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
   { key: 'grind',      label: '内卷' },
@@ -193,6 +194,11 @@ export default function Profile() {
       {/* v6.20 P3 — 我参与过的所有 1v1 斗投, 实时 W/L/T 战绩 + click 跳
           回该 duel result view. 关上 v6.18 P3 voting battle 的 retro 反馈环. */}
       <MyDuelsPanel />
+
+      {/* v6.27 P4 — 你的爆料命中率: localStorage-backed 统计, 显示
+          submitted / quoted / hit-rate, 收尾 v6.25 P1 + v6.26 P1 的
+          PSYWAR 反馈环 (战术 @ → AI 听到 → AI 引用 → 在 Profile 看战绩). */}
+      <MyLeaksPanel />
     </div>
   );
 }
