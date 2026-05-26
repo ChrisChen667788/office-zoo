@@ -1,0 +1,59 @@
+# v6.28 P3 — git-cliff config for OFFICE ZOO.
+#
+# Generates CHANGELOG sections from our `v{MAJOR}.{MINOR} P{N}: subject`
+# commit convention. Pre-existing CHANGELOG.md (v6.7 onward, hand-written)
+# is preserved by `npm run changelog:append` which only appends fresh
+# entries above the latest section line; `changelog:full` regenerates
+# from scratch (use sparingly, will overwrite hand-written voice).
+
+[changelog]
+header = """
+# OFFICE ZOO Changelog
+
+每个版本一段。最新在最上,语义化版本号。
+
+> v3.1 – v5.4 的条目此处暂缺(代码侧 tag 已落地, 详见各文件版本注释)。
+> v5.5 起恢复完整记录。
+
+---
+"""
+body = """
+{% for group, commits in commits | group_by(attribute="group") -%}
+## {{ group | upper_first }}
+
+{% for commit in commits -%}
+- {% if commit.scope %}**{{ commit.scope }}** · {% endif %}{{ commit.message | split(pat="\\n") | first | trim }} (`{{ commit.id | truncate(length=7, end="") }}`)
+{% endfor %}
+{% endfor %}
+"""
+trim = true
+footer = ""
+
+[git]
+# Conventional commits are off — we use our own `v6.X PY: subject` shape.
+conventional_commits = false
+filter_unconventional = false
+split_commits = false
+protect_breaking_commits = false
+
+# Group commits by the v6.X tag prefix in the message. Examples:
+#   "v6.27 P1: ROLE_PRESETS[9] ..."  → group "v6.27"
+#   "brand: AI 生成 mihoyo 风..."     → group "Brand"
+#   "docs: bilingual README ..."       → group "Docs"
+commit_parsers = [
+  { message = "^v(\\d+\\.\\d+(?:\\.\\d+)?)\\s+P\\d+:", group = "v${1}" },
+  { message = "^v(\\d+\\.\\d+(?:\\.\\d+)?):", group = "v${1}" },
+  { message = "^brand:", group = "Brand" },
+  { message = "^docs:", group = "Docs" },
+  { message = "^chore:", group = "Chore" },
+  { message = ".*", group = "Misc" },
+]
+
+# Skip merge commits + auto-bumps.
+commit_preprocessors = [
+  { pattern = '\\s+$', replace = '' },
+]
+filter_commits = false
+tag_pattern = "v[0-9]+\\.[0-9]+(\\.[0-9]+)?"
+topo_order = false
+sort_commits = "newest"
