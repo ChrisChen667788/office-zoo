@@ -116,7 +116,10 @@ describe('detectLeakQuote — false positive audit (v6.28 P2)', () => {
     if (matches.length > 0) {
       console.log('[fp audit] tripped pairs:', matches.slice(0, 10));
     }
-    expect(fpRate).toBeLessThan(0.05);
+    // v6.28 P2 baseline 1.60% (8/500). v6.30 P5 tier-1 5-char +
+    // LEAK_STOPWORDS dropped that to 0.80% (4/500). Tighten target
+    // to 1.5% as a regression guard.
+    expect(fpRate).toBeLessThan(0.015);
   });
 
   it('high-overlap hint+speech pair DOES match (sanity check — detector still works)', () => {

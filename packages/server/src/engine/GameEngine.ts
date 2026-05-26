@@ -61,6 +61,25 @@ function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/** v6.30 P5 — cross-topic stopwords. These bigrams + English tokens
+ *  appear in too many UNRELATED speeches to be useful overlap signal
+ *  (e.g. "工位" / "OKR" / "CEO" — most office speech mentions them).
+ *  v6.28 P2 FP audit identified 6/8 tripped pairs that hinged on
+ *  exactly these tokens. Dropping them from BOTH hint and speech
+ *  token sets pushes baseline FP rate down without hurting true
+ *  positives (real leaks rely on names + distinctive verbs, not
+ *  generic 班味 vocabulary). */
+const LEAK_STOPWORDS = new Set<string>([
+  // Cross-topic CJK bigrams (the words EVERY speech mentions)
+  '工位', '加班', '老板', 'HR', '会议', '周报', '同事', '公司',
+  '今天', '昨天', '上次', '下次', '一下', '一个', '一次',
+  // Generic English business jargon
+  'okr', 'kpi', 'ceo', 'cto', 'hr', 'pua', 'ai', 'q1', 'q2', 'q3', 'q4',
+  'pm', 'pr', 'prd',
+  // Numeric "N 分钟" / "N 小时" generic
+  '分钟', '小时',
+]);
+
 /** v6.27 P2 — split text into content tokens for Jaccard-style fuzzy
  *  leak-quote detection. Strategy:
  *    - Whitespace + Chinese-punct first-pass split.
@@ -70,6 +89,8 @@ function delay(ms: number): Promise<void> {
  *      capture local context cheaply and handle paraphrase ordering.
  *    - All else (single English chars, single CJK chars, pure punct)
  *      dropped as stop tokens.
+ *    - v6.30 P5: drop LEAK_STOPWORDS so cross-topic words don't carry
+ *      Jaccard weight.
  *  Returns a Set so callers can do O(1) overlap. */
 function leakTokenize(text: string): Set<string> {
   const out = new Set<string>();
@@ -91,7 +112,7 @@ function leakTokenize(text: string): Set<string> {
           j++;
         }
         const tok = seg.slice(i, j).toLowerCase();
-        if (tok.length >= 2) out.add(tok);
+        if (tok.length >= 2 && !LEAK_STOPWORDS.has(tok)) out.add(tok);
         i = j;
         continue;
       }
@@ -105,7 +126,10 @@ function leakTokenize(text: string): Set<string> {
           j++;
         }
         const run = seg.slice(i, j);
-        for (let k = 0; k + 2 <= run.length; k++) out.add(run.slice(k, k + 2));
+        for (let k = 0; k + 2 <= run.length; k++) {
+          const bg = run.slice(k, k + 2);
+          if (!LEAK_STOPWORDS.has(bg)) out.add(bg);
+        }
         i = j;
         continue;
       }
@@ -1155,9 +1179,11 @@ export class GameEngine extends EventEmitter {
   /** v6.26 P1 / v6.27 P2 — detect if a generated speech quotes any of
    *  the current leakedHints. Hybrid two-tier match:
    *
-   *    Tier 1 — sliding 4-char substring. High-confidence: caught when
-   *             LLM keeps a distinctive Chinese 4-字 phrase or proper
-   *             noun verbatim. Fast.
+   *    Tier 1 — sliding 5-char substring (was 4 in v6.27 P2; v6.30 P5
+   *             bumped to 5 after FP audit showed too many cross-topic
+   *             4-字 chunks like "那个 PRD" / " OKR " producing FP).
+   *             High-confidence: caught when LLM keeps a distinctive
+   *             5-字 phrase or proper-noun + verb pair verbatim.
    *    Tier 2 — token-level Jaccard overlap on content tokens. Catches
    *             paraphrases the LLM rewrites — "听说有同事偷过工位的
    *             零食" still shares the {听说, 同事, 偷过, 工位, 零食}
@@ -1180,9 +1206,9 @@ export class GameEngine extends EventEmitter {
     // Tier 1 — substring (cheap, high-confidence)
     for (const hint of this.leakedHints) {
       const h = hint.trim();
-      if (h.length < 4) continue;
-      for (let i = 0; i + 4 <= h.length; i++) {
-        const w = h.slice(i, i + 4);
+      if (h.length < 5) continue;
+      for (let i = 0; i + 5 <= h.length; i++) {
+        const w = h.slice(i, i + 5);
         if (/^[\s,，。!?@\-_'"()]+$/.test(w)) continue;
         if (speech.includes(w)) return hint;
       }
