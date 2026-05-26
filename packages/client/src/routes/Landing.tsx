@@ -473,8 +473,10 @@ export default function Landing() {
             </div>
 
             {/* v6.17 P1 — small chip to discover the global votes
-                leaderboard. Sits just under the daily spotlight. */}
-            <div className="mb-4 text-center">
+                leaderboard. Sits just under the daily spotlight.
+                v6.29 P4 — 周年回顾 chip sits sibling, gold-accent so
+                it's distinct from the rose vote chip. */}
+            <div className="mb-4 flex items-center justify-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => navigate('/character-votes')}
@@ -485,6 +487,16 @@ export default function Landing() {
                   letterSpacing: '0.06em',
                 }}
               >🗳️ 看本周 12 鼠投票排行榜 →</button>
+              <button
+                type="button"
+                onClick={() => navigate('/anniversary')}
+                className="text-[10px] px-3 py-1 rounded-full font-bold tracking-wide transition hover:scale-105"
+                style={{
+                  background: 'rgba(255,215,0,0.10)', color: '#FFD700',
+                  border: '1px solid rgba(255,215,0,0.45)',
+                  letterSpacing: '0.06em',
+                }}
+              >🎉 v6 周年回顾 · 28 轮 →</button>
             </div>
 
             {/* v6.14 P2 — approved UGC carousel surface. Hides itself

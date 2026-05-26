@@ -30,6 +30,7 @@ import TalkshowUgc from './routes/TalkshowUgc';
 import Weekly from './routes/Weekly';
 import WeeklyMe from './routes/WeeklyMe';
 import Bar from './routes/Bar';
+import Anniversary from './routes/Anniversary';
 import CharacterFocusModal from './components/character/CharacterFocusModal';
 
 export default function App() {
@@ -99,6 +100,10 @@ export default function App() {
       <Route path="/settings" element={<Settings />} />
       {/* v6.2.0 — 🍺 深夜酒馆 1v1 (with an archetype, sharing via deeplink). */}
       <Route path="/bar/:archetype" element={<Bar />} />
+      {/* v6.29 P4 — 周年纪念 mode: 6-milestone time capsule for v6 (28
+          iteration rounds, 2026-05-21 → 2026-05-26). Linkable from
+          social shares. */}
+      <Route path="/anniversary" element={<Anniversary />} />
     </Routes>
     {/* v6.11 P4 — global overlay watching ?character=<name> deep-links
         from /share/character/:name social bounces. Renders nothing when
