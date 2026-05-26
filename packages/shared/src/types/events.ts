@@ -149,6 +149,12 @@ export interface ServerToClientEvents {
    *  text + current FIFO size so the client can flash "AI 听到了" on
    *  the corresponding chat bubble. */
   'game:psy_war_acked': (data: { text: string; total: number }) => void;
+  /** v6.29 P5 — server rejected a psy-war leak due to rate limit.
+   *  Reason 'window_cap' = > 5 leaks in last 60s; retryAfterMs gives
+   *  ms until the oldest in-window leak ages out. Reason 'session_cap'
+   *  = > 20 leaks total this session (terminal, no retry). Client
+   *  should surface as a toast / disable the 战术 @ button briefly. */
+  'game:psy_war_rate_limited': (data: { reason: 'window_cap' | 'session_cap'; retryAfterMs: number }) => void;
   /** v6.26 P1 — server detected that this AI speech text quoted one
    *  of the active leakedHints (sliding 4-char substring match). Lets
    *  the client upgrade the GhostChatPanel bubble badge from "👂 AI

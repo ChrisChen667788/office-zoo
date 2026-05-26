@@ -265,6 +265,18 @@ export default function Classic() {
     // ackedLeaks set so GhostChatPanel shows "👂 AI 听到了" on the
     // matching bubble. Text is server-trimmed to 80 chars to match
     // the slice() in pushLeakedHint.
+    // v6.29 P5 — server rejected a psy-war submission due to rate limit.
+    // Surface in the event log so user knows; cooldown also signals
+    // GhostChatPanel to chill (future polish: disable button visually).
+    'game:psy_war_rate_limited': (data: { reason: 'window_cap' | 'session_cap'; retryAfterMs: number }) => {
+      if (data.reason === 'session_cap') {
+        pushEvent('ghost', '⛔ 本场爆料配额已用完 (20 条上限)');
+      } else {
+        const sec = Math.ceil(data.retryAfterMs / 1000);
+        pushEvent('ghost', `⏳ 爆料频率限速, 等 ${sec}s 再投`);
+      }
+    },
+
     'game:psy_war_acked': (data: { text: string; total: number }) => {
       setAckedLeaks((prev) => {
         const next = new Set(prev);

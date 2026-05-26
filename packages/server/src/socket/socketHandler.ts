@@ -102,6 +102,11 @@ export function setupSocketHandler(io: SocketServer) {
   io.on('connection', (socket: Socket) => {
     socketLog.debug({ sid: socket.id }, 'client connected');
     let currentGameId: string | null = null;
+    // v6.29 P5 — PSYWAR per-socket abuse guard. Rolling 60s window cap +
+    // per-session hard cap. Without this a malicious or buggy client can
+    // spam game:psy_war_leak and pollute every game's leakedHints FIFO.
+    const psyWarTimes: number[] = [];   // unix ms of accepted leaks
+    let psyWarTotal = 0;
 
     socket.on('game:create', async (rawConfig: unknown) => {
       const v = validateEvent(GameCreateSchema, rawConfig);
@@ -221,9 +226,33 @@ export function setupSocketHandler(io: SocketServer) {
       if (!engine) return;
       const text = typeof raw === 'string' ? raw : (raw as { text?: string })?.text;
       if (typeof text !== 'string') return;
+
+      // v6.29 P5 — rate limit gate. Per-socket: ≤ 5 leaks per rolling
+      // 60s, ≤ 20 total per session. Clean stale window entries first.
+      const now = Date.now();
+      const WINDOW_MS = 60_000;
+      const PER_WINDOW = 5;
+      const SESSION_TOTAL = 20;
+      while (psyWarTimes.length > 0 && psyWarTimes[0] < now - WINDOW_MS) {
+        psyWarTimes.shift();
+      }
+      if (psyWarTotal >= SESSION_TOTAL) {
+        socket.emit('game:psy_war_rate_limited', { reason: 'session_cap', retryAfterMs: 0 });
+        socketLog.warn({ sid: socket.id }, 'psy-war session cap hit');
+        return;
+      }
+      if (psyWarTimes.length >= PER_WINDOW) {
+        const retryAfterMs = WINDOW_MS - (now - psyWarTimes[0]);
+        socket.emit('game:psy_war_rate_limited', { reason: 'window_cap', retryAfterMs });
+        socketLog.warn({ sid: socket.id, retryAfterMs }, 'psy-war window cap hit');
+        return;
+      }
+
       const result = engine.pushLeakedHint(text);
       if (result.accepted) {
-        socketLog.debug({ sid: socket.id, gameId: currentGameId, len: text.length }, 'psy-war leak accepted');
+        psyWarTimes.push(now);
+        psyWarTotal++;
+        socketLog.debug({ sid: socket.id, gameId: currentGameId, len: text.length, sessionTotal: psyWarTotal }, 'psy-war leak accepted');
       }
     });
 
