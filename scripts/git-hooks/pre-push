@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# v6.29 P2 — informational pre-push hook.
+#
+# Runs `git-cliff --unreleased` to enumerate commits since the last
+# CHANGELOG.md anchor (latest `## v6.X` heading). If there are commits
+# the user has NOT yet documented in docs/CHANGELOG.md, prints a yellow
+# nudge but does NOT block — push still proceeds.
+#
+# Set OFFICE_ZOO_SKIP_CHANGELOG_NUDGE=1 to silence completely.
+
+set -e
+
+if [ "$OFFICE_ZOO_SKIP_CHANGELOG_NUDGE" = "1" ]; then
+  exit 0
+fi
+
+if ! command -v npx >/dev/null 2>&1; then
+  exit 0
+fi
+
+# Find the latest documented version section in CHANGELOG.md
+LATEST_DOC_VERSION=$(grep -oE '^## v[0-9]+\.[0-9]+(\.[0-9]+)?' docs/CHANGELOG.md 2>/dev/null \
+  | head -1 \
+  | sed 's/^## //')
+
+if [ -z "$LATEST_DOC_VERSION" ]; then
+  exit 0
+fi
+
+# Commits whose subject starts with "v6.X" — see if anything newer than
+# the latest documented version exists in git log but not in CHANGELOG.
+# Use --format='%s' (subject only) instead of --oneline to avoid printf
+# format-string vulnerabilities when commit subjects contain `%)` etc.
+UNDOCUMENTED=$(git log --format='%s' --grep="^v[0-9]\\+\\.[0-9]\\+" 2>/dev/null \
+  | grep -oE '^v[0-9]+\.[0-9]+(\.[0-9]+)?' \
+  | sort -uV \
+  | awk -v latest="$LATEST_DOC_VERSION" '$1 == latest { seen=1; next } seen' \
+  | head -10)
+
+if [ -n "$UNDOCUMENTED" ]; then
+  echo ""
+  echo -e "\033[33m⚠  OFFICE ZOO · CHANGELOG nudge\033[0m"
+  echo "   docs/CHANGELOG.md 最新到: $LATEST_DOC_VERSION"
+  echo "   git 里更新的版本:"
+  echo "$UNDOCUMENTED" | sed 's/^/     · /'
+  echo ""
+  echo "   建议: npm run changelog  (writes /tmp/cliff-unreleased.md to review)"
+  echo "   silence: OFFICE_ZOO_SKIP_CHANGELOG_NUDGE=1 git push ..."
+  echo ""
+fi
+
+exit 0

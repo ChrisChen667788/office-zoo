@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p packages/server && tsc --noEmit -p packages/client",
     "changelog": "git-cliff --unreleased --output /tmp/cliff-unreleased.md && echo 'wrote /tmp/cliff-unreleased.md — review then splice into docs/CHANGELOG.md above latest section'",
-    "changelog:full": "git-cliff --output docs/CHANGELOG.auto.md && echo 'wrote docs/CHANGELOG.auto.md (auto regen from scratch — NOT the curated docs/CHANGELOG.md)'"
+    "changelog:full": "git-cliff --output docs/CHANGELOG.auto.md && echo 'wrote docs/CHANGELOG.auto.md (auto regen from scratch — NOT the curated docs/CHANGELOG.md)'",
+    "hooks:install": "bash scripts/install-hooks.sh"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
