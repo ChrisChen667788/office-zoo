@@ -44,7 +44,10 @@ interface DailyDrama {
 }
 import { modeIcons, Icon } from '../constants/icons';
 
-const PLAYER_COUNTS = [6, 8, 10] as const;
+// v6.28 P4 — 9 added once ROLE_PRESETS[9] (v6.27 P1) landed. The
+// 6→8→9→10 ladder gives users a "1-step-up from default" option;
+// without it the previous 8→10 jump skipped the natural increment.
+const PLAYER_COUNTS = [6, 8, 9, 10] as const;
 type GameMode = 'classic' | 'immersive' | 'fired' | 'talkshow';
 
 interface ModeSpec {
