@@ -61,6 +61,60 @@ function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/** v6.27 P2 — split text into content tokens for Jaccard-style fuzzy
+ *  leak-quote detection. Strategy:
+ *    - Whitespace + Chinese-punct first-pass split.
+ *    - English runs (`[A-Za-z0-9_]+` length ≥ 2) kept as one token.
+ *    - Chinese runs (CJK Unified Ideographs) yielded as overlapping
+ *      2-char bigrams ("我工位的" → {"我工","工位","位的"}). Bigrams
+ *      capture local context cheaply and handle paraphrase ordering.
+ *    - All else (single English chars, single CJK chars, pure punct)
+ *      dropped as stop tokens.
+ *  Returns a Set so callers can do O(1) overlap. */
+function leakTokenize(text: string): Set<string> {
+  const out = new Set<string>();
+  if (!text) return out;
+  // Split on punctuation + whitespace runs
+  const segments = text.split(/[\s,，。!?！？@\-_'"()（）【】《》:：;；、~`*]+/);
+  for (const seg of segments) {
+    if (!seg) continue;
+    // Walk char-by-char; segregate ASCII alnum runs vs CJK runs.
+    let i = 0;
+    while (i < seg.length) {
+      const c = seg.charCodeAt(i);
+      // ASCII alnum (and underscore) run
+      if ((c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a) || c === 0x5f) {
+        let j = i + 1;
+        while (j < seg.length) {
+          const cj = seg.charCodeAt(j);
+          if (!((cj >= 0x30 && cj <= 0x39) || (cj >= 0x41 && cj <= 0x5a) || (cj >= 0x61 && cj <= 0x7a) || cj === 0x5f)) break;
+          j++;
+        }
+        const tok = seg.slice(i, j).toLowerCase();
+        if (tok.length >= 2) out.add(tok);
+        i = j;
+        continue;
+      }
+      // CJK Unified Ideographs (basic + extended A — covers ~99% of
+      // Chinese content). Emit 2-char bigrams.
+      if ((c >= 0x4e00 && c <= 0x9fff) || (c >= 0x3400 && c <= 0x4dbf)) {
+        let j = i + 1;
+        while (j < seg.length) {
+          const cj = seg.charCodeAt(j);
+          if (!((cj >= 0x4e00 && cj <= 0x9fff) || (cj >= 0x3400 && cj <= 0x4dbf))) break;
+          j++;
+        }
+        const run = seg.slice(i, j);
+        for (let k = 0; k + 2 <= run.length; k++) out.add(run.slice(k, k + 2));
+        i = j;
+        continue;
+      }
+      i++;
+    }
+  }
+  return out;
+}
+
 export class GameEngine extends EventEmitter {
   readonly state: GameState;
   /** Wall-clock when this engine was created — used by TTL sweeper. */
@@ -1098,28 +1152,53 @@ export class GameEngine extends EventEmitter {
     return { accepted: true };
   }
 
-  /** v6.26 P1 — detect if a generated speech quotes any of the current
-   *  leakedHints. Uses a sliding 4-char window — short enough to catch
-   *  partial paraphrases (LLM often keeps proper nouns + distinctive
-   *  Chinese 4-字 phrases), long enough to avoid false positives on
-   *  common stopwords. Returns the matched hint or null.
+  /** v6.26 P1 / v6.27 P2 — detect if a generated speech quotes any of
+   *  the current leakedHints. Hybrid two-tier match:
+   *
+   *    Tier 1 — sliding 4-char substring. High-confidence: caught when
+   *             LLM keeps a distinctive Chinese 4-字 phrase or proper
+   *             noun verbatim. Fast.
+   *    Tier 2 — token-level Jaccard overlap on content tokens. Catches
+   *             paraphrases the LLM rewrites — "听说有同事偷过工位的
+   *             零食" still shares the {听说, 同事, 偷过, 工位, 零食}
+   *             content-token set with "@Frank 偷过我工位的零食".
+   *             Threshold: ≥ 30% of the SHORTER side's content tokens
+   *             must overlap. Avoids false-positives on tiny hints.
+   *
+   *  Tokenization splits on whitespace + Chinese punctuation, then
+   *  yields:
+   *    - English words as-is
+   *    - Chinese strings as bigrams (overlapping 2-char windows)
+   *  Tokens shorter than 2 chars are dropped (stop words).
    *
    *  Public so socketHandler can call it right after `game:speech`
    *  emit and broadcast `game:leak_quoted` events. */
   detectLeakQuote(speechText: string): string | null {
     const speech = speechText ?? '';
     if (speech.length === 0 || this.leakedHints.length === 0) return null;
+
+    // Tier 1 — substring (cheap, high-confidence)
     for (const hint of this.leakedHints) {
       const h = hint.trim();
       if (h.length < 4) continue;
-      // Sliding 4-char window over the hint. Short enough to catch
-      // partial quotes ("Frank 偷过" out of "@Frank 偷过我工位的零食").
       for (let i = 0; i + 4 <= h.length; i++) {
         const w = h.slice(i, i + 4);
-        // Reject windows that are all spaces / punctuation / very common.
         if (/^[\s,，。!?@\-_'"()]+$/.test(w)) continue;
         if (speech.includes(w)) return hint;
       }
+    }
+
+    // Tier 2 — token Jaccard (catches paraphrase)
+    const speechTokens = leakTokenize(speech);
+    if (speechTokens.size < 2) return null;
+    for (const hint of this.leakedHints) {
+      const hintTokens = leakTokenize(hint);
+      if (hintTokens.size < 2) continue;
+      let overlap = 0;
+      for (const t of hintTokens) if (speechTokens.has(t)) overlap++;
+      const smaller = Math.min(hintTokens.size, speechTokens.size);
+      const ratio = overlap / smaller;
+      if (ratio >= 0.30) return hint;
     }
     return null;
   }

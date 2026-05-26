@@ -170,6 +170,50 @@ describe('GameEngine — detectLeakQuote (v6.26 P1)', () => {
   });
 });
 
+describe('GameEngine — detectLeakQuote v6.27 P2 token fuzzy', () => {
+  it('catches paraphrase via bigram Jaccard (no 4-char substring match)', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('@Frank 偷过我工位的零食');
+    // Paraphrase — no 4-char run from the hint appears verbatim, but
+    // {偷过, 工位, 零食} bigrams overlap heavily.
+    const r = engine.detectLeakQuote('听说 Frank 那家伙偷过别人的零食, 不是我说');
+    expect(r).toBe('@Frank 偷过我工位的零食');
+  });
+
+  it('catches English token paraphrase', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('Tony 那个 PRD 全是抄的');
+    // "PRD" and "Tony" share with hint.
+    const r = engine.detectLeakQuote('Tony 那个 PRD 我看过');
+    expect(r).toBe('Tony 那个 PRD 全是抄的');
+  });
+
+  it('does not false-positive on completely unrelated speech', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('@Frank 偷过我工位的零食');
+    const r = engine.detectLeakQuote('今天的午餐挺香的, 我先去洗手');
+    expect(r).toBeNull();
+  });
+
+  it('Jaccard threshold ≥30% — small overlap rejected', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('小心 Frank 表面光鲜内心 OKR 焦虑');
+    // Speech shares only "焦虑" with the hint — <30% of smaller side.
+    const r = engine.detectLeakQuote('我今天有点焦虑');
+    expect(r).toBeNull();
+  });
+
+  it('substring (tier 1) wins when both tiers would match', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('B 在偷茶水');
+    // Speech contains 4-char "B 在偷茶" (mixed alnum / CJK doesn't form
+    // 4-char Chinese run, so tier 2 saves it). Either way the hint
+    // returned must be the same one.
+    const r = engine.detectLeakQuote('听说 B 在偷茶水间的零食');
+    expect(r).toBe('B 在偷茶水');
+  });
+});
+
 describe('GameEngine — ghostVotes tally shape', () => {
   it('initial ghostVotes is empty', () => {
     const engine = newEngine(8);
