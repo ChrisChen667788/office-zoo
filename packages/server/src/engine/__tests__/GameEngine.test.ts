@@ -212,6 +212,33 @@ describe('GameEngine — detectLeakQuote v6.27 P2 token fuzzy', () => {
     const r = engine.detectLeakQuote('听说 B 在偷茶水间的零食');
     expect(r).toBe('B 在偷茶水');
   });
+
+  // v6.29 P3 — pure English coverage. Previous fixtures were all
+  // CJK or mixed — the ASCII alnum tokenize branch went exercised
+  // through proper-noun matching but never tested in isolation.
+  it('pure English hint + English speech — substring match', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('John leaked the Q3 budget');
+    // Speech reuses "Q3 budget" verbatim (length 9 chars > 4-char window).
+    const r = engine.detectLeakQuote('I heard John leaked the Q3 budget last week');
+    expect(r).toBe('John leaked the Q3 budget');
+  });
+
+  it('pure English hint + paraphrase via token overlap', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('Sarah missed her OKR review');
+    // Paraphrase — shared tokens {sarah, missed, okr, review}, no
+    // verbatim 4-char run from the hint exists in this rephrase.
+    const r = engine.detectLeakQuote('Word is Sarah missed an important OKR review');
+    expect(r).toBe('Sarah missed her OKR review');
+  });
+
+  it('pure English unrelated speech does not false-positive', () => {
+    const engine = newEngine(8);
+    engine.pushLeakedHint('John leaked the Q3 budget');
+    const r = engine.detectLeakQuote('Weather is nice today, going for lunch');
+    expect(r).toBeNull();
+  });
 });
 
 describe('GameEngine — ghostVotes tally shape', () => {
