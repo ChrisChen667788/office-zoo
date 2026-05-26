@@ -271,6 +271,8 @@ export class GameEngine extends EventEmitter {
       /* fail-open — vote bias is polish, not gating */
     }
     this.createPlayers(weeklyLeaders);
+    // v6.31 P5 — bump server stats counters once roster is populated.
+    this.emit('roster_created', { names: this.state.players.map((p) => p.name) });
     this.emitState();
 
     // ROLE_REVEAL
@@ -1179,17 +1181,20 @@ export class GameEngine extends EventEmitter {
   /** v6.26 P1 / v6.27 P2 — detect if a generated speech quotes any of
    *  the current leakedHints. Hybrid two-tier match:
    *
-   *    Tier 1 — sliding 5-char substring (was 4 in v6.27 P2; v6.30 P5
-   *             bumped to 5 after FP audit showed too many cross-topic
-   *             4-字 chunks like "那个 PRD" / " OKR " producing FP).
-   *             High-confidence: caught when LLM keeps a distinctive
-   *             5-字 phrase or proper-noun + verb pair verbatim.
+   *    Tier 1 — sliding 8-char substring (4 in v6.27 P2 → 5 in v6.30 P5
+   *             → 8 in v6.31 P4). Each bump audit-driven: v6.30 dropped
+   *             generic "那个 PRD" overlap, v6.31 dropped "Helen" /
+   *             "40 分钟" / "工位贴满" tier-1 leakage. 8 chars demands
+   *             a full proper-noun + verb-phrase verbatim quote.
    *    Tier 2 — token-level Jaccard overlap on content tokens. Catches
    *             paraphrases the LLM rewrites — "听说有同事偷过工位的
    *             零食" still shares the {听说, 同事, 偷过, 工位, 零食}
    *             content-token set with "@Frank 偷过我工位的零食".
-   *             Threshold: ≥ 30% of the SHORTER side's content tokens
-   *             must overlap. Avoids false-positives on tiny hints.
+   *             Threshold: ≥ 42% of the SHORTER side's content tokens
+   *             must overlap (was 0.30 v6.27 P2; v6.31 P4 raised
+   *             to 0.42 after audit showed 工位贴满-style overlap at
+   *             40% exactly producing FP; 0.42 kills them while keeping
+   *             real paraphrase like Frank case at 43% intact).
    *
    *  Tokenization splits on whitespace + Chinese punctuation, then
    *  yields:
@@ -1206,9 +1211,9 @@ export class GameEngine extends EventEmitter {
     // Tier 1 — substring (cheap, high-confidence)
     for (const hint of this.leakedHints) {
       const h = hint.trim();
-      if (h.length < 5) continue;
-      for (let i = 0; i + 5 <= h.length; i++) {
-        const w = h.slice(i, i + 5);
+      if (h.length < 8) continue;
+      for (let i = 0; i + 8 <= h.length; i++) {
+        const w = h.slice(i, i + 8);
         if (/^[\s,，。!?@\-_'"()]+$/.test(w)) continue;
         if (speech.includes(w)) return hint;
       }
@@ -1224,7 +1229,7 @@ export class GameEngine extends EventEmitter {
       for (const t of hintTokens) if (speechTokens.has(t)) overlap++;
       const smaller = Math.min(hintTokens.size, speechTokens.size);
       const ratio = overlap / smaller;
-      if (ratio >= 0.30) return hint;
+      if (ratio >= 0.42) return hint;
     }
     return null;
   }
