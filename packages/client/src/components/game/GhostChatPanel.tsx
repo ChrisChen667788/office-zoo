@@ -439,6 +439,7 @@ export default function GhostChatPanel({
                     }
                     style={{
                       flex: 1, padding: '5px 10px', borderRadius: 6,
+                      position: 'relative',
                       background: sessionLocked ? 'rgba(239,68,68,0.25)' :
                         lockedRemainingSec > 0 ? 'rgba(176,134,255,0.18)' :
                         psywarTarget ? 'linear-gradient(135deg, #B086FF 0%, #7c3aed 100%)' : 'rgba(176,134,255,0.2)',
@@ -447,11 +448,47 @@ export default function GhostChatPanel({
                       border: 'none', fontWeight: 800, fontSize: 11,
                       cursor: (psywarTarget && !rateLimited) ? 'pointer' : 'not-allowed',
                       fontFamily: 'inherit',
+                      overflow: 'hidden',
                     }}
                   >
-                    {sessionLocked ? '⛔ 配额已用完' :
-                      lockedRemainingSec > 0 ? `⏳ 等 ${lockedRemainingSec}s` :
-                      '👻 让他说'}
+                    {/* v6.31 P3 — cooldown progress ring. SVG overlay
+                        renders an arc from 0 → 360° as the 60s window
+                        elapses; arc fades out the moment the lock
+                        clears. Sits below the text via z-index. */}
+                    {lockedRemainingSec > 0 && (
+                      <svg
+                        aria-hidden
+                        viewBox="0 0 36 36"
+                        style={{
+                          position: 'absolute', top: 2, left: 2,
+                          width: 22, height: 22,
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        {/* track */}
+                        <circle cx={18} cy={18} r={15}
+                          fill="none" stroke="rgba(255,255,255,0.10)"
+                          strokeWidth={3} />
+                        {/* progress arc — strokeDasharray full circumference,
+                            offset = (elapsed/total) * circumference */}
+                        <circle cx={18} cy={18} r={15}
+                          fill="none" stroke="#B086FF" strokeWidth={3}
+                          strokeLinecap="round"
+                          strokeDasharray={2 * Math.PI * 15}
+                          strokeDashoffset={
+                            (2 * Math.PI * 15) * Math.max(0, Math.min(1,
+                              lockedRemainingSec / 60))
+                          }
+                          transform="rotate(-90 18 18)"
+                          style={{ transition: 'stroke-dashoffset 1s linear' }}
+                        />
+                      </svg>
+                    )}
+                    <span style={{ position: 'relative', zIndex: 1, marginLeft: lockedRemainingSec > 0 ? 22 : 0 }}>
+                      {sessionLocked ? '⛔ 配额已用完' :
+                        lockedRemainingSec > 0 ? `等 ${lockedRemainingSec}s` :
+                        '👻 让他说'}
+                    </span>
                   </button>
                   <button
                     type="button"
