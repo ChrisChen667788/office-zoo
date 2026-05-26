@@ -164,6 +164,15 @@ export const ROLE_PRESETS: Record<number, { cat: Role[]; dog: Role[]; neutral: R
     dog: [Role.KILLER_DOG, Role.MORPHING_DOG],
     neutral: [Role.JESTER]
   },
+  // v6.27 P1 — sits between 8 (5/2/1) and 10 (6/3/1). 6/2/1 = 9 total.
+  // Earlier this gap caused `ROLE_PRESETS[9] ?? ROLE_PRESETS[8]` to fall
+  // back to 8 (7 roles) for a 9-player game → roles[8] = undefined →
+  // crash on `ROLE_REGISTRY[undefined].team`. Surfaced by v6.26 P2 tests.
+  9: {
+    cat: [Role.DETECTIVE_CAT, Role.MEDIC_CAT, Role.ENGINEER_CAT, Role.BODYGUARD_CAT, Role.VILLAGER_CAT, Role.VILLAGER_CAT],
+    dog: [Role.KILLER_DOG, Role.MORPHING_DOG],
+    neutral: [Role.JESTER]
+  },
   10: {
     cat: [Role.DETECTIVE_CAT, Role.MEDIC_CAT, Role.ENGINEER_CAT, Role.BODYGUARD_CAT, Role.VIGILANTE_CAT, Role.VILLAGER_CAT],
     dog: [Role.KILLER_DOG, Role.MORPHING_DOG, Role.NINJA_DOG],

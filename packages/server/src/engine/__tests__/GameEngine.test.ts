@@ -65,6 +65,21 @@ describe('GameEngine — state machine basics', () => {
     engine.createPlayers();
     expect(engine.state.players).toHaveLength(8);
   });
+
+  // v6.27 P1 — 9-player preset added; previously fell through to [8]
+  // which had 7 roles → crash at roles[8] = undefined.
+  it('9-player count now works (v6.27 P1)', () => {
+    const engine = newEngine(9);
+    expect(engine.state.players).toHaveLength(9);
+    expect(engine.state.players.every((p) => p.team)).toBe(true);
+    // 6 cat + 2 dog + 1 neutral
+    const teams = engine.state.players.reduce<Record<string, number>>(
+      (acc, p) => ({ ...acc, [p.team]: (acc[p.team] ?? 0) + 1 }), {},
+    );
+    expect(teams['cat']).toBe(6);
+    expect(teams['dog']).toBe(2);
+    expect(teams['neutral']).toBe(1);
+  });
 });
 
 describe('GameEngine — pushLeakedHint (v6.25 P1)', () => {
