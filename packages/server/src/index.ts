@@ -33,6 +33,7 @@ import { dailyChallengeRoutes } from './routes/dailyChallenge';
 import { fortuneRoutes } from './routes/fortune';
 import { memoryRoutes } from './routes/memory';
 import { weeklyRoutes } from './routes/weekly';
+import { statsRoutes } from './routes/stats';
 import { barRoutes } from './routes/bar';
 import { characterRoutes } from './routes/characters';
 import { shareSocialRoutes } from './routes/shareSocial';
@@ -75,6 +76,8 @@ app.route('/api/memory', memoryRoutes);
 // v6.5.0 — 周报生成器. 1 句关键事件 → 4 种风格周报 (阿里黑话 / PUA /
 // 装腔 / 直球). Viral 杠杆: 同一事件被 4 种话术包装后, 对照感强烈。
 app.route('/api/weekly', weeklyRoutes);
+// v6.31 P5 — server-side aggregate stats (global + per-user via X-User-Id).
+app.route('/api/stats', statsRoutes);
 // v6.2.0 — 🍺 深夜酒馆 1v1 dialogue surface. Writes into the same
 // memory_entries table so bar conversations carry over into classic
 // mode AI prompts (see routes/bar.ts header comment).

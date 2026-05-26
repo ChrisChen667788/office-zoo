@@ -1,6 +1,9 @@
 import { Server as SocketServer, Socket } from 'socket.io';
 import { z } from 'zod';
 import { GameEngine } from '../engine/GameEngine';
+import {
+  bumpGameCreated, bumpGameOver, bumpSpeech, bumpLeak, bumpLeakQuote,
+} from '../routes/stats';
 import { generateTTSAudio } from '../services/tts';
 import { extractEvidenceRefs } from '../services/evidenceParser';
 import { generateAvatar, getAllCachedAvatars } from '../services/imageGen';
@@ -252,6 +255,9 @@ export function setupSocketHandler(io: SocketServer) {
       if (result.accepted) {
         psyWarTimes.push(now);
         psyWarTotal++;
+        // v6.31 P5 — bump server-side stats (engine.spectatorUserId
+        // identifies the user, optional for anonymous sessions).
+        bumpLeak(engine.spectatorUserId ?? undefined);
         socketLog.debug({ sid: socket.id, gameId: currentGameId, len: text.length, sessionTotal: psyWarTotal }, 'psy-war leak accepted');
       }
     });
@@ -321,6 +327,9 @@ function startTTLSweeper() {
 function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngine) {
   const glog = gameLogger(gameId);
   const speechLog = glog.child({ component: 'speechQueue' });
+
+  // v6.31 P5 — server-side stats counter bumps.
+  engine.on('roster_created', (data: { names: string[] }) => bumpGameCreated(data.names));
 
   engine.on('phase_change', (data) => {
     io.to(gameId).emit('game:phase_change', data);
@@ -419,6 +428,9 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
           team: item.team,
           ...(evidence.length > 0 ? { evidence } : {}),
         });
+        // v6.31 P5 — server stats: this counts every AI-generated
+        // speech that reached a room (post-evidence-extraction).
+        bumpSpeech();
 
         // v6.26 P1 — leak quote detection. If this AI speech reuses a
         // chunk of any active psy-war leak, emit a separate signal so
@@ -426,6 +438,8 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
         // the source leak bubble in GhostChatPanel. Fire-and-forget.
         const quotedHint = engine.detectLeakQuote(item.text);
         if (quotedHint) {
+          // v6.31 P5 — credit the spectator who fed this leak.
+          bumpLeakQuote(engine.spectatorUserId ?? undefined);
           room.emit('game:leak_quoted', {
             hintText: quotedHint,
             byPlayerId: item.playerId,
@@ -560,6 +574,7 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
   engine.on('game_over', (data) => {
     io.to(gameId).emit('game:over', data);
     io.to(gameId).emit('game:state', engine.getSerializedState());
+    bumpGameOver();
     // Clean up after 60 s (clients have time to receive final state).
     // Use destroyGame to ensure listeners + agents are released, not just
     // the Map entry — otherwise EventEmitter listeners + agent references
