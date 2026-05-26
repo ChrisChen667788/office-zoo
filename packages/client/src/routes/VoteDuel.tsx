@@ -298,6 +298,8 @@ function CreateView({
       });
       if (!r.ok) { setErr(`创建失败 (${r.status})`); return; }
       const data = await r.json();
+      // v6.31 P2 — bump duel_participated for the achievement.
+      void import('../utils/achievements').then((m) => m.bumpProgress('duel_participated', 1));
       onCreated(data.duelId);
     } catch {
       setErr('网络错误');

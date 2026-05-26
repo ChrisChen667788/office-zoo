@@ -1279,6 +1279,9 @@ function PlayerView({
         if (ok) {
           setAudioState('playing');
           armEndTimer(script.durationSec);
+          // v6.31 P2 — bump talkshow_played for the achievement
+          // (5-play threshold unlocks talkshow_5).
+          void import('../utils/achievements').then((m) => m.bumpProgress('talkshow_played', 1));
         } else {
           // Autoplay denied. Surface an explicit play button.
           setAudioState('ready');

@@ -397,6 +397,8 @@ export default function Classic() {
     'game:over': (data: { winner: string }) => {
       const w = data.winner === 'cat' ? '打工人阵营' : data.winner === 'dog' ? '资本家阵营' : data.winner;
       pushEvent('system', `散伙饭! ${w} 获胜!`);
+      // v6.31 P2 — bump classic_finished progress for the achievement.
+      void import('../utils/achievements').then((m) => m.bumpProgress('classic_finished', 1));
     },
 
     'game:avatar_ready': (data: { role: string; url: string }) => {
