@@ -33,8 +33,9 @@ import { dailyChallengeRoutes } from './routes/dailyChallenge';
 import { fortuneRoutes } from './routes/fortune';
 import { memoryRoutes } from './routes/memory';
 import { weeklyRoutes } from './routes/weekly';
-import { statsRoutes } from './routes/stats';
+import { statsRoutes, initStatsPersistence } from './routes/stats';
 import { banweiRoutes } from './routes/banwei';
+import { hotQuotesRoutes } from './routes/hotQuotes';
 import { barRoutes } from './routes/bar';
 import { characterRoutes } from './routes/characters';
 import { shareSocialRoutes } from './routes/shareSocial';
@@ -81,6 +82,9 @@ app.route('/api/weekly', weeklyRoutes);
 app.route('/api/stats', statsRoutes);
 // v6.32 P5 — 班味指数 weekly score + WoW delta + history.
 app.route('/api/banwei', banweiRoutes);
+// v6.33 P4 — spectator-curated 班味金句池. Submitted quotes get
+// injected into the next game's leakedHints alongside per-user PSYWAR.
+app.route('/api/hot-quotes', hotQuotesRoutes);
 // v6.2.0 — 🍺 深夜酒馆 1v1 dialogue surface. Writes into the same
 // memory_entries table so bar conversations carry over into classic
 // mode AI prompts (see routes/bar.ts header comment).
@@ -182,6 +186,9 @@ const wsPort = parseInt(process.env.WS_PORT || '3101');
 serve({ fetch: app.fetch, port }, () => {
   logger.info({ port }, 'HTTP server listening');
 });
+
+// v6.33 P5 — load persisted spectator counters + arm 60s flush timer.
+initStatsPersistence();
 
 // v6.13 — sweep OG cache directory at boot + every hour, dropping files
 // older than 7 days. Keeps the disk bounded as stats invalidations

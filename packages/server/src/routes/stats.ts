@@ -22,6 +22,17 @@
  *   counters keyed by user id.
  */
 import { Hono } from 'hono';
+import { promises as fs } from 'node:fs';
+import * as path from 'node:path';
+
+// v6.33 P5 — disk snapshot. Counters are still hot-path (every bump
+// mutates Maps in-memory), but we periodically + on-shutdown persist
+// to stats.json so server restart doesn't reset spectator metrics.
+const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
+const DATA_FILE = path.join(DATA_DIR, 'stats.json');
+const FLUSH_INTERVAL_MS = 60_000;
+let dirtySinceLastFlush = false;
+let flushTimer: NodeJS.Timeout | null = null;
 
 // ── In-memory counters (server-lifetime) ───────────────────────────
 interface Counters {
@@ -48,6 +59,77 @@ const counters: Counters = {
   perUserLeakQuotes: new Map(),
 };
 
+/* ── Persistence (v6.33 P5) ─────────────────────────────────────── */
+
+interface Persisted {
+  totalGames: number;
+  totalPlayersSpawned: number;
+  totalSpeeches: number;
+  totalLeaks: number;
+  totalLeakQuotes: number;
+  ratAppearances: Array<[string, number]>;
+  perUserLeaks: Array<[string, number]>;
+  perUserLeakQuotes: Array<[string, number]>;
+}
+
+export async function loadCountersFromDisk(): Promise<void> {
+  try {
+    const raw = await fs.readFile(DATA_FILE, 'utf8');
+    const p = JSON.parse(raw) as Partial<Persisted>;
+    counters.totalGames = p.totalGames ?? 0;
+    counters.totalPlayersSpawned = p.totalPlayersSpawned ?? 0;
+    counters.totalSpeeches = p.totalSpeeches ?? 0;
+    counters.totalLeaks = p.totalLeaks ?? 0;
+    counters.totalLeakQuotes = p.totalLeakQuotes ?? 0;
+    counters.ratAppearances = new Map(p.ratAppearances ?? []);
+    counters.perUserLeaks = new Map(p.perUserLeaks ?? []);
+    counters.perUserLeakQuotes = new Map(p.perUserLeakQuotes ?? []);
+    // activeGames NOT restored — restart drops live game state, so
+    // any "active" claim from the prior process would be a lie.
+    counters.activeGames = 0;
+  } catch {
+    // ENOENT on first boot — silent. Counters stay at module init.
+  }
+}
+
+async function flushToDisk(): Promise<void> {
+  if (!dirtySinceLastFlush) return;
+  const payload: Persisted = {
+    totalGames: counters.totalGames,
+    totalPlayersSpawned: counters.totalPlayersSpawned,
+    totalSpeeches: counters.totalSpeeches,
+    totalLeaks: counters.totalLeaks,
+    totalLeakQuotes: counters.totalLeakQuotes,
+    ratAppearances: [...counters.ratAppearances.entries()],
+    perUserLeaks: [...counters.perUserLeaks.entries()],
+    perUserLeakQuotes: [...counters.perUserLeakQuotes.entries()],
+  };
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    const tmp = DATA_FILE + '.tmp';
+    await fs.writeFile(tmp, JSON.stringify(payload, null, 2), 'utf8');
+    await fs.rename(tmp, DATA_FILE);
+    dirtySinceLastFlush = false;
+  } catch { /* disk write failed — counters still in memory */ }
+}
+
+/** Idempotent — call once on server boot. Loads counters + arms a
+ *  periodic flush timer. SIGINT/SIGTERM handlers also flush on exit. */
+export function initStatsPersistence(): void {
+  if (flushTimer) return;
+  void loadCountersFromDisk();
+  flushTimer = setInterval(() => void flushToDisk(), FLUSH_INTERVAL_MS);
+  flushTimer.unref?.();
+  // Best-effort on graceful shutdown — synchronous is impossible with
+  // fs.promises so we do an async flush and hope the event loop gets
+  // a tick. Most platforms give us ~1s before SIGKILL.
+  for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+    process.once(sig, () => { void flushToDisk(); });
+  }
+}
+
+function markDirty(): void { dirtySinceLastFlush = true; }
+
 /* ── Public mutators (call from engine / socket) ────────────────── */
 
 export function bumpGameCreated(playerNames: string[]): void {
@@ -57,19 +139,22 @@ export function bumpGameCreated(playerNames: string[]): void {
   for (const name of playerNames) {
     counters.ratAppearances.set(name, (counters.ratAppearances.get(name) ?? 0) + 1);
   }
+  markDirty();
 }
 
 export function bumpGameOver(): void {
   counters.activeGames = Math.max(0, counters.activeGames - 1);
+  markDirty();
 }
 
-export function bumpSpeech(): void { counters.totalSpeeches += 1; }
+export function bumpSpeech(): void { counters.totalSpeeches += 1; markDirty(); }
 
 export function bumpLeak(userId?: string): void {
   counters.totalLeaks += 1;
   if (userId) {
     counters.perUserLeaks.set(userId, (counters.perUserLeaks.get(userId) ?? 0) + 1);
   }
+  markDirty();
 }
 
 export function bumpLeakQuote(userId?: string): void {
@@ -77,6 +162,7 @@ export function bumpLeakQuote(userId?: string): void {
   if (userId) {
     counters.perUserLeakQuotes.set(userId, (counters.perUserLeakQuotes.get(userId) ?? 0) + 1);
   }
+  markDirty();
 }
 
 /** v6.32 P5 — read accessors for cross-route consumers (banwei).

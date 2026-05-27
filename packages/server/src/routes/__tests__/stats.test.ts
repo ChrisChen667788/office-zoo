@@ -138,3 +138,45 @@ describe('stats — per-user X-User-Id scoping', () => {
     expect(j.user.hitRate).toBe(0);
   });
 });
+
+// v6.33 P5 — disk persistence behavior
+describe('stats — disk persistence', () => {
+  it('loadCountersFromDisk restores prior tallies', async () => {
+    const { loadCountersFromDisk } = await import('../stats');
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    // Write a synthetic snapshot. Path matches module's DATA_FILE.
+    const DATA_DIR = path.resolve(__dirname, '..', '..', '..', 'data');
+    const DATA_FILE = path.join(DATA_DIR, 'stats.json');
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    const original = await fs.readFile(DATA_FILE, 'utf8').catch(() => null);
+    try {
+      await fs.writeFile(DATA_FILE, JSON.stringify({
+        totalGames: 42,
+        totalPlayersSpawned: 200,
+        totalSpeeches: 999,
+        totalLeaks: 7,
+        totalLeakQuotes: 3,
+        ratAppearances: [['Tony', 11], ['Helen', 5]],
+        perUserLeaks: [['alice', 4]],
+        perUserLeakQuotes: [['alice', 2]],
+      }), 'utf8');
+      clearCountersForTest();
+      await loadCountersFromDisk();
+      const j = await fetchOverview('alice');
+      expect(j.global.totalGames).toBe(42);
+      expect(j.global.totalLeaks).toBe(7);
+      expect(j.global.totalLeakQuotes).toBe(3);
+      expect(j.global.activeGames).toBe(0); // not restored — see comment in source
+      expect(j.global.topRats[0]).toEqual({ name: 'Tony', count: 11 });
+      expect(j.user.leaks).toBe(4);
+      expect(j.user.leakQuotes).toBe(2);
+      expect(j.user.hitRate).toBe(0.5);
+    } finally {
+      // Restore prior file (or delete if it didn't exist before)
+      if (original === null) await fs.unlink(DATA_FILE).catch(() => {});
+      else await fs.writeFile(DATA_FILE, original, 'utf8');
+      clearCountersForTest();
+    }
+  });
+});
