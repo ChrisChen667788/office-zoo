@@ -128,9 +128,17 @@ export default function GhostChatPanel({
 }: GhostChatPanelProps) {
   // v6.30 P3 — rate-limit countdown ticker. Re-render once a second
   // while a window lock is active so the "等 Ns" label decreases live.
+  //
+  // v6.33 P2 — fix initial-tick stale-nowMs bug: when the user triggers
+  // cooldown after the panel has been mounted for N seconds, the first
+  // render after lockedUntilMs is set computes remaining = (until -
+  // stale_nowMs) which inflates by N. Patch: on lockedUntilMs change,
+  // synchronously refresh nowMs BEFORE setting the interval, so the
+  // initial render is correct + subsequent ticks add 1s each.
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     if (!lockedUntilMs || lockedUntilMs <= Date.now()) return;
+    setNowMs(Date.now()); // ← immediate refresh to avoid stale jump
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, [lockedUntilMs]);
