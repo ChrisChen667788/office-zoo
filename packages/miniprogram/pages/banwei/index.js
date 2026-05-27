@@ -1,6 +1,7 @@
 // pages/banwei — 班味指数 原生小程序页面 (不依赖 webview).
 // 直接调用 server API: POST /api/banwei + 拉本周 score + breakdown.
 const app = getApp();
+const { paintBanwei } = require('../../utils/banweiPaint');
 
 Page({
   data: {
@@ -96,10 +97,14 @@ Page({
       });
   },
 
-  /** Mirror of utils/banweiShareCard.ts paint pipeline, adapted to
-   *  wx Canvas 2D quirks (no createLinearGradient with float stops,
-   *  no globalCompositeOperation issues — keep it linear). */
+  /** Delegates to extracted pure fn (v6.36 P2). Real paint logic lives
+   *  in utils/banweiPaint.js so it's unit-testable. */
   paintCanvas(ctx, W, H) {
+    paintBanwei(ctx, W, H, this.data);
+  },
+
+  // Stub kept so any external caller still works during migration.
+  _paintCanvasInline(ctx, W, H) {
     const { score, tierLabel, tierEmoji, tierAccent, breakdown, priorScore, delta } = this.data;
     // BG — radial-ish via stacked fills (wx Canvas 2D supports createRadialGradient).
     const bg = ctx.createRadialGradient(W / 2, H * 0.4, W * 0.1, W / 2, H / 2, W * 0.9);
