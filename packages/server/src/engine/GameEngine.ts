@@ -61,8 +61,11 @@ function shuffle<T>(arr: T[]): T[] {
  *  with probability proportional to its weight (clamped ≥ 0.01 so
  *  zero-weight items still have a tiny chance, preventing a single
  *  trending name from dominating every game). Used by createPlayers
- *  to bias the AI roster toward hot-quote-nominated names. */
-function weightedSample<T>(items: T[], weights: number[], count: number): T[] {
+ *  to bias the AI roster toward hot-quote-nominated names.
+ *
+ *  Exported (v6.36 P1) for direct vitest invocation — math sanity
+ *  checks live in GameEngine.test.ts. */
+export function weightedSample<T>(items: T[], weights: number[], count: number): T[] {
   const pool = items.map((it, i) => ({ it, w: Math.max(0.01, weights[i] ?? 1) }));
   const out: T[] = [];
   for (let k = 0; k < count && pool.length > 0; k++) {

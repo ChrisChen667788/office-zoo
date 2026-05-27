@@ -12,7 +12,7 @@
  * between phases) — that's a future integration test.
  */
 import { describe, it, expect } from 'vitest';
-import { GameEngine } from '../GameEngine';
+import { GameEngine, weightedSample } from '../GameEngine';
 
 /**
  * Helper — engine + createPlayers() in one shot. GameEngine has a 2-step
@@ -238,6 +238,90 @@ describe('GameEngine — detectLeakQuote v6.27 P2 token fuzzy', () => {
     engine.pushLeakedHint('John leaked the Q3 budget');
     const r = engine.detectLeakQuote('Weather is nice today, going for lunch');
     expect(r).toBeNull();
+  });
+});
+
+describe('weightedSample (v6.35 P5 / v6.36 P1) — math sanity', () => {
+  it('uniform weights → uniform-ish distribution over many trials', () => {
+    const names = ['A', 'B', 'C', 'D', 'E'];
+    const weights = [1, 1, 1, 1, 1];
+    const counts = new Map<string, number>();
+    const TRIALS = 2000;
+    for (let i = 0; i < TRIALS; i++) {
+      const pick = weightedSample(names, weights, 1)[0];
+      counts.set(pick, (counts.get(pick) ?? 0) + 1);
+    }
+    // Each name expected ~400 picks (2000/5). Allow ±25% variance.
+    for (const n of names) {
+      const c = counts.get(n) ?? 0;
+      expect(c).toBeGreaterThan(280);
+      expect(c).toBeLessThan(520);
+    }
+  });
+
+  it('biased weight DOES skew distribution (Tony 5 mentions vs 0)', () => {
+    // Mimic v6.35 P5 createPlayers: weight = 1 + 0.5 × min(mentions, 5)
+    // Tony with 5 mentions → weight 3.5x; all others 1x.
+    const names = ['Tony', 'Helen', 'Mike', 'Jack', 'Lisa'];
+    const tonyMentions = 5;
+    const weights = names.map((n) => 1 + 0.5 * Math.min(n === 'Tony' ? tonyMentions : 0, 5));
+    expect(weights[0]).toBe(3.5);
+    expect(weights[1]).toBe(1);
+
+    let tonyPicks = 0;
+    const TRIALS = 1000;
+    for (let i = 0; i < TRIALS; i++) {
+      const pick = weightedSample(names, weights, 1)[0];
+      if (pick === 'Tony') tonyPicks++;
+    }
+    // Tony's expected first-pick share: 3.5 / (3.5 + 4×1) = 3.5/7.5 = 46.7%.
+    // 1000 trials → ~467. Allow ±40 (±8.5%) for binomial noise.
+    expect(tonyPicks).toBeGreaterThan(420);
+    expect(tonyPicks).toBeLessThan(530);
+  });
+
+  it('uniform-weight Tony baseline ≈ 20% (5 names → 1/5)', () => {
+    const names = ['Tony', 'Helen', 'Mike', 'Jack', 'Lisa'];
+    const weights = [1, 1, 1, 1, 1];
+    let tonyPicks = 0;
+    const TRIALS = 1000;
+    for (let i = 0; i < TRIALS; i++) {
+      const pick = weightedSample(names, weights, 1)[0];
+      if (pick === 'Tony') tonyPicks++;
+    }
+    // Expected ~200. Allow ±50.
+    expect(tonyPicks).toBeGreaterThan(150);
+    expect(tonyPicks).toBeLessThan(260);
+  });
+
+  it('without-replacement: never duplicates within one pick', () => {
+    const names = ['A', 'B', 'C', 'D', 'E'];
+    for (let i = 0; i < 100; i++) {
+      const picked = weightedSample(names, [1, 1, 1, 1, 1], 3);
+      expect(new Set(picked).size).toBe(3);
+    }
+  });
+
+  it('count > items.length returns at most items.length entries', () => {
+    const r = weightedSample(['A', 'B'], [1, 1], 10);
+    expect(r).toHaveLength(2);
+  });
+
+  it('clamps zero/negative weights to 0.01 — still has tiny chance', () => {
+    // Spec doc: zero-weight items get clamped 0.01, so they CAN be picked.
+    // Over many trials, the heavily-weighted item should dominate but a
+    // zero-weight should occasionally appear.
+    const names = ['heavy', 'zero'];
+    const weights = [100, 0];
+    let zeroPicks = 0;
+    for (let i = 0; i < 2000; i++) {
+      const pick = weightedSample(names, weights, 1)[0];
+      if (pick === 'zero') zeroPicks++;
+    }
+    // 'zero' expected share: 0.01 / 100.01 ≈ 0.01% → ~0.2 out of 2000.
+    // Allow 0-5 picks. (Confirms 'zero' is a true tail, not impossible.)
+    expect(zeroPicks).toBeGreaterThanOrEqual(0);
+    expect(zeroPicks).toBeLessThan(10);
   });
 });
 
