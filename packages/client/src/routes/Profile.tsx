@@ -35,6 +35,7 @@ import MyLeaksPanel from '../components/character/MyLeaksPanel';
 import AchievementsPanel from '../components/character/AchievementsPanel';
 import StatsOverviewPanel from '../components/character/StatsOverviewPanel';
 import BanweiIndexCard from '../components/character/BanweiIndexCard';
+import LeaderboardPanel from '../components/character/LeaderboardPanel';
 import { setProgress as setAchievementProgress } from '../utils/achievements';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
@@ -218,6 +219,13 @@ export default function Profile() {
           POSTs current client counters → server merges with its leak
           tallies → score 0-100. */}
       <BanweiIndexCard />
+
+      {/* v6.36 P4 — cross-user 班味 Top-10 leaderboard. Reads server
+          /api/leaderboard/banwei (reducer over the same banwei.json
+          BanweiIndexCard writes to). Privacy: userId truncated to 8
+          chars in the payload so passersby can't reverse-engineer
+          identity, but you recognize your own row. */}
+      <LeaderboardPanel />
     </div>
   );
 }

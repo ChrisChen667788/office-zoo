@@ -151,3 +151,16 @@ function findPriorWeek(arr: Snapshot[], wantWeek: string): Snapshot | null {
   }
   return best;
 }
+
+// v6.36 P4 — read-only access to the on-disk snapshot store. Used by
+// the leaderboard route to compute top-N without re-implementing
+// load/cache. Async because the cache might not be warm yet.
+export async function loadBanweiStoreReadonly(): Promise<{
+  byUser: Record<string, Snapshot[]>;
+}> {
+  const store = await load();
+  return { byUser: store.byUser };
+}
+
+// v6.36 P4 — exported snapshot type for the leaderboard reducer.
+export type BanweiSnapshot = Snapshot;

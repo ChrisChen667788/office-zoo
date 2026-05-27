@@ -35,6 +35,7 @@ import { memoryRoutes } from './routes/memory';
 import { weeklyRoutes } from './routes/weekly';
 import { statsRoutes, initStatsPersistence } from './routes/stats';
 import { banweiRoutes } from './routes/banwei';
+import { leaderboardRoutes } from './routes/leaderboard';
 import { hotQuotesRoutes } from './routes/hotQuotes';
 import { barRoutes } from './routes/bar';
 import { characterRoutes } from './routes/characters';
@@ -82,6 +83,9 @@ app.route('/api/weekly', weeklyRoutes);
 app.route('/api/stats', statsRoutes);
 // v6.32 P5 — 班味指数 weekly score + WoW delta + history.
 app.route('/api/banwei', banweiRoutes);
+// v6.36 P4 — public cross-user top-10 班味 leaderboard. Reads the
+// same banwei store; userId truncated to 8 chars in the response.
+app.route('/api/leaderboard', leaderboardRoutes);
 // v6.33 P4 — spectator-curated 班味金句池. Submitted quotes get
 // injected into the next game's leakedHints alongside per-user PSYWAR.
 app.route('/api/hot-quotes', hotQuotesRoutes);
