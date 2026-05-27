@@ -42,8 +42,12 @@
       </view>
     </view>
 
-    <view class="cta" bindtap="onShareCard">📤 复制分享</view>
+    <view class="cta" bindtap="onShareCard">📤 生成 1080×1350 班味海报</view>
+    <button open-type="share" class="share-btn">📨 转发给朋友</button>
   </block>
+
+  <!-- v6.35 P1 — off-screen canvas for the 1080x1350 share card -->
+  <canvas type="2d" id="share-canvas" class="off-canvas"></canvas>
 
   <view class="footer">
     <view class="ft-line">💡 真正的高分要去 H5 端玩 PSYWAR + 听段子 + 看周年</view>
