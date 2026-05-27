@@ -75,6 +75,29 @@ export async function getRecentHotQuoteTexts(): Promise<string[]> {
     .map((e) => e.text);
 }
 
+/** v6.35 P5 — count how often each name (case-sensitive substring
+ *  match) appears in the recent quote pool. GameEngine.createPlayers
+ *  uses this to bias the AI roster shuffle so heavily-mentioned rats
+ *  are more likely to appear in the next game. Window: last 7 days.
+ *  Returns Map<name, count> for the candidate names passed in. */
+export async function getRecentNominationCounts(
+  candidates: string[],
+): Promise<Map<string, number>> {
+  const s = await load();
+  const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recent = s.entries.filter((e) => e.ts >= since);
+  const out = new Map<string, number>();
+  for (const name of candidates) out.set(name, 0);
+  for (const entry of recent) {
+    for (const name of candidates) {
+      if (entry.text.includes(name)) {
+        out.set(name, (out.get(name) ?? 0) + 1);
+      }
+    }
+  }
+  return out;
+}
+
 /** Exported for testing. */
 export async function clearHotQuotesForTest(): Promise<void> {
   cache = { entries: [] };

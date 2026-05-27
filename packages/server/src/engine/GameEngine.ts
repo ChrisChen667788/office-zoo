@@ -57,6 +57,29 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+/** v6.35 P5 — weighted sample-without-replacement. Each item picks
+ *  with probability proportional to its weight (clamped ≥ 0.01 so
+ *  zero-weight items still have a tiny chance, preventing a single
+ *  trending name from dominating every game). Used by createPlayers
+ *  to bias the AI roster toward hot-quote-nominated names. */
+function weightedSample<T>(items: T[], weights: number[], count: number): T[] {
+  const pool = items.map((it, i) => ({ it, w: Math.max(0.01, weights[i] ?? 1) }));
+  const out: T[] = [];
+  for (let k = 0; k < count && pool.length > 0; k++) {
+    const total = pool.reduce((s, p) => s + p.w, 0);
+    let r = Math.random() * total;
+    let idx = 0;
+    for (; idx < pool.length; idx++) {
+      r -= pool[idx].w;
+      if (r <= 0) break;
+    }
+    if (idx >= pool.length) idx = pool.length - 1;
+    out.push(pool[idx].it);
+    pool.splice(idx, 1);
+  }
+  return out;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -192,11 +215,18 @@ export class GameEngine extends EventEmitter {
 
   // ---------- Setup ----------
 
-  createPlayers(weeklyLeaders: Record<string, string> = {}): void {
+  createPlayers(
+    weeklyLeaders: Record<string, string> = {},
+    nominationCounts: Map<string, number> = new Map(),
+  ): void {
     const count = this.state.config.playerCount;
     const preset = ROLE_PRESETS[count] ?? ROLE_PRESETS[8];
     const roles: Role[] = shuffle([...preset.cat, ...preset.dog, ...preset.neutral]);
-    const names = shuffle([...AI_NAMES]).slice(0, count);
+    // v6.35 P5 — weight each name by its hot-quote nomination count
+    // over the last 7 days. weight = 1 + 0.5 × min(mentions, 5) — caps
+    // at 3.5x so even a heavily-quoted rat doesn't show up every game.
+    const weights = AI_NAMES.map((n) => 1 + 0.5 * Math.min(nominationCounts.get(n) ?? 0, 5));
+    const names = weightedSample(AI_NAMES, weights, count);
     const personalities = assignPersonalities(count);
 
     // v6.16 P1 — apply per-character weekly-vote bias. For each named
@@ -270,7 +300,16 @@ export class GameEngine extends EventEmitter {
     } catch {
       /* fail-open — vote bias is polish, not gating */
     }
-    this.createPlayers(weeklyLeaders);
+    // v6.35 P5 — fetch hot-quotes nominations BEFORE createPlayers so
+    // the weighted sample uses the latest 7-day counts. Fail-open: if
+    // hot quotes module errors, fall back to uniform shuffle (empty map).
+    let nominationCounts = new Map<string, number>();
+    try {
+      const { getRecentNominationCounts } = await import('../routes/hotQuotes');
+      nominationCounts = await getRecentNominationCounts(AI_NAMES);
+    } catch { /* uniform fallback */ }
+
+    this.createPlayers(weeklyLeaders, nominationCounts);
     // v6.31 P5 — bump server stats counters once roster is populated.
     this.emit('roster_created', { names: this.state.players.map((p) => p.name) });
     // v6.33 P4 — seed leakedHints with recent spectator-submitted 班味

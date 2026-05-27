@@ -100,3 +100,24 @@ describe('GET /api/hot-quotes/recent', () => {
     expect(j.texts).toEqual(['hello']);
   });
 });
+
+describe('getRecentNominationCounts (v6.35 P5)', () => {
+  it('counts substring mentions across recent entries', async () => {
+    const { getRecentNominationCounts } = await import('../hotQuotes');
+    await post('小心 Tony, 他在装');
+    await post('Tony 那个 PRD 抄的吧', 'bob');
+    await post('Helen 那个 PRD 也抄了', 'carol');
+    const m = await getRecentNominationCounts(['Tony', 'Helen', 'Mike']);
+    expect(m.get('Tony')).toBe(2);
+    expect(m.get('Helen')).toBe(1);
+    expect(m.get('Mike')).toBe(0);
+  });
+
+  it('returns zero map when no entries match', async () => {
+    const { getRecentNominationCounts } = await import('../hotQuotes');
+    await post('完全无关的一句话');
+    const m = await getRecentNominationCounts(['Tony', 'Helen']);
+    expect(m.get('Tony')).toBe(0);
+    expect(m.get('Helen')).toBe(0);
+  });
+});
