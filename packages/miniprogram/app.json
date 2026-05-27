@@ -2,6 +2,7 @@
   "pages": [
     "pages/landing/index",
     "pages/banwei/index",
+    "pages/hot-quotes/index",
     "pages/anniversary/index",
     "pages/profile/index"
   ],
@@ -25,6 +26,10 @@
       {
         "pagePath": "pages/banwei/index",
         "text": "班味指数"
+      },
+      {
+        "pagePath": "pages/hot-quotes/index",
+        "text": "金句池"
       },
       {
         "pagePath": "pages/anniversary/index",

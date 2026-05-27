@@ -1,0 +1,50 @@
+<view class="root">
+  <view class="header">
+    <view class="hd-label">🔥 班味金句池 · HOT QUOTES</view>
+    <view class="hd-sub">你写的下一局 AI 鼠人可能引用 · 每人每周最多 5 条</view>
+  </view>
+
+  <view class="submit-card">
+    <textarea
+      class="ta"
+      value="{{text}}"
+      bindinput="onInput"
+      placeholder='例: "拥抱变化" 拥抱了不到 40 分钟, 我先撤了'
+      maxlength="80"
+      auto-height />
+    <view class="meta-row">
+      <view class="meta">{{text.length}}/80 · {{thisWeek === null ? '本周还没投' : '本周已投 ' + thisWeek + '/5'}}</view>
+      <button
+        class="submit {{status === 'cap' ? 'cap' : status === 'ok' ? 'ok' : ''}}"
+        bindtap="submit"
+        disabled="{{!text.trim() || submitting || status === 'cap'}}">
+        {{status === 'ok' ? '✓ 已投' : status === 'cap' ? '本周已满' : status === 'err' ? '失败 重试' : submitting ? '提交中...' : '投递 →'}}
+      </button>
+    </view>
+  </view>
+
+  <view class="recent-header">最近 50 条 · 全网</view>
+
+  <block wx:if="{{loadingList}}">
+    <view class="state">加载中...</view>
+  </block>
+  <block wx:elif="{{listErr}}">
+    <view class="state err">⚠ {{listErr}}</view>
+  </block>
+  <block wx:elif="{{!recentList.length}}">
+    <view class="state">还没人投, 你就是第一个 🌱</view>
+  </block>
+  <block wx:else>
+    <view class="recent-list">
+      <view class="recent-item" wx:for="{{recentList}}" wx:key="id">
+        <view class="rt-text">{{item.text}}</view>
+        <view class="rt-meta">{{item.weekKey}} · {{formatTs(item.ts)}}</view>
+      </view>
+    </view>
+  </block>
+
+  <view class="footer">
+    <view class="ft-line">💡 服务器会在每场新局开始时, 抽 5 条 recent 金句</view>
+    <view class="ft-line">塞进 AI 鼠人的 prompt 上下文 — 它真的可能照念你的话</view>
+  </view>
+</view>
