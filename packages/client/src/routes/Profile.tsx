@@ -33,6 +33,8 @@ import MyBallotsPanel from '../components/character/MyBallotsPanel';
 import MyDuelsPanel from '../components/character/MyDuelsPanel';
 import MyLeaksPanel from '../components/character/MyLeaksPanel';
 import AchievementsPanel from '../components/character/AchievementsPanel';
+import StatsOverviewPanel from '../components/character/StatsOverviewPanel';
+import BanweiIndexCard from '../components/character/BanweiIndexCard';
 import { setProgress as setAchievementProgress } from '../utils/achievements';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
@@ -207,6 +209,15 @@ export default function Profile() {
 
       {/* v6.30 P4 — spectator 班味成就 grid (12 achievements). */}
       <AchievementsPanel />
+
+      {/* v6.32 P1 — server-side stats dashboard (global trio + Top 5 rats
+          podium + per-user hit-rate gauge). Reads /api/stats/overview. */}
+      <StatsOverviewPanel />
+
+      {/* v6.32 P5 — 班味指数 weekly score + WoW delta + breakdown.
+          POSTs current client counters → server merges with its leak
+          tallies → score 0-100. */}
+      <BanweiIndexCard />
     </div>
   );
 }
