@@ -1,0 +1,28 @@
+{
+  "miniprogramRoot": "./",
+  "projectname": "office-zoo-mp",
+  "description": "OFFICE ZOO · 班味剧场 微信小程序端 — 4 page webview + 班味指数原生",
+  "appid": "REPLACE_WITH_YOUR_APPID",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "minified": true,
+    "newFeature": true,
+    "postcss": true,
+    "preloadBackgroundData": false,
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.5.6",
+  "condition": {},
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  }
+}

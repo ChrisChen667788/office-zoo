@@ -1,0 +1,42 @@
+{
+  "pages": [
+    "pages/landing/index",
+    "pages/banwei/index",
+    "pages/anniversary/index",
+    "pages/profile/index"
+  ],
+  "window": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "OFFICE ZOO · 班味剧场",
+    "navigationBarBackgroundColor": "#0a0a1e",
+    "backgroundColor": "#0a0a1e",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "rgba(255,255,255,0.55)",
+    "selectedColor": "#FFD700",
+    "backgroundColor": "#0a0a1e",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/landing/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/banwei/index",
+        "text": "班味指数"
+      },
+      {
+        "pagePath": "pages/anniversary/index",
+        "text": "周年"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2",
+  "componentFramework": "glass-easel"
+}

@@ -1,0 +1,66 @@
+.root { padding: 32rpx; min-height: 100vh; }
+.header { margin-bottom: 32rpx; }
+.hd-label {
+  font-size: 22rpx; font-weight: 900; letter-spacing: 6rpx;
+  color: #4ECDC4; text-transform: uppercase; margin-bottom: 8rpx;
+}
+.hd-sub { font-size: 24rpx; color: rgba(255,255,255,0.55); }
+
+.state { text-align: center; padding: 80rpx 0; color: rgba(255,255,255,0.4); }
+.state.err { color: #ef4444; white-space: pre-line; }
+
+.card {
+  padding: 32rpx;
+  border-radius: 24rpx;
+  background: rgba(15,14,46,0.6);
+  border: 2rpx solid rgba(255,215,0,0.25);
+  margin-bottom: 24rpx;
+}
+
+.score-row { display: flex; align-items: center; gap: 32rpx; margin-bottom: 32rpx; }
+.score-badge {
+  width: 200rpx; height: 200rpx; border-radius: 40rpx;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.score-num { font-size: 76rpx; font-weight: 900; color: #0a0a1e; line-height: 1; }
+.score-cap {
+  font-size: 18rpx; font-weight: 900; color: rgba(10,10,30,0.65);
+  letter-spacing: 4rpx; margin-top: 8rpx;
+}
+.score-side { flex: 1; }
+.tier-label { font-size: 36rpx; font-weight: 900; margin-bottom: 12rpx; }
+.wow { font-size: 24rpx; color: rgba(255,255,255,0.55); }
+.wow .up { color: #22c55e; font-weight: 900; margin-left: 12rpx; }
+.wow .down { color: #ef4444; font-weight: 900; margin-left: 12rpx; }
+.wow .flat { color: rgba(255,255,255,0.6); font-weight: 900; margin-left: 12rpx; }
+.wow-empty { font-size: 22rpx; color: rgba(255,255,255,0.45); }
+
+.breakdown { display: flex; flex-direction: column; gap: 14rpx; }
+.bd-row { display: flex; align-items: center; gap: 16rpx; }
+.bd-name { width: 140rpx; font-size: 24rpx; color: rgba(255,255,255,0.7); }
+.bd-bar {
+  flex: 1; height: 12rpx; border-radius: 8rpx;
+  background: rgba(255,255,255,0.06); overflow: hidden;
+}
+.bd-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ECDC4, #B086FF);
+  transition: width 0.32s ease-out;
+}
+.bd-count {
+  font-size: 20rpx; color: rgba(255,255,255,0.55);
+  width: 90rpx; text-align: right;
+}
+
+.footer {
+  margin-top: 48rpx;
+  padding: 24rpx;
+  background: rgba(255,255,255,0.03);
+  border-radius: 16rpx;
+}
+.ft-line {
+  font-size: 22rpx;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 6rpx;
+  line-height: 1.6;
+}

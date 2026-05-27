@@ -1,0 +1,52 @@
+<view class="root">
+  <view class="header">
+    <view class="hd-label">📈 班味指数 · BANWEI INDEX</view>
+    <view class="hd-sub">本周累计 — 0 操作版小程序</view>
+  </view>
+
+  <block wx:if="{{loading}}">
+    <view class="state">加载中...</view>
+  </block>
+
+  <block wx:elif="{{err}}">
+    <view class="state err">⚠ {{err}}\n配置 app.js → globalData.apiBase 指向真服务器后重试.</view>
+  </block>
+
+  <block wx:else>
+    <view class="card">
+      <view class="score-row">
+        <view class="score-badge" style="background: linear-gradient(135deg, {{tierAccent}} 0%, {{tierAccent}}aa 100%); box-shadow: 0 0 40rpx {{tierAccent}}55;">
+          <view class="score-num">{{score}}</view>
+          <view class="score-cap">SCORE / 100</view>
+        </view>
+        <view class="score-side">
+          <view class="tier-label" style="color: {{tierAccent}};">{{tierEmoji}} {{tierLabel}}</view>
+          <view wx:if="{{priorScore !== null}}" class="wow">
+            上周 {{priorScore}}
+            <text wx:if="{{delta > 0}}" class="up">↗ +{{delta}}</text>
+            <text wx:elif="{{delta < 0}}" class="down">↘ {{delta}}</text>
+            <text wx:else class="flat">= 持平</text>
+          </view>
+          <view wx:else class="wow-empty">第一次班味打卡 · 下周来看变化</view>
+        </view>
+      </view>
+
+      <view class="breakdown">
+        <view class="bd-row" wx:for="{{breakdown}}" wx:key="name">
+          <view class="bd-name">{{item.name}}</view>
+          <view class="bd-bar">
+            <view class="bd-fill" style="width: {{item.pct}}%;" />
+          </view>
+          <view class="bd-count">{{item.count}}/{{item.cap}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="cta" bindtap="onShareCard">📤 复制分享</view>
+  </block>
+
+  <view class="footer">
+    <view class="ft-line">💡 真正的高分要去 H5 端玩 PSYWAR + 听段子 + 看周年</view>
+    <view class="ft-line">完整体验: 切到「首页」tab 用 WebView 打开 H5 版</view>
+  </view>
+</view>

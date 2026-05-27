@@ -1,0 +1,33 @@
+/* Global styles. Mirrors web's cosmic dark palette. */
+page {
+  background: #0a0a1e;
+  color: rgba(248, 244, 227, 0.92);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  font-size: 28rpx;
+}
+
+.gold { color: #FFD700; }
+.violet { color: #B086FF; }
+.rose { color: #FF4FA3; }
+.cyan { color: #4ECDC4; }
+
+.card {
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: rgba(15, 14, 46, 0.6);
+  border: 2rpx solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 24rpx;
+}
+
+.cta {
+  display: block;
+  padding: 24rpx 48rpx;
+  border-radius: 16rpx;
+  background: linear-gradient(135deg, #FFD700 0%, #FFA947 100%);
+  color: #0a0a1e;
+  font-weight: 900;
+  text-align: center;
+  font-size: 32rpx;
+  letter-spacing: 4rpx;
+  box-shadow: 0 8rpx 32rpx rgba(255, 215, 0, 0.32);
+}
