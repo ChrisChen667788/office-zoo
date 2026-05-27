@@ -16,9 +16,117 @@
 **一家公司被裁了,9 名 AI 员工还在加班。**
 **你是那只盯着 KPI 屏的 HR — 选个模式,把这一天笑着过完。**
 
-**简体中文** · [English](README.en.md)
+**简体中文** · [English](README.en.md) · [📱 微信小程序](packages/miniprogram/)
 
 </div>
+
+---
+
+## 💡 这是什么
+
+> 一个 AI 自演的"班味剧场" — 不是工具, 是给打工人写的一封降压情书.
+
+| | |
+|---|---|
+| **核心体验** | 9 个有 personality 的 AI 鼠人在写字楼里自演职场众生相, 你 0 操作就看戏 |
+| **目标用户** | 想下班 / 想笑着上班 / 想看着别人替自己崩溃的当代打工人 |
+| **不是什么** | 不是工具 · 不是 SaaS · 不是 ROI · 是娱乐 |
+| **MVP 周期** | 30+ 轮迭代 (v6.0 → v6.34), 每轮 1-7 个 P, 104 个 vitest 全绿 |
+| **License** | MIT · fork 改装搞自家版本 (银行版 / 国企版 / 大厂版) |
+
+## 🎯 凭什么花你 3 分钟
+
+| 痛点 | 我们给的 |
+|---|---|
+| **班味重** | 4 模式自由切, 看戏不动手, 通勤路上看完一局 |
+| **职场黑话疲劳** | 把"颗粒度"做成 AI 自己念到秃, 用幽默消解攻击性 |
+| **没人能讲** | 深夜酒馆 1v1 跟某只 AI 鼠人喝酒吐槽, lo-fi BGM |
+| **想笑着学劳动法** | 截了么 5 关闯关, 每关绑《劳动合同法》一条 |
+| **想看大模型在演什么** | 全程透明 prompt 设计, 30+ 轮迭代日志在 [CHANGELOG.md](docs/CHANGELOG.md) |
+
+---
+
+## 🏗️ 系统架构 (v6.34 mermaid)
+
+```mermaid
+flowchart LR
+    subgraph Client["客户端 (React 18 + Vite 6)"]
+        Landing[Landing<br/>4 模式选择]
+        Classic[Classic<br/>2.5D GameMap]
+        Immersive[Immersive<br/>TTS 圆桌]
+        Fired[FiredChat<br/>1v1 HR]
+        Profile[Profile<br/>班味卡 + 班味指数]
+        MP[微信小程序<br/>4 page webview]
+    end
+
+    subgraph Server["服务器 (Hono + Socket.IO)"]
+        SocketHandler[socketHandler<br/>game:* events]
+        GameEngine[GameEngine<br/>state machine]
+        Routes[REST routes<br/>/api/quiz · /api/stats<br/>/api/banwei · /api/hot-quotes]
+    end
+
+    subgraph LLM["LLM 层 (多 provider)"]
+        OpenAI["OpenAI / Qingyun<br/>discussion + ghost"]
+        Minimax["Minimax TTS<br/>speech-2.8-hd"]
+    end
+
+    subgraph Storage["持久化 (本地 JSON · 升级 pgvector 待 v7)"]
+        Profiles[user_profiles.json]
+        Stats[stats.json<br/>60s flush]
+        Banwei[banwei.json<br/>12-week 滚动]
+        HotQuotes[hot_quotes.json<br/>200 FIFO]
+    end
+
+    Landing --> SocketHandler
+    Classic --> SocketHandler
+    Immersive --> SocketHandler
+    Fired --> Routes
+    Profile --> Routes
+    MP -.web-view.-> Landing
+
+    SocketHandler --> GameEngine
+    GameEngine --> OpenAI
+    GameEngine --> Minimax
+    Routes --> OpenAI
+    Routes --> Profiles
+    Routes --> Stats
+    Routes --> Banwei
+    Routes --> HotQuotes
+
+    style Client fill:#1a0d35,stroke:#4ECDC4,color:#fff
+    style Server fill:#2D1B69,stroke:#FFD700,color:#fff
+    style LLM fill:#0a0a1e,stroke:#FF4FA3,color:#fff
+    style Storage fill:#1a0d35,stroke:#B086FF,color:#fff
+```
+
+### 核心数据流 · PSYWAR 心理战闭环 (v6.25→v6.31)
+
+```mermaid
+sequenceDiagram
+    participant U as 玩家
+    participant C as Classic 客户端
+    participant S as 服务器
+    participant E as GameEngine
+    participant A as AI 鼠人
+
+    U->>C: 战术 @ 选目标 + 写一句话
+    C->>S: socket emit `game:psy_war_leak` { text }
+    S->>E: pushLeakedHint(text) · FIFO cap 5
+    E->>S: emit `leak_acked`
+    S->>C: `game:psy_war_acked`
+    C->>U: 👂 "AI 听到了" badge
+
+    Note over E,A: 下一回合 discussion phase
+    E->>A: generateSpeech(context + leakedHints[])
+    A->>E: speech 文本
+    E->>E: detectLeakQuote() · 8-char + 0.42 Jaccard
+    alt 命中
+        E->>S: emit `leak_quoted`
+        S->>C: `game:leak_quoted`
+        C->>U: ✨ "AI 引用了" + 点 chip 跳 speech
+        C->>C: recordLeakQuoted() → 班味指数 +6
+    end
+```
 
 <p align="center">
   <img src="assets/launch-demo/hero-combined.gif" alt="30s hero · 米哈游风故事 (0-15s) + 真实游戏 (15-30s)" width="720" />
@@ -34,10 +142,10 @@
 
 | | 模式 | 一句话 | 何时玩 |
 |---|---|---|---|
-| 🏢 | **鼠人公司** (classic) | 2.5D 写字楼, 9 名 AI 鼠人自由开撕 | 想看戏 · 通勤路上 |
-| 🎬 | **全程开麦** (immersive) | 全屏沉浸 · 真人 TTS · 8 个声音轮番拷打 | 想下饭 · 午休前 |
-| ⚖️ | **裁了么** (fired) | 1v1 怼 HR · 5 关速通《劳动合同法》 | 想长本事 · 真要离职时学防身 |
-| 🍺 | **深夜酒馆** (bar, v6.2 新) | 凌晨 2 点 · lo-fi · 跟某个 AI 1v1 喝酒吐槽 | 卷不动了 · 没人能讲时 |
+| 🏢 | **鼠人公司** (classic) | 2.5D 写字楼, 9 名 AI 鼠人自演职场众生相 | 想看戏 · 通勤路上 |
+| 🎬 | **全程开麦** (immersive) | 全屏沉浸 · 真人 TTS · 8 个声音轮番阴阳 | 想下饭 · 午休前 |
+| ⚖️ | **裁了么** (fired) | 1v1 跟 HR 见招拆招 · 5 关速通《劳动合同法》 | 想长本事 · 真要离职时学防身 |
+| 🍺 | **深夜酒馆** (bar, v6.2 新) | 凌晨 2 点 · lo-fi · 跟某个 AI 1v1 喝酒互相吐槽班味 | 卷不动了 · 没人能讲时 |
 
 **还有副玩法:** 🔮 班味占卜 daily · 🎤 班味单口 · 🤝 攒局攒朋友 · 📜 7 天历史 · 🃏 牌库 24 卡 · ⭐ **段子 UGC 投稿** (v6.1 新) · 🍷 **朋友拼版彩蛋** (v6.1 新) · 📊 **周报生成器 4 风格** (v6.5 新)
 
@@ -64,10 +172,10 @@
 
 ## 它会做什么
 
-- 🗣️ **真职场暴论** — "@同学 你这个事情 owner 是谁?颗粒度不够,先对齐一下底层逻辑"
-- 🔪 **暗中优化同事** — 资本家每轮挑一名打工人"毕业",走 N+1 流程
-- 🗳️ **对线+投票** — 8 名鼠人围圈开会,真人语音互怼
-- 👻 **鬼斗到底** — 被裁的人靠"劳动仲裁票"扳回一城
+- 🗣️ **真·职场黑话** — "@同学 你这个事情 owner 是谁?颗粒度不够,先对齐一下底层逻辑"
+- 🔪 **暗中"优化"同事** — 资本家每轮挑一名打工人"毕业",走 N+1 流程, 全程不沾血
+- 🗳️ **复盘 + 投票** — 8 名鼠人围圈开会,真人语音轮番阴阳,投票把 0 点的锅甩出去
+- 👻 **离场前的最后一击** — 被裁的人靠"劳动仲裁票"扳回一城, 离职信仰永不毕业
 
 ## 凭什么 Star?
 
@@ -135,7 +243,7 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 │  /classic/:gameId   Classic  — 2.5D 写字楼 + RAF lerp + Catmull-Rom    │
 │  /immersive/:gameId Immersive — 圆桌 + 真人语音 + 弹幕                  │
 │  /fired             FiredLanding — 5 关闯关 + 知识卡片                  │
-│  /fired/chat        FiredChat — 1v1 怼 HR + 四维评分                   │
+│  /fired/chat        FiredChat — 1v1 跟 HR 见招拆招 + 四维评分            │
 │                                                                        │
 └──────────────────────────────┬─────────────────────────────────────────┘
                                │ socket.io (3101) + REST /api (3100)
