@@ -273,6 +273,16 @@ export class GameEngine extends EventEmitter {
     this.createPlayers(weeklyLeaders);
     // v6.31 P5 — bump server stats counters once roster is populated.
     this.emit('roster_created', { names: this.state.players.map((p) => p.name) });
+    // v6.33 P4 — seed leakedHints with recent spectator-submitted 班味
+    // 金句 (hotQuotes pool, top 5 recent). Per-user PSYWAR submissions
+    // still arrive live via socket and append on top — pool just gives
+    // every game some baseline "voice from the audience" texture even
+    // if no current spectator submits during this round.
+    try {
+      const { getRecentHotQuoteTexts } = await import('../routes/hotQuotes');
+      const seeds = (await getRecentHotQuoteTexts()).slice(0, 5);
+      for (const t of seeds) this.pushLeakedHint(t);
+    } catch { /* hot quotes optional — never block game start */ }
     this.emitState();
 
     // ROLE_REVEAL
