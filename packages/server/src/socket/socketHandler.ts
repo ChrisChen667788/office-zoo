@@ -329,7 +329,14 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
   const speechLog = glog.child({ component: 'speechQueue' });
 
   // v6.31 P5 — server-side stats counter bumps.
-  engine.on('roster_created', (data: { names: string[] }) => bumpGameCreated(data.names));
+  engine.on('roster_created', (data: { names: string[]; hotNames?: string[] }) => {
+    bumpGameCreated(data.names);
+    // v6.36 P3 — relay hot-nominated names so GameMap can render
+    // 🔥 badges on those sprites. Empty array if nobody nominated.
+    if (data.hotNames && data.hotNames.length > 0) {
+      io.to(gameId).emit('game:hot_names', { names: data.hotNames });
+    }
+  });
 
   engine.on('phase_change', (data) => {
     io.to(gameId).emit('game:phase_change', data);

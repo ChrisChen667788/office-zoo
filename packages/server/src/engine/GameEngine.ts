@@ -314,7 +314,15 @@ export class GameEngine extends EventEmitter {
 
     this.createPlayers(weeklyLeaders, nominationCounts);
     // v6.31 P5 — bump server stats counters once roster is populated.
-    this.emit('roster_created', { names: this.state.players.map((p) => p.name) });
+    // v6.36 P3 — include hot-nominated names (count ≥ 1) so the client
+    // can show a 🔥 "热门" badge on sprites the audience asked for.
+    const hotNames = this.state.players
+      .map((p) => p.name)
+      .filter((n) => (nominationCounts.get(n) ?? 0) >= 1);
+    this.emit('roster_created', {
+      names: this.state.players.map((p) => p.name),
+      hotNames,
+    });
     // v6.33 P4 — seed leakedHints with recent spectator-submitted 班味
     // 金句 (hotQuotes pool, top 5 recent). Per-user PSYWAR submissions
     // still arrive live via socket and append on top — pool just gives

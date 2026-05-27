@@ -46,6 +46,12 @@ interface GameMapProps {
    *  was indicted by the ex-coworker group. Survives across rounds
    *  until the next vote_result overwrites. */
   ghostVotes?: Record<string, string>;
+  /** v6.36 P3 — names of roster sprites that landed via hot-quote
+   *  weighted bias (cross-spectator hot-quote nominations ≥ 1 in
+   *  the last 7 days). Renders a 🔥 badge on the top-LEFT of the
+   *  avatar so spectators see their nominations materialise. The
+   *  right side stays reserved for the v6.22 👻 dot. */
+  hotNames?: string[];
 }
 
 /* ---------- Room definitions ---------- */
@@ -559,7 +565,7 @@ const ACTIVITY_ICON_KEYS: Record<string, keyof typeof activityIcons> = {
 
 /* ---------- Component ----------------------------------------------- */
 
-export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = null, ghostVotes = {} }: GameMapProps) {
+export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = null, ghostVotes = {}, hotNames = [] }: GameMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const loadedImages = useRef<Record<string, HTMLImageElement>>({});
   // Pre-loaded activity icon images, keyed by activityIcons key (work/chat/...).
@@ -602,6 +608,11 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
     }
     return m;
   })();
+  // v6.36 P3 — hotNames as a Set for O(1) name lookup inside the per-frame
+  // render loop. Stored in a ref so the RAF loop reads the latest without
+  // becoming a dep (avoids tearing down the loop every prop change).
+  const hotNamesSetRef = useRef<Set<string>>(new Set());
+  hotNamesSetRef.current = new Set(hotNames ?? []);
 
   // Pre-load avatar images when URLs change
   useEffect(() => {
@@ -1159,6 +1170,42 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
           ctx.fillText(frame.emoji, bx, by + 1);
           ctx.restore();
         }
+      }
+
+      // ── v6.36 P3 🔥 hot-nominated badge ────────────────────────────
+      //
+      // Mirror of the v6.22 ghost-vote dot, but on the top-LEFT of an
+      // alive avatar's name pill — fires when the player's name landed
+      // via cross-spectator hot-quote nominations (≥ 1 in 7d). Lets
+      // spectators see their hot-quote submissions actually surface
+      // in the game world. Pulses ~1.4Hz, orange/amber tint.
+      if (p.isAlive && hotNamesSetRef.current.has(p.name)) {
+        const hx = sx - 16;
+        const hy = sy - 16;
+        const r = 9;
+        // Pulse 1.0 → 1.18 → 1.0 over ~1.4s, phase-shifted from the
+        // ghost dot so both badges don't pulse in sync (visual rhythm).
+        const pulse = 1 + Math.sin(tSec * 4.5 + 1.7) * 0.09;
+        ctx.save();
+        ctx.shadowColor = 'rgba(255,165,0,0.85)';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = 'rgba(15,14,46,0.95)';
+        ctx.beginPath();
+        ctx.arc(hx, hy, r * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        // Crisp orange rim
+        ctx.beginPath();
+        ctx.arc(hx, hy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,165,0,0.95)';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        // 🔥 glyph centered
+        ctx.font = '11px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('🔥', hx, hy + 0.5);
       }
 
       // ── v6.22 ghost-vote dot ──────────────────────────────────────

@@ -7,7 +7,7 @@ import {
   usePhase, usePlayers, useRound, useTaskProgress,
   useSpeechHistory, useGhostComments, useAvatarUrls,
   useCurrentSpeaker, useDiscussionProgress,
-  useGhostVotes,
+  useGhostVotes, useHotNames,
   useGameActions,
 } from '../stores/gameStore';
 import GameMap from '../components/game/GameMap';
@@ -84,8 +84,9 @@ export default function Classic() {
   const discussionProgress = useDiscussionProgress();
   const ghostComments = useGhostComments();
   const ghostVotes = useGhostVotes();
+  const hotNames = useHotNames();
   const avatarUrls = useAvatarUrls();
-  const { updateState, applyTick, setSpeaker, addSpeech, setDiscussionProgress, clearDiscussionProgress, addGhostComment, setAvatarUrl, pushElimination, reset, setGhostVotes, mergeGhostVote } =
+  const { updateState, applyTick, setSpeaker, addSpeech, setDiscussionProgress, clearDiscussionProgress, addGhostComment, setAvatarUrl, pushElimination, reset, setGhostVotes, mergeGhostVote, setHotNames } =
     useGameActions();
 
   const { socket, connected, connecting, reconnectAttempt } = useSocket();
@@ -418,6 +419,16 @@ export default function Classic() {
     'game:avatar_ready': (data: { role: string; url: string }) => {
       setAvatarUrl(data.role, `${SERVER_URL}${data.url}`);
     },
+
+    // v6.36 P3 — server tells us which roster names landed via hot-quote
+    // nominations (≥ 1 mention in the last 7 days). GameMap renders a
+    // 🔥 badge on those sprites so spectators see their nomination
+    // surface in this game. Only fired when non-empty, so receiving the
+    // event itself is the trigger.
+    'game:hot_names': (data: { names: string[] }) => {
+      setHotNames(data.names);
+      pushEvent('system', `🔥 本局热门鼠人: ${data.names.join('、')}`);
+    },
   });
 
   // Log reconnect transitions into the event log so players see what's happening.
@@ -539,6 +550,7 @@ export default function Classic() {
             avatarUrls={avatarUrls}
             currentSpeakerId={currentSpeaker}
             ghostVotes={ghostVotes}
+            hotNames={hotNames}
           />
 
           {/* v6.22 — 前同事吐槽群 panel. Right-bottom floating, collapsed

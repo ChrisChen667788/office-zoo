@@ -166,6 +166,11 @@ export interface ServerToClientEvents {
     byPlayerName: string;
     speechText: string;
   }) => void;
+  /** v6.36 P3 — server tells the client which roster names were
+   *  hot-nominated this game (≥ 1 hot-quote mention in last 7 days).
+   *  GameMap renders a 🔥 badge on those sprites so spectators see
+   *  their nominations land. Empty if nobody nominated anyone. */
+  'game:hot_names': (data: { names: string[] }) => void;
   'game:avatar_ready': (data: { role: string; team: string; url: string }) => void;
   'game:created': (data: { gameId: string }) => void;
   'game:error': (data: { message: string }) => void;

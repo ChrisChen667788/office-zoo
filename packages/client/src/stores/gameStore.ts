@@ -169,6 +169,10 @@ interface GameActions {
    *  during voting phase so the 👻 dot tally + GhostChatPanel ally
    *  count update one-at-a-time instead of in a single vote_result batch. */
   mergeGhostVote: (ghostId: string, target: string) => void;
+  /** v6.36 P3 — set the roster of hot-nominated names emitted by
+   *  the server in `game:hot_names`. Drives the 🔥 badge overlay on
+   *  GameMap sprites. Pass [] to clear (also done on reset). */
+  setHotNames: (names: string[]) => void;
   setAvatarUrl: (role: string, url: string) => void;
   pushElimination: (entry: Omit<EliminationLogEntry, 'id' | 'timestamp'>) => number;
   pushPrediction: (entry: PredictionLogEntry) => void;
@@ -185,6 +189,11 @@ interface GameStore {
   winner: string;
   votes: Record<string, string>;
   ghostVotes: Record<string, string>;
+
+  /** v6.36 P3 — names hot-nominated via hot-quote submissions ≥ 1 in the
+   *  last 7 days. GameMap renders a 🔥 badge on matching sprites so
+   *  spectators see the link between their nomination and the game world. */
+  hotNames: string[];
 
   // Speech state
   currentSpeaker: string | null;
@@ -221,6 +230,7 @@ const INITIAL_STATE = {
   winner: 'none',
   votes: {},
   ghostVotes: {},
+  hotNames: [],
   currentSpeaker: null,
   currentSpeech: null,
   speechHistory: [],
@@ -397,6 +407,10 @@ export const useGameStore = create<GameStore>((set) => ({
     mergeGhostVote: (ghostId, target) =>
       set((s) => ({ ghostVotes: { ...s.ghostVotes, [ghostId]: target } })),
 
+    // v6.36 P3 — push the hot-nominated roster names. Server only emits
+    // the event when non-empty so we default the payload defensively.
+    setHotNames: (names) => set({ hotNames: names ?? [] }),
+
     setAvatarUrl: (role, url) =>
       set((s) => ({
         avatarUrls: { ...s.avatarUrls, [role]: url },
@@ -447,6 +461,11 @@ export const useAvatarUrls = () => useGameStore((s) => s.avatarUrls);
 // vote_result handler wanted to push them eagerly without waiting for
 // the next full state snapshot.
 export const useGhostVotes = () => useGameStore((s) => s.ghostVotes);
+
+// v6.36 P3 — hot-nominated rat names from server `game:hot_names`.
+// GameMap renders 🔥 badge on matching sprites so spectators see their
+// hot-quote nominations actually surface in the next game.
+export const useHotNames = () => useGameStore((s) => s.hotNames);
 
 export const useEliminationLog = () => useGameStore((s) => s.eliminationLog);
 export const usePredictionLog = () => useGameStore((s) => s.predictionLog);
