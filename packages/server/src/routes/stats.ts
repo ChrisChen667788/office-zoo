@@ -79,6 +79,29 @@ export function bumpLeakQuote(userId?: string): void {
   }
 }
 
+/** v6.32 P5 — read accessors for cross-route consumers (banwei).
+ *  Keep counters Map opaque so callers can't mutate it directly. */
+export function getPerUserLeaks(userId: string): number {
+  return counters.perUserLeaks.get(userId) ?? 0;
+}
+export function getPerUserLeakQuotes(userId: string): number {
+  return counters.perUserLeakQuotes.get(userId) ?? 0;
+}
+
+/** v6.32 P4 — test-only reset. Vitest fixtures call this in beforeEach
+ *  so test order doesn't matter. Production code never calls it. */
+export function clearCountersForTest(): void {
+  counters.totalGames = 0;
+  counters.activeGames = 0;
+  counters.totalPlayersSpawned = 0;
+  counters.totalSpeeches = 0;
+  counters.totalLeaks = 0;
+  counters.totalLeakQuotes = 0;
+  counters.ratAppearances.clear();
+  counters.perUserLeaks.clear();
+  counters.perUserLeakQuotes.clear();
+}
+
 /* ── Route ──────────────────────────────────────────────────────── */
 
 export const statsRoutes = new Hono();
