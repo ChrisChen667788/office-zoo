@@ -34,6 +34,7 @@ import { fortuneRoutes } from './routes/fortune';
 import { memoryRoutes } from './routes/memory';
 import { weeklyRoutes } from './routes/weekly';
 import { statsRoutes } from './routes/stats';
+import { banweiRoutes } from './routes/banwei';
 import { barRoutes } from './routes/bar';
 import { characterRoutes } from './routes/characters';
 import { shareSocialRoutes } from './routes/shareSocial';
@@ -78,6 +79,8 @@ app.route('/api/memory', memoryRoutes);
 app.route('/api/weekly', weeklyRoutes);
 // v6.31 P5 — server-side aggregate stats (global + per-user via X-User-Id).
 app.route('/api/stats', statsRoutes);
+// v6.32 P5 — 班味指数 weekly score + WoW delta + history.
+app.route('/api/banwei', banweiRoutes);
 // v6.2.0 — 🍺 深夜酒馆 1v1 dialogue surface. Writes into the same
 // memory_entries table so bar conversations carry over into classic
 // mode AI prompts (see routes/bar.ts header comment).
