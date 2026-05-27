@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { getUserId } from '../../utils/userId';
 import { getProgress } from '../../utils/achievements';
 import { getLeakStats } from '../../utils/leakStats';
+import { downloadBanweiShareCard } from '../../utils/banweiShareCard';
 
 interface Snapshot {
   weekKey: string;
@@ -143,6 +144,40 @@ export default function BanweiIndexCard() {
         <BreakRow label="段子听" count={thisWeek.talkshowPlayed} cap={5} weight={2} />
         <BreakRow label="周年回顾" count={thisWeek.anniversaryVisited} cap={1} weight={10} />
       </div>
+
+      {/* v6.33 P4 — spectator-curated 班味金句池 submit. Quotes go
+          into shared server pool, seeded into next game's leakedHints
+          so AI rats may quote them in discussion. Per-user weekly cap
+          enforced server-side; UI silently grays on 429. */}
+      <HotQuoteSubmit />
+
+      {/* v6.33 P3 — 1-click PNG share card (1080×1350 IG-portrait) */}
+      <button
+        type="button"
+        onClick={() => downloadBanweiShareCard({
+          weekKey: thisWeek.weekKey,
+          score: thisWeek.score,
+          tierLabel: tier.label.replace(/[🔥💼⚙️👀🌱]/g, '').trim(),
+          tierEmoji: tier.label.match(/[🔥💼⚙️👀🌱]/)?.[0] ?? '🐀',
+          breakdown: {
+            leaks: { count: thisWeek.leaks, cap: 10 },
+            leakQuotes: { count: thisWeek.leakQuotes, cap: 5 },
+            gamesSeen: { count: thisWeek.gamesSeen, cap: 5 },
+            talkshowPlayed: { count: thisWeek.talkshowPlayed, cap: 5 },
+            anniversaryVisited: { count: thisWeek.anniversaryVisited, cap: 1 },
+          },
+          priorScore: prior?.score ?? null,
+        })}
+        style={{
+          marginTop: 12, width: '100%', padding: '10px 16px',
+          borderRadius: 10,
+          background: `linear-gradient(135deg, ${tier.accent} 0%, ${tier.accent2} 100%)`,
+          color: '#0a0a1e',
+          fontWeight: 900, fontSize: 13, letterSpacing: '0.04em',
+          border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          boxShadow: `0 4px 16px ${tier.accent}40`,
+        }}
+      >📤 下载班味海报 1080×1350</button>
     </div>
   );
 }
@@ -167,6 +202,96 @@ function BreakRow({ label, count, cap, weight }: { label: string; count: number;
         fontSize: 10, color: 'rgba(255,255,255,0.55)',
         fontVariantNumeric: 'tabular-nums', width: 50, textAlign: 'right',
       }}>{count}/{cap} +{contrib}</span>
+    </div>
+  );
+}
+
+/* ── v6.33 P4 — 班味金句池 submit ─────────────────────────────── */
+function HotQuoteSubmit() {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'ok' | 'cap' | 'err'>('idle');
+  const [thisWeek, setThisWeek] = useState<number | null>(null);
+
+  async function submit() {
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/hot-quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': getUserId() },
+        body: JSON.stringify({ text }),
+      });
+      if (r.status === 429) {
+        setStatus('cap');
+        const j = await r.json().catch(() => ({}));
+        setThisWeek(j.thisWeek ?? 5);
+      } else if (r.ok) {
+        const j = await r.json();
+        setStatus('ok');
+        setThisWeek(j.userThisWeek ?? null);
+        setText('');
+        setTimeout(() => setStatus('idle'), 2500);
+      } else {
+        setStatus('err');
+        setTimeout(() => setStatus('idle'), 2500);
+      }
+    } catch {
+      setStatus('err');
+    } finally { setBusy(false); }
+  }
+
+  const disabled = busy || !text.trim() || text.length > 80 || status === 'cap';
+
+  return (
+    <div style={{
+      marginTop: 12, padding: 10, borderRadius: 10,
+      background: 'rgba(255,79,163,0.06)',
+      border: '1px solid rgba(255,79,163,0.35)',
+    }}>
+      <div style={{
+        fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em',
+        color: '#FF4FA3', textTransform: 'uppercase', marginBottom: 6,
+      }}>🔥 投本周班味金句 (≤80 字)</div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value.slice(0, 80))}
+        rows={2}
+        placeholder='例: "拥抱变化" 拥抱了不到 40 分钟, 我先撤了'
+        style={{
+          width: '100%', boxSizing: 'border-box', padding: 6,
+          fontSize: 11.5, fontFamily: 'inherit',
+          background: 'rgba(15,14,46,0.6)',
+          color: '#f4f4ff',
+          border: '1px solid rgba(255,79,163,0.3)', borderRadius: 6,
+          resize: 'none',
+        }}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+          {text.length}/80 · 入池后下一局 AI 鼠人可能引用
+          {thisWeek !== null && <span> · 本周已投 {thisWeek}/5</span>}
+        </div>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={disabled}
+          style={{
+            padding: '4px 12px', borderRadius: 6,
+            background: status === 'ok' ? 'rgba(34,197,94,0.85)' :
+              status === 'cap' ? 'rgba(239,68,68,0.6)' :
+              disabled ? 'rgba(255,79,163,0.2)' : 'linear-gradient(135deg, #FF4FA3 0%, #7c3aed 100%)',
+            color: status === 'ok' || (!disabled) ? '#fff' : 'rgba(255,255,255,0.45)',
+            border: 'none', fontWeight: 800, fontSize: 11,
+            cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          {status === 'ok' ? '✓ 已投' :
+           status === 'cap' ? '本周已满' :
+           status === 'err' ? '失败 重试' :
+           busy ? '投递中...' : '投递 →'}
+        </button>
+      </div>
     </div>
   );
 }
