@@ -26,7 +26,7 @@ assets/screenshots/<NN>-<feature>.png
 | 04 | `04-classic-game.png` | 经典模式 9 个鼠人 + 房间 | ⏳ 待截 |
 | 05 | `05-immersive-game.png` | 沉浸模式圆桌 + 发言气泡 | ⏳ 待截 |
 | 06 | `06-fired-landing.png` | 裁了么 5 关闯关进度 | ⏳ 待截 |
-| 07 | `07-fired-chat.png` | 裁了么 1v1 怼 HR | ⏳ 待截 |
+| 07 | `07-fired-chat.png` | 裁了么 1v1 跟 HR 见招拆招 | ⏳ 待截 |
 | 08 | `08-share-video.png` | HighlightReel 战报 + 下载视频按钮 | ⏳ 待截 |
 
 ---

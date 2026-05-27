@@ -71,7 +71,7 @@ const PSYWAR_PRESETS = [
   '@{target} 那个 PRD 是抄我离职前的 draft',
   '@{target} 上次跟我说过, 老板看他不顺眼了',
   '@{target}, 你下一个 🪦 我们群里等你',
-  '@{target} 出去抽根烟? 我们一起骂老板',
+  '@{target} 出去抽根烟? 我们一起吐槽 KPI',
   '@{target} 别装了, 老板早把你工位标 P0 了',
 ];
 

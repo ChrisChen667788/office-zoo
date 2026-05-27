@@ -71,7 +71,7 @@ const ARCHETYPE_BAR_PROFILE: Record<string, { opener: string; vibe: string }> = 
   },
   hot_tempered: {
     opener: '靠, 你也是 996 完了才能出门是不是? 我刚把今天的 OKR 截图删了, 我们今晚不聊工作。',
-    vibe: '暴躁但讲义气, 容易共情你的愤怒, 会带头骂老板但也会突然说"算了, 喝酒"',
+    vibe: '暴躁但讲义气, 容易共情你的愤怒, 会带头吐槽 KPI 但也会突然说"算了, 喝酒"',
   },
   introvert: {
     opener: '...哦, 是你。坐吧。今天店里人不多, 还好。',
