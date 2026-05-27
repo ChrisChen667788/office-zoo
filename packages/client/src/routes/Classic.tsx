@@ -130,6 +130,20 @@ export default function Classic() {
       delete (window as unknown as { __triggerMockElim?: unknown }).__triggerMockElim;
     };
   }, [players]);
+
+  // v6.32 P2 — DEV hook for the cooldown ring probe. Fires the same
+  // setters as the real game:psy_war_rate_limited handler (v6.30 P3),
+  // bypassing the need to throttle a real game.
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === 'undefined') return;
+    (window as unknown as { __triggerMockRateLimit?: (sec: number, session?: boolean) => void }).__triggerMockRateLimit = (sec, session = false) => {
+      if (session) setSessionLocked(true);
+      else setLockedUntilMs(Date.now() + sec * 1000);
+    };
+    return () => {
+      delete (window as unknown as { __triggerMockRateLimit?: unknown }).__triggerMockRateLimit;
+    };
+  }, []);
   // Prediction bar resolution: separate tick so the bar only resolves on a
   // real vote_result event, not on arbitrary phase toggles.
   const [lastVoteEliminated, setLastVoteEliminated] = useState<string | null>(null);
