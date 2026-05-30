@@ -37,6 +37,7 @@ import StatsOverviewPanel from '../components/character/StatsOverviewPanel';
 import BanweiIndexCard from '../components/character/BanweiIndexCard';
 import BanweiHistoryPanel from '../components/character/BanweiHistoryPanel';
 import LeaderboardPanel from '../components/character/LeaderboardPanel';
+import BanweiWrapped from '../components/character/BanweiWrapped';
 import { setProgress as setAchievementProgress } from '../utils/achievements';
 
 const TRAIT_LABELS: Array<{ key: keyof TraitVector; label: string }> = [
@@ -235,6 +236,11 @@ export default function Profile() {
           v6.37 P1 — region/industry filter chips (sourced from the
           user's archetype tribe at POST time). */}
       <LeaderboardPanel />
+
+      {/* v6.39 P6 — 班味年终回顾 (Spotify-Wrapped 风). Collapsed teaser
+          that expands into a multi-stat year-in-review aggregating the
+          banwei history + leak stats + achievements. All client-side. */}
+      <BanweiWrapped />
     </div>
   );
 }
