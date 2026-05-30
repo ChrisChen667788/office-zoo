@@ -26,7 +26,11 @@
  * snapshots first — rewards stickiness over recency).
  */
 import { Hono } from 'hono';
-import { isoWeekKey, loadBanweiStoreReadonly, type BanweiSnapshot } from './banwei';
+import {
+  isoWeekKey, loadBanweiStoreReadonly,
+  KNOWN_REGIONS, KNOWN_INDUSTRIES,
+  type BanweiSnapshot,
+} from './banwei';
 
 export const leaderboardRoutes = new Hono();
 
@@ -43,6 +47,16 @@ interface LeaderboardRow {
   userIdPrefix: string;
   score: number;
   weekKey: string;
+  region?: string;
+  industry?: string;
+}
+
+/** Narrow a query-param string to a known tribe value, mirroring
+ *  the banwei route's POST validation. */
+function pickFilter<T extends string>(v: string | undefined, pool: readonly T[]): T | undefined {
+  if (!v) return undefined;
+  const t = v.trim().toLowerCase().slice(0, 32);
+  return (pool as readonly string[]).includes(t) ? (t as T) : undefined;
 }
 
 leaderboardRoutes.get('/banwei', async (c) => {
@@ -51,6 +65,10 @@ leaderboardRoutes.get('/banwei', async (c) => {
   const limit = Number.isFinite(rawLimit)
     ? Math.max(1, Math.min(MAX_LIMIT, Math.floor(rawLimit)))
     : 10;
+  // v6.37 P1 — tribe filters. Invalid values silently ignored
+  // (validated against the canonical pools from banwei.ts).
+  const wantRegion = pickFilter(c.req.query('region'), KNOWN_REGIONS);
+  const wantIndustry = pickFilter(c.req.query('industry'), KNOWN_INDUSTRIES);
 
   const { byUser } = await loadBanweiStoreReadonly();
 
@@ -64,10 +82,16 @@ leaderboardRoutes.get('/banwei', async (c) => {
     const exact = snaps.find((s) => s.weekKey === wantWeek);
     const snap: BanweiSnapshot | undefined = exact ?? snaps[snaps.length - 1];
     if (!snap) continue;
+    // v6.37 P1 — apply tribe filters. Snapshot without the field
+    // is rejected so a pre-v6.37 row never satisfies a filter.
+    if (wantRegion && snap.region !== wantRegion) continue;
+    if (wantIndustry && snap.industry !== wantIndustry) continue;
     rows.push({
       userIdPrefix: userId.slice(0, ID_PREFIX_LEN),
       score: snap.score,
       weekKey: snap.weekKey,
+      ...(snap.region ? { region: snap.region } : {}),
+      ...(snap.industry ? { industry: snap.industry } : {}),
     });
   }
 
@@ -82,5 +106,9 @@ leaderboardRoutes.get('/banwei', async (c) => {
     top: rows.slice(0, limit),
     total: rows.length,
     weekKey: wantWeek,
+    filters: {
+      ...(wantRegion ? { region: wantRegion } : {}),
+      ...(wantIndustry ? { industry: wantIndustry } : {}),
+    },
   });
 });

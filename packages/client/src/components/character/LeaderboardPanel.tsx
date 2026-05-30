@@ -19,29 +19,56 @@ interface Row {
   userIdPrefix: string;
   score: number;
   weekKey: string;
+  region?: string;
+  industry?: string;
 }
 
 interface Response {
   top: Row[];
   total: number;
   weekKey: string;
+  filters: { region?: string; industry?: string };
 }
 
 const MEDAL = ['🥇', '🥈', '🥉'] as const;
 /** Tint by rank: gold → silver → bronze → neutral. */
 const RANK_ACCENT = ['#FFD700', '#C0C0C0', '#CD7F32'] as const;
 
+// v6.37 P1 — must mirror banwei.KNOWN_REGIONS / KNOWN_INDUSTRIES.
+// Kept in display-order so chip rows scan left-to-right.
+const REGION_CHIPS: Array<{ id: string; label: string }> = [
+  { id: 'beijing',  label: '🌆 北漂' },
+  { id: 'shanghai', label: '☕ 沪漂' },
+  { id: 'shenzhen', label: '💰 深漂' },
+  { id: 'hangzhou', label: '🌊 杭漂' },
+  { id: 'chengdu',  label: '🐼 成都' },
+  { id: 'overseas', label: '✈️ 海外' },
+];
+const INDUSTRY_CHIPS: Array<{ id: string; label: string }> = [
+  { id: 'soe',     label: '🏛️ 国企' },
+  { id: 'faang',   label: '⚙️ 大厂' },
+  { id: 'startup', label: '🤠 创业' },
+  { id: 'finance', label: '💼 金融' },
+  { id: 'edu',     label: '📚 教培' },
+  { id: 'mcn',     label: '📱 MCN' },
+];
+
 export default function LeaderboardPanel() {
   const [data, setData] = useState<Response | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [region, setRegion] = useState<string | undefined>(undefined);
+  const [industry, setIndustry] = useState<string | undefined>(undefined);
   const myPrefix = getUserId().slice(0, 8);
 
   useEffect(() => {
-    fetch('/api/leaderboard/banwei?limit=10')
+    const qs = new URLSearchParams({ limit: '10' });
+    if (region) qs.set('region', region);
+    if (industry) qs.set('industry', industry);
+    fetch(`/api/leaderboard/banwei?${qs.toString()}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d) => { setData(d as Response); setErr(null); })
       .catch((e) => setErr(String(e)));
-  }, []);
+  }, [region, industry]);
 
   if (err) {
     return (
@@ -75,6 +102,22 @@ export default function LeaderboardPanel() {
           </div>
         </div>
       </div>
+
+      {/* v6.37 P1 — tribe filter chip rows. Toggling a chip refetches
+          with the corresponding query param; clicking the active chip
+          clears the filter. */}
+      <FilterChipRow
+        label="REGION"
+        chips={REGION_CHIPS}
+        selected={region}
+        onChange={setRegion}
+      />
+      <FilterChipRow
+        label="INDUSTRY"
+        chips={INDUSTRY_CHIPS}
+        selected={industry}
+        onChange={setIndustry}
+      />
 
       {data.top.length === 0 ? (
         <div style={{
@@ -136,6 +179,47 @@ export default function LeaderboardPanel() {
         textAlign: 'center', letterSpacing: '0.04em', lineHeight: 1.5,
       }}>
         🔒 隐私: 仅显示你的 user id 前 8 位 · 谁也认不出别人, 但你能认出自己
+      </div>
+    </div>
+  );
+}
+
+/** v6.37 P1 — a horizontal scroll of clickable tribe chips. Click the
+ *  active chip to clear. Single-select (not multi). Kept inline because
+ *  it's only used here and the styling is tightly coupled. */
+function FilterChipRow({
+  label, chips, selected, onChange,
+}: {
+  label: string;
+  chips: Array<{ id: string; label: string }>;
+  selected: string | undefined;
+  onChange: (id: string | undefined) => void;
+}) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{
+        fontSize: 9, fontWeight: 800, letterSpacing: '0.18em',
+        color: 'rgba(255,255,255,0.42)', marginBottom: 4,
+      }}>{label}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {chips.map((c) => {
+          const active = c.id === selected;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onChange(active ? undefined : c.id)}
+              style={{
+                fontSize: 10, fontWeight: 700, padding: '3px 8px',
+                borderRadius: 999, cursor: 'pointer',
+                background: active ? 'rgba(255,215,0,0.22)' : 'rgba(255,255,255,0.04)',
+                color: active ? '#FFD700' : 'rgba(255,255,255,0.65)',
+                border: `1px solid ${active ? 'rgba(255,215,0,0.55)' : 'rgba(255,255,255,0.08)'}`,
+                fontFamily: 'inherit',
+              }}
+            >{c.label}</button>
+          );
+        })}
       </div>
     </div>
   );

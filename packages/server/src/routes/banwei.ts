@@ -38,6 +38,13 @@ interface Snapshot {
   anniversaryVisited: number;
   score: number;
   takenAt: number;
+  /** v6.37 P1 — tribe tags derived from the user's winning archetype
+   *  (see shared/archetypes.ts). Snapshotted at POST time so the
+   *  leaderboard reducer can filter by region/industry without a
+   *  per-row profile lookup. Optional — old snapshots from v6.32 P5
+   *  pre-date this field. */
+  region?: string;
+  industry?: string;
 }
 
 interface Store {
@@ -98,6 +105,11 @@ banweiRoutes.post('/', async (c) => {
   const gamesSeen = clampInt(body?.gamesSeen);
   const talkshowPlayed = clampInt(body?.talkshowPlayed);
   const anniversaryVisited = clampInt(body?.anniversaryVisited, 0, 1);
+  // v6.37 P1 — tribe tags. Validated against the canonical pools so
+  // a client can't inject arbitrary strings that break the leaderboard
+  // filter (or get indexed by a future analytics surface).
+  const region = clampTribe(body?.region, KNOWN_REGIONS);
+  const industry = clampTribe(body?.industry, KNOWN_INDUSTRIES);
 
   const leaks = getPerUserLeaks(userId);
   const leakQuotes = getPerUserLeakQuotes(userId);
@@ -109,7 +121,11 @@ banweiRoutes.post('/', async (c) => {
   const arr = store.byUser[userId] ?? [];
   // Upsert THIS week's entry
   const idx = arr.findIndex((s) => s.weekKey === weekKey);
-  const snap: Snapshot = { weekKey, ...partial, score, takenAt: Date.now() };
+  const snap: Snapshot = {
+    weekKey, ...partial, score, takenAt: Date.now(),
+    ...(region ? { region } : {}),
+    ...(industry ? { industry } : {}),
+  };
   if (idx >= 0) arr[idx] = snap;
   else arr.push(snap);
   // Cap recent 12 weeks
@@ -141,6 +157,26 @@ function clampInt(v: unknown, min = 0, max = 999): number {
   if (!Number.isFinite(n)) return 0;
   return Math.max(min, Math.min(max, Math.floor(n)));
 }
+
+// v6.37 P1 — exported so the leaderboard filter validates the same way.
+export const KNOWN_REGIONS = [
+  'beijing', 'shanghai', 'shenzhen', 'hangzhou', 'chengdu', 'overseas',
+] as const;
+export const KNOWN_INDUSTRIES = [
+  'soe', 'faang', 'startup', 'finance', 'edu', 'mcn',
+] as const;
+type KnownRegion = typeof KNOWN_REGIONS[number];
+type KnownIndustry = typeof KNOWN_INDUSTRIES[number];
+
+/** Narrow an untrusted string to a member of the given pool, or
+ *  undefined. Keeps the leaderboard filter from being a free-form
+ *  string field that anyone can pollute. */
+function clampTribe<T extends string>(v: unknown, pool: readonly T[]): T | undefined {
+  if (typeof v !== 'string') return undefined;
+  const trimmed = v.trim().toLowerCase().slice(0, 32);
+  return (pool as readonly string[]).includes(trimmed) ? (trimmed as T) : undefined;
+}
+export type { KnownRegion, KnownIndustry };
 
 function findPriorWeek(arr: Snapshot[], wantWeek: string): Snapshot | null {
   // Returns the most recent snapshot whose weekKey is strictly less

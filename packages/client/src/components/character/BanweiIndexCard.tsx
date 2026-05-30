@@ -9,10 +9,12 @@
  * week-over-week chevron (↗ / ↘ / =). Sits in Profile.
  */
 import { useEffect, useState } from 'react';
+import { findArchetype } from '@furball/shared';
 import { getUserId } from '../../utils/userId';
 import { getProgress } from '../../utils/achievements';
 import { getLeakStats } from '../../utils/leakStats';
 import { downloadBanweiShareCard } from '../../utils/banweiShareCard';
+import type { UserProfile } from '../../utils/profileTypes';
 
 interface Snapshot {
   weekKey: string;
@@ -37,23 +39,50 @@ export default function BanweiIndexCard() {
   useEffect(() => {
     const userId = getUserId();
     if (!userId) return;
-    const body = {
-      gamesSeen: getProgress('classic_finished'),
-      talkshowPlayed: getProgress('talkshow_played'),
-      anniversaryVisited: getProgress('anniversary_finished'),
-    };
-    // Also surface client-only leak stats so server has a fallback if
-    // its in-memory tally got reset on restart. (Server reads its own
-    // tally as authoritative; this is just informative.)
-    void getLeakStats();
-    fetch('/api/banwei', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: JSON.stringify(body),
-    })
-      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
-      .then((d) => { setData(d as Response); setErr(null); })
-      .catch((e) => setErr(String(e)));
+    // v6.37 P1 — derive region/industry tribe from the winning archetype
+    // so the leaderboard can group by tribe. Best-effort: missing profile
+    // (anonymous quizless user) just omits the tags. We fetch the profile
+    // once on mount; if it returns before the banwei POST we attach the
+    // tribe info, otherwise the POST goes through tribe-less (the server
+    // will adopt the tribe on next week's POST).
+    void (async () => {
+      let region: string | undefined;
+      let industry: string | undefined;
+      try {
+        const r = await fetch('/api/quiz/me', { headers: { 'X-User-Id': userId } });
+        if (r.ok) {
+          const j = await r.json() as { profile?: UserProfile | null };
+          const a = j.profile ? findArchetype(j.profile.topArchetypes[0]) : null;
+          region = a?.region && a.region !== 'generic' ? a.region : undefined;
+          industry = a?.industry && a.industry !== 'generic' ? a.industry : undefined;
+        }
+      } catch { /* tribe-less POST is fine */ }
+
+      const body = {
+        gamesSeen: getProgress('classic_finished'),
+        talkshowPlayed: getProgress('talkshow_played'),
+        anniversaryVisited: getProgress('anniversary_finished'),
+        ...(region ? { region } : {}),
+        ...(industry ? { industry } : {}),
+      };
+      // Also surface client-only leak stats so server has a fallback if
+      // its in-memory tally got reset on restart. (Server reads its own
+      // tally as authoritative; this is just informative.)
+      void getLeakStats();
+      try {
+        const r = await fetch('/api/banwei', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw r.status;
+        const d = await r.json();
+        setData(d as Response);
+        setErr(null);
+      } catch (e) {
+        setErr(String(e));
+      }
+    })();
   }, []);
 
   if (err) {

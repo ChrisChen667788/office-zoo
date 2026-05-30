@@ -20,7 +20,10 @@ import { banweiRoutes } from '../banwei';
  *  inputs. Uses the same code path the client would. */
 async function postBanwei(
   userId: string,
-  body: { gamesSeen?: number; talkshowPlayed?: number; anniversaryVisited?: number } = {},
+  body: {
+    gamesSeen?: number; talkshowPlayed?: number; anniversaryVisited?: number;
+    region?: string; industry?: string;
+  } = {},
 ) {
   return banweiRoutes.request('/', {
     method: 'POST',
@@ -108,5 +111,67 @@ describe('GET /api/leaderboard/banwei', () => {
     const r = await leaderboardRoutes.request('/banwei?limit=NaN');
     const j = await r.json();
     expect(j.top.length).toBe(10);
+  });
+
+  // v6.37 P1 — tribe filter coverage
+  it('filters by region', async () => {
+    await postBanwei('alice', { region: 'beijing' });
+    await postBanwei('bob',   { region: 'shanghai' });
+    await postBanwei('carol', { region: 'beijing' });
+    const r = await leaderboardRoutes.request('/banwei?region=beijing');
+    const j = await r.json();
+    expect(j.total).toBe(2);
+    expect(j.filters.region).toBe('beijing');
+    for (const row of j.top) expect(row.region).toBe('beijing');
+  });
+
+  it('filters by industry', async () => {
+    await postBanwei('alice', { industry: 'faang' });
+    await postBanwei('bob',   { industry: 'startup' });
+    const r = await leaderboardRoutes.request('/banwei?industry=faang');
+    const j = await r.json();
+    expect(j.total).toBe(1);
+    expect(j.top[0].industry).toBe('faang');
+  });
+
+  it('combines region + industry filters (AND)', async () => {
+    await postBanwei('alice', { region: 'beijing', industry: 'faang' });
+    await postBanwei('bob',   { region: 'beijing', industry: 'startup' });
+    await postBanwei('carol', { region: 'shanghai', industry: 'faang' });
+    const r = await leaderboardRoutes.request('/banwei?region=beijing&industry=faang');
+    const j = await r.json();
+    expect(j.total).toBe(1);
+    expect(j.top[0].userIdPrefix).toBe('alice');
+  });
+
+  it('invalid region silently ignored (returns all)', async () => {
+    await postBanwei('alice', { region: 'beijing' });
+    const r = await leaderboardRoutes.request('/banwei?region=mars');
+    const j = await r.json();
+    expect(j.total).toBe(1);
+    expect(j.filters.region).toBeUndefined();
+  });
+
+  it('snapshot without region is excluded when region filter is set', async () => {
+    await postBanwei('alice'); // no region
+    await postBanwei('bob', { region: 'beijing' });
+    const r = await leaderboardRoutes.request('/banwei?region=beijing');
+    const j = await r.json();
+    expect(j.total).toBe(1);
+    expect(j.top[0].userIdPrefix).toBe('bob');
+  });
+
+  it('rejects invalid region/industry strings on POST', async () => {
+    // Invalid POST values are dropped — the snapshot is stored without
+    // any region/industry tag at all.
+    await postBanwei('alice', { region: 'MARS', industry: 'crypto' });
+    const r = await leaderboardRoutes.request('/banwei');
+    const j = await r.json();
+    expect(j.top[0].region).toBeUndefined();
+    expect(j.top[0].industry).toBeUndefined();
+    // And so a valid filter excludes that row (no region to match).
+    const r2 = await leaderboardRoutes.request('/banwei?region=beijing');
+    const j2 = await r2.json();
+    expect(j2.total).toBe(0);
   });
 });
