@@ -37,6 +37,7 @@ import { statsRoutes, initStatsPersistence } from './routes/stats';
 import { banweiRoutes } from './routes/banwei';
 import { leaderboardRoutes } from './routes/leaderboard';
 import { hotQuotesRoutes } from './routes/hotQuotes';
+import { companyPackRoutes } from './routes/companyPack';
 import { barRoutes } from './routes/bar';
 import { characterRoutes } from './routes/characters';
 import { shareSocialRoutes } from './routes/shareSocial';
@@ -89,6 +90,10 @@ app.route('/api/leaderboard', leaderboardRoutes);
 // v6.33 P4 — spectator-curated 班味金句池. Submitted quotes get
 // injected into the next game's leakedHints alongside per-user PSYWAR.
 app.route('/api/hot-quotes', hotQuotesRoutes);
+// v6.37 P3 — user-curated 公司主题包. 6-12 NPCs with optional
+// role/personality hints; Landing can start a game using a pack
+// id to override the default name pool.
+app.route('/api/company-pack', companyPackRoutes);
 // v6.2.0 — 🍺 深夜酒馆 1v1 dialogue surface. Writes into the same
 // memory_entries table so bar conversations carry over into classic
 // mode AI prompts (see routes/bar.ts header comment).
