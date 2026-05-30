@@ -21,6 +21,7 @@ interface PackNpc {
   name: string;
   role?: string;
   personality?: string;
+  avatar?: string;
 }
 interface Pack {
   packId: string;
@@ -153,6 +154,9 @@ export default function CompanyPackView() {
                     color: 'rgba(255,255,255,0.4)',
                     fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
                   }}>{String(i + 1).padStart(2, '0')}</span>
+                  {n.avatar && (
+                    <span style={{ fontSize: 16, lineHeight: 1 }}>{n.avatar}</span>
+                  )}
                   <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{n.name}</span>
                   {n.role && ROLE_LABEL[n.role] && (
                     <span style={{

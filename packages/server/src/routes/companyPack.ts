@@ -37,6 +37,9 @@ export interface CompanyNpc {
   name: string;
   role?: string;
   personality?: string;
+  /** v6.39 P3 — single emoji avatar glyph. Capped at 16 chars so a
+   *  ZWJ-sequence emoji (e.g. 👨‍💻) fits but a paragraph can't sneak in. */
+  avatar?: string;
 }
 
 export interface CompanyPack {
@@ -111,10 +114,12 @@ function validateNpcs(raw: unknown): CompanyNpc[] | null {
     if (!name || name.length < NPC_NAME_MIN) return null;
     const role = trimStr((n as { role?: unknown }).role, 32);
     const personality = trimStr((n as { personality?: unknown }).personality, 32);
+    const avatar = trimStr((n as { avatar?: unknown }).avatar, 16);
     out.push({
       name,
       ...(role ? { role } : {}),
       ...(personality ? { personality } : {}),
+      ...(avatar ? { avatar } : {}),
     });
   }
   // Names must be unique within a pack — otherwise GameMap would render

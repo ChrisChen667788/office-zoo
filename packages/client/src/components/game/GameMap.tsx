@@ -29,6 +29,9 @@ interface PlayerInfo {
   activityText?: string;
   role?: string;
   team?: string;
+  /** v6.39 P3 — emoji avatar from a 公司主题包 NPC; drawn instead of the
+   *  role image when present. */
+  avatar?: string;
 }
 
 /** Logical world dims — must match `MAP_W` / `MAP_H` in @furball/shared. We
@@ -337,7 +340,17 @@ function drawPlayer(
   if (!player.isAlive) {
     // Dead: ghostly semi-transparent avatar with red X.
     ctx.globalAlpha = 0.32;
-    if (avatarImg) {
+    if (player.avatar) {
+      // v6.39 P3 — faded emoji avatar for eliminated pack NPCs.
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#23233a';
+      ctx.fill();
+      ctx.font = `${Math.round(radius * 1.4)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(player.avatar, cx, cy + 1);
+    } else if (avatarImg) {
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -390,7 +403,24 @@ function drawPlayer(
   ctx.stroke();
   ctx.restore();
 
-  if (avatarImg) {
+  if (player.avatar) {
+    // v6.39 P3 — user-chosen emoji avatar (公司主题包 NPC). Dark disc
+    // backdrop + centered glyph + team ring, so it sits in the same
+    // visual frame as the generated role images.
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(15,14,46,0.92)';
+    ctx.fill();
+    ctx.font = `${Math.round(radius * 1.4)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(player.avatar, cx, cy + 1);
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  } else if (avatarImg) {
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);

@@ -167,6 +167,10 @@ export interface PlayerState {
   ghostVoteUsed: boolean;
   /** AI 人格类型 */
   personality: string;
+  /** v6.39 P3 — user-chosen emoji avatar from a 公司主题包 NPC. When set,
+   *  the client renders this glyph instead of the role-generated image.
+   *  Undefined for default (non-pack) rosters. */
+  avatar?: string;
 }
 
 export interface TaskState {

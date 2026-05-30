@@ -70,6 +70,9 @@ export interface GamePlayer {
   totalTasks: number;
   ghostVoteUsed?: boolean;
   personality?: string;
+  /** v6.39 P3 — emoji avatar from a 公司主题包 NPC; GameMap renders it
+   *  instead of the role image when present. */
+  avatar?: string;
 }
 
 interface SpeechItem {

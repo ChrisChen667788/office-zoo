@@ -55,14 +55,23 @@ interface NpcRow {
   name: string;
   role: string;
   personality: string;
+  avatar: string;
 }
+
+/** v6.39 P3 — preset emoji avatars users can pick per NPC. '' = 默认
+ *  (role-generated image in game). Kept as a flat pool so the picker
+ *  is a single compact <select>. */
+const AVATAR_CHOICES = [
+  '', '🐀', '🐱', '🐶', '🦊', '🐼', '🐯', '🦁', '🐸',
+  '🐵', '🐰', '🐻', '🐷', '🦝', '🐹', '🐮', '🐲', '🦄',
+];
 
 export default function CompanyPackEdit() {
   const navigate = useNavigate();
   const { packId } = useParams<{ packId?: string }>();
   const [name, setName] = useState('');
   const [npcs, setNpcs] = useState<NpcRow[]>(
-    Array.from({ length: MIN_NPCS }, () => ({ name: '', role: '', personality: '' })),
+    Array.from({ length: MIN_NPCS }, () => ({ name: '', role: '', personality: '', avatar: '' })),
   );
   const [status, setStatus] = useState<'idle' | 'saving' | 'ok' | 'err'>('idle');
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -92,12 +101,13 @@ export default function CompanyPackEdit() {
     fetch(`/api/company-pack/${packId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d) => {
-        const p = d.pack as { name: string; npcs: Array<{ name: string; role?: string; personality?: string }> };
+        const p = d.pack as { name: string; npcs: Array<{ name: string; role?: string; personality?: string; avatar?: string }> };
         setName(p.name);
         setNpcs(p.npcs.map((n) => ({
           name: n.name,
           role: n.role ?? '',
           personality: n.personality ?? '',
+          avatar: n.avatar ?? '',
         })));
       })
       .catch((e) => setErrMsg(`加载失败 (${e})`));
@@ -124,7 +134,7 @@ export default function CompanyPackEdit() {
 
   function addRow() {
     if (npcs.length >= MAX_NPCS) return;
-    setNpcs((prev) => [...prev, { name: '', role: '', personality: '' }]);
+    setNpcs((prev) => [...prev, { name: '', role: '', personality: '', avatar: '' }]);
   }
 
   function removeRow(i: number) {
@@ -144,6 +154,7 @@ export default function CompanyPackEdit() {
         name: n.name.trim(),
         ...(n.role ? { role: n.role } : {}),
         ...(n.personality ? { personality: n.personality } : {}),
+        ...(n.avatar ? { avatar: n.avatar } : {}),
       }));
     try {
       const r = await fetch('/api/company-pack', {
@@ -256,7 +267,7 @@ export default function CompanyPackEdit() {
                   key={i}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '32px 1.4fr 1fr 1fr 28px',
+                    gridTemplateColumns: '26px 46px 1.2fr 0.9fr 0.9fr 24px',
                     gap: 6, alignItems: 'center',
                   }}
                 >
@@ -265,6 +276,21 @@ export default function CompanyPackEdit() {
                     color: 'rgba(255,255,255,0.4)',
                     fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
                   }}>{String(i + 1).padStart(2, '0')}</span>
+                  <select
+                    value={row.avatar}
+                    onChange={(e) => setRow(i, { avatar: e.target.value })}
+                    title="选个 emoji 头像 (留空=默认)"
+                    style={{
+                      padding: '6px 2px', fontSize: 15, textAlign: 'center',
+                      background: 'rgba(15,14,46,0.6)', color: '#f4f4ff',
+                      border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {AVATAR_CHOICES.map((a) => (
+                      <option key={a || 'none'} value={a}>{a || '·'}</option>
+                    ))}
+                  </select>
                   <input
                     type="text"
                     maxLength={16}

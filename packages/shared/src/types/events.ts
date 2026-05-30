@@ -25,6 +25,9 @@ export interface SerializedPlayer {
   ghostVoteUsed: boolean;
   /** AI 人格类型 */
   personality?: string;
+  /** v6.39 P3 — user-chosen emoji avatar from a 公司主题包 NPC. Client
+   *  renders this glyph in place of the role image when present. */
+  avatar?: string;
 }
 
 /** Lightweight per-tick payload sent at ~1.5s cadence during free_roam.

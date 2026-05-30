@@ -42,6 +42,28 @@ describe('POST /api/company-pack (create)', () => {
     expect(r.status).toBe(400);
   });
 
+  it('v6.39 P3 — stores + round-trips per-NPC emoji avatar', async () => {
+    const withAvatars = NPCS_6.map((n, i) => ({ ...n, avatar: ['🐀', '🐱', '🐶', '🦊', '🐼', '🐯'][i] }));
+    const r = await postCreate('alice', { npcs: withAvatars });
+    expect(r.status).toBe(200);
+    const j = await r.json() as { pack: { packId: string; npcs: Array<{ avatar?: string }> } };
+    expect(j.pack.npcs[0].avatar).toBe('🐀');
+    expect(j.pack.npcs[5].avatar).toBe('🐯');
+    // round-trips through GET
+    const got = await companyPackRoutes.request(`/${j.pack.packId}`);
+    const gj = await got.json() as { pack: { npcs: Array<{ avatar?: string }> } };
+    expect(gj.pack.npcs[2].avatar).toBe('🐶');
+  });
+
+  it('v6.39 P3 — over-long avatar value is dropped', async () => {
+    const bad = NPCS_6.map((n) => ({ ...n, avatar: 'A'.repeat(50) }));
+    const r = await postCreate('alice', { npcs: bad });
+    expect(r.status).toBe(200);
+    const j = await r.json() as { pack: { npcs: Array<{ avatar?: string }> } };
+    // trimmed to 16 chars (not rejected — avatar is best-effort cosmetic)
+    expect((j.pack.npcs[0].avatar ?? '').length).toBeLessThanOrEqual(16);
+  });
+
   it('rejects missing / empty / overlong name', async () => {
     expect((await postCreate('alice', { name: '' })).status).toBe(400);
     expect((await postCreate('alice', { name: '   ' })).status).toBe(400);

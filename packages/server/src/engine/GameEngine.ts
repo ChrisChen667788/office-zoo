@@ -177,6 +177,9 @@ export interface PackNpcOverride {
   name: string;
   personality?: string;
   role?: string;
+  /** v6.39 P3 — emoji avatar glyph; rendered client-side in place of
+   *  the role image. */
+  avatar?: string;
 }
 
 /** v6.38 P2 — map a pack's free-text role hint to a TEAM lean. 管理层
@@ -314,11 +317,13 @@ export class GameEngine extends EventEmitter {
     // the AI_NAMES weighted sample whenever the pack is too small.
     let names: string[];
     let packRoleHints: (string | undefined)[] = [];
+    let packAvatars: (string | undefined)[] = [];
     const personalities = assignPersonalities(count);
     if (packOverride && packOverride.npcs.length >= count) {
       const chosen = shuffle([...packOverride.npcs]).slice(0, count);
       names = chosen.map((n) => n.name);
       packRoleHints = chosen.map((n) => n.role);
+      packAvatars = chosen.map((n) => n.avatar);
       // Personality hints now read from the SAME shuffled tuple, so
       // name↔personality stays consistent. Invalid hints fall through
       // to the dealt default.
@@ -378,6 +383,9 @@ export class GameEngine extends EventEmitter {
         emergencyMeetings: this.state.config.emergencyMeetings,
         ghostVoteUsed: false,
         personality,
+        // v6.39 P3 — carry the pack NPC's emoji avatar (undefined for
+        // default rosters); aligned with names via the shuffled tuples.
+        avatar: packAvatars[i],
       };
       this.state.players.push(player);
 
@@ -441,6 +449,7 @@ export class GameEngine extends EventEmitter {
               name: n.name,
               personality: n.personality,
               role: n.role,
+              avatar: n.avatar,
             })),
           };
         }
@@ -1343,6 +1352,7 @@ export class GameEngine extends EventEmitter {
         totalTasks: p.tasks.length,
         ghostVoteUsed: p.ghostVoteUsed,
         personality: p.personality,
+        avatar: p.avatar,
       })),
       round: this.state.round,
       taskProgress: this.state.taskProgress,
