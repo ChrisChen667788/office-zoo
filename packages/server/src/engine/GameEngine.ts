@@ -170,6 +170,78 @@ function leakTokenize(text: string): Set<string> {
  *  path in createPlayers to whitelist user-submitted personality hints. */
 const VALID_PERSONALITIES = new Set<string>(ALL_PERSONALITIES);
 
+/** v6.38 P2 — a single NPC entry from a 公司主题包, passed to
+ *  createPlayers as an override. `role`/`personality` are optional
+ *  free-text hints the user picked in the editor. */
+export interface PackNpcOverride {
+  name: string;
+  personality?: string;
+  role?: string;
+}
+
+/** v6.38 P2 — map a pack's free-text role hint to a TEAM lean. 管理层
+ *  (manager/hr/finance) lean 资本家/dog; 一线打工人 (engineer/pm/designer/
+ *  sales) lean 打工人/cat. Anything else → no lean (undefined). Kept as a
+ *  plain object so the editor's role dropdown ids stay the single source
+ *  of truth (see client CompanyPackEdit ROLE_HINTS). */
+const ROLE_HINT_TEAM_LEAN: Record<string, Team> = {
+  manager: Team.DOG,
+  hr: Team.DOG,
+  finance: Team.DOG,
+  engineer: Team.CAT,
+  pm: Team.CAT,
+  designer: Team.CAT,
+  sales: Team.CAT,
+};
+
+/**
+ * v6.38 P2 — assign a fixed role multiset to players honoring per-player
+ * team-lean hints, WITHOUT changing which roles exist (so cat/dog/neutral
+ * balance is byte-identical to a normal game).
+ *
+ * Two passes:
+ *   1. Players whose hint maps to an available role of the leaning team
+ *      grab one (popped from that team's bucket).
+ *   2. Remaining players take whatever roles are left, in pool order.
+ *
+ * `rolePool` is consumed by reference-free copies; returns a `Role[]`
+ * aligned to player index. Bucketed by the actual team string so exotic
+ * teams (e.g. lover) are handled generically.
+ */
+function assignRolesWithTeamLean(
+  rolePool: Role[],
+  roleHints: (string | undefined)[],
+): Role[] {
+  const count = rolePool.length;
+  // Bucket available roles by their team string.
+  const byTeam = new Map<string, Role[]>();
+  for (const r of rolePool) {
+    const team = ROLE_REGISTRY[r].team as string;
+    if (!byTeam.has(team)) byTeam.set(team, []);
+    byTeam.get(team)!.push(r);
+  }
+  const result: (Role | undefined)[] = new Array(count).fill(undefined);
+
+  // Pass 1 — satisfy team leans where a matching role is still available.
+  for (let i = 0; i < count; i++) {
+    const hint = roleHints[i];
+    const lean = hint ? ROLE_HINT_TEAM_LEAN[hint] : undefined;
+    if (lean) {
+      const bucket = byTeam.get(lean as string);
+      if (bucket && bucket.length > 0) result[i] = bucket.pop()!;
+    }
+  }
+
+  // Pass 2 — flatten whatever's left and fill the unassigned slots.
+  const remaining: Role[] = [];
+  for (const bucket of byTeam.values()) remaining.push(...bucket);
+  let ri = 0;
+  for (let i = 0; i < count; i++) {
+    if (result[i] === undefined) result[i] = remaining[ri++];
+  }
+  return result as Role[];
+}
+
 export class GameEngine extends EventEmitter {
   readonly state: GameState;
   /** Wall-clock when this engine was created — used by TTL sweeper. */
@@ -226,20 +298,36 @@ export class GameEngine extends EventEmitter {
   createPlayers(
     weeklyLeaders: Record<string, string> = {},
     nominationCounts: Map<string, number> = new Map(),
-    packOverride?: { names: string[]; personalities?: (string | undefined)[] },
+    packOverride?: { npcs: PackNpcOverride[] },
   ): void {
     const count = this.state.config.playerCount;
     const preset = ROLE_PRESETS[count] ?? ROLE_PRESETS[8];
-    const roles: Role[] = shuffle([...preset.cat, ...preset.dog, ...preset.neutral]);
-    // v6.37 P4 — pack override skips the weighted-sample step and
-    // takes names verbatim from the user-curated 公司主题包. We still
-    // shuffle the pack so role↔name assignment is randomized. Pack
-    // is validated server-side (6-12 unique names), so length ≥ count
-    // is guaranteed only when ownerPackCount ≥ playerCount; otherwise
-    // we fall back to AI_NAMES weighted sample (defensive).
+    const rolePool: Role[] = shuffle([...preset.cat, ...preset.dog, ...preset.neutral]);
+
+    // v6.37 P4 / v6.38 P2 — pack override skips the weighted-sample step
+    // and takes names verbatim from the user-curated 公司主题包. We shuffle
+    // the pack as whole TUPLES so each name keeps its own personality +
+    // role hint aligned (v6.38 P2 fix — previously names were shuffled
+    // independently of the index-aligned personalities array, so after
+    // the shuffle a name could be paired with another NPC's personality).
+    // Pack is validated server-side (6-12 unique names); we fall back to
+    // the AI_NAMES weighted sample whenever the pack is too small.
     let names: string[];
-    if (packOverride && packOverride.names.length >= count) {
-      names = shuffle([...packOverride.names]).slice(0, count);
+    let packRoleHints: (string | undefined)[] = [];
+    const personalities = assignPersonalities(count);
+    if (packOverride && packOverride.npcs.length >= count) {
+      const chosen = shuffle([...packOverride.npcs]).slice(0, count);
+      names = chosen.map((n) => n.name);
+      packRoleHints = chosen.map((n) => n.role);
+      // Personality hints now read from the SAME shuffled tuple, so
+      // name↔personality stays consistent. Invalid hints fall through
+      // to the dealt default.
+      for (let i = 0; i < count; i++) {
+        const hint = chosen[i].personality;
+        if (hint && VALID_PERSONALITIES.has(hint)) {
+          personalities[i] = hint as Personality;
+        }
+      }
     } else {
       // v6.35 P5 — weight each name by its hot-quote nomination count
       // over the last 7 days. weight = 1 + 0.5 × min(mentions, 5) — caps
@@ -247,18 +335,14 @@ export class GameEngine extends EventEmitter {
       const weights = AI_NAMES.map((n) => 1 + 0.5 * Math.min(nominationCounts.get(n) ?? 0, 5));
       names = weightedSample(AI_NAMES, weights, count);
     }
-    const personalities = assignPersonalities(count);
-    // v6.37 P4 — if the pack supplied personality hints, apply them
-    // index-aligned with the chosen names. Unknown personalities are
-    // silently ignored (assignPersonalities default stays).
-    if (packOverride?.personalities) {
-      for (let i = 0; i < count; i++) {
-        const hint = packOverride.personalities[i];
-        if (hint && VALID_PERSONALITIES.has(hint)) {
-          personalities[i] = hint as Personality;
-        }
-      }
-    }
+
+    // v6.38 P2 — role soft-preference. The pack's free-text role hint
+    // ("manager" / "engineer" / …) maps to a TEAM lean (管理层→资本家/dog,
+    // 打工人岗→cat). We redistribute the existing role multiset so hinted
+    // players tend to land on their leaning team — WITHOUT changing which
+    // roles exist, so the cat/dog/neutral balance is byte-identical to a
+    // normal game. No-hint / unmappable-hint players take whatever's left.
+    const roles = assignRolesWithTeamLean(rolePool, packRoleHints);
 
     // v6.16 P1 — apply per-character weekly-vote bias. For each named
     // player whose character has a "this week's winner" personality,
@@ -344,15 +428,20 @@ export class GameEngine extends EventEmitter {
     // pack server-side and pass the names/personalities as overrides.
     // Fail-open: missing/invalid pack falls back to the default
     // AI_NAMES roster so a broken share link never blocks game start.
-    let packOverride: { names: string[]; personalities?: (string | undefined)[] } | undefined;
+    let packOverride: { npcs: PackNpcOverride[] } | undefined;
     if (this.state.config.companyPackId) {
       try {
         const { getCompanyPackById } = await import('../routes/companyPack');
         const pack = await getCompanyPackById(this.state.config.companyPackId);
         if (pack && pack.npcs.length >= this.state.config.playerCount) {
+          // Pass whole NPC tuples — createPlayers shuffles them together
+          // so name↔personality↔role stay aligned (v6.38 P2).
           packOverride = {
-            names: pack.npcs.map((n) => n.name),
-            personalities: pack.npcs.map((n) => n.personality),
+            npcs: pack.npcs.map((n) => ({
+              name: n.name,
+              personality: n.personality,
+              role: n.role,
+            })),
           };
         }
       } catch { /* fail-open — pack is a bonus, not a gate */ }

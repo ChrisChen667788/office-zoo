@@ -343,22 +343,23 @@ describe('GameEngine — ghostVotes tally shape', () => {
 describe('GameEngine — createPlayers packOverride (v6.37 P4 / v6.38 P1)', () => {
   // 12 CJK names — guaranteed disjoint from AI_NAMES (all ASCII) so the
   // fallback test can assert "no pack name leaked into the roster".
-  const PACK_12 = [
+  const PACK_NAMES = [
     '老王', '小张', '阿强', '丽姐', '大刘', '果果',
     '阿珍', '老李', '小美', '阿杰', '胖虎', '静静',
   ];
+  const npcs = (names = PACK_NAMES) => names.map((name) => ({ name }));
 
   it('uses pack names verbatim when pack size ≥ playerCount', () => {
     const e = new GameEngine(8);
-    e.createPlayers({}, new Map(), { names: PACK_12 });
+    e.createPlayers({}, new Map(), { npcs: npcs() });
     const names = e.state.players.map((p) => p.name);
     expect(names).toHaveLength(8);
-    for (const n of names) expect(PACK_12).toContain(n);
+    for (const n of names) expect(PACK_NAMES).toContain(n);
   });
 
   it('keeps roster names unique under pack override', () => {
     const e = new GameEngine(8);
-    e.createPlayers({}, new Map(), { names: PACK_12 });
+    e.createPlayers({}, new Map(), { npcs: npcs() });
     const names = e.state.players.map((p) => p.name);
     expect(new Set(names).size).toBe(names.length);
   });
@@ -366,7 +367,7 @@ describe('GameEngine — createPlayers packOverride (v6.37 P4 / v6.38 P1)', () =
   it('falls back to AI_NAMES when pack is smaller than playerCount', () => {
     const e = new GameEngine(8);
     // Only 3 pack names but 8 players needed → must fall back.
-    e.createPlayers({}, new Map(), { names: ['老王', '小张', '阿强'] });
+    e.createPlayers({}, new Map(), { npcs: npcs(['老王', '小张', '阿强']) });
     const names = e.state.players.map((p) => p.name);
     expect(names).toHaveLength(8);
     // No CJK pack name should appear — AI_NAMES are all ASCII.
@@ -377,7 +378,7 @@ describe('GameEngine — createPlayers packOverride (v6.37 P4 / v6.38 P1)', () =
     // Pack only swaps NAMES — teams/roles still come from ROLE_PRESETS,
     // so the cat/dog/neutral balance must be identical to a normal game.
     const packed = new GameEngine(8);
-    packed.createPlayers({}, new Map(), { names: PACK_12 });
+    packed.createPlayers({}, new Map(), { npcs: npcs() });
     const normal = newEngine(8);
     const teamCount = (e: GameEngine) => {
       const m: Record<string, number> = {};
@@ -389,12 +390,11 @@ describe('GameEngine — createPlayers packOverride (v6.37 P4 / v6.38 P1)', () =
 
   it('applies pack personality hints (set membership)', () => {
     const e = new GameEngine(8);
-    // All 8 hint slots set to 'workaholic' — every player should end up
+    // Every NPC hinted 'workaholic' — every player should end up
     // workaholic (no random assignment can override an explicit hint here
     // except the weekly-leader bias, which is empty in this test).
     e.createPlayers({}, new Map(), {
-      names: PACK_12,
-      personalities: Array(12).fill('workaholic'),
+      npcs: PACK_NAMES.map((name) => ({ name, personality: 'workaholic' })),
     });
     const persSet = new Set(e.state.players.map((p) => p.personality));
     expect(persSet.has('workaholic')).toBe(true);
@@ -405,10 +405,79 @@ describe('GameEngine — createPlayers packOverride (v6.37 P4 / v6.38 P1)', () =
   it('ignores invalid personality hints (keeps a valid default)', () => {
     const e = new GameEngine(8);
     e.createPlayers({}, new Map(), {
-      names: PACK_12,
-      personalities: Array(12).fill('not_a_real_personality'),
+      npcs: PACK_NAMES.map((name) => ({ name, personality: 'not_a_real_personality' })),
     });
     // Every player still has SOME truthy personality (default kept).
     for (const p of e.state.players) expect(p.personality).toBeTruthy();
+  });
+});
+
+describe('GameEngine — pack tuple alignment + role lean (v6.38 P2)', () => {
+  it('keeps name↔personality aligned after the pack shuffle', () => {
+    // Each NPC gets a UNIQUE personality. After the internal shuffle the
+    // pairing must survive — i.e. the player named X must carry exactly
+    // the personality the pack assigned to X, never a neighbor's.
+    // The 8 real Personality enum string values (shared/types/personality.ts).
+    // Invalid ids get rejected by VALID_PERSONALITIES and fall back to a
+    // default, which would mask a real desync — so these must be exact.
+    const pers = [
+      'social_butterfly', 'introvert', 'contrarian', 'sycophant',
+      'passive_aggressive', 'hot_tempered', 'smooth_operator', 'workaholic',
+    ];
+    const packNpcs = ['N0', 'N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'N7'].map((name, i) => ({
+      name, personality: pers[i],
+    }));
+    const expected = new Map(packNpcs.map((n) => [n.name, n.personality]));
+
+    // Run several times — a desync bug would surface on at least one shuffle.
+    for (let trial = 0; trial < 20; trial++) {
+      const e = new GameEngine(8);
+      e.createPlayers({}, new Map(), { npcs: packNpcs });
+      for (const p of e.state.players) {
+        // Only assert for personalities that were valid hints (all are here).
+        if (expected.has(p.name)) {
+          expect(p.personality).toBe(expected.get(p.name));
+        }
+      }
+    }
+  });
+
+  it('role hint biases team without breaking the role multiset', () => {
+    // Hint everyone toward dog (管理层). The dog slots in the preset are
+    // limited, so only that many can be satisfied — but the overall
+    // team balance must still equal a normal game.
+    const packNpcs = ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'].map((name) => ({
+      name, role: 'manager',
+    }));
+    const packed = new GameEngine(8);
+    packed.createPlayers({}, new Map(), { npcs: packNpcs });
+    const normal = newEngine(8);
+    const teamCount = (e: GameEngine) => {
+      const m: Record<string, number> = {};
+      for (const p of e.state.players) m[p.team] = (m[p.team] ?? 0) + 1;
+      return m;
+    };
+    // Balance preserved (multiset unchanged — we only redistribute).
+    expect(teamCount(packed)).toEqual(teamCount(normal));
+  });
+
+  it('manager-hinted NPCs preferentially land on the dog team', () => {
+    // Mixed pack: 2 managers (dog-lean) + 6 engineers (cat-lean). The 2
+    // managers should grab dog roles as long as ≥ 2 dog slots exist in
+    // the 8-player preset (typically 2). Assert both managers are dog.
+    const packNpcs = [
+      { name: 'Boss1', role: 'manager' },
+      { name: 'Boss2', role: 'manager' },
+      ...['E1', 'E2', 'E3', 'E4', 'E5', 'E6'].map((name) => ({ name, role: 'engineer' })),
+    ];
+    // Run a few times — assignment is deterministic w.r.t. team buckets
+    // (managers always pop dog first), independent of shuffle order.
+    for (let trial = 0; trial < 10; trial++) {
+      const e = new GameEngine(8);
+      e.createPlayers({}, new Map(), { npcs: packNpcs });
+      const bosses = e.state.players.filter((p) => p.name === 'Boss1' || p.name === 'Boss2');
+      expect(bosses).toHaveLength(2);
+      for (const b of bosses) expect(b.team).toBe('dog');
+    }
   });
 });
