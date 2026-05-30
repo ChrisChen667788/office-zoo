@@ -1,371 +1,186 @@
-<div align="center">
+# 🐀 OFFICE ZOO · 职场动物园
 
-<!-- v6.24 P4 — logo-readme-banner.png is the v2 lockup: bigger wordmark
-     (Arial Black gold→amber gradient + drop shadow) + clean bilingual
-     tagline stack (CN top / EN bottom). Prior -lockup-final.png stays
-     in assets/brand/ as archive — see BRAND_GUIDE.md history. -->
-<img src="assets/brand/logo-readme-banner.png" alt="OFFICE ZOO · 班味剧场 · 0 点的写字楼 · Midnight Workplace Soap Opera" width="100%" />
+> AI 鼠人替你在职场里斗智斗勇 —— 一个用大模型驱动的中文职场 social deduction 游戏。
 
-### 0 点的写字楼,AI 鼠人替你拥抱变化,你回家躺平。
+[![smoke](https://github.com/ChrisChen667788/office-zoo/actions/workflows/smoke.yml/badge.svg)](https://github.com/ChrisChen667788/office-zoo/actions/workflows/smoke.yml)
 
-[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![React 18 + Vite 6](https://img.shields.io/badge/stack-React%2018%20%2B%20Vite%206-61dafb.svg)](https://vitejs.dev/)
-[![Hono + Socket.IO](https://img.shields.io/badge/backend-Hono%20%2B%20Socket.IO-orange.svg)](https://hono.dev/)
-[![Minimax speech-2.8-hd](https://img.shields.io/badge/voice-Minimax%202.8--hd-ff5588.svg)](https://www.minimaxi.com/)
-
-**一家公司被裁了,9 名 AI 员工还在加班。**
-**你是那只盯着 KPI 屏的 HR — 选个模式,把这一天笑着过完。**
-
-**简体中文** · [English](README.en.md) · [📱 微信小程序](packages/miniprogram/)
-
-</div>
+**OFFICE ZOO**（职场动物园）是一个 AI 驱动的中文职场推理游戏：你创建一个"公司"，AI 鼠人员工们在工位、茶水间、会议室里摸鱼、甩锅、站队、表演忠诚，而你要找出谁是"卧底"。
 
 ---
 
-## 💡 这是什么
+## ✨ 这是什么
 
-> 一个 AI 自演的"班味剧场" — 不是工具, 是给打工人写的一封降压情书.
-
-| | |
-|---|---|
-| **核心体验** | 9 个有 personality 的 AI 鼠人在写字楼里自演职场众生相, 你 0 操作就看戏 |
-| **目标用户** | 想下班 / 想笑着上班 / 想看着别人替自己崩溃的当代打工人 |
-| **不是什么** | 不是工具 · 不是 SaaS · 不是 ROI · 是娱乐 |
-| **MVP 周期** | 30+ 轮迭代 (v6.0 → v6.34), 每轮 1-7 个 P, 104 个 vitest 全绿 |
-| **License** | MIT · fork 改装搞自家版本 (银行版 / 国企版 / 大厂版) |
-
-## 🎯 凭什么花你 3 分钟
-
-| 痛点 | 我们给的 |
-|---|---|
-| **班味重** | 4 模式自由切, 看戏不动手, 通勤路上看完一局 |
-| **职场黑话疲劳** | 把"颗粒度"做成 AI 自己念到秃, 用幽默消解攻击性 |
-| **没人能讲** | 深夜酒馆 1v1 跟某只 AI 鼠人喝酒吐槽, lo-fi BGM |
-| **想笑着学劳动法** | 截了么 5 关闯关, 每关绑《劳动合同法》一条 |
-| **想看大模型在演什么** | 全程透明 prompt 设计, 30+ 轮迭代日志在 [CHANGELOG.md](docs/CHANGELOG.md) |
+| 维度 | 说明 |
+|------|------|
+| 🎭 **核心玩法** | AI 鼠人自主对话 + 投票淘汰，你扮演"看戏的人事总监" |
+| 🧠 **AI 驱动** | 每个鼠人有独立人格、记忆、说话风格，发言由大模型实时生成 |
+| 🗺️ **职场地图** | 工位/茶水间/会议室/老板办公室，鼠人实时走动 + 摸鱼 |
+| 🔥 **班味系统** | 班味指数 / 金句池 / 周报 / 排行榜，把"打工人共鸣"做成可量化的分数 |
+| 🏢 **公司主题包** | 自定义"我们公司的 12 个 NPC"，私有部署你的职场宇宙 |
 
 ---
 
-## 🏗️ 系统架构 (v6.34 mermaid)
-
-```mermaid
-flowchart LR
-    subgraph Client["客户端 (React 18 + Vite 6)"]
-        Landing[Landing<br/>4 模式选择]
-        Classic[Classic<br/>2.5D GameMap]
-        Immersive[Immersive<br/>TTS 圆桌]
-        Fired[FiredChat<br/>1v1 HR]
-        Profile[Profile<br/>班味卡 + 班味指数]
-        MP[微信小程序<br/>4 page webview]
-    end
-
-    subgraph Server["服务器 (Hono + Socket.IO)"]
-        SocketHandler[socketHandler<br/>game:* events]
-        GameEngine[GameEngine<br/>state machine]
-        Routes[REST routes<br/>/api/quiz · /api/stats<br/>/api/banwei · /api/hot-quotes]
-    end
-
-    subgraph LLM["LLM 层 (多 provider)"]
-        OpenAI["OpenAI / Qingyun<br/>discussion + ghost"]
-        Minimax["Minimax TTS<br/>speech-2.8-hd"]
-    end
-
-    subgraph Storage["持久化 (本地 JSON · 升级 pgvector 待 v7)"]
-        Profiles[user_profiles.json]
-        Stats[stats.json<br/>60s flush]
-        Banwei[banwei.json<br/>12-week 滚动]
-        HotQuotes[hot_quotes.json<br/>200 FIFO]
-    end
-
-    Landing --> SocketHandler
-    Classic --> SocketHandler
-    Immersive --> SocketHandler
-    Fired --> Routes
-    Profile --> Routes
-    MP -.web-view.-> Landing
-
-    SocketHandler --> GameEngine
-    GameEngine --> OpenAI
-    GameEngine --> Minimax
-    Routes --> OpenAI
-    Routes --> Profiles
-    Routes --> Stats
-    Routes --> Banwei
-    Routes --> HotQuotes
-
-    style Client fill:#1a0d35,stroke:#4ECDC4,color:#fff
-    style Server fill:#2D1B69,stroke:#FFD700,color:#fff
-    style LLM fill:#0a0a1e,stroke:#FF4FA3,color:#fff
-    style Storage fill:#1a0d35,stroke:#B086FF,color:#fff
-```
-
-### 核心数据流 · PSYWAR 心理战闭环 (v6.25→v6.31)
-
-```mermaid
-sequenceDiagram
-    participant U as 玩家
-    participant C as Classic 客户端
-    participant S as 服务器
-    participant E as GameEngine
-    participant A as AI 鼠人
-
-    U->>C: 战术 @ 选目标 + 写一句话
-    C->>S: socket emit `game:psy_war_leak` { text }
-    S->>E: pushLeakedHint(text) · FIFO cap 5
-    E->>S: emit `leak_acked`
-    S->>C: `game:psy_war_acked`
-    C->>U: 👂 "AI 听到了" badge
-
-    Note over E,A: 下一回合 discussion phase
-    E->>A: generateSpeech(context + leakedHints[])
-    A->>E: speech 文本
-    E->>E: detectLeakQuote() · 8-char + 0.42 Jaccard
-    alt 命中
-        E->>S: emit `leak_quoted`
-        S->>C: `game:leak_quoted`
-        C->>U: ✨ "AI 引用了" + 点 chip 跳 speech
-        C->>C: recordLeakQuoted() → 班味指数 +6
-    end
-```
-
-<p align="center">
-  <img src="assets/launch-demo/hero-combined.gif" alt="30s hero · 米哈游风故事 (0-15s) + 真实游戏 (15-30s)" width="720" />
-  <br/>
-  <em>v6.2 · 米哈游风故事板 + 真实游戏画面合成 30s · <a href="assets/launch-demo/demo-memory.gif">纯故事板版</a> · <a href="assets/launch-demo/game-highlight.gif">纯真实游戏版</a> · <a href="docs/V6_MEMORY_TECH_BLOG.md">技术博客</a></em>
-</p>
-
----
-
-> "卷不动也别躺平 — 让 AI 替你卷,你回家躺平,顺便把段子发朋友圈。"
-
-## 四种打开方式 — 总有一种解你今天的压
-
-| | 模式 | 一句话 | 何时玩 |
-|---|---|---|---|
-| 🏢 | **鼠人公司** (classic) | 2.5D 写字楼, 9 名 AI 鼠人自演职场众生相 | 想看戏 · 通勤路上 |
-| 🎬 | **全程开麦** (immersive) | 全屏沉浸 · 真人 TTS · 8 个声音轮番阴阳 | 想下饭 · 午休前 |
-| ⚖️ | **裁了么** (fired) | 1v1 跟 HR 见招拆招 · 5 关速通《劳动合同法》 | 想长本事 · 真要离职时学防身 |
-| 🍺 | **深夜酒馆** (bar, v6.2 新) | 凌晨 2 点 · lo-fi · 跟某个 AI 1v1 喝酒互相吐槽班味 | 卷不动了 · 没人能讲时 |
-
-**还有副玩法:** 🔮 班味占卜 daily · 🎤 班味单口 · 🤝 攒局攒朋友 · 📜 7 天历史 · 🃏 牌库 24 卡 · ⭐ **段子 UGC 投稿** (v6.1 新) · 🍷 **朋友拼版彩蛋** (v6.1 新) · 📊 **周报生成器 4 风格** (v6.5 新)
-
-## 🌟 v6.1 升级 (2026-05-22)
-
-> 米哈游风画面 + Z 世代趣味玩法 + 朋友共创闭环
-
-- 🎮 **米哈游风视觉系统** — 深紫宇宙底 + 5★ 金边角色卡 + 元素 chip + EVENT pill, 整个 hero 区做成"新版本上线公告"页, 视觉接近《原神》/《崩坏》活动 banner
-- 🎤 **段子库 UGC 共创** (`/talkshow/ugc`) — 任何人都能投稿自己的职场段子, auto-moderation 后等审核, 通过的进入 ★ 本月精选池, 朋友帮你点赞, 月底 Top 5 上首页轮播
-- 🍷 **朋友拼版彩蛋** — 在 🍺 深夜酒馆跟某 AI 聊完, 一键创建"拼版", 把链接发给朋友 → 朋友也跟同一个 AI 聊几句 → 后端把你们的金句合并 → 生成"群像截图"(v6.2 出渲染器), 形成多人共享 AI 视角的群体记忆
-- 🛡️ **审稿守则极克制** — 黑名单只覆盖直接公司点名 / 政治 / 色情 / 暴力; 调侃 HR 婉辞 ("拥抱变化" / "毕业" / "颗粒度") 全部允许 — 那本来就是产品调性
-
-## ✨ v2.x → v3.0 新功能(2026 年 5 月)
-
-> 让"班味"成为一个可演化、可分享、可二刷的身份系统。
-
-- 🪪 **24 种打工人 archetype** (v2.0.0) — 国企铁饭碗 / 大厂螺丝钉 / 创业老炮 / 金融体面人 / 教培劫余 / 网红打工人 / 北漂 / 沪漂 / 深漂搞钱党 / 杭州互联网青年 / 成都摆烂派 / 海外润人 + 原 v1.3 的 12 种行为型
-- 🌀 **班味会演化** (v1.5.1 + v2.0.1 + v2.0.2) — 玩裁员 / 攒局 / 写段子 / 闯关包,每次都给 trait 向量加 delta;漂得够多 archetype 会"转世"(原 sass-master 卷成 grinder),触发"🌀 你已演化为新人格"大字幕
-- 🎬 **今日剧情结果分享卡** (v1.5.0) — 1080×1350 IG 竖图 PNG,一键复制或下载;teaser 模式 + 战绩模式两种排版,把每天的剧情塞进朋友圈
-- 🏢 **Tribe-aware 推荐** (v2.1.0 + v2.3.0) — 你是大厂?今日剧情自动推 FAANG 剧本 + 大厂段子;你是沪漂?给你推《陆家嘴的早 7 点》;你是杭州的?给你推《我的花名叫"无忌"》
-- 🎭 **化学反应导演** (v3.0.0) — 攒局时 AI 编剧会看全队 archetype 混合,自动写出"国企 + 大厂 = 文化冲突剧"、"全员北漂 = 群像剧"、"卷王 vs 摆烂 = 天敌同台" — 不再是模板剧本,每桌都是独家剧情
-- 🎙️ **Per-beat 多声音** (v1.4.2) — squad 剧本每个角色用自己的 archetype 专属音色播报,御姐 / 霸道总裁 / 青涩男切换无缝
-- 🌐 **i18n 覆盖新 12 archetype** (v2.2.0) — 简中 / English / 日本語 / 한국어 四语,Profile 卡完整本地化
-
-## 它会做什么
-
-- 🗣️ **真·职场黑话** — "@同学 你这个事情 owner 是谁?颗粒度不够,先对齐一下底层逻辑"
-- 🔪 **暗中"优化"同事** — 资本家每轮挑一名打工人"毕业",走 N+1 流程, 全程不沾血
-- 🗳️ **复盘 + 投票** — 8 名鼠人围圈开会,真人语音轮番阴阳,投票把 0 点的锅甩出去
-- 👻 **离场前的最后一击** — 被裁的人靠"劳动仲裁票"扳回一城, 离职信仰永不毕业
-
-## 凭什么 Star?
-
-- 🎨 **35+ AI 立绘 + 23 角色头像** — 全是程序生成的二次元,0 张 emoji 凑数
-- 🎙️ **23 个角色专属音色** — 青涩男 / 御姐 / 霸道总裁 / PUA 大师,听完一回合像追了一集职场短剧
-- 📚 **真法条教学** — 每关一条《劳动合同法》,通关解锁知识卡片(21/35/41/42/50 条)
-- ⚡ **多层降级** — 三层 LLM、四层 TTS、五层图像生成,断哪一层都不哑火
-- 🏗️ **代码全开源** — MIT 协议,fork 改装搞自家版本(996 IT 公司版 / 银行金融版 / 国企版)
-
-## 📸 截图
-
-> 每次发版会同步真机截图到 `assets/screenshots/`,见 [`docs/RELEASE_PROCESS.md`](./docs/RELEASE_PROCESS.md) 流程。
-
-![首页 4 模式](./assets/screenshots/01-landing.png)
-
-| 模式 | 截图 |
-|:---:|:---:|
-| 🎤 班味单口段子库 | `assets/screenshots/02-talkshow-list.png` _(待截)_ |
-| 🏢 经典模式 2.5D 写字楼 | `assets/screenshots/04-classic-game.png` _(待截)_ |
-| 🎤 沉浸模式圆桌 | `assets/screenshots/05-immersive-game.png` _(待截)_ |
-| ⚖️ 裁了么闯关进度 | `assets/screenshots/06-fired-landing.png` _(待截)_ |
-| 🎬 一键下载竖版战报视频 | `assets/screenshots/08-share-video.png` _(待截)_ |
-
-> 占位图标位的会在每个版本发布时按 [`RELEASE_PROCESS.md`](./docs/RELEASE_PROCESS.md) 的"截图三连" 补齐。
-
-## 30 秒跑起来
+## 🚀 快速开始
 
 ```bash
-git clone https://github.com/ChrisChen667788/office-zoo.git
-cd office-zoo
+# 1. 安装依赖（pnpm workspace）
+pnpm install
 
-npm install                  # 装依赖
+# 2. 配置后端环境变量（OpenAI 兼容 API）
+cp packages/server/.env.example packages/server/.env
+# 编辑 .env，填入 OPENAI_API_KEY / BASE_URL / MODEL
 
-cp .env.example .env         # 改成你自己的 key
-# 必填:
-#   QINGYUN_API_KEY=<你的青云聚合 key>      # OpenAI 兼容,推荐
-#   MINIMAX_API_KEY=<你的 Minimax key>      # 真人 TTS + LLM + 图像
-
-npm run dev                  # 起 Vite + Hono + WS
-open http://localhost:5173
+# 3. 启动开发环境（server :3100 + client :5173）
+pnpm dev
 ```
 
-> 首次启动会跑 5-10 分钟生成 23 个角色立绘 + 35 个图标(后续秒开)。
-> 没有 key 也能跑 — 浏览器 Web Speech 兜底,emoji 占位,核心玩法不残缺。
-
-## 资产管理
-
-```bash
-# 全量重生角色立绘
-npx tsx packages/server/src/scripts/regen-avatars.ts
-
-# 全量重生 UI 图标
-npx tsx packages/server/src/scripts/regen-icons.ts
-
-# 只重生指定 key
-npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
-```
-
-## 架构一图流
-
-```
-┌─── client (Vite + React 18 + Zustand + Framer Motion + Tailwind 4) ───┐
-│                                                                        │
-│  /                  Landing  — 3 大模式并列卡                           │
-│  /classic/:gameId   Classic  — 2.5D 写字楼 + RAF lerp + Catmull-Rom    │
-│  /immersive/:gameId Immersive — 圆桌 + 真人语音 + 弹幕                  │
-│  /fired             FiredLanding — 5 关闯关 + 知识卡片                  │
-│  /fired/chat        FiredChat — 1v1 跟 HR 见招拆招 + 四维评分            │
-│                                                                        │
-└──────────────────────────────┬─────────────────────────────────────────┘
-                               │ socket.io (3101) + REST /api (3100)
-┌──────────────────────────────▼─────────────────────────────────────────┐
-│   server (Hono + Socket.IO + tsx --watch)                              │
-│                                                                        │
-│   GameEngine        runFreeRoam (6 ticks × 1.5s,emit 'tick')           │
-│       │             runDiscussion + sanitizeSpeech                     │
-│       │             runVoting + resolveVotes                           │
-│       ▼                                                                │
-│   BaseAgent → callLLMWithTimeout                                       │
-│       ├── QingYun gpt-4o-mini (主)                                     │
-│       └── Minimax M2 (备)                                              │
-│                                                                        │
-│   tts.ts           Minimax t2a_v2 speech-2.8-hd                        │
-│                  → t2a_pro                                             │
-│                  → QingYun /audio/speech                               │
-│                  → Web Speech API (浏览器兜底)                          │
-│                                                                        │
-│   imageGen        flux-schnell → doubao-seedream → qwen-image          │
-│                  → gpt-image-1 → minimax:image-01                      │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-## 核心特性深挖
-
-### 1. AI 发言不像 ChatGPT
-
-`BaseAgent.ts` 的 system prompt 不是简单"发表你的看法",而是 9 条硬规则:
-
-```
-1. 必须满满阿里味儿 — 叫人必须用"同学"或"@同学"
-2. 必须使用 3 个以上职场黑话 — 赋能/拉通/对齐/打透/沉淀/闭环 ...
-3. 立场鲜明 — 必须明确说出你怀疑谁/想投谁
-4. 8 种人格切换 — 社牛/社恐/杠精/暴躁/老狐狸/卷王/舔狗/阴阳人
-5. 开口即炸 — 第一个字就要是攻击或阴阳,别铺垫
-... + 后处理 sanitizeSpeech() 自动剥离 LLM 偶尔加的元注释
-```
-
-### 2. 自由活动 Tick 系统
-
-服务端 `runFreeRoam()` 是 6 tick × 1.5s 的循环:
-- 30%/tick 概率:settled 玩家挑新房间发起 commute
-- `pathProgress` 0→1 在 ~3 ticks 内走完一条走廊
-- 每 tick 推送 `'tick'` 事件,客户端 60 fps lerp
-
-客户端 `GameMap.tsx`:
-- 房间间移动用 **Catmull-Rom 样条**走出弧形,不直线瞬移
-- 当前发言者头像 1.18× 放大 + 房间脉冲光晕
-- 8 种 activity 图标(打字/咖啡/偷瞄/印纸 ...)在玩家右下徽章
-
-### 3. 裁了么 — 5 关 × 真法条
-
-| LV | 场景 | HR | 法条 |
-|---|---|---|---|
-| 🌱 1 | 试用期突然裁员 | 菜鸟 | 第 21 条 |
-| 🎯 2 | 口头辞退不给书面 | 菜鸟 | 第 50 条 |
-| ⚖️ 3 | 调岗降薪逼自离 | 老油条 | 第 35 条 |
-| 👶 4 | 孕期被裁 | 老油条 | 第 42 条 |
-| 👹 5 | 经济性裁员违法 | 魔鬼 | 第 41 条 |
-
-每关结算根据 `compensationMonths / maxPossible` 算 1-3 ⭐,通关解锁下一关 + 弹"知识卡片"。
-进度持久化到 `localStorage`(`office-zoo.fired-progress`)。
-
-## Roadmap
-
-> 完整版见 [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — 含所有版本的"why / what / verified"原文。
-
-**已上线(2025-12 → 2026-05):**
-- ✅ **v0.6-v0.9** 2.5D 写字楼 + tick 循环 + 8 种 activity / talkshow + Web Speech 兜底 / UGC + HR 记忆 + 闯关包 + PvP 房间
-- ✅ **v1.0** Premium 6 个 FAANG 场景 + 付费墙 demo
-- ✅ **v1.1** B 端白标 + HR 培训沙盒 + 高管金属主题
-- ✅ **v1.2** i18n 中/英/日/韩
-- ✅ **v1.3** "你是哪种打工人"identity quiz + 12 archetype + Y2K 班味卡 + archetype-personalized 推荐
-- ✅ **v1.4** 攒局模式 + 多声音 + 历史/排行
-- ✅ **v1.5** 今日剧情结果分享卡 + archetype 演化(单 surface)
-- ✅ **v2.0.0** 12→24 archetype + region/industry 维度
-- ✅ **v2.0.1 + v2.0.2** 演化扩到 squad / talkshow / pack 三个 surface
-- ✅ **v2.1** Tribe-aware fired 推荐 + FiredLanding tribe 过滤
-- ✅ **v2.2** 新 12 archetype 的 en/ja/ko 翻译
-- ✅ **v2.3** Talkshow 加 region tag + daily 推 城市段子
-- ✅ **v3.0** 化学反应导演 — squad 编剧看全队 archetype mix 写专属剧
-
-**下一步(开放讨论):**
-- [ ] 真 Stripe checkout 替换 v1.0 demo
-- [ ] Squad LLM 用 Claude 4.5 Sonnet 替换 gpt-4o-mini 看演出效果
-- [ ] FiredLanding tribe 过滤扩到 region 维度
-- [ ] 演化事件的"周报"邮件订阅(可选)
-
-## 安全须知
-
-- `.env` 已 gitignore,**永远不要 commit 真实 key**
-- 自己 fork 后请用自己的 API key
-- 如果发现历史 commit 误传过 key,立即在对应平台 rotate
-
-## 贡献
-
-纯娱乐项目,核心价值是当代打工人苦中作乐的精神状态。
-
-- 🐛 Bug → issue
-- 🎨 想加新模式 / 新角色 / 新场景 → PR
-- 💡 想加新人格(eg "00 后整顿职场") → `personality.ts` 加一行
-- 🎙️ 想替换音色 → fork 一份用自家 voice clone
-
-**起 star ≠ 帮我,起 star = 让算法把这个项目推给更多打工人。**
-
-## 致谢
-
-- [MiniMax](https://www.minimaxi.com/) — `speech-2.8-hd` 真人 TTS / `MiniMax-M2` 文本 / `image-01` 立绘
-- [青云聚合 (QingYunTop)](https://api.qingyuntop.top/) — OpenAI 兼容代理,多模型路由
-- 所有为打工人发声的人
-
-## License
-
-MIT — 拿去随便玩。fork 出商业版,请别忘了打工人。
+> 需要 Node 18+。默认使用 OpenAI 兼容接口，可对接 Minimax / Qingyun / 通义 等国内大模型。
 
 ---
 
-<div align="center">
+## 🎮 游戏模式
 
-**🌟 Star 一下,精神工位 +1,班味 -1。**
+| 模式 | 路由 | 说明 |
+|------|------|------|
+| 经典局 | `/classic/:id` | 8 鼠人标准局，AI 自主发言 + 投票 |
+| 沉浸式 | `/immersive/:id` | 第一视角，你作为鼠人参与 |
+| 解雇模拟 | `/fired` | 1v1 你 vs AI-HR，比拼嘴硬 |
+| 脱口秀 | `/talkshow` | AI 鼠人脱口秀专场 |
+| 班味占卜 | `/fortune` | 每日职场塔罗 |
+| 周报生成 | `/weekly` | 一句话 → 4 种风格周报 |
 
-[⬆ 回到顶部](#-office-zoo)
+---
 
-</div>
+## 🧠 AI 架构
+
+```mermaid
+flowchart TD
+    User([👤 观众]) -->|创建公司| Landing[Landing 页面]
+    Landing -->|game:create| Server[Hono 服务器]
+    Server -->|spawn| Engine[GameEngine 状态机]
+    Engine -->|每个鼠人| Agent[BaseAgent AI 智能体]
+    Agent -->|prompt| LLM[大模型 API]
+    LLM -->|发言/投票| Agent
+    Engine -->|Socket.IO 广播| Client[React 客户端]
+    Client -->|实时渲染| User
+
+    subgraph 记忆系统
+        Agent -->|读写| Memory[(对话记忆)]
+    end
+```
+
+---
+
+## 🛠️ 技术栈
+
+| 层 | 技术 |
+|------|------|
+| 前端 | React 18 + Vite 6 + Zustand + Framer Motion |
+| 后端 | Hono + Socket.IO + Node 18 |
+| AI | OpenAI 兼容 API（Minimax/Qingyun/通义）+ 自研 prompt 工程 |
+| 小程序 | 微信原生 + glass-easel runtime |
+| 测试 | Vitest（161 用例）+ Playwright 视觉探针 |
+| 工程 | pnpm workspace + git-cliff CHANGELOG + pre-push hooks |
+
+---
+
+## 📦 项目结构
+
+```
+furball-arena/
+├─ packages/
+│  ├─ client/      React 客户端（游戏 UI + 班味系统）
+│  ├─ server/      Hono 服务器（GameEngine + AI Agent）
+│  ├─ shared/      共享类型 + 角色/人格定义
+│  └─ miniprogram/ 微信小程序端
+└─ data/           本地 JSON 持久化
+```
+
+---
+
+## 📈 班味系统（v6.x 重点）
+
+OFFICE ZOO 不只是游戏，更是"打工人共鸣"的量化实验：
+
+- **班味指数** — 0-100 周度评分，综合爆料/引用/观赛/段子
+- **金句池** — 观众投稿职场金句，AI 鼠人下一局可能引用
+- **跨观众排行榜** — 全网 + 公司内部 Top 10，按地区/行业筛选
+- **周存档** — 12 周班味曲线 + 历史最佳
+
+---
+
+## 🧪 测试
+
+```bash
+pnpm test           # vitest run（161 用例）
+pnpm typecheck      # tsc --noEmit
+```
+
+---
+
+## 🙏 致谢
+
+OFFICE ZOO 站在一整套开源 AI 与 Web 生态的肩膀上，特此致谢：
+
+**大模型与推理**
+
+- [OpenAI API 规范](https://platform.openai.com/docs/api-reference) — 全项目以 OpenAI 兼容协议接入大模型，可无缝切换后端
+- [MiniMax](https://www.minimaxi.com/) — 鼠人发言生成 + speech-2.x TTS 语音合成
+- [通义千问 Qwen](https://github.com/QwenLM/Qwen) / [Qingyun](https://api.qingyuntop.top/) — 国产大模型推理后端，低成本高并发
+- 多智能体 social-deduction 架构（每个鼠人独立人格 + 记忆 + prompt patch），灵感来自 LLM-as-Agent / Generative Agents 一系研究
+
+**后端与实时**
+
+- [Hono](https://hono.dev/) — 轻量高性能 Web 框架，承载全部 REST 路由
+- [Socket.IO](https://socket.io/) — 游戏状态机的实时广播与断线重连
+- [Node.js](https://nodejs.org/) — 运行时
+
+**前端与交互**
+
+- [React](https://react.dev/) + [Vite](https://vitejs.dev/) — 前端框架与工程化
+- [Zustand](https://github.com/pmndrs/zustand) — 细粒度状态管理（原子 selector 防止全量重渲染）
+- [Framer Motion](https://www.framer.com/motion/) — 动画与转场
+
+**小程序与工具链**
+
+- [glass-easel](https://github.com/wechat-miniprogram/glass-easel) — 微信小程序运行时
+- [Vitest](https://vitest.dev/) + [Playwright](https://playwright.dev/) — 单测与视觉探针
+- [git-cliff](https://github.com/orhun/git-cliff) — CHANGELOG 自动化
+- [star-history](https://star-history.com/) — 下方 Star 曲线
+
+**灵感来源**
+
+- *Among Us* / 狼人杀 / 谁是卧底 —— social deduction 玩法母体
+- 真实职场里每一个"拥抱变化"的瞬间 —— 班味之源
+
+> OFFICE ZOO 的目标不是做一个玩具 Demo，而是持续探索"大模型多智能体 + 实时叙事"在中文语境下能有多好玩。
+
+---
+
+## ⭐ Star History
+
+如果这个项目让你会心一笑，欢迎点一个 Star。
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ChrisChen667788/office-zoo&type=Date)](https://www.star-history.com/#ChrisChen667788/office-zoo&Date)
+
+---
+
+## 🤝 贡献与交流
+
+欢迎提 Issue / PR 一起完善 OFFICE ZOO。你可以从这些方向参与：
+
+- 补充更多职场场景 / 人格 / 金句池内容
+- 优化 AI prompt 与多智能体策略
+- 增强班味系统的数据可视化
+- 补充 Docker / 部署文档
+
+---
+
+## 📮 联系方式
+
+- GitHub Issues
+- 项目主页：https://github.com/ChrisChen667788/office-zoo
+
+---
+
+（注：项目数据落在本地 `packages/server/data/*.json`，重启即恢复，**无需数据库**。详细部署见 [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) 与 [PRD.md](PRD.md)。）
