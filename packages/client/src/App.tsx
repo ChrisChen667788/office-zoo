@@ -32,6 +32,7 @@ import WeeklyMe from './routes/WeeklyMe';
 import Bar from './routes/Bar';
 import Anniversary from './routes/Anniversary';
 import CompanyPackEdit from './routes/CompanyPackEdit';
+import CompanyPackView from './routes/CompanyPackView';
 import CharacterFocusModal from './components/character/CharacterFocusModal';
 import AchievementUnlockToast from './components/AchievementUnlockToast';
 import { markDayVisited, refreshAuto } from './utils/achievements';
@@ -118,6 +119,8 @@ export default function App() {
           AI roster when starting a Classic game. */}
       <Route path="/company-pack/edit" element={<CompanyPackEdit />} />
       <Route path="/company-pack/edit/:packId" element={<CompanyPackEdit />} />
+      {/* v6.38 P3 — read-only shared pack view + one-click import. */}
+      <Route path="/company-pack/view/:packId" element={<CompanyPackView />} />
     </Routes>
     {/* v6.11 P4 — global overlay watching ?character=<name> deep-links
         from /share/character/:name social bounces. Renders nothing when

@@ -37,15 +37,18 @@ const ROLE_HINTS: Array<{ id: string; label: string }> = [
   { id: 'finance',   label: '财务' },
 ];
 
-/** Mirrors shared.Personality (engine validates against ALL_PERSONALITIES). */
+/** Mirrors shared.Personality EXACTLY — ids must equal the enum string
+ *  values or the engine's VALID_PERSONALITIES whitelist drops the hint. */
 const PERSONALITY_HINTS: Array<{ id: string; label: string }> = [
-  { id: '',            label: '不指定' },
-  { id: 'workaholic',  label: '卷王 💼' },
-  { id: 'slacker',     label: '摸鱼 🐟' },
-  { id: 'snarky',      label: '阴阳 😏' },
-  { id: 'naive',       label: '小白 🌱' },
-  { id: 'paranoid',    label: '多疑 🕵️' },
-  { id: 'ambitious',   label: '上进 🔥' },
+  { id: '',                   label: '不指定' },
+  { id: 'workaholic',         label: '卷王 💼' },
+  { id: 'social_butterfly',   label: '社牛 🦋' },
+  { id: 'introvert',          label: '社恐 🐚' },
+  { id: 'contrarian',         label: '杠精 ⚔️' },
+  { id: 'sycophant',          label: '舔狗 🐶' },
+  { id: 'passive_aggressive', label: '阴阳怪气 😏' },
+  { id: 'hot_tempered',       label: '暴躁老哥 🔥' },
+  { id: 'smooth_operator',    label: '老油条 🧈' },
 ];
 
 interface NpcRow {
@@ -63,6 +66,23 @@ export default function CompanyPackEdit() {
   );
   const [status, setStatus] = useState<'idle' | 'saving' | 'ok' | 'err'>('idle');
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  // v6.38 P3 — share-link copy feedback (only meaningful in edit mode
+  // where a packId exists).
+  const [shareCopied, setShareCopied] = useState(false);
+
+  async function copyShareLink() {
+    if (!packId) return;
+    const url = `${window.location.origin}/company-pack/view/${packId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1800);
+    } catch {
+      // Clipboard blocked (insecure context / permissions) — fall back
+      // to a prompt so the user can still grab the link manually.
+      window.prompt('复制这个分享链接:', url);
+    }
+  }
 
   // v6.37 P4 — edit mode preload. Pulls the existing pack and
   // hydrates the form. Owner check happens server-side on save (POST
@@ -169,7 +189,20 @@ export default function CompanyPackEdit() {
             }}
           >← 返回</button>
           <EventPill stars={5} subtle>🏢 公司主题包</EventPill>
-          <div style={{ width: 80 }} />
+          {packId ? (
+            <button
+              onClick={copyShareLink}
+              style={{
+                fontSize: 11, padding: '6px 12px', borderRadius: 999,
+                background: shareCopied ? 'rgba(34,197,94,0.85)' : 'rgba(78,205,196,0.18)',
+                color: shareCopied ? '#0a0a1e' : '#4ECDC4',
+                border: '1px solid rgba(78,205,196,0.5)', fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+              }}
+            >{shareCopied ? '✓ 已复制' : '🔗 分享'}</button>
+          ) : (
+            <div style={{ width: 80 }} />
+          )}
         </div>
 
         <div style={{
