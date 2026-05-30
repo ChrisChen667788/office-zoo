@@ -35,6 +35,7 @@ import MyLeaksPanel from '../components/character/MyLeaksPanel';
 import AchievementsPanel from '../components/character/AchievementsPanel';
 import StatsOverviewPanel from '../components/character/StatsOverviewPanel';
 import BanweiIndexCard from '../components/character/BanweiIndexCard';
+import BanweiHistoryPanel from '../components/character/BanweiHistoryPanel';
 import LeaderboardPanel from '../components/character/LeaderboardPanel';
 import { setProgress as setAchievementProgress } from '../utils/achievements';
 
@@ -220,11 +221,19 @@ export default function Profile() {
           tallies → score 0-100. */}
       <BanweiIndexCard />
 
+      {/* v6.37 P2 — 12 周班味曲线 + 历史最佳周. Reads /api/banwei
+          (already returns history field, capped at 12 server-side).
+          Renders a lightweight SVG sparkline with gold halo on the
+          all-time-best marker — visualizes "你卷得稳不稳". */}
+      <BanweiHistoryPanel />
+
       {/* v6.36 P4 — cross-user 班味 Top-10 leaderboard. Reads server
           /api/leaderboard/banwei (reducer over the same banwei.json
           BanweiIndexCard writes to). Privacy: userId truncated to 8
           chars in the payload so passersby can't reverse-engineer
-          identity, but you recognize your own row. */}
+          identity, but you recognize your own row.
+          v6.37 P1 — region/industry filter chips (sourced from the
+          user's archetype tribe at POST time). */}
       <LeaderboardPanel />
     </div>
   );
