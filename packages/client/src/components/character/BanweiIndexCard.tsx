@@ -48,13 +48,24 @@ export default function BanweiIndexCard() {
     void (async () => {
       let region: string | undefined;
       let industry: string | undefined;
+      // v6.39 P4 — prefer the region/industry captured at game-start
+      // (Landing writes these alongside lastPackId), so a ?pack= 直接开局
+      // session is tagged even if the user never opens Profile that day or
+      // the quiz fetch fails. Profile fetch below still refreshes them.
+      try {
+        region = localStorage.getItem('office-arena.lastRegion') || undefined;
+        industry = localStorage.getItem('office-arena.lastIndustry') || undefined;
+      } catch { /* ignore */ }
       try {
         const r = await fetch('/api/quiz/me', { headers: { 'X-User-Id': userId } });
         if (r.ok) {
           const j = await r.json() as { profile?: UserProfile | null };
           const a = j.profile ? findArchetype(j.profile.topArchetypes[0]) : null;
-          region = a?.region && a.region !== 'generic' ? a.region : undefined;
-          industry = a?.industry && a.industry !== 'generic' ? a.industry : undefined;
+          const freshRegion = a?.region && a.region !== 'generic' ? a.region : undefined;
+          const freshIndustry = a?.industry && a.industry !== 'generic' ? a.industry : undefined;
+          // Profile is authoritative when present — overwrite the cache.
+          if (freshRegion) region = freshRegion;
+          if (freshIndustry) industry = freshIndustry;
         }
       } catch { /* tribe-less POST is fine */ }
 

@@ -280,6 +280,22 @@ export default function Landing() {
     if (packId) {
       try { localStorage.setItem('office-arena.lastPackId', packId); } catch { /* ignore */ }
     }
+    // v6.39 P4 — capture region/industry at game-start so even a
+    // ?pack= 直接开局 session (where the user may never open Profile that
+    // day) still tags the leaderboard correctly. Best-effort + async:
+    // reads the quiz profile, maps to archetype tribe, caches to
+    // localStorage. BanweiIndexCard reads these on its next POST.
+    void (async () => {
+      try {
+        const r = await fetch('/api/quiz/me', { headers: { 'X-User-Id': getUserId() } });
+        if (!r.ok) return;
+        const j = await r.json();
+        const { findArchetype } = await import('@furball/shared');
+        const a = j?.profile ? findArchetype(j.profile.topArchetypes[0]) : null;
+        if (a?.region && a.region !== 'generic') localStorage.setItem('office-arena.lastRegion', a.region);
+        if (a?.industry && a.industry !== 'generic') localStorage.setItem('office-arena.lastIndustry', a.industry);
+      } catch { /* tagging is best-effort */ }
+    })();
     socket.emit('game:create', {
       playerCount, mode: target, userId: getUserId(),
       ...(packId ? { companyPackId: packId } : {}),
