@@ -339,3 +339,76 @@ describe('GameEngine — ghostVotes tally shape', () => {
     expect(ser.ghostVotes).toEqual({ 'player_8': 'player_3' });
   });
 });
+
+describe('GameEngine — createPlayers packOverride (v6.37 P4 / v6.38 P1)', () => {
+  // 12 CJK names — guaranteed disjoint from AI_NAMES (all ASCII) so the
+  // fallback test can assert "no pack name leaked into the roster".
+  const PACK_12 = [
+    '老王', '小张', '阿强', '丽姐', '大刘', '果果',
+    '阿珍', '老李', '小美', '阿杰', '胖虎', '静静',
+  ];
+
+  it('uses pack names verbatim when pack size ≥ playerCount', () => {
+    const e = new GameEngine(8);
+    e.createPlayers({}, new Map(), { names: PACK_12 });
+    const names = e.state.players.map((p) => p.name);
+    expect(names).toHaveLength(8);
+    for (const n of names) expect(PACK_12).toContain(n);
+  });
+
+  it('keeps roster names unique under pack override', () => {
+    const e = new GameEngine(8);
+    e.createPlayers({}, new Map(), { names: PACK_12 });
+    const names = e.state.players.map((p) => p.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('falls back to AI_NAMES when pack is smaller than playerCount', () => {
+    const e = new GameEngine(8);
+    // Only 3 pack names but 8 players needed → must fall back.
+    e.createPlayers({}, new Map(), { names: ['老王', '小张', '阿强'] });
+    const names = e.state.players.map((p) => p.name);
+    expect(names).toHaveLength(8);
+    // No CJK pack name should appear — AI_NAMES are all ASCII.
+    for (const n of names) expect(['老王', '小张', '阿强']).not.toContain(n);
+  });
+
+  it('still assigns a balanced role set under pack override', () => {
+    // Pack only swaps NAMES — teams/roles still come from ROLE_PRESETS,
+    // so the cat/dog/neutral balance must be identical to a normal game.
+    const packed = new GameEngine(8);
+    packed.createPlayers({}, new Map(), { names: PACK_12 });
+    const normal = newEngine(8);
+    const teamCount = (e: GameEngine) => {
+      const m: Record<string, number> = {};
+      for (const p of e.state.players) m[p.team] = (m[p.team] ?? 0) + 1;
+      return m;
+    };
+    expect(teamCount(packed)).toEqual(teamCount(normal));
+  });
+
+  it('applies pack personality hints (set membership)', () => {
+    const e = new GameEngine(8);
+    // All 8 hint slots set to 'workaholic' — every player should end up
+    // workaholic (no random assignment can override an explicit hint here
+    // except the weekly-leader bias, which is empty in this test).
+    e.createPlayers({}, new Map(), {
+      names: PACK_12,
+      personalities: Array(12).fill('workaholic'),
+    });
+    const persSet = new Set(e.state.players.map((p) => p.personality));
+    expect(persSet.has('workaholic')).toBe(true);
+    // With every hint = workaholic and no weekly bias, all 8 are workaholic.
+    expect(e.state.players.every((p) => p.personality === 'workaholic')).toBe(true);
+  });
+
+  it('ignores invalid personality hints (keeps a valid default)', () => {
+    const e = new GameEngine(8);
+    e.createPlayers({}, new Map(), {
+      names: PACK_12,
+      personalities: Array(12).fill('not_a_real_personality'),
+    });
+    // Every player still has SOME truthy personality (default kept).
+    for (const p of e.state.players) expect(p.personality).toBeTruthy();
+  });
+});
