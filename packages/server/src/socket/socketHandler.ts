@@ -27,6 +27,11 @@ const GameCreateSchema = z.object({
   // they just don't accumulate per-user memory). Length cap mirrors
   // utils/userId.ts contract on the client (8-64 chars).
   userId: z.string().min(8).max(64).optional(),
+  // v6.37 P4 — optional 公司主题包 id (12 hex chars). When set, engine
+  // fetches the pack and overrides the AI_NAMES roster with the user-
+  // curated NPC names. Invalid / missing pack falls back silently to
+  // default names so a broken share link doesn't block game start.
+  companyPackId: z.string().regex(/^[0-9a-f]{12}$/).optional(),
 });
 
 // gameId shape is `game_<timestamp>` — just enforce a reasonable cap.
@@ -122,7 +127,12 @@ export function setupSocketHandler(io: SocketServer) {
 
       // v5.8.2 — userId optional in payload; engine stores it for
       // per-spectator chunky-style memory (RFC §3.2 target_user_id key).
-      const engine = new GameEngine(config.playerCount, config.userId);
+      // v6.37 P4 — companyPackId routes through GameConfig so the engine
+      // sees it during startGame's pack-fetch step.
+      const engine = new GameEngine(
+        { playerCount: config.playerCount, companyPackId: config.companyPackId },
+        config.userId,
+      );
       const gameId = engine.state.id;
       games.set(gameId, engine);
       currentGameId = gameId;

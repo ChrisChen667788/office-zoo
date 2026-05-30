@@ -31,6 +31,7 @@ import Weekly from './routes/Weekly';
 import WeeklyMe from './routes/WeeklyMe';
 import Bar from './routes/Bar';
 import Anniversary from './routes/Anniversary';
+import CompanyPackEdit from './routes/CompanyPackEdit';
 import CharacterFocusModal from './components/character/CharacterFocusModal';
 import AchievementUnlockToast from './components/AchievementUnlockToast';
 import { markDayVisited, refreshAuto } from './utils/achievements';
@@ -112,6 +113,11 @@ export default function App() {
           iteration rounds, 2026-05-21 → 2026-05-26). Linkable from
           social shares. */}
       <Route path="/anniversary" element={<Anniversary />} />
+      {/* v6.37 P4 — 公司主题包 edit form. Lets users define 6-12 NPCs
+          (name + optional role/personality) that override the default
+          AI roster when starting a Classic game. */}
+      <Route path="/company-pack/edit" element={<CompanyPackEdit />} />
+      <Route path="/company-pack/edit/:packId" element={<CompanyPackEdit />} />
     </Routes>
     {/* v6.11 P4 — global overlay watching ?character=<name> deep-links
         from /share/character/:name social bounces. Renders nothing when

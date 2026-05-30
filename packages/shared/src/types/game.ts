@@ -201,6 +201,11 @@ export interface GameConfig {
   killCooldown: number;
   emergencyMeetings: number;
   taskCount: number;
+  /** v6.37 P4 — optional 公司主题包 id. When set, the engine fetches
+   *  the pack server-side and overrides the AI_NAMES roster with the
+   *  user-defined NPC list. Hot-quote weighted bias still applies on
+   *  top (pack name matched against nominationCounts). */
+  companyPackId?: string;
 }
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {

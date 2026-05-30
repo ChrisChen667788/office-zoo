@@ -14,6 +14,7 @@ import {
   ROLE_REGISTRY,
   DEFAULT_GAME_CONFIG,
   type Personality,
+  ALL_PERSONALITIES,
   assignPersonalities,
   PERSONALITY_REGISTRY,
   roomCenter,
@@ -165,6 +166,10 @@ function leakTokenize(text: string): Set<string> {
   return out;
 }
 
+/** v6.37 P4 — set of valid personality strings, used by the pack-override
+ *  path in createPlayers to whitelist user-submitted personality hints. */
+const VALID_PERSONALITIES = new Set<string>(ALL_PERSONALITIES);
+
 export class GameEngine extends EventEmitter {
   readonly state: GameState;
   /** Wall-clock when this engine was created — used by TTL sweeper. */
@@ -221,16 +226,39 @@ export class GameEngine extends EventEmitter {
   createPlayers(
     weeklyLeaders: Record<string, string> = {},
     nominationCounts: Map<string, number> = new Map(),
+    packOverride?: { names: string[]; personalities?: (string | undefined)[] },
   ): void {
     const count = this.state.config.playerCount;
     const preset = ROLE_PRESETS[count] ?? ROLE_PRESETS[8];
     const roles: Role[] = shuffle([...preset.cat, ...preset.dog, ...preset.neutral]);
-    // v6.35 P5 — weight each name by its hot-quote nomination count
-    // over the last 7 days. weight = 1 + 0.5 × min(mentions, 5) — caps
-    // at 3.5x so even a heavily-quoted rat doesn't show up every game.
-    const weights = AI_NAMES.map((n) => 1 + 0.5 * Math.min(nominationCounts.get(n) ?? 0, 5));
-    const names = weightedSample(AI_NAMES, weights, count);
+    // v6.37 P4 — pack override skips the weighted-sample step and
+    // takes names verbatim from the user-curated 公司主题包. We still
+    // shuffle the pack so role↔name assignment is randomized. Pack
+    // is validated server-side (6-12 unique names), so length ≥ count
+    // is guaranteed only when ownerPackCount ≥ playerCount; otherwise
+    // we fall back to AI_NAMES weighted sample (defensive).
+    let names: string[];
+    if (packOverride && packOverride.names.length >= count) {
+      names = shuffle([...packOverride.names]).slice(0, count);
+    } else {
+      // v6.35 P5 — weight each name by its hot-quote nomination count
+      // over the last 7 days. weight = 1 + 0.5 × min(mentions, 5) — caps
+      // at 3.5x so even a heavily-quoted rat doesn't show up every game.
+      const weights = AI_NAMES.map((n) => 1 + 0.5 * Math.min(nominationCounts.get(n) ?? 0, 5));
+      names = weightedSample(AI_NAMES, weights, count);
+    }
     const personalities = assignPersonalities(count);
+    // v6.37 P4 — if the pack supplied personality hints, apply them
+    // index-aligned with the chosen names. Unknown personalities are
+    // silently ignored (assignPersonalities default stays).
+    if (packOverride?.personalities) {
+      for (let i = 0; i < count; i++) {
+        const hint = packOverride.personalities[i];
+        if (hint && VALID_PERSONALITIES.has(hint)) {
+          personalities[i] = hint as Personality;
+        }
+      }
+    }
 
     // v6.16 P1 — apply per-character weekly-vote bias. For each named
     // player whose character has a "this week's winner" personality,
@@ -312,7 +340,24 @@ export class GameEngine extends EventEmitter {
       nominationCounts = await getRecentNominationCounts(AI_NAMES);
     } catch { /* uniform fallback */ }
 
-    this.createPlayers(weeklyLeaders, nominationCounts);
+    // v6.37 P4 — if game was created with a companyPackId, fetch the
+    // pack server-side and pass the names/personalities as overrides.
+    // Fail-open: missing/invalid pack falls back to the default
+    // AI_NAMES roster so a broken share link never blocks game start.
+    let packOverride: { names: string[]; personalities?: (string | undefined)[] } | undefined;
+    if (this.state.config.companyPackId) {
+      try {
+        const { getCompanyPackById } = await import('../routes/companyPack');
+        const pack = await getCompanyPackById(this.state.config.companyPackId);
+        if (pack && pack.npcs.length >= this.state.config.playerCount) {
+          packOverride = {
+            names: pack.npcs.map((n) => n.name),
+            personalities: pack.npcs.map((n) => n.personality),
+          };
+        }
+      } catch { /* fail-open — pack is a bonus, not a gate */ }
+    }
+    this.createPlayers(weeklyLeaders, nominationCounts, packOverride);
     // v6.31 P5 — bump server stats counters once roster is populated.
     // v6.36 P3 — include hot-nominated names (count ≥ 1) so the client
     // can show a 🔥 "热门" badge on sprites the audience asked for.

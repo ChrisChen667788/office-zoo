@@ -192,6 +192,17 @@ export default function Landing() {
   const [playerCount, setPlayerCount] = useState<number>(8);
   const [isCreating, setIsCreating] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  // v6.37 P4 — chosen 公司主题包 id (null = default AI_NAMES roster).
+  // Lazy-loaded from /api/company-pack/mine after the user gesture, so
+  // anonymous landings don't pay the extra fetch.
+  const [companyPackId, setCompanyPackId] = useState<string | null>(null);
+  const [companyPacks, setCompanyPacks] = useState<Array<{ packId: string; name: string; npcs: unknown[] }> | null>(null);
+  useEffect(() => {
+    fetch('/api/company-pack/mine', { headers: { 'X-User-Id': getUserId() } })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d) => setCompanyPacks(d.packs ?? []))
+      .catch(() => setCompanyPacks([]));
+  }, []);
   const { socket, connected } = useSocket();
   // Track the mode the user most recently requested. Captured at click-time
   // so the game:created handler never races with subsequent setMode() calls
@@ -237,8 +248,16 @@ export default function Landing() {
     setIsCreating(true);
     // v5.8.2 — userId enables per-spectator chunky-style memory in
     // BaseAgent. Server treats it as optional (back-compat).
-    socket.emit('game:create', { playerCount, mode: target, userId: getUserId() });
-  }, [isCreating, mode, playerCount, navigate, socket]);
+    // v6.37 P4 — companyPackId only sent if the user picked one + the
+    // pack has ≥ playerCount NPCs (server fail-opens but we may as well
+    // not bother shipping invalid ids).
+    const picked = companyPacks?.find((p) => p.packId === companyPackId);
+    const packId = picked && picked.npcs.length >= playerCount ? picked.packId : undefined;
+    socket.emit('game:create', {
+      playerCount, mode: target, userId: getUserId(),
+      ...(packId ? { companyPackId: packId } : {}),
+    });
+  }, [isCreating, mode, playerCount, navigate, socket, companyPackId, companyPacks]);
 
   const activeSpec = MODES.find((m) => m.key === mode)!;
 
@@ -662,6 +681,68 @@ export default function Landing() {
                           {c} 人
                         </motion.button>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* v6.37 P4 — 公司主题包 picker. Shown only when the
+                      user has ≥ 1 pack saved (otherwise just a "去自建"
+                      hint link). Selecting a pack swaps the default
+                      AI_NAMES roster for the user's NPCs at game start. */}
+                  <div className="mt-3 rounded-2xl p-4 md:p-5 glass flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <div className="text-xs tracking-[0.18em] uppercase text-white/45 mb-1">公司主题包</div>
+                      <div className="text-sm text-white/80">
+                        {companyPacks && companyPacks.length > 0
+                          ? '用你自己定义的鼠人开局'
+                          : '6-12 名鼠人, 你来命名 →'}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setCompanyPackId(null)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold transition"
+                        style={{
+                          background: companyPackId === null
+                            ? 'linear-gradient(135deg, #4ECDC4 0%, #2fb8ff 100%)'
+                            : 'rgba(255,255,255,0.05)',
+                          color: companyPackId === null ? '#0a0a1e' : 'rgba(255,255,255,0.55)',
+                          border: companyPackId === null
+                            ? '1px solid rgba(78,205,196,0.55)' : '1px solid rgba(255,255,255,0.06)',
+                        }}
+                      >
+                        默认
+                      </button>
+                      {(companyPacks ?? []).map((p) => {
+                        const tooSmall = p.npcs.length < playerCount;
+                        const active = companyPackId === p.packId;
+                        return (
+                          <button
+                            key={p.packId}
+                            type="button"
+                            onClick={() => !tooSmall && setCompanyPackId(p.packId)}
+                            disabled={tooSmall}
+                            title={tooSmall ? `这个包只有 ${p.npcs.length} 个鼠人, 当前要 ${playerCount} 个` : undefined}
+                            className="px-3 py-1.5 rounded-xl text-xs font-semibold transition"
+                            style={{
+                              background: active
+                                ? 'linear-gradient(135deg, #FFD700 0%, #FFA947 100%)'
+                                : 'rgba(255,255,255,0.05)',
+                              color: active ? '#0a0a1e' : tooSmall ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.75)',
+                              border: active ? '1px solid rgba(255,215,0,0.55)' : '1px solid rgba(255,255,255,0.06)',
+                              cursor: tooSmall ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {p.name} {tooSmall ? '×' : `· ${p.npcs.length}`}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => navigate('/company-pack/edit')}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-white/55 hover:text-white/85 transition"
+                        style={{ border: '1px dashed rgba(255,255,255,0.18)' }}
+                      >+ 新建</button>
                     </div>
                   </div>
                 </motion.div>
