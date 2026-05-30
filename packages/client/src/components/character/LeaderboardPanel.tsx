@@ -14,6 +14,7 @@
  */
 import { useEffect, useState } from 'react';
 import { getUserId } from '../../utils/userId';
+import { downloadPackLeaderboardCard } from '../../utils/packLeaderboardCard';
 
 interface Row {
   userIdPrefix: string;
@@ -65,6 +66,15 @@ export default function LeaderboardPanel() {
     try { return localStorage.getItem('office-arena.lastPackId') || undefined; }
     catch { return undefined; }
   });
+  // v6.39 P5 — resolve the pack's display name for the share card title.
+  const [packName, setPackName] = useState<string>('我的公司');
+  useEffect(() => {
+    if (!myPackId) return;
+    fetch(`/api/company-pack/${myPackId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d) => { if (d?.pack?.name) setPackName(d.pack.name); })
+      .catch(() => { /* keep default */ });
+  }, [myPackId]);
   const myPrefix = getUserId().slice(0, 8);
 
   useEffect(() => {
