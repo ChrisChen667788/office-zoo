@@ -58,12 +58,20 @@ export default function BanweiIndexCard() {
         }
       } catch { /* tribe-less POST is fine */ }
 
+      // v6.38 P4 — last 公司主题包 the user started a game with, so the
+      // leaderboard can group "你公司内部 Top". Written by Landing on
+      // pack-game start; absent for users who never used a pack.
+      const lastPackId = (() => {
+        try { return localStorage.getItem('office-arena.lastPackId') || undefined; }
+        catch { return undefined; }
+      })();
       const body = {
         gamesSeen: getProgress('classic_finished'),
         talkshowPlayed: getProgress('talkshow_played'),
         anniversaryVisited: getProgress('anniversary_finished'),
         ...(region ? { region } : {}),
         ...(industry ? { industry } : {}),
+        ...(lastPackId ? { lastPackId } : {}),
       };
       // Also surface client-only leak stats so server has a fallback if
       // its in-memory tally got reset on restart. (Server reads its own

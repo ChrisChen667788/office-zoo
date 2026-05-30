@@ -58,17 +58,25 @@ export default function LeaderboardPanel() {
   const [err, setErr] = useState<string | null>(null);
   const [region, setRegion] = useState<string | undefined>(undefined);
   const [industry, setIndustry] = useState<string | undefined>(undefined);
+  // v6.38 P4 — pack-scoped view ("你公司内部 Top"). Only offered when the
+  // user has actually played with a pack (lastPackId in localStorage).
+  const [packScope, setPackScope] = useState(false);
+  const [myPackId] = useState<string | undefined>(() => {
+    try { return localStorage.getItem('office-arena.lastPackId') || undefined; }
+    catch { return undefined; }
+  });
   const myPrefix = getUserId().slice(0, 8);
 
   useEffect(() => {
     const qs = new URLSearchParams({ limit: '10' });
     if (region) qs.set('region', region);
     if (industry) qs.set('industry', industry);
+    if (packScope && myPackId) qs.set('packId', myPackId);
     fetch(`/api/leaderboard/banwei?${qs.toString()}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((d) => { setData(d as Response); setErr(null); })
       .catch((e) => setErr(String(e)));
-  }, [region, industry]);
+  }, [region, industry, packScope, myPackId]);
 
   if (err) {
     return (
@@ -102,6 +110,28 @@ export default function LeaderboardPanel() {
           </div>
         </div>
       </div>
+
+      {/* v6.38 P4 — pack scope toggle. Shown only when the user has
+          played with a 公司主题包. Flips the whole board to "your
+          company" — everyone who played the same shared pack. */}
+      {myPackId && (
+        <button
+          type="button"
+          onClick={() => setPackScope((v) => !v)}
+          style={{
+            width: '100%', marginBottom: 8, padding: '6px 10px', borderRadius: 8,
+            fontSize: 11, fontWeight: 800, letterSpacing: '0.04em',
+            cursor: 'pointer', fontFamily: 'inherit',
+            background: packScope
+              ? 'linear-gradient(135deg, #4ECDC4 0%, #2fb8ff 100%)'
+              : 'rgba(78,205,196,0.1)',
+            color: packScope ? '#0a0a1e' : '#4ECDC4',
+            border: `1px solid ${packScope ? 'rgba(78,205,196,0.6)' : 'rgba(78,205,196,0.3)'}`,
+          }}
+        >
+          {packScope ? '🏢 本公司 Top · 点击看全网' : '🏢 只看本公司同事 Top'}
+        </button>
+      )}
 
       {/* v6.37 P1 — tribe filter chip rows. Toggling a chip refetches
           with the corresponding query param; clicking the active chip

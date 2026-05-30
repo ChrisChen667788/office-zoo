@@ -28,7 +28,7 @@
 import { Hono } from 'hono';
 import {
   isoWeekKey, loadBanweiStoreReadonly,
-  KNOWN_REGIONS, KNOWN_INDUSTRIES,
+  KNOWN_REGIONS, KNOWN_INDUSTRIES, clampPackId,
   type BanweiSnapshot,
 } from './banwei';
 
@@ -69,6 +69,9 @@ leaderboardRoutes.get('/banwei', async (c) => {
   // (validated against the canonical pools from banwei.ts).
   const wantRegion = pickFilter(c.req.query('region'), KNOWN_REGIONS);
   const wantIndustry = pickFilter(c.req.query('industry'), KNOWN_INDUSTRIES);
+  // v6.38 P4 — pack-scoped filter ("你公司内部 Top"). Narrowed to the
+  // 12-hex packId shape; junk values silently ignored.
+  const wantPackId = clampPackId(c.req.query('packId'));
 
   const { byUser } = await loadBanweiStoreReadonly();
 
@@ -86,6 +89,8 @@ leaderboardRoutes.get('/banwei', async (c) => {
     // is rejected so a pre-v6.37 row never satisfies a filter.
     if (wantRegion && snap.region !== wantRegion) continue;
     if (wantIndustry && snap.industry !== wantIndustry) continue;
+    // v6.38 P4 — pack-scoped filter. Same reject-when-missing semantics.
+    if (wantPackId && snap.lastPackId !== wantPackId) continue;
     rows.push({
       userIdPrefix: userId.slice(0, ID_PREFIX_LEN),
       score: snap.score,
@@ -109,6 +114,7 @@ leaderboardRoutes.get('/banwei', async (c) => {
     filters: {
       ...(wantRegion ? { region: wantRegion } : {}),
       ...(wantIndustry ? { industry: wantIndustry } : {}),
+      ...(wantPackId ? { packId: wantPackId } : {}),
     },
   });
 });

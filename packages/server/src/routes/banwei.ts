@@ -45,6 +45,11 @@ interface Snapshot {
    *  pre-date this field. */
   region?: string;
   industry?: string;
+  /** v6.38 P4 — the 公司主题包 id the user most recently started a game
+   *  with (client localStorage `office-zoo.lastPackId`). Lets the
+   *  leaderboard group "你公司内部 Top" — everyone who played the same
+   *  shared pack. Optional; absent for users who never used a pack. */
+  lastPackId?: string;
 }
 
 interface Store {
@@ -110,6 +115,10 @@ banweiRoutes.post('/', async (c) => {
   // filter (or get indexed by a future analytics surface).
   const region = clampTribe(body?.region, KNOWN_REGIONS);
   const industry = clampTribe(body?.industry, KNOWN_INDUSTRIES);
+  // v6.38 P4 — last-used company pack id. Narrowed to the 12-hex shape
+  // the server mints (see companyPack.ts) so a junk value can't pollute
+  // the pack-scoped leaderboard filter.
+  const lastPackId = clampPackId(body?.lastPackId);
 
   const leaks = getPerUserLeaks(userId);
   const leakQuotes = getPerUserLeakQuotes(userId);
@@ -125,6 +134,7 @@ banweiRoutes.post('/', async (c) => {
     weekKey, ...partial, score, takenAt: Date.now(),
     ...(region ? { region } : {}),
     ...(industry ? { industry } : {}),
+    ...(lastPackId ? { lastPackId } : {}),
   };
   if (idx >= 0) arr[idx] = snap;
   else arr.push(snap);
@@ -175,6 +185,14 @@ function clampTribe<T extends string>(v: unknown, pool: readonly T[]): T | undef
   if (typeof v !== 'string') return undefined;
   const trimmed = v.trim().toLowerCase().slice(0, 32);
   return (pool as readonly string[]).includes(trimmed) ? (trimmed as T) : undefined;
+}
+
+/** v6.38 P4 — narrow an untrusted value to the 12-hex packId shape the
+ *  server mints (companyPack.newPackId), else undefined. Exported so the
+ *  leaderboard route validates the query param the same way. */
+export function clampPackId(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  return /^[0-9a-f]{12}$/.test(v) ? v : undefined;
 }
 export type { KnownRegion, KnownIndustry };
 

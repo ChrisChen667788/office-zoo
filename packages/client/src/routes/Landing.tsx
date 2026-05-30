@@ -203,6 +203,28 @@ export default function Landing() {
       .then((d) => setCompanyPacks(d.packs ?? []))
       .catch(() => setCompanyPacks([]));
   }, []);
+
+  // v6.38 P4 — accept ?pack=<id> from a shared CompanyPackView "直接开局"
+  // link. Fetch that pack and merge it into the picker (deduped), then
+  // auto-select it so the next "进入" plays with the shared roster
+  // WITHOUT the user having to import a personal copy first. This is the
+  // flow that groups coworkers under one packId for the pack leaderboard.
+  useEffect(() => {
+    const shared = new URLSearchParams(window.location.search).get('pack');
+    if (!shared || !/^[0-9a-f]{12}$/.test(shared)) return;
+    fetch(`/api/company-pack/${shared}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d) => {
+        const p = d.pack as { packId: string; name: string; npcs: unknown[] };
+        setCompanyPacks((prev) => {
+          const list = prev ?? [];
+          return list.some((x) => x.packId === p.packId) ? list : [...list, p];
+        });
+        setCompanyPackId(p.packId);
+        setMode('classic');
+      })
+      .catch(() => { /* bad link — just ignore, default roster */ });
+  }, []);
   const { socket, connected } = useSocket();
   // Track the mode the user most recently requested. Captured at click-time
   // so the game:created handler never races with subsequent setMode() calls
@@ -253,6 +275,11 @@ export default function Landing() {
     // not bother shipping invalid ids).
     const picked = companyPacks?.find((p) => p.packId === companyPackId);
     const packId = picked && picked.npcs.length >= playerCount ? picked.packId : undefined;
+    // v6.38 P4 — remember the pack so BanweiIndexCard can tag this week's
+    // snapshot, feeding the "你公司内部 Top" leaderboard filter.
+    if (packId) {
+      try { localStorage.setItem('office-arena.lastPackId', packId); } catch { /* ignore */ }
+    }
     socket.emit('game:create', {
       playerCount, mode: target, userId: getUserId(),
       ...(packId ? { companyPackId: packId } : {}),

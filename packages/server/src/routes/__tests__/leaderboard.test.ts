@@ -22,7 +22,7 @@ async function postBanwei(
   userId: string,
   body: {
     gamesSeen?: number; talkshowPlayed?: number; anniversaryVisited?: number;
-    region?: string; industry?: string;
+    region?: string; industry?: string; lastPackId?: string;
   } = {},
 ) {
   return banweiRoutes.request('/', {
@@ -159,6 +159,37 @@ describe('GET /api/leaderboard/banwei', () => {
     const j = await r.json();
     expect(j.total).toBe(1);
     expect(j.top[0].userIdPrefix).toBe('bob');
+  });
+
+  // v6.38 P4 — pack-scoped filter coverage
+  it('filters by packId (你公司内部 Top)', async () => {
+    const PACK_A = '0123456789ab';
+    const PACK_B = 'fedcba987654';
+    await postBanwei('alice', { lastPackId: PACK_A });
+    await postBanwei('bob',   { lastPackId: PACK_A });
+    await postBanwei('carol', { lastPackId: PACK_B });
+    await postBanwei('dave'); // no pack
+    const r = await leaderboardRoutes.request(`/banwei?packId=${PACK_A}`);
+    const j = await r.json();
+    expect(j.total).toBe(2);
+    expect(j.filters.packId).toBe(PACK_A);
+    const ids = j.top.map((row: { userIdPrefix: string }) => row.userIdPrefix).sort();
+    expect(ids).toEqual(['alice', 'bob']);
+  });
+
+  it('invalid packId silently ignored (returns all)', async () => {
+    await postBanwei('alice', { lastPackId: '0123456789ab' });
+    const r = await leaderboardRoutes.request('/banwei?packId=NOT-HEX');
+    const j = await r.json();
+    expect(j.total).toBe(1);
+    expect(j.filters.packId).toBeUndefined();
+  });
+
+  it('rejects non-12-hex packId on POST (snapshot stores no pack)', async () => {
+    await postBanwei('alice', { lastPackId: 'tooshort' });
+    const r = await leaderboardRoutes.request('/banwei?packId=0123456789ab');
+    const j = await r.json();
+    expect(j.total).toBe(0); // alice's bad packId was dropped
   });
 
   it('rejects invalid region/industry strings on POST', async () => {
