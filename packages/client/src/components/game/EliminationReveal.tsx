@@ -46,6 +46,10 @@ export interface EliminationEvent {
   /** v6.23 P4 — personality id (workaholic, sycophant, ...) so we can
    *  pull a personality-flavored 离别赠言 from the lastWords pool. */
   personality?: string;
+  /** v6.40 P2 — emoji avatar from a 公司主题包 NPC. When set, the reveal
+   *  shows this glyph as a circular badge above the victim name so a
+   *  custom-pack rat is recognizable in its dramatic send-off. */
+  avatar?: string;
 }
 
 interface Props {
@@ -384,6 +388,25 @@ export default function EliminationReveal({
               >
                 {cfg.icon}
               </motion.div>
+
+              {/* v6.40 P2 — 公司主题包 emoji avatar badge. Shown above the
+                  name so a custom-pack rat is recognizable in its send-off.
+                  Skipped for default rosters (no avatar). */}
+              {latest.avatar && (
+                <div
+                  className="mx-auto mb-1.5"
+                  style={{
+                    width: 56, height: 56, borderRadius: '50%',
+                    display: 'grid', placeItems: 'center', fontSize: 30,
+                    background: 'rgba(15,14,46,0.92)',
+                    border: `2px solid ${cfg.color}`,
+                    boxShadow: `0 0 18px ${cfg.color}66`,
+                    filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.55))',
+                  }}
+                >
+                  {latest.avatar}
+                </div>
+              )}
 
               {/* Name — big, punchy */}
               <div
