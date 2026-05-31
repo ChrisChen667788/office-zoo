@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import { getUserId } from '../../utils/userId';
 import { getLeakStats } from '../../utils/leakStats';
 import { getUnlocked, ACHIEVEMENTS } from '../../utils/achievements';
+import { downloadBanweiWrappedCard } from '../../utils/banweiWrappedCard';
 
 interface Snapshot { weekKey: string; score: number; }
 interface BanweiGetResponse { history: Snapshot[]; }
@@ -168,6 +169,33 @@ export default function BanweiWrapped() {
               }} />
             </div>
           </div>
+
+          {/* v6.40 P3 — 1080×1350 PNG export of the wrapped recap. */}
+          <button
+            type="button"
+            onClick={() => downloadBanweiWrappedCard({
+              personaLabel: persona.label,
+              personaEmoji: persona.emoji,
+              personaAccent: persona.accent,
+              weeks: stats.weeks,
+              peakScore: stats.peakScore,
+              peakWeek: stats.peakWeek,
+              avgScore: stats.avgScore,
+              trend: stats.trend,
+              hitRate: stats.hitRate,
+              leaksSubmitted: stats.leaksSubmitted,
+              leaksQuoted: stats.leaksQuoted,
+              achUnlocked: stats.achUnlocked,
+              achTotal: stats.achTotal,
+            })}
+            style={{
+              marginTop: 12, width: '100%', padding: '10px 16px', borderRadius: 10,
+              background: 'linear-gradient(135deg, #B086FF 0%, #7c3aed 100%)',
+              color: '#fff', fontWeight: 900, fontSize: 13, border: 'none',
+              cursor: 'pointer', fontFamily: 'inherit',
+              boxShadow: '0 4px 14px rgba(176,134,255,0.32)',
+            }}
+          >📤 下载年终回顾海报 (1080×1350)</button>
 
           <div style={{
             marginTop: 10, fontSize: 9.5, color: 'rgba(255,255,255,0.35)',
