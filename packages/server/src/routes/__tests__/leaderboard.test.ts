@@ -205,4 +205,57 @@ describe('GET /api/leaderboard/banwei', () => {
     const j2 = await r2.json();
     expect(j2.total).toBe(0);
   });
+
+  // v6.40 P4 — packId × tribe cross-filter coverage
+  it('combines packId + region filters (AND)', async () => {
+    const PACK = '0123456789ab';
+    await postBanwei('alice', { lastPackId: PACK, region: 'beijing' });
+    await postBanwei('bob',   { lastPackId: PACK, region: 'shanghai' });
+    await postBanwei('carol', { region: 'beijing' }); // no pack
+    const r = await leaderboardRoutes.request(`/banwei?packId=${PACK}&region=beijing`);
+    const j = await r.json();
+    expect(j.total).toBe(1);
+    expect(j.top[0].userIdPrefix).toBe('alice');
+    expect(j.filters.packId).toBe(PACK);
+    expect(j.filters.region).toBe('beijing');
+  });
+
+  it('combines packId + industry filters (AND)', async () => {
+    const PACK = 'fedcba987654';
+    await postBanwei('alice', { lastPackId: PACK, industry: 'faang' });
+    await postBanwei('bob',   { lastPackId: PACK, industry: 'startup' });
+    const r = await leaderboardRoutes.request(`/banwei?packId=${PACK}&industry=faang`);
+    const j = await r.json();
+    expect(j.total).toBe(1);
+    expect(j.top[0].userIdPrefix).toBe('alice');
+  });
+
+  it('packId filter with no matching members → empty', async () => {
+    await postBanwei('alice', { lastPackId: '0123456789ab' });
+    // A different, valid-shape packId nobody played.
+    const r = await leaderboardRoutes.request('/banwei?packId=ffffffffffff');
+    const j = await r.json();
+    expect(j.total).toBe(0);
+    expect(j.top).toEqual([]);
+  });
+
+  it('pack members still rank by score desc within the pack', async () => {
+    const PACK = 'aaaaaaaaaaaa';
+    await postBanwei('low',  { lastPackId: PACK, gamesSeen: 1, talkshowPlayed: 0, anniversaryVisited: 0 });
+    await postBanwei('high', { lastPackId: PACK, gamesSeen: 5, talkshowPlayed: 5, anniversaryVisited: 1 });
+    const r = await leaderboardRoutes.request(`/banwei?packId=${PACK}`);
+    const j = await r.json();
+    expect(j.total).toBe(2);
+    expect(j.top[0].userIdPrefix).toBe('high');
+    expect(j.top[0].score).toBeGreaterThanOrEqual(j.top[1].score);
+  });
+
+  it('global view (no packId) still counts pack + non-pack users together', async () => {
+    await postBanwei('alice', { lastPackId: '0123456789ab' });
+    await postBanwei('bob'); // no pack
+    const r = await leaderboardRoutes.request('/banwei');
+    const j = await r.json();
+    expect(j.total).toBe(2);
+    expect(j.filters.packId).toBeUndefined();
+  });
 });
