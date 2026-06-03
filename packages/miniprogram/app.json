@@ -4,7 +4,8 @@
     "pages/banwei/index",
     "pages/hot-quotes/index",
     "pages/anniversary/index",
-    "pages/profile/index"
+    "pages/profile/index",
+    "pages/about/index"
   ],
   "window": {
     "navigationBarTextStyle": "white",

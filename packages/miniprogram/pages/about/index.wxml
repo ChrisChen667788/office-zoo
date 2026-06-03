@@ -1,0 +1,29 @@
+<!-- v6.43 P3 — 小程序技术架构页. 微信原生 <image> 不支持 SVG SMIL 动画,
+     所以引用从 assets/diagrams/architecture.svg 渲染的静态 PNG (probe-diagrams
+     生成). 想看会动的版本 → README / GitHub. -->
+<view class="page">
+  <view class="hero">
+    <text class="title">🧠 AI 多智能体架构</text>
+    <text class="sub">观众端 → 服务器 → 引擎 → 智能体 → 大模型 · Socket.IO 实时广播</text>
+  </view>
+
+  <image
+    class="diagram"
+    src="/assets/architecture.png"
+    mode="widthFix"
+    show-menu-by-longpress="{{true}}"
+  />
+
+  <view class="flow">
+    <view class="step"><text class="dot">①</text><text>观众创建公司 → Hono 服务器 <text class="hl">game:create</text></text></view>
+    <view class="step"><text class="dot">②</text><text>服务器 spawn <text class="hl">GameEngine</text> 状态机 · 回合循环</text></view>
+    <view class="step"><text class="dot">③</text><text>每个鼠人挂一个 <text class="hl">BaseAgent</text>(人格 + 记忆 + prompt)</text></view>
+    <view class="step"><text class="dot">④</text><text>大模型 API 实时生成发言 / 投票 → <text class="hl">Socket.IO</text> 广播回客户端</text></view>
+    <view class="step"><text class="dot">⑤</text><text>引擎读写本地 JSON 持久化(banwei · companyPacks · hotQuotes)</text></view>
+  </view>
+
+  <view class="note">
+    <text>💡 这是静态图。会动的版本(数据包沿虚线流动)在 GitHub README:</text>
+    <text class="link" user-select="{{true}}">github.com/ChrisChen667788/office-zoo</text>
+  </view>
+</view>
