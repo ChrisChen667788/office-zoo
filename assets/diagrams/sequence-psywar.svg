@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',system-ui,sans-serif">
+  <defs>
+    <radialGradient id="bg2" cx="50%" cy="20%" r="95%">
+      <stop offset="0" stop-color="#1a1d3a"/>
+      <stop offset="55%" stop-color="#10112a"/>
+      <stop offset="1" stop-color="#06061a"/>
+    </radialGradient>
+    <linearGradient id="node2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2d1b69"/>
+      <stop offset="1" stop-color="#0f0e2e"/>
+    </linearGradient>
+    <filter id="glow2" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4ECDC4"/>
+    </marker>
+    <marker id="ah2g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#FFD700"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="560" fill="url(#bg2)"/>
+  <text x="40" y="42" fill="#FFD700" font-size="22" font-weight="800">PSYWAR 心理战闭环 · 时序</text>
+  <text x="40" y="66" fill="rgba(255,255,255,0.45)" font-size="13">观众爆料 → AI 听到 → AI 引用 → 班味 +6 · 高亮条向下扫过每个阶段</text>
+
+  <!-- lifelines -->
+  <g stroke="rgba(255,255,255,0.14)" stroke-width="1.5" stroke-dasharray="4 6">
+    <line x1="110" y1="118" x2="110" y2="520"/>
+    <line x1="320" y1="118" x2="320" y2="520"/>
+    <line x1="510" y1="118" x2="510" y2="520"/>
+    <line x1="690" y1="118" x2="690" y2="520"/>
+    <line x1="870" y1="118" x2="870" y2="520"/>
+  </g>
+
+  <!-- moving playhead highlight -->
+  <rect x="40" y="0" width="890" height="34" rx="8" fill="#FFD700" opacity="0.07">
+    <animate attributeName="y" values="100;486;100" dur="6s" repeatCount="indefinite" keyTimes="0;0.5;1" calcMode="linear"/>
+  </rect>
+
+  <!-- actor headers -->
+  <g font-size="13" font-weight="700" text-anchor="middle" fill="#f4f4ff">
+    <g filter="url(#glow2)"><rect x="56" y="86" width="108" height="34" rx="9" fill="url(#node2)" stroke="#4ECDC4" stroke-width="1.3"/></g>
+    <text x="110" y="108">👤 玩家</text>
+    <g filter="url(#glow2)"><rect x="256" y="86" width="128" height="34" rx="9" fill="url(#node2)" stroke="#4ECDC4" stroke-width="1.3"/></g>
+    <text x="320" y="108">Classic 客户端</text>
+    <g filter="url(#glow2)"><rect x="456" y="86" width="108" height="34" rx="9" fill="url(#node2)" stroke="#FFD700" stroke-width="1.3"/></g>
+    <text x="510" y="108">🚀 服务器</text>
+    <g filter="url(#glow2)"><rect x="632" y="86" width="116" height="34" rx="9" fill="url(#node2)" stroke="#B086FF" stroke-width="1.3"/></g>
+    <text x="690" y="108">GameEngine</text>
+    <g filter="url(#glow2)"><rect x="820" y="86" width="100" height="34" rx="9" fill="url(#node2)" stroke="#FF4FA3" stroke-width="1.3"/></g>
+    <text x="870" y="108">🤖 AI 鼠人</text>
+  </g>
+
+  <!-- messages (flowing dashed) -->
+  <g fill="none" stroke-width="2" stroke-dasharray="7 7">
+    <path stroke="#4ECDC4" marker-end="url(#ah2)" d="M110,150 L318,150"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.8s" repeatCount="indefinite"/></path>
+    <path stroke="#4ECDC4" marker-end="url(#ah2)" d="M320,192 L508,192"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.8s" repeatCount="indefinite"/></path>
+    <path stroke="#4ECDC4" marker-end="url(#ah2)" d="M510,234 L688,234"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.8s" repeatCount="indefinite"/></path>
+    <path stroke="#4ECDC4" marker-end="url(#ah2)" d="M690,276 L512,276"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.8s" repeatCount="indefinite"/></path>
+    <path stroke="#4ECDC4" marker-end="url(#ah2)" d="M510,318 L322,318"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.8s" repeatCount="indefinite"/></path>
+    <!-- next round -->
+    <path stroke="#FFD700" marker-end="url(#ah2g)" d="M690,400 L868,400"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.8s" repeatCount="indefinite"/></path>
+    <path stroke="#FFD700" marker-end="url(#ah2g)" d="M870,442 L692,442"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.8s" repeatCount="indefinite"/></path>
+    <path stroke="#FF4FA3" marker-end="url(#ah2)" d="M510,498 L322,498"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.8s" repeatCount="indefinite"/></path>
+  </g>
+  <!-- engine self-loop detectLeakQuote -->
+  <path fill="none" stroke="#B086FF" stroke-width="2" stroke-dasharray="6 6" d="M690,460 h44 v-10 h-44"><animate attributeName="stroke-dashoffset" from="24" to="0" dur="0.8s" repeatCount="indefinite"/></path>
+
+  <!-- message labels -->
+  <g font-size="11.5" fill="rgba(255,255,255,0.72)">
+    <text x="120" y="143">战术 @ 选目标 + 写一句话</text>
+    <text x="330" y="185">game:psy_war_leak</text>
+    <text x="520" y="227">pushLeakedHint · FIFO 5</text>
+    <text x="520" y="269" text-anchor="end" transform="translate(178,0)">leak_acked</text>
+    <text x="330" y="311">psy_war_acked → 👂 AI 听到了</text>
+    <text x="700" y="393">generateSpeech(+leakedHints)</text>
+    <text x="700" y="435" text-anchor="end" transform="translate(168,0)">speech 文本</text>
+    <text x="744" y="452" fill="#B086FF">detectLeakQuote</text>
+    <text x="330" y="491" fill="#FF4FA3">leak_quoted → ✨ AI 引用了 (+6)</text>
+  </g>
+  <text x="600" y="360" fill="rgba(255,215,0,0.7)" font-size="11" font-style="italic">— 下一回合 discussion phase —</text>
+</svg>

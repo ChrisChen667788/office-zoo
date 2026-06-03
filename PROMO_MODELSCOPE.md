@@ -19,12 +19,25 @@ OFFICE ZOO 是一个 **AI 多智能体驱动**的中文职场推理游戏：你�
 
 ## 🧠 它怎么跑起来的
 
-```
-观众创建公司 → Hono 服务器 spawn GameEngine 状态机
-            → 每个鼠人挂一个 BaseAgent（人格 + 记忆 + prompt）
-            → 大模型 API 实时生成发言 / 投票
-            → Socket.IO 广播 → React 客户端实时渲染
-```
+> 下面三张是会动的 SVG —— 金色光点表示数据包实时走向（GitHub `<img>` 引用自动播放）。
+
+**系统架构** · 观众端 → 服务器 → 引擎 → 智能体 → 大模型，Socket.IO 实时广播
+
+<p align="center">
+  <img src="assets/diagrams/architecture.svg" alt="OFFICE ZOO 系统架构" width="100%" />
+</p>
+
+**PSYWAR 心理战闭环** · 观众战术 @ → AI 听到 → AI 引用 → 班味指数 +6
+
+<p align="center">
+  <img src="assets/diagrams/sequence-psywar.svg" alt="PSYWAR 心理战时序" width="100%" />
+</p>
+
+**公司主题包数据闭环** · 建包 → 同事开局 → 名单覆盖 → 本公司 Top 排行榜
+
+<p align="center">
+  <img src="assets/diagrams/dataflow-companypack.svg" alt="公司主题包数据流闭环" width="100%" />
+</p>
 
 - **大模型**：OpenAI 兼容协议接入，可切 MiniMax / 通义千问 Qwen / Qingyun 等
 - **语音**：MiniMax speech-2.x TTS，给每个鼠人配音

@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',system-ui,sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="28%" r="92%">
+      <stop offset="0" stop-color="#1a1d3a"/>
+      <stop offset="55%" stop-color="#10112a"/>
+      <stop offset="1" stop-color="#06061a"/>
+    </radialGradient>
+    <linearGradient id="node" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2d1b69"/>
+      <stop offset="1" stop-color="#0f0e2e"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4ECDC4"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="620" fill="url(#bg)"/>
+  <text x="40" y="44" fill="#FFD700" font-size="22" font-weight="800">OFFICE ZOO · 系统架构</text>
+  <text x="40" y="68" fill="rgba(255,255,255,0.45)" font-size="13">大模型多智能体 + 实时叙事 · 数据沿虚线流动</text>
+
+  <!-- ===== connectors (flowing dashed) ===== -->
+  <g fill="none" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#ah)">
+    <!-- A -> B  game:create -->
+    <path stroke="#4ECDC4" d="M270,100 L362,100"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.9s" repeatCount="indefinite"/></path>
+    <!-- B -> C  spawn -->
+    <path stroke="#4ECDC4" d="M490,154 L490,247"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.9s" repeatCount="indefinite"/></path>
+    <!-- C -> D  generateSpeech -->
+    <path stroke="#4ECDC4" d="M617,296 L707,296"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.9s" repeatCount="indefinite"/></path>
+    <!-- D -> E  prompt (up) -->
+    <path stroke="#FFD700" d="M815,247 L815,156"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.9s" repeatCount="indefinite"/></path>
+    <!-- C -> F  read/write -->
+    <path stroke="#4ECDC4" d="M490,344 L490,437"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.9s" repeatCount="indefinite"/></path>
+    <!-- broadcast C -> A (curved return) -->
+    <path stroke="#B086FF" d="M362,316 C 230,360 150,300 152,156"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="1.2s" repeatCount="indefinite"/></path>
+  </g>
+
+  <!-- ===== traveling data packets ===== -->
+  <circle r="4.5" fill="#FFD700"><animateMotion dur="2.2s" repeatCount="indefinite" path="M270,100 L362,100"/></circle>
+  <circle r="4.5" fill="#FFD700"><animateMotion dur="2.2s" begin="0.4s" repeatCount="indefinite" path="M490,154 L490,247"/></circle>
+  <circle r="4.5" fill="#FFD700"><animateMotion dur="2.2s" begin="0.8s" repeatCount="indefinite" path="M617,296 L707,296"/></circle>
+  <circle r="4.5" fill="#4ECDC4"><animateMotion dur="2.2s" begin="1.2s" repeatCount="indefinite" path="M815,247 L815,156"/></circle>
+  <circle r="4" fill="#4ECDC4"><animateMotion dur="2.6s" repeatCount="indefinite" path="M490,344 L490,437"/></circle>
+  <circle r="4.5" fill="#B086FF"><animateMotion dur="2.8s" begin="1.6s" repeatCount="indefinite" path="M362,316 C 230,360 150,300 152,156"/></circle>
+
+  <!-- ===== connector labels ===== -->
+  <g fill="rgba(255,255,255,0.6)" font-size="11" text-anchor="middle">
+    <text x="316" y="92">game:create</text>
+    <text x="534" y="205">spawn</text>
+    <text x="662" y="288">generateSpeech</text>
+    <text x="852" y="205">prompt</text>
+    <text x="534" y="398">读写</text>
+  </g>
+  <text x="214" y="372" fill="#B086FF" font-size="11" text-anchor="middle">Socket.IO 实时广播</text>
+
+  <!-- ===== nodes ===== -->
+  <!-- A 观众端 -->
+  <g filter="url(#glow)"><rect x="40" y="60" width="230" height="92" rx="16" fill="url(#node)" stroke="#4ECDC4" stroke-width="1.5"/></g>
+  <text x="155" y="100" fill="#f4f4ff" font-size="17" font-weight="800" text-anchor="middle">👤 观众端</text>
+  <text x="155" y="126" fill="rgba(255,255,255,0.6)" font-size="12" text-anchor="middle">React 客户端 · 微信小程序</text>
+
+  <!-- B 服务器 -->
+  <g filter="url(#glow)"><rect x="365" y="60" width="250" height="92" rx="16" fill="url(#node)" stroke="#FFD700" stroke-width="1.5"/></g>
+  <text x="490" y="100" fill="#f4f4ff" font-size="17" font-weight="800" text-anchor="middle">🚀 Hono 服务器</text>
+  <text x="490" y="126" fill="rgba(255,255,255,0.6)" font-size="12" text-anchor="middle">socketHandler · REST routes</text>
+
+  <!-- E 大模型 -->
+  <g filter="url(#glow)"><rect x="710" y="60" width="210" height="92" rx="16" fill="url(#node)" stroke="#FF4FA3" stroke-width="1.5"/></g>
+  <text x="815" y="100" fill="#f4f4ff" font-size="17" font-weight="800" text-anchor="middle">🧠 大模型</text>
+  <text x="815" y="126" fill="rgba(255,255,255,0.6)" font-size="12" text-anchor="middle">OpenAI兼容 · MiniMax TTS</text>
+
+  <!-- C 引擎 -->
+  <g filter="url(#glow)"><rect x="365" y="250" width="250" height="92" rx="16" fill="url(#node)" stroke="#B086FF" stroke-width="1.5"/></g>
+  <text x="490" y="290" fill="#f4f4ff" font-size="17" font-weight="800" text-anchor="middle">🎮 GameEngine</text>
+  <text x="490" y="316" fill="rgba(255,255,255,0.6)" font-size="12" text-anchor="middle">状态机 · 回合循环</text>
+
+  <!-- D 智能体 -->
+  <g filter="url(#glow)"><rect x="710" y="250" width="210" height="92" rx="16" fill="url(#node)" stroke="#FF4FA3" stroke-width="1.5"/></g>
+  <text x="815" y="290" fill="#f4f4ff" font-size="17" font-weight="800" text-anchor="middle">🤖 BaseAgent</text>
+  <text x="815" y="316" fill="rgba(255,255,255,0.6)" font-size="12" text-anchor="middle">人格 · 记忆 · prompt</text>
+
+  <!-- F 存储 -->
+  <g filter="url(#glow)"><rect x="365" y="440" width="250" height="110" rx="16" fill="url(#node)" stroke="#4ECDC4" stroke-width="1.5"/></g>
+  <text x="490" y="480" fill="#f4f4ff" font-size="17" font-weight="800" text-anchor="middle">💾 本地 JSON 持久化</text>
+  <text x="490" y="506" fill="rgba(255,255,255,0.6)" font-size="12" text-anchor="middle">banwei · companyPacks</text>
+  <text x="490" y="526" fill="rgba(255,255,255,0.6)" font-size="12" text-anchor="middle">hotQuotes · profiles</text>
+</svg>

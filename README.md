@@ -53,21 +53,27 @@ pnpm dev
 
 ## 🧠 AI 架构
 
-```mermaid
-flowchart TD
-    User([👤 观众]) -->|创建公司| Landing[Landing 页面]
-    Landing -->|game:create| Server[Hono 服务器]
-    Server -->|spawn| Engine[GameEngine 状态机]
-    Engine -->|每个鼠人| Agent[BaseAgent AI 智能体]
-    Agent -->|prompt| LLM[大模型 API]
-    LLM -->|发言/投票| Agent
-    Engine -->|Socket.IO 广播| Client[React 客户端]
-    Client -->|实时渲染| User
+> 数据沿虚线流动 —— 下面三张图是会动的 SVG（金色光点表示数据包实时走向）。
 
-    subgraph 记忆系统
-        Agent -->|读写| Memory[(对话记忆)]
-    end
-```
+**系统架构** · 观众端 → 服务器 → 引擎 → 智能体 → 大模型，Socket.IO 实时广播回客户端
+
+<p align="center">
+  <img src="assets/diagrams/architecture.svg" alt="OFFICE ZOO 系统架构 — 观众端/Hono 服务器/GameEngine/BaseAgent/大模型/本地 JSON，数据沿虚线流动" width="100%" />
+</p>
+
+**PSYWAR 心理战闭环** · 观众战术 @ → AI 听到 → AI 引用 → 班味指数 +6（时序图）
+
+<p align="center">
+  <img src="assets/diagrams/sequence-psywar.svg" alt="PSYWAR 心理战时序 — game:psy_war_leak → pushLeakedHint → generateSpeech → detectLeakQuote → leak_quoted" width="100%" />
+</p>
+
+**公司主题包数据闭环** · 建包 → 持久化 → 分享 → 同事开局 → 名单覆盖 → 班味打卡 → 排行榜 → 本公司 Top
+
+<p align="center">
+  <img src="assets/diagrams/dataflow-companypack.svg" alt="公司主题包数据流 — 闭环：观众 → 游戏世界 → 观众" width="100%" />
+</p>
+
+> 注：动画为原生 SVG SMIL（`stroke-dashoffset` 虚线流动 + `animateMotion` 数据包），GitHub 以 `<img>` 引用时会自动播放，无需任何 JS。
 
 ---
 
