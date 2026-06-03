@@ -215,3 +215,26 @@ companyPackRoutes.get('/:packId', async (c) => {
   if (!pack) return c.json({ error: 'pack not found' }, 404);
   return c.json({ pack });
 });
+
+/**
+ * DELETE /api/company-pack/:packId — v6.41 P4 owner-only delete.
+ *
+ * Unlike GET (open — packId is a share token), delete verifies the
+ * caller owns the pack so a shared link can't be used to nuke someone
+ * else's roster. Lets a user clear a slot once they hit the
+ * PER_USER_PACK_CAP. Idempotent-ish: a missing pack returns 404,
+ * a non-owner returns 403, success returns the remaining count.
+ */
+companyPackRoutes.delete('/:packId', async (c) => {
+  const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);
+  if (!userId) return c.json({ error: 'X-User-Id required' }, 400);
+  const packId = c.req.param('packId');
+  const store = await load();
+  const pack = store.packs[packId];
+  if (!pack) return c.json({ error: 'pack not found' }, 404);
+  if (pack.ownerUserId !== userId) return c.json({ error: 'forbidden' }, 403);
+  delete store.packs[packId];
+  await save(store);
+  const remaining = Object.values(store.packs).filter((p) => p.ownerUserId === userId).length;
+  return c.json({ deleted: packId, remaining, cap: PER_USER_PACK_CAP });
+});

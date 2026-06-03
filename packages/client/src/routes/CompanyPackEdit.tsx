@@ -78,6 +78,10 @@ export default function CompanyPackEdit() {
   // v6.38 P3 — share-link copy feedback (only meaningful in edit mode
   // where a packId exists).
   const [shareCopied, setShareCopied] = useState(false);
+  // v6.41 P4 — delete flow (edit mode only). Two-click confirm to avoid
+  // an accidental nuke of a roster the user spent time on.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function copyShareLink() {
     if (!packId) return;
@@ -90,6 +94,27 @@ export default function CompanyPackEdit() {
       // Clipboard blocked (insecure context / permissions) — fall back
       // to a prompt so the user can still grab the link manually.
       window.prompt('复制这个分享链接:', url);
+    }
+  }
+
+  async function deletePack() {
+    if (!packId || deleting) return;
+    if (!confirmDelete) { setConfirmDelete(true); return; } // first click arms
+    setDeleting(true);
+    try {
+      const r = await fetch(`/api/company-pack/${packId}`, {
+        method: 'DELETE',
+        headers: { 'X-User-Id': getUserId() },
+      });
+      if (!r.ok && r.status !== 404) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${r.status}`);
+      }
+      navigate('/'); // gone — back to Landing
+    } catch (e) {
+      setErrMsg(String(e instanceof Error ? e.message : e));
+      setDeleting(false);
+      setConfirmDelete(false);
     }
   }
 
@@ -394,6 +419,29 @@ export default function CompanyPackEdit() {
               background: 'rgba(255,79,87,0.12)', color: '#ff4f57',
               fontSize: 11, border: '1px solid rgba(255,79,87,0.32)',
             }}>{errMsg}</div>
+          )}
+
+          {/* v6.41 P4 — delete (edit mode only). Two-click confirm: first
+              click arms "确认删除?", second deletes. Frees a slot when the
+              user hits the 5-pack cap. */}
+          {packId && (
+            <div style={{ marginTop: 14, textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={deletePack}
+                onBlur={() => setConfirmDelete(false)}
+                disabled={deleting}
+                style={{
+                  padding: '6px 14px', fontSize: 11, fontWeight: 700,
+                  background: confirmDelete ? 'rgba(255,79,87,0.85)' : 'transparent',
+                  color: confirmDelete ? '#fff' : 'rgba(255,79,87,0.7)',
+                  border: '1px solid rgba(255,79,87,0.45)', borderRadius: 8,
+                  cursor: deleting ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                {deleting ? '删除中…' : confirmDelete ? '⚠️ 再点一次确认删除' : '🗑️ 删除这个公司包'}
+              </button>
+            </div>
           )}
         </div>
 

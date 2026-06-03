@@ -130,6 +130,61 @@ describe('GET /api/company-pack/:packId', () => {
   });
 });
 
+describe('DELETE /api/company-pack/:packId (v6.41 P4)', () => {
+  async function del(packId: string, userId?: string) {
+    return companyPackRoutes.request(`/${packId}`, {
+      method: 'DELETE',
+      headers: userId ? { 'X-User-Id': userId } : {},
+    });
+  }
+
+  it('owner can delete; remaining count drops', async () => {
+    await postCreate('alice', { name: 'A1' });
+    const c2 = await postCreate('alice', { name: 'A2' });
+    const { pack } = await c2.json() as { pack: { packId: string } };
+    const r = await del(pack.packId, 'alice');
+    expect(r.status).toBe(200);
+    const j = await r.json() as { deleted: string; remaining: number };
+    expect(j.deleted).toBe(pack.packId);
+    expect(j.remaining).toBe(1);
+    // Confirm it's gone from the listing.
+    const mine = await companyPackRoutes.request('/mine', { headers: { 'X-User-Id': 'alice' } });
+    const mj = await mine.json() as { total: number };
+    expect(mj.total).toBe(1);
+  });
+
+  it('non-owner cannot delete (403)', async () => {
+    const c1 = await postCreate('alice');
+    const { pack } = await c1.json() as { pack: { packId: string } };
+    const r = await del(pack.packId, 'bob');
+    expect(r.status).toBe(403);
+  });
+
+  it('requires X-User-Id (400)', async () => {
+    const c1 = await postCreate('alice');
+    const { pack } = await c1.json() as { pack: { packId: string } };
+    const r = await del(pack.packId);
+    expect(r.status).toBe(400);
+  });
+
+  it('unknown packId → 404', async () => {
+    const r = await del('deadbeef0000', 'alice');
+    expect(r.status).toBe(404);
+  });
+
+  it('deleting frees a slot under the cap', async () => {
+    for (let i = 0; i < PER_USER_PACK_CAP; i++) await postCreate('alice', { name: `p${i}` });
+    // At cap — create rejected.
+    expect((await postCreate('alice', { name: 'over' })).status).toBe(429);
+    // Delete one, then create succeeds.
+    const mine = await companyPackRoutes.request('/mine', { headers: { 'X-User-Id': 'alice' } });
+    const mj = await mine.json() as { packs: Array<{ packId: string }> };
+    const r = await del(mj.packs[0].packId, 'alice');
+    expect(r.status).toBe(200);
+    expect((await postCreate('alice', { name: 'now-fits' })).status).toBe(200);
+  });
+});
+
 describe('GET /api/company-pack/mine', () => {
   it('only returns caller\'s packs, newest first', async () => {
     await postCreate('alice', { name: 'A1' });
