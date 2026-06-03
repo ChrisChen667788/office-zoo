@@ -7,6 +7,245 @@
 
 ---
 
+## v6.40 — 2026-05-30 · 收尾 + 公司包/排行榜补强
+
+### P1 — squash red commit 6b20315
+- v6.39 P6 那对 commit (red import 错 + hotfix) `git reset --soft` squash
+  成单个 green commit, `--force-with-lease` 推送. 远程历史不再含损坏 commit.
+
+### P2 — pack avatar 同步 EliminationReveal
+- `EliminationEvent.avatar`; 裁员剧场名字上方加 emoji 圆徽 (队伍色环 + 辉光),
+  存活/淘汰两态. Classic 两处 setLastElim 传 `victim?.avatar`.
+
+### P3 — 班味年终 wrapped PNG 导出
+- `banweiWrappedCard.ts` 画 1080×1350 (年度人格 hero + 2×2 stat 格 + 成就条),
+  BanweiWrapped 加下载按钮. `rgbTriplet()` 处理最低 tier 的 rgba accent.
+
+### P4 — pack leaderboard packId×tribe 交叉测试
+- leaderboard.test.ts +5: packId+region (AND) / packId+industry / 空 pack /
+  pack 内 score 排序 / 全网 pack+非pack 混算. 12 → 17 leaderboard.
+
+---
+
+## v6.41 — 2026-05-30 · HighlightReel avatar + pack 删除 + CHANGELOG 补
+
+### P2 — pack avatar 上 HighlightReel 复盘
+- `EliminationLogEntry.avatar`; Classic + Immersive 四处 pushElimination 传
+  avatar (并补 Immersive setLastElim 的 v6.40 P2 遗漏). HighlightReel 时间线
+  行渲染 emoji 圆徽.
+
+### P4 — 公司主题包 删除功能
+- `DELETE /api/company-pack/:packId` owner-only (验 ownerUserId, 区别于 GET
+  的 share-token 开放读). CompanyPackEdit "🗑️ 删除" 两段确认按钮. 解决满 5
+  上限无法清理. +5 route tests (owner / 403 / 400 / 404 / 删除腾位).
+
+### P3 — CHANGELOG 补 v6.30-v6.40 (本段)
+- pre-push hook 长期 nag 关闭.
+
+---
+
+## v6.39 — 2026-05-30 · 致谢 + pack avatar + 直接开局 tag + wrapped
+
+### P1+P2 — README/ModelScope AI 开源生态致谢 + Star History
+- 致谢从 MiniMax+Qingyun 扩成完整分层 (大模型推理 / 多智能体架构 / 后端实时 /
+  前端交互 / 小程序工具链 / 灵感来源) + Star History SVG 嵌入. 新建
+  PROMO_MODELSCOPE.md. 清掉 README 尾部 ~240 行重复 garbage.
+
+### P3 — 公司主题包 per-NPC emoji avatar (端到端)
+- schema (16 字符 cap) → engine packAvatars 对齐 shuffle → PlayerState/
+  SerializedPlayer → GameMap canvas 画 emoji (存活/淘汰两态) → 编辑器 emoji
+  `<select>` (18 预设) → 分享页展示. +2 路由测试.
+
+### P4 — 直接开局也带 region/industry 自动 tag
+- Landing 开局时缓存 archetype tribe 到 localStorage (lastRegion/lastIndustry),
+  `?pack=` 直接开局 session 也能正确 tag 排行榜. BanweiIndexCard 先读缓存,
+  profile fetch 覆盖.
+
+### P5 — pack leaderboard 加入榜分享卡 (PNG)
+- `packLeaderboardCard.ts` 画 1080×1350 (公司名 + Top10 + 我的行高亮),
+  pack-scope 时显示下载按钮.
+
+### P6 — 班味年终 wrapped 回顾
+- `BanweiWrapped` 折叠卡, 聚合峰值周/平均/趋势/命中率/成就进度 + 年度班味人格
+  标签, Spotify-Wrapped 风. (注: 首版 import 错 getUnlockedCount, v6.40 P1
+  squash 修正.)
+
+---
+
+## v6.38 — 2026-05-30 · 公司包深化 + 测试补强
+
+### P1 — packOverride engine 专项单测
+- GameEngine.test.ts +6: 名字覆盖 / 太小回落 / 唯一性 / 平衡不变 / personality
+  hint 生效 / 无效 hint 忽略. 26 → 32 GameEngine.
+
+### P2 — pack role hint 软偏好 + personality desync 修复
+- DESYNC FIX: createPlayers 改为整 NPC 元组一起 shuffle (修 name↔personality
+  错位 bug, v6.37 P4 留下的). ROLE_HINT_TEAM_LEAN: 管理层→dog / 打工人岗→cat,
+  `assignRolesWithTeamLean()` 两段贪心重分配, 不破坏阵营平衡. +3 tests.
+
+### P3 — pack 分享链接 + 一键导入
+- CompanyPackView 只读页 (packId 是 share token, GET 开放). 🔗 分享 copy
+  link / 🎮 直接开局 (`?pack=`) / 📥 存成副本. 修正 personality 下拉 (v6.37
+  用了臆造 id, 校正成真 8 枚举值).
+
+### P4 — pack-scoped 排行榜
+- banwei snapshot 记 lastPackId (clampPackId 12-hex), leaderboard `?packId=`
+  过滤, LeaderboardPanel "🏢 只看本公司同事 Top" 切换. +3 tests.
+
+---
+
+## v6.37 — 2026-05-29 · 排行榜深化 + 公司主题包新支线
+
+### P1 — leaderboard region/industry filter
+- Snapshot 加 tribe tags (clampTribe 校验 KNOWN_REGIONS/INDUSTRIES),
+  `?region=&industry=` AND 过滤. BanweiIndexCard 从 archetype 自动带 tribe,
+  LeaderboardPanel 12 chips 筛选. +7 leaderboard tests.
+
+### P2 — 班味周存档 sparkline + 年最佳周
+- `BanweiHistoryPanel` 读 12 周 history, 纯 SVG sparkline (无 recharts), 金色
+  光晕标最高周, `<title>` tooltip.
+
+### P3 — 公司主题包 schema + server 持久化
+- `routes/companyPack.ts` POST/GET/mine, atomic rename, 6-12 NPC, 每用户 5 包
+  上限, owner 校验, 名字唯一. `getCompanyPackById` 引擎 accessor (深拷贝).
+  +14 tests.
+
+### P4 — 公司主题包 edit 表单 + Landing 入口 + engine 集成
+- `/company-pack/edit` 6-12 行表单, Landing chip picker, `game:create` 带
+  companyPackId, `createPlayers` packOverride 覆盖名单 (fail-open).
+
+---
+
+## v6.36 — 2026-05-29 · 数学验证 + Canvas 可测 + 🔥 badge + 排行榜
+
+### P1 — weightedSample 数学 sanity test
+- 导出 engine 加权采样 helper, +6 统计护栏 (uniform / biased 3.5x / 无重复 /
+  clamp / 零权重). 26 → 32 GameEngine.
+
+### P2 — 小程序 paintBanwei 抽纯函数 + 9 tests
+- utils/banweiPaint.js (CommonJS) + MockCtx recording 测试, createRequire
+  shim 桥接 ESM/CJS. +9 miniprogram.
+
+### P3 — GameMap 🔥 热门 badge
+- roster_created 加 hotNames → `game:hot_names` → useHotNames → 头像左上 amber
+  脉冲徽, 跟 v6.22 👻 dot 镜像. 闭合 hot-quote 提名回路.
+
+### P4 — 7-day spectator leaderboard
+- `GET /api/leaderboard/banwei` 跨用户 Top-10, userId 8-char 截断 (隐私),
+  `LeaderboardPanel` 挂 Profile, 🥇🥈🥉 + 我的行高亮. +6 tests.
+
+---
+
+## v6.35 — 2026-05-28 · 小程序海报 + 表单 + 飞书化 + 鼠人 bias
+
+### P1 — 小程序 Banwei Canvas 海报
+- banwei page Canvas 2D 画班味海报 (score badge + 5 轴雷达 + WoW row).
+
+### P2 — 小程序 HotQuoteSubmit 原生表单页
+- hot-quotes page 原生 textarea + 提交, 接 `/api/hot-quotes`.
+
+### P3 — PROMO_MODELSCOPE.md 飞书化
+- docs/PROMO_MODELSCOPE.md 表格化重写 ("这是什么" + 5 痛点 vs 5 解法).
+
+### P4 — README mermaid render probe
+- 验证 flowchart + sequenceDiagram GitHub 原生渲染.
+
+### P5 — 鼠人 weekly bias (hot quotes 提名)
+- getRecentNominationCounts 子串提名计数 → weightedSample 权重 (1 + 0.5×min
+  (mentions,5), cap 3.5x). 跨观众金句 → 游戏世界回路.
+
+---
+
+## v6.34 — 2026-05-28 · 去攻击性 + 飞书化 + 架构图 + 小程序脚手架
+
+### P1 — 文案去"骂老板" → 职场牛马自嘲
+- 红框 "AI 替你狠狠骂老板" → 自嘲向 "AI 鼠人替你拥抱变化".
+
+### P2 — 架构图 mermaid 专业化
+- README flowchart (Client/Server/LLM/Storage 分层) + sequenceDiagram
+  (PSYWAR 心理战闭环).
+
+### P3 — 产品介绍飞书化重写
+- "这是什么" 表格 + "凭什么花你 3 分钟" 痛点对照.
+
+### P4 — 微信小程序端脚手架
+- packages/miniprogram glass-easel runtime, landing/banwei/hot-quotes/
+  profile/anniversary 5 page + web-view 包装.
+
+---
+
+## v6.33 — 2026-05-28 · Stats/Banwei probe + cooldown bug + 持久化 + 海报 + 金句池
+
+### P1 — Stats + Banwei panel probe
+- Playwright 截 StatsOverviewPanel + BanweiIndexCard.
+
+### P2 — cooldown ring 文档审视 + 时序 bug 修
+- PSYWAR cooldown ring SVG 倒计时时序修正.
+
+### P3 — 班味指数 share card PNG
+- `banweiShareCard.ts` 1080×1350 (score badge + 5 轴雷达 + WoW).
+
+### P4 — 班味金句池 spectator-curated (新)
+- `routes/hotQuotes.ts` 观众投稿金句池, FIFO 200, 每用户 5/周, 注入下一局
+  leakedHints.
+
+### P5 — server stats 持久化
+- stats.json atomic flush (60s timer + boot load).
+
+---
+
+## v6.32 — 2026-05-27 · stats dashboard + cooldown/achievements probe + 隔离 + 跨周
+
+### P1 — stats dashboard 客户端渲染
+- StatsOverviewPanel: 全局 trio + Top5 鼠人 podium + per-user 命中率 gauge.
+
+### P2+P3 — cooldown ring + achievements panel probe
+- Playwright 真触发截图.
+
+### P4 — stats.test.ts X-User-Id 隔离
+- per-user 计数隔离测试.
+
+### P5 — weekly 班味指数跨周报告
+- banwei history WoW delta + 12 周滚动.
+
+---
+
+## v6.31 — 2026-05-27 · achievements probe/触发 + cooldown ring + leakQuote tune + stats 后端
+
+### P1+P2 — achievements probe + 触发点接入
+- 12 成就 grid, classic/talkshow/anniversary/duel/profile 触发 hook.
+
+### P3 — PSYWAR cooldown visual ring
+- GhostChatPanel SVG ring 倒计时覆盖.
+
+### P4 — leakQuote 进一步 tune audit
+- detectLeakQuote 阈值微调 audit.
+
+### P5 — spectator stats 后端聚合
+- `routes/stats.ts` 全局 + per-user 聚合.
+
+---
+
+## v6.30 — 2026-05-26 · CHANGELOG backfill + Anniversary probe + rate-limit feedback + achievements + stopword
+
+### P1 — CHANGELOG v6.25-v6.29 backfill
+- 补齐 5 版条目.
+
+### P2 — Anniversary probe
+- Playwright 截 6-milestone deck.
+
+### P3 — GhostChatPanel rate-limit feedback
+- v6.29 P5 rate limit 的 client 可视: lockedUntilMs cooldown + sessionLocked
+  禁用态.
+
+### P4 — spectator achievements 系统
+- localStorage 累积成就 ratchet, 12 成就 + 解锁 toast.
+
+### P5 — detectLeakQuote topic-stopword 去噪
+- 高频职场词 stopword 表, 降假阳性.
+
+---
+
 ## v6.29 — 2026-05-26 · 周年 mode + rate limit + CHANGELOG hook + onboarding probe
 
 ### P1 — RulesModal 3-step deck Playwright probe
