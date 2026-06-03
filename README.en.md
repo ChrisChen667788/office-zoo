@@ -15,13 +15,19 @@
 **A company just got fired. Nine AI employees stayed late.**
 **You're the HR staring at the KPI screen — pick a mode, enjoy the show.**
 
-[简体中文](README.md) · **English**
+[简体中文](README.md) · **English** · [📱 WeChat Mini-Program](packages/miniprogram/)
 
 </div>
 
 ---
 
 > "Can't grind harder, can't lie flat — let the AIs grind for you."
+
+<p align="center">
+  <img src="assets/launch-demo/hero-combined.gif" alt="30s hero — miHoYo-style story (0-15s) + real gameplay (15-30s)" width="720" />
+  <br/>
+  <em>v6.2 · miHoYo-style storyboard + real gameplay, 30s composite · <a href="assets/launch-demo/demo-memory.gif">story-only</a> · <a href="assets/launch-demo/game-highlight.gif">gameplay-only</a></em>
+</p>
 
 ## Four ways to play
 
@@ -30,7 +36,45 @@
 | 🏢 | **Office Zoo Classic** | 2.5D floor plan, 9 rat-people slack + scheme + backstab |
 | 🎤 | **Hot Mic** | Real-voice TTS reads every "we need more granularity" out loud |
 | ⚖️ | **You're Fired** | 1v1 vs HR, 5 chapters of PRC Labor Contract Law speed-run |
-| 🎭 | **Squad** (v1.4) | 2-4 friends + AI director, each carrying an archetype, in a 5-act office sitcom |
+| 🍺 | **Late-Night Bar** (v6.2) | 2 a.m. lo-fi, 1v1 drinks + workplace venting with an AI rat |
+
+**Plus side modes:** 🔮 daily fortune · 🎤 stand-up · 🤝 squad · 📜 7-day history · ⭐ UGC bits · 🏢 **Company Packs** (v6.37) · 🎁 **Banwei Wrapped** (v6.39)
+
+---
+
+## 🏗️ System Architecture
+
+> Data flows along the dashed lines — the three diagrams below are **animated SVG** (gold dots = data packets in motion; GitHub auto-plays them, no JS).
+
+**System architecture** · spectator → server → engine → agent → LLM, broadcast back over Socket.IO
+
+<p align="center">
+  <img src="assets/diagrams/architecture.svg" alt="OFFICE ZOO architecture — spectator / Hono server / GameEngine / BaseAgent / LLM / local JSON, data flows along dashed lines" width="100%" />
+</p>
+
+**PSYWAR loop** · spectator tactical @ → AI hears → AI quotes → Banwei score +6 (sequence)
+
+<p align="center">
+  <img src="assets/diagrams/sequence-psywar.svg" alt="PSYWAR sequence — game:psy_war_leak → pushLeakedHint → generateSpeech → detectLeakQuote → leak_quoted" width="100%" />
+</p>
+
+**Company Pack data loop** · create → persist → share → coworker joins → roster override → Banwei check-in → leaderboard → your-company Top
+
+<p align="center">
+  <img src="assets/diagrams/dataflow-companypack.svg" alt="Company Pack data flow — closed loop: spectator → game world → spectator" width="100%" />
+</p>
+
+---
+
+## 🌟 v6.37 → v6.42 · Bring your coworkers into the game
+
+> Company Packs + cross-spectator leaderboard + year-end Wrapped — "work-fatigue" grows from a personal experience into a social loop.
+
+- 🏢 **Company Packs** (v6.37→v6.41) — define "our company's 6-12 NPCs" (name + role + personality + emoji avatar), save as a private pack. Share a link → coworkers open the same `?pack=` game → AI rats use *your* names, with the custom avatars rendered across GameMap, the elimination reveal, and the recap.
+- 🏆 **Cross-spectator leaderboard** (v6.36→v6.38) — public global Top-10 Banwei board + region/industry filters + "🏢 your-company Top", one-tap 1080×1350 leaderboard share card.
+- 🎁 **Banwei Wrapped** (v6.39→v6.40) — Spotify-Wrapped-style year recap: peak week / average / trend / leak hit-rate / achievements / year persona, export to poster.
+- 🔥 **Hot-quote → game-world loop** (v6.33→v6.36) — spectators submit workplace one-liners → nomination-weighted bias → AI rats are more likely to "cast" a nominated name next game, with a 🔥 badge on GameMap.
+- 🧪 **Quality** — 171 vitest green · clean typecheck · Playwright visual probes for the Wrapped card + animated diagrams.
 
 ## ✨ What's new in v2.x → v3.0 (May 2026)
 
@@ -85,30 +129,17 @@ Both have free trials. The product degrades gracefully:
 - LLM down? Falls back from QingYun → Minimax-M2 → canned responses.
 - TTS down? Falls back from Minimax → Qingyun → browser Web Speech API.
 
-## Architecture (one page)
+## Architecture deep-dive
+
+The fallback chains that keep the show running even when a provider dies:
 
 ```
-                       ┌──────────────────────────────────────┐
-  Client (5173)        │  React 18 + Vite 6 + Zustand          │
-                       │  + Framer Motion + Tailwind 4         │
-                       │  Canvas 2D isometric office floor     │
-                       └────────────┬──────────────┬──────────┘
-                                    │              │
-                       HTTP /api/*  │              │  Socket.IO /game:* /room:*
-                                    ▼              ▼
-                       ┌──────────────────────────────────────┐
-  Server (3100/3101)   │  Hono routes (REST)                   │
-                       │  socket.io server (rooms + PvP)       │
-                       │                                       │
-                       │  Services:                            │
-                       │  - LLM chain (QingYun→Minimax-M2)     │
-                       │  - TTS chain (Minimax→Qingyun→Web)   │
-                       │  - Image gen chain (flux→doubao→...)  │
-                       │  - Per-user memory (sqlite-vec planned)│
-                       │  - JSON file stores (scripts/         │
-                       │    scenarios/packs/memory/b2b)        │
-                       └──────────────────────────────────────┘
+LLM:   QingYun gpt-4o-mini  →  Minimax-M2  →  canned responses
+TTS:   Minimax speech-2.8-hd → Qingyun /audio/speech → browser Web Speech
+Image: flux-schnell → doubao-seedream → qwen-image → gpt-image-1 → minimax:image-01
 ```
+
+(For the full data flow, see the animated diagrams at the top.)
 
 ## Roadmap (where we are)
 
@@ -128,8 +159,30 @@ Both have free trials. The product degrades gracefully:
 ✅ v2.2       en/ja/ko translations for the new 12 archetypes
 ✅ v2.3       Region-tagged talkshow bits → daily drama picks city-flavored jokes
 ✅ v3.0       Chemistry-aware squad director — culture-clash + group-portrait + rival arcs
-🔜 next       Real Stripe checkout · Claude 4.5 director · region-tier FiredLanding filter
+✅ v6.25-6.36 PSYWAR mind-games + Banwei index / hot-quotes / weekly report / leaderboard + mini-program
+✅ v6.37-6.42 Company Packs (private NPC deploy) + cross-spectator leaderboard + Banwei Wrapped + animated diagrams
+🔜 next       Real Stripe checkout · Claude 4.5 director · pack avatars on mini-program
 ```
+
+## 🙏 Acknowledgements
+
+OFFICE ZOO stands on a stack of open-source AI + Web projects:
+
+**LLM & inference**
+- [MiniMax](https://www.minimaxi.com/) — `speech-2.8-hd` TTS / `MiniMax-M2` text / `image-01` portraits
+- [Qwen](https://github.com/QwenLM/Qwen) / [QingYunTop](https://api.qingyuntop.top/) — domestic LLM backends + OpenAI-compatible multi-model routing
+- [OpenAI API spec](https://platform.openai.com/docs/api-reference) — the whole project speaks OpenAI-compatible protocol, swap backends freely
+- Multi-agent social-deduction architecture (per-rat persona + memory + prompt patch), inspired by the LLM-as-Agent / Generative Agents line of work
+
+**Backend · Frontend · Tooling**
+- [Hono](https://hono.dev/) + [Socket.IO](https://socket.io/) · [React](https://react.dev/) + [Vite](https://vitejs.dev/) + [Zustand](https://github.com/pmndrs/zustand) + [Framer Motion](https://www.framer.com/motion/)
+- [glass-easel](https://github.com/wechat-miniprogram/glass-easel) · [Vitest](https://vitest.dev/) + [Playwright](https://playwright.dev/) + [git-cliff](https://github.com/orhun/git-cliff)
+
+**Inspiration** — *Among Us* / Werewolf / Spyfall, and every "let's embrace change" moment in a real office.
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ChrisChen667788/office-zoo&type=Date)](https://www.star-history.com/#ChrisChen667788/office-zoo&Date)
 
 ## License
 
