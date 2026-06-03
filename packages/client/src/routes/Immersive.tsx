@@ -228,6 +228,8 @@ export default function Immersive() {
           team: teamForRole(victim?.role),
           // v6.24 P1 — prefer event-authoritative personality.
           personality: data.eliminatedPersonality ?? victim?.personality,
+          // v6.41 P2 — carry pack emoji avatar into the reveal + recap.
+          avatar: victim?.avatar,
         });
         pushElimination({
           round,
@@ -236,6 +238,7 @@ export default function Immersive() {
           playerName: data.playerName,
           role: victim?.role,
           team: teamForRole(victim?.role),
+          avatar: victim?.avatar,
         });
       }
     },
@@ -252,6 +255,8 @@ export default function Immersive() {
         location: data.location,
         // v6.24 P1 — prefer event-authoritative personality.
         personality: data.victimPersonality ?? victim?.personality,
+        // v6.41 P2 — carry pack emoji avatar into the reveal + recap.
+        avatar: victim?.avatar,
       });
       pushElimination({
         round,
@@ -261,6 +266,7 @@ export default function Immersive() {
         role: victim?.role,
         team: teamForRole(victim?.role),
         location: data.location,
+        avatar: victim?.avatar,
       });
     },
 

@@ -123,6 +123,10 @@ export interface EliminationLogEntry {
   team?: 'cat' | 'dog' | 'neutral';
   location?: string;
   timestamp: number;
+  /** v6.41 P2 — emoji avatar from a 公司主题包 NPC, so HighlightReel's
+   *  timeline shows the custom glyph in the recap instead of just the
+   *  generic kill/vote icon. Undefined for default rosters. */
+  avatar?: string;
 }
 
 /**

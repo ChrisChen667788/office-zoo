@@ -379,6 +379,7 @@ export default function Classic() {
           playerName: data.playerName,
           role: victim?.role,
           team: teamForRole(victim?.role),
+          avatar: victim?.avatar,
         });
       }
     },
@@ -406,6 +407,7 @@ export default function Classic() {
         role: victim?.role,
         team: teamForRole(victim?.role),
         location: data.location,
+        avatar: victim?.avatar,
       });
     },
 

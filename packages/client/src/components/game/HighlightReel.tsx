@@ -437,6 +437,19 @@ export default function HighlightReel() {
                               ? <Icon src={glyphIcons.timelineKill} emoji="🔪" size={18} />
                               : <Icon src={glyphIcons.timelineVote} emoji="🗳️" size={18} />}
                           </span>
+                          {/* v6.41 P2 — 公司主题包 emoji avatar badge, shown
+                              before the name so a custom-pack rat is
+                              recognizable in the recap. */}
+                          {e.avatar && (
+                            <span
+                              className="inline-grid place-items-center rounded-full text-[13px]"
+                              style={{
+                                width: 22, height: 22,
+                                background: 'rgba(15,14,46,0.9)',
+                                border: `1px solid ${teamColor}66`,
+                              }}
+                            >{e.avatar}</span>
+                          )}
                           <span className="font-bold text-white/90">{e.playerName}</span>
                           <span
                             className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
