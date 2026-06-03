@@ -341,11 +341,13 @@ describe('GameEngine — ghostVotes tally shape', () => {
 });
 
 describe('GameEngine — createPlayers packOverride (v6.37 P4 / v6.38 P1)', () => {
-  // 12 CJK names — guaranteed disjoint from AI_NAMES (all ASCII) so the
-  // fallback test can assert "no pack name leaked into the roster".
+  // 12 distinctive pack names — must stay DISJOINT from the engine's
+  // AI_NAMES pool (which itself mixes ASCII + CJK: 张总/小王/阿强/…), so
+  // the fallback test can assert "no pack name leaked into the roster".
+  // We use a "包-" prefix that AI_NAMES never uses — collision-proof.
   const PACK_NAMES = [
-    '老王', '小张', '阿强', '丽姐', '大刘', '果果',
-    '阿珍', '老李', '小美', '阿杰', '胖虎', '静静',
+    '包-甲', '包-乙', '包-丙', '包-丁', '包-戊', '包-己',
+    '包-庚', '包-辛', '包-壬', '包-癸', '包-子', '包-丑',
   ];
   const npcs = (names = PACK_NAMES) => names.map((name) => ({ name }));
 
@@ -366,12 +368,17 @@ describe('GameEngine — createPlayers packOverride (v6.37 P4 / v6.38 P1)', () =
 
   it('falls back to AI_NAMES when pack is smaller than playerCount', () => {
     const e = new GameEngine(8);
-    // Only 3 pack names but 8 players needed → must fall back.
-    e.createPlayers({}, new Map(), { npcs: npcs(['老王', '小张', '阿强']) });
+    // Only 3 pack names but 8 players needed → must fall back to AI_NAMES.
+    // Use the collision-proof "包-" prefix (AI_NAMES never uses it) so the
+    // assertion is deterministic — earlier this inlined 老王/小张/阿强, but
+    // 小王/阿强 ARE real AI_NAMES, making the test flaky when the fallback
+    // sampler happened to pick them.
+    const small = ['包-甲', '包-乙', '包-丙'];
+    e.createPlayers({}, new Map(), { npcs: npcs(small) });
     const names = e.state.players.map((p) => p.name);
     expect(names).toHaveLength(8);
-    // No CJK pack name should appear — AI_NAMES are all ASCII.
-    for (const n of names) expect(['老王', '小张', '阿强']).not.toContain(n);
+    // No pack name should appear — the whole pack was dropped.
+    for (const n of names) expect(small).not.toContain(n);
   });
 
   it('still assigns a balanced role set under pack override', () => {
