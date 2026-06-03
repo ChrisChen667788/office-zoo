@@ -66,3 +66,13 @@ test_engine.ts
 
 # v0.7.4 — user-generated talkshow bits (instance-local state, not source)
 packages/server/data/
+
+# v6.43 — harvester byproduct screenshots not referenced by README.
+# The curated set (01/03/04-classic/05-immersive/06-fired/07-talkshow/
+# banwei-wrapped) is committed; these extras are regenerated on demand
+# by scripts/capture_screenshots.mjs and don't belong in git.
+assets/screenshots/02-quiz.png
+assets/screenshots/04-fired-landing.png
+assets/screenshots/05-squad-lobby.png
+assets/screenshots/06-squad-history.png
+assets/screenshots/08-premium.png
