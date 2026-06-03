@@ -144,15 +144,15 @@
 
 ![首页 4 模式](./assets/screenshots/01-landing.png)
 
-| 模式 | 截图 |
+| 🏢 经典模式 · 2.5D 写字楼 | 🎬 沉浸模式 · 真人语音圆桌 |
 |:---:|:---:|
-| 🎤 班味单口段子库 | `assets/screenshots/02-talkshow-list.png` _(待截)_ |
-| 🏢 经典模式 2.5D 写字楼 | `assets/screenshots/04-classic-game.png` _(待截)_ |
-| 🎤 沉浸模式圆桌 | `assets/screenshots/05-immersive-game.png` _(待截)_ |
-| ⚖️ 裁了么闯关进度 | `assets/screenshots/06-fired-landing.png` _(待截)_ |
-| 🎁 班味年终 Wrapped 海报 | `assets/screenshots/banwei-wrapped-card.png` |
+| ![经典模式](./assets/screenshots/04-classic-game.png) | ![沉浸模式](./assets/screenshots/05-immersive-game.png) |
+| **⚖️ 裁了么 · 5 关闯关** | **🎤 班味单口 · 段子库** |
+| ![裁了么](./assets/screenshots/06-fired-landing.png) | ![班味单口](./assets/screenshots/07-talkshow.png) |
+| **🎁 班味年终 Wrapped 海报** | **🪪 你是哪种打工人 · 班味卡** |
+| ![年终回顾](./assets/screenshots/banwei-wrapped-card.png) | ![班味卡](./assets/screenshots/03-profile.png) |
 
-> 占位图标位的会在每个版本发布时按 [`RELEASE_PROCESS.md`](./docs/RELEASE_PROCESS.md) 的"截图三连" 补齐。
+> 截图由 `node scripts/capture_screenshots.mjs`(静态路由)+ `scripts/capture_game_screens.mjs`(活的游戏局)Playwright 真机抓取,每次发版刷新。
 
 ## 30 秒跑起来
 
