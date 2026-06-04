@@ -1,0 +1,3 @@
+<!-- v6.44 P3 — 公司主题包 web-view. 完整 H5 编辑器 (含 emoji 头像选择/展示)
+     在 React 端渲染, 这里只做包装. -->
+<web-view wx:if="{{src}}" src="{{src}}" />

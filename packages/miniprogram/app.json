@@ -5,7 +5,8 @@
     "pages/hot-quotes/index",
     "pages/anniversary/index",
     "pages/profile/index",
-    "pages/about/index"
+    "pages/about/index",
+    "pages/company-pack/index"
   ],
   "window": {
     "navigationBarTextStyle": "white",

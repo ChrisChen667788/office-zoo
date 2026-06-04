@@ -26,4 +26,18 @@
     <text>💡 这是静态图。会动的版本(数据包沿虚线流动)在 GitHub README:</text>
     <text class="link" user-select="{{true}}">github.com/ChrisChen667788/office-zoo</text>
   </view>
+
+  <!-- v6.44 P3 — 公司主题包 emoji 头像展示 + 入口. 头像本身在游戏世界
+       (GameMap / 裁员剧场 / 复盘) 渲染; 这里用原生 <text> 把那套 18 款
+       emoji 头像池亮出来, 并给一个进编辑器的 CTA. -->
+  <view class="pack">
+    <text class="pack-title">🏢 公司主题包 · 自定义你家鼠人</text>
+    <text class="pack-sub">给每个 NPC 选一个 emoji 头像, 开局时 AI 鼠人就长这样</text>
+    <view class="avatars">
+      <text class="av" wx:for="{{avatars}}" wx:key="*this">{{item}}</text>
+    </view>
+    <view class="pack-cta" bindtap="goPack">
+      <text>✏️ 去定义我们公司的 12 个鼠人 →</text>
+    </view>
+  </view>
 </view>
