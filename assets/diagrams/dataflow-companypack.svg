@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',system-ui,sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 628" font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',system-ui,sans-serif">
   <defs>
     <radialGradient id="bg3" cx="50%" cy="50%" r="70%">
       <stop offset="0" stop-color="#1a1d3a"/>
@@ -15,7 +15,7 @@
     </filter>
   </defs>
 
-  <rect width="960" height="600" fill="url(#bg3)"/>
+  <rect width="960" height="628" fill="url(#bg3)"/>
   <text x="40" y="42" fill="#FFD700" font-size="22" font-weight="800">公司主题包 · 数据闭环</text>
   <text x="40" y="66" fill="rgba(255,255,255,0.45)" font-size="13">建包 → 分享 → 同事开局 → 班味打卡 → 本公司 Top · 数据沿环流动</text>
 
