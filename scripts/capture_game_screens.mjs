@@ -128,19 +128,39 @@ async function captureImmersive(browser) {
     if (state.inRound && !state.inLobby) { ready = true; break; }
   }
   if (!ready) console.warn('  immersive: 未进入 discussion,截当前态');
+  // ASSERT we're on the immersive round-table (🎬 沉浸 badge) and NOT
+  // the Classic GameMap (no gamemap canvas / 职场杀 badge). Symmetric to
+  // captureClassic — v6.43 shipped an immersive shot mislabeled as
+  // classic precisely because there was no such guard here. Refuse to
+  // overwrite if the page isn't immersive.
+  const onImmersive = await page.evaluate(() => {
+    const t = document.body.innerText || '';
+    const hasGameMap = !!document.querySelector('canvas.gamemap-canvas-responsive');
+    return /沉浸 · v6/.test(t) && !hasGameMap && !/职场杀/.test(t);
+  });
+  if (!onImmersive) {
+    console.error('  ✕ immersive: 没落在沉浸圆桌 (无 沉浸 badge / 误含 GameMap). 不截图,避免误标.');
+    await ctx.close();
+    return false;
+  }
   await page.screenshot({ path: path.join(OUT, '05-immersive-game.png'), fullPage: false });
-  console.log(`  → 05-immersive-game.png ${ready ? 'ok (in round)' : 'captured (best-effort)'}`);
+  console.log(`  → 05-immersive-game.png ok (immersive verified, ${ready ? 'in round' : 'pre-round'})`);
   await ctx.close();
+  return true;
 }
 
 async function main() {
   await preflight();
   const browser = await chromium.launch();
   const classicOk = await captureClassic(browser);
-  await captureImmersive(browser);
+  const immersiveOk = await captureImmersive(browser);
   await browser.close();
   if (!classicOk) {
     console.error('✕ classic 截图未通过校验 — 04-classic-game.png 未更新');
+    process.exitCode = 2;
+  }
+  if (!immersiveOk) {
+    console.error('✕ immersive 截图未通过校验 — 05-immersive-game.png 未更新');
     process.exitCode = 2;
   }
   console.log('✓ game screenshots done');
