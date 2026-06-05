@@ -204,14 +204,19 @@ function markQingyunDead(reason: string): void {
  * icon and a briefcase icon don't end up in wildly different art styles.
  */
 function buildIconPrompt(spec: IconSpec): string {
+  // v6.55 — art direction upgraded to match the 二次元 character avatars
+  // (imageGen.ts) so icons + avatars read as one cohesive, polished set
+  // instead of flat-vector glyphs next to lush anime portraits.
   const base =
-    `A single clean modern flat sticker-style icon of ${spec.subject}${spec.detail ? `, ${spec.detail}` : ''}. ` +
-    `Art direction: bold 2D vector look, thick confident outlines, smooth cel-shaded fills, ` +
-    `subtle highlight gleams, one consistent depth so it reads at 64×64 thumbnail size. ` +
+    `A single anime-style 二次元 sticker icon of ${spec.subject}${spec.detail ? `, ${spec.detail}` : ''}. ` +
+    `Art direction: high-quality Japanese anime key-visual look — clean bold lineart, smooth ` +
+    `cel-shading with soft color blocking and gradient sheen, glossy sparkling highlight gleams, ` +
+    `subtle rim light, polished and trendy, matching a cute anime character-avatar aesthetic. ` +
+    `Crisp single glyph that still reads clearly at 64×64 thumbnail size. ` +
     `Palette anchored around ${spec.accent} with tasteful complementary accents. ` +
-    `Soft pastel background with a subtle radial glow behind the subject, no scenery, no text, ` +
+    `Soft glowing background with a gentle radial gradient behind the subject, no scenery, no text, ` +
     `no logo, no watermark, no people visible unless explicitly requested, centred composition, ` +
-    `generous margins so the glyph remains readable when masked into a circle.`;
+    `generous margins so the glyph stays readable when masked into a circle. No flat vector look, no 3D render.`;
   return base;
 }
 
