@@ -449,7 +449,7 @@ export default function Immersive() {
             const team = player.team || getTeamForRole(role);
             const teamCfg = TEAM_CONFIG[team] || TEAM_CONFIG.neutral;
             const isSpeaking = currentSpeaker === player.id;
-            const avatarSrc = avatarUrls[role];
+            const avatarSrc = avatarUrls[player.avatarKey || role]; // v6.55 #2 — unique per player
 
             return (
               <motion.div key={player.id} className="absolute flex flex-col items-center"

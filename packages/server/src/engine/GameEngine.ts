@@ -31,7 +31,7 @@ import { getWeeklyLeaders } from '../services/characterVoteStore';
 import { listPackMemories, recordPackGame } from '../services/packMemoryStore';
 import { formatPackMemoryForNpc, summarizeWinner } from '../services/packMemoryFormat';
 // v6.52 P1 — special cat-role night actions (detective investigate / medic protect).
-import { chooseInvestigateTarget, chooseProtectTarget, teamLabel, resolveKillTarget } from './roleAbilities';
+import { chooseInvestigateTarget, chooseProtectTarget, teamLabel, resolveKillTarget, assignAvatarKeys } from './roleAbilities';
 import { logEngineCrash } from '../services/crashLog';
 import { assignRoomActivity, commuteCaption, pickAnchor, pickCarriedItem } from './activity';
 // Activity + PlayerTickInfo are new — added separately to keep the diff
@@ -420,6 +420,12 @@ export class GameEngine extends EventEmitter {
         p.tasks = this.taskManager.assignTasks(p.id, this.state.config.taskCount);
       }
     }
+
+    // v6.55 #2 — give every player a UNIQUE avatar key so duplicate-role
+    // rosters (普通员工 ×2 etc.) don't share a face. Deterministic; client
+    // resolves avatarUrls[avatarKey ?? role].
+    const avatarKeys = assignAvatarKeys(this.state.players);
+    for (const p of this.state.players) p.avatarKey = avatarKeys[p.id];
   }
 
   // ---------- Main game loop ----------
@@ -1443,6 +1449,7 @@ export class GameEngine extends EventEmitter {
         ghostVoteUsed: p.ghostVoteUsed,
         personality: p.personality,
         avatar: p.avatar,
+        avatarKey: p.avatarKey,
       })),
       round: this.state.round,
       taskProgress: this.state.taskProgress,

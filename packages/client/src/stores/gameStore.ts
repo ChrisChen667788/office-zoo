@@ -73,6 +73,8 @@ export interface GamePlayer {
   /** v6.39 P3 — emoji avatar from a 公司主题包 NPC; GameMap renders it
    *  instead of the role image when present. */
   avatar?: string;
+  /** v6.55 #2 — unique avatar key (falls back to role). */
+  avatarKey?: string;
 }
 
 interface SpeechItem {

@@ -28,6 +28,10 @@ export interface SerializedPlayer {
   /** v6.39 P3 — user-chosen emoji avatar from a 公司主题包 NPC. Client
    *  renders this glyph in place of the role image when present. */
   avatar?: string;
+  /** v6.55 #2 — per-player unique avatar key into the cached avatar pool.
+   *  Lets duplicate-role players (e.g. 普通员工 ×2) show distinct faces — the
+   *  client resolves avatarUrls[avatarKey ?? role]. */
+  avatarKey?: string;
 }
 
 /** Lightweight per-tick payload sent at ~1.5s cadence during free_roam.

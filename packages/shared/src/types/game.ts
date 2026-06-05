@@ -171,6 +171,9 @@ export interface PlayerState {
    *  the client renders this glyph instead of the role-generated image.
    *  Undefined for default (non-pack) rosters. */
   avatar?: string;
+  /** v6.55 #2 — per-player unique avatar key into the cached avatar pool, so
+   *  duplicate-role players don't share a face. Assigned at createPlayers. */
+  avatarKey?: string;
 }
 
 export interface TaskState {

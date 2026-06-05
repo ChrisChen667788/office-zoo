@@ -32,6 +32,8 @@ interface PlayerInfo {
   /** v6.39 P3 — emoji avatar from a 公司主题包 NPC; drawn instead of the
    *  role image when present. */
   avatar?: string;
+  /** v6.55 #2 — unique avatar key (falls back to role). */
+  avatarKey?: string;
 }
 
 /** Logical world dims — must match `MAP_W` / `MAP_H` in @furball/shared. We
@@ -1067,7 +1069,8 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
     drawList.sort((a, b) => a.sy - b.sy);
 
     for (const { p, sx, sy, speakerHere } of drawList) {
-      const avatarImg = p.role ? loadedImages.current[p.role] : undefined;
+      // v6.55 #2 — per-player unique avatar key, falls back to role.
+      const avatarImg = loadedImages.current[p.avatarKey || p.role || ''] || undefined;
       // Speaker bumped 15% larger via a quick canvas scale around their centre
       if (speakerHere) {
         ctx.save();

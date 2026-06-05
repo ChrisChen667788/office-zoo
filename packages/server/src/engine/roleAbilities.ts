@@ -45,6 +45,57 @@ export function teamLabel(team: Team): string {
   return '摸鱼人(中立)';
 }
 
+/**
+ * v6.55 #2 — the cached avatar pool (mirrors packages/server/avatars/*.png and
+ * imageGen.ts ROLE_ART_DETAILS). 23 distinct office-animal portraits; the
+ * server already pushes all of them to the client. Used to give every player
+ * in a game a UNIQUE avatar so duplicate-role rosters (e.g. 普通员工 ×2) don't
+ * show the same face.
+ */
+export const AVATAR_POOL: readonly string[] = [
+  'villager_cat', 'detective_cat', 'medic_cat', 'engineer_cat', 'bodyguard_cat',
+  'medium_cat', 'vigilante_cat', 'adventurer_cat', 'mimic_cat', 'politician_cat',
+  'killer_dog', 'spy_dog', 'morphing_dog', 'ninja_dog', 'hypnotist_dog',
+  'bomber_dog', 'assassin_dog', 'silencer_dog',
+  'jester', 'phantom', 'pigeon', 'lone_wolf', 'lover',
+];
+
+/**
+ * Assign each player a UNIQUE avatar key. A player keeps its own role's avatar
+ * when free (so a detective still looks like the detective); duplicate-role
+ * players + roles missing from the pool draw an unused key instead. Returns a
+ * playerId → avatarKey map. Pure + deterministic (no rng) so it's testable and
+ * stable across reconnects. If players outnumber the pool (never in practice,
+ * ≤10 vs 23) the overflow falls back to the role (an accepted dup).
+ */
+export function assignAvatarKeys(
+  players: ReadonlyArray<{ id: string; role?: string }>,
+  pool: readonly string[] = AVATAR_POOL,
+): Record<string, string> {
+  const used = new Set<string>();
+  const out: Record<string, string> = {};
+  // Pass 1 — own-role avatar when still free.
+  for (const p of players) {
+    if (p.role && pool.includes(p.role) && !used.has(p.role)) {
+      out[p.id] = p.role;
+      used.add(p.role);
+    }
+  }
+  // Pass 2 — fill the rest from unused pool keys (in pool order, deterministic).
+  const spares = pool.filter((k) => !used.has(k));
+  let si = 0;
+  for (const p of players) {
+    if (out[p.id]) continue;
+    if (si < spares.length) {
+      out[p.id] = spares[si++];
+      used.add(out[p.id]);
+    } else {
+      out[p.id] = p.role ?? pool[0]; // pool exhausted — accept a dup (won't happen at ≤10)
+    }
+  }
+  return out;
+}
+
 export interface KillResolution {
   /** 'blocked' = 工会代表 nullified it; 'intercepted' = 法务顾问 took the hit;
    *  'kill' = the optimization lands on the original victim. */

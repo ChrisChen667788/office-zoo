@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { Team } from '@furball/shared';
 import {
   chooseInvestigateTarget, chooseProtectTarget, teamLabel, resolveKillTarget,
+  assignAvatarKeys, AVATAR_POOL,
 } from '../roleAbilities';
 
 const alive = [{ id: 'p0' }, { id: 'p1' }, { id: 'p2' }, { id: 'p3' }];
@@ -92,5 +93,46 @@ describe('resolveKillTarget (protection matrix)', () => {
     // bodyguard IS the victim and guarding itself → just a normal kill.
     const r = resolveKillTarget('bg', { bodyguardTargetId: 'bg', bodyguardId: 'bg', bodyguardAlive: true });
     expect(r).toEqual({ outcome: 'kill', dies: 'bg' });
+  });
+});
+
+describe('assignAvatarKeys (unique per-player avatars)', () => {
+  it('gives duplicate-role players DISTINCT keys (the 普通员工 ×2 case)', () => {
+    const players = [
+      { id: 'p0', role: 'villager_cat' },
+      { id: 'p1', role: 'villager_cat' },
+      { id: 'p2', role: 'detective_cat' },
+    ];
+    const keys = assignAvatarKeys(players);
+    expect(keys.p0).toBe('villager_cat');      // first keeps its own
+    expect(keys.p1).not.toBe('villager_cat');  // second gets a spare
+    expect(keys.p2).toBe('detective_cat');     // unique role keeps its own
+    expect(new Set(Object.values(keys)).size).toBe(3); // all distinct
+  });
+
+  it('keeps every unique-role player on its own avatar', () => {
+    const players = [
+      { id: 'a', role: 'detective_cat' },
+      { id: 'b', role: 'medic_cat' },
+      { id: 'c', role: 'killer_dog' },
+    ];
+    expect(assignAvatarKeys(players)).toEqual({
+      a: 'detective_cat', b: 'medic_cat', c: 'killer_dog',
+    });
+  });
+
+  it('produces all-distinct keys for a full 10-player roster', () => {
+    const players = [
+      'detective_cat', 'medic_cat', 'engineer_cat', 'bodyguard_cat', 'vigilante_cat',
+      'villager_cat', 'killer_dog', 'morphing_dog', 'ninja_dog', 'jester',
+    ].map((role, i) => ({ id: `p${i}`, role }));
+    const keys = assignAvatarKeys(players);
+    expect(new Set(Object.values(keys)).size).toBe(10);
+    for (const k of Object.values(keys)) expect(AVATAR_POOL).toContain(k);
+  });
+
+  it('assigns a spare when a role is not in the pool', () => {
+    const keys = assignAvatarKeys([{ id: 'x', role: 'unknown_role' }]);
+    expect(AVATAR_POOL).toContain(keys.x);
   });
 });
