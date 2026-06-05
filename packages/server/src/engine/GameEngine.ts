@@ -27,6 +27,9 @@ import { logger } from '../utils/logger';
 import { recordGameResults, recordVoteAgainst } from '../services/characterStatsStore';
 import { recordSpectatorViews } from '../services/userCharacterViewsStore';
 import { getWeeklyLeaders } from '../services/characterVoteStore';
+// v6.51 P1 — cross-game 公司主题包 memory (NPCs remember prior games).
+import { listPackMemories, recordPackGame } from '../services/packMemoryStore';
+import { formatPackMemoryForNpc, summarizeWinner } from '../services/packMemoryFormat';
 import { assignRoomActivity, commuteCaption, pickAnchor, pickCarriedItem } from './activity';
 // Activity + PlayerTickInfo are new — added separately to keep the diff
 // against the original import block obvious. PlayerState is already imported
@@ -302,6 +305,7 @@ export class GameEngine extends EventEmitter {
     weeklyLeaders: Record<string, string> = {},
     nominationCounts: Map<string, number> = new Map(),
     packOverride?: { npcs: PackNpcOverride[] },
+    packMemoryByName: Record<string, string> = {},
   ): void {
     const count = this.state.config.playerCount;
     const preset = ROLE_PRESETS[count] ?? ROLE_PRESETS[8];
@@ -395,6 +399,9 @@ export class GameEngine extends EventEmitter {
       const agent = new BaseAgent(
         player.id, player.name, role, info.team,
         personality as Personality, this.spectatorUserId,
+        // v6.51 P1 — per-NPC cross-game memory snippet (empty string for
+        // default rosters or first-time pack NPCs).
+        packMemoryByName[player.name],
       );
       this.agents.set(player.id, agent);
     }
@@ -437,6 +444,7 @@ export class GameEngine extends EventEmitter {
     // Fail-open: missing/invalid pack falls back to the default
     // AI_NAMES roster so a broken share link never blocks game start.
     let packOverride: { npcs: PackNpcOverride[] } | undefined;
+    const packMemoryByName: Record<string, string> = {};
     if (this.state.config.companyPackId) {
       try {
         const { getCompanyPackById } = await import('../routes/companyPack');
@@ -452,10 +460,20 @@ export class GameEngine extends EventEmitter {
               avatar: n.avatar,
             })),
           };
+          // v6.51 P1 — load this pack's game history once and pre-format a
+          // per-NPC grudge snippet keyed by name. createPlayers looks it up
+          // after the roster shuffle. Fail-open like everything pack-related.
+          const memories = await listPackMemories(this.state.config.companyPackId);
+          if (memories.length > 0) {
+            for (const n of pack.npcs) {
+              const snippet = formatPackMemoryForNpc(n.name, memories);
+              if (snippet) packMemoryByName[n.name] = snippet;
+            }
+          }
         }
       } catch { /* fail-open — pack is a bonus, not a gate */ }
     }
-    this.createPlayers(weeklyLeaders, nominationCounts, packOverride);
+    this.createPlayers(weeklyLeaders, nominationCounts, packOverride, packMemoryByName);
     // v6.31 P5 — bump server stats counters once roster is populated.
     // v6.36 P3 — include hot-nominated names (count ≥ 1) so the client
     // can show a 🔥 "热门" badge on sprites the audience asked for.
@@ -524,6 +542,19 @@ export class GameEngine extends EventEmitter {
     // "你看过的 Top 3" on /profile.
     if (this.spectatorUserId) {
       void recordSpectatorViews(this.spectatorUserId, this.state);
+    }
+    // v6.51 P1 — fold this game's outcome into the pack's cross-game memory
+    // so the recurring cast carries grudges/loyalties into the next game.
+    // Fire-and-forget; never blocks GAME_OVER. Only when a company pack was used.
+    if (this.state.config.companyPackId) {
+      const packId = this.state.config.companyPackId;
+      void recordPackGame(packId, {
+        ts: Date.now(),
+        winnerLabel: summarizeWinner(this.state.winner),
+        survivors: this.state.players.filter((p) => p.isAlive).map((p) => p.name),
+        eliminated: this.state.players.filter((p) => !p.isAlive).map((p) => p.name),
+        roster: this.state.players.map((p) => p.name),
+      }).catch((err) => console.error('[packMemory] record failed:', err));
     }
     this.running = false;
   }

@@ -127,6 +127,7 @@ export class BaseAgent {
   constructor(
     playerId: string, playerName: string, role: Role, team: Team,
     personality?: Personality, spectatorUserId?: string | null,
+    packMemory?: string,
   ) {
     this.playerId = playerId;
     this.playerName = playerName;
@@ -135,6 +136,12 @@ export class BaseAgent {
     this.personality = personality;
     this.spectatorUserId = spectatorUserId ?? null;
     this.systemPrompt = buildSystemPrompt(role, team, personality);
+    // v6.51 P1 — cross-game 公司主题包 memory. When this NPC has history
+    // with the pack's recurring cast, append the grudge/loyalty snippet so
+    // it plays in-character continuity across games.
+    if (packMemory) {
+      this.systemPrompt += '\n\n' + packMemory;
+    }
   }
 
   /**
