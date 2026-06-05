@@ -7,6 +7,32 @@
 
 ---
 
+## v6.52 — 2026-06-05 · 核心角色技能落地 + 对局循环测试 + roadmap 收尾
+
+回到核心玩法打磨。特殊角色一直只有"装饰文字"没机制 —— 这轮把社交推理深度补上。+20 测试 → 251。
+
+### P1 — 侦探查身份 + 工会代表保护(夜间技能 + AI 会用)
+- ROLE_REGISTRY 给 HR总监/工会代表等写了技能描述("每轮可查身份/保护一人"),
+  但 engine 从没实现。落地两个经典角色:
+  - `roleAbilities.ts`(纯,+8 测试)选目标(侦探优先没查过的、医生优先护别人)。
+  - `resolveNightActions()` 在 post-roam kill 前跑:工会代表(MEDIC_CAT)护一人 →
+    `state.protectedPlayerId`,本轮 DOG 暗杀该目标被挡;HR总监(DETECTIVE_CAT)每轮
+    查一人 team,逐轮换新目标。
+  - AI 会用:查到的身份/保护成私密情报经 `BaseAgent.addRoleIntel` 只注入该 agent
+    的发言+投票 prompt(别人看不到),观众端只看到"HR总监查了个人"的模糊 log。
+  - 每个 preset(6/8/9/10)都含 detective+medic,所以每局都触发。
+
+### P2 — 核心循环 vitest(投票结算 + 胜负 + 平票)
+- 之前 41 个 GameEngine 测试全是构造+leak 检测,胜负/投票机器零覆盖。补 +12:
+  resolveVotes(唯一最高票淘汰 / 平票不淘汰 / 鬼票等权破平 / 全 skip)、checkWin
+  (猫胜=狗清零 / 狗胜=狗≥猫 / 任务胜 / 未分胜负)、夜间技能解析。
+
+### P3 — README roadmap 收尾
+- 「下一步」4 项(Stripe/Sonnet/pack 记忆/Wrapped 邮件)v6.51 已全做,zh+en 勾掉并
+  补 v6.52;「下一步」换成真实剩余项。vitest 计数 171 → 251。
+
+---
+
 ## v6.51 — 2026-06-05 · pack 跨局记忆 + Squad model A/B + 真 Stripe + Wrapped 邮件订阅
 
 四个路线图大项一轮落地(脚手架级,外部服务 env 驱动)。+28 测试 → 231。
