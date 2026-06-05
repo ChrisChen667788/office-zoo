@@ -197,6 +197,9 @@ export interface GameState {
   /** v6.52 P1 — 工会代表(MEDIC_CAT)本轮暗中保护的玩家 id。该玩家本轮若被
    *  资本家(DOG)选为暗杀目标,暗杀被挡下。每轮开始清空。运行时字段,不下发客户端。 */
   protectedPlayerId?: string;
+  /** v6.53 P1 — 法务顾问(BODYGUARD_CAT)本轮替身保护的玩家 id。该玩家本轮若被
+   *  暗杀,法务顾问替死(自己被优化)。每轮开始清空。运行时字段,不下发客户端。 */
+  bodyguardTargetId?: string;
   config: GameConfig;
 }
 

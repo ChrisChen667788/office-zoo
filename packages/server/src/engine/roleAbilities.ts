@@ -44,3 +44,40 @@ export function teamLabel(team: Team): string {
   if (team === Team.CAT) return '打工人';
   return '摸鱼人(中立)';
 }
+
+export interface KillResolution {
+  /** 'blocked' = 工会代表 nullified it; 'intercepted' = 法务顾问 took the hit;
+   *  'kill' = the optimization lands on the original victim. */
+  outcome: 'kill' | 'blocked' | 'intercepted';
+  /** Who actually dies. null when blocked. For 'intercepted' this is the
+   *  bodyguard (法务顾问), NOT the original victim. */
+  dies: string | null;
+}
+
+/**
+ * v6.53 P1 — pure resolution of a single night kill against `victimId`,
+ * given the round's protections. Priority: 工会代表(nullify) >
+ * 法务顾问(intercept/sacrifice) > kill. The bodyguard only intercepts when
+ * it's alive, guarding THIS victim, and not the victim itself. Pure so the
+ * protection matrix is unit-testable without running free-roam.
+ */
+export function resolveKillTarget(
+  victimId: string,
+  opts: {
+    protectedId?: string;
+    bodyguardTargetId?: string;
+    bodyguardId?: string;
+    bodyguardAlive?: boolean;
+  },
+): KillResolution {
+  if (opts.protectedId && victimId === opts.protectedId) {
+    return { outcome: 'blocked', dies: null };
+  }
+  if (
+    opts.bodyguardTargetId && victimId === opts.bodyguardTargetId &&
+    opts.bodyguardId && opts.bodyguardAlive && opts.bodyguardId !== victimId
+  ) {
+    return { outcome: 'intercepted', dies: opts.bodyguardId };
+  }
+  return { outcome: 'kill', dies: victimId };
+}

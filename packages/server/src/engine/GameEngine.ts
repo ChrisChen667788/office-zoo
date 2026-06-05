@@ -31,7 +31,7 @@ import { getWeeklyLeaders } from '../services/characterVoteStore';
 import { listPackMemories, recordPackGame } from '../services/packMemoryStore';
 import { formatPackMemoryForNpc, summarizeWinner } from '../services/packMemoryFormat';
 // v6.52 P1 — special cat-role night actions (detective investigate / medic protect).
-import { chooseInvestigateTarget, chooseProtectTarget, teamLabel } from './roleAbilities';
+import { chooseInvestigateTarget, chooseProtectTarget, teamLabel, resolveKillTarget } from './roleAbilities';
 import { assignRoomActivity, commuteCaption, pickAnchor, pickCarriedItem } from './activity';
 // Activity + PlayerTickInfo are new — added separately to keep the diff
 // against the original import block obvious. PlayerState is already imported
@@ -268,6 +268,8 @@ export class GameEngine extends EventEmitter {
   /** v6.52 P1 — players the HR总监(detective) has already investigated, so it
    *  spends each round's check on someone new until the roster's exhausted. */
   private investigatedByDetective: Set<string> = new Set();
+  /** v6.53 P2 — same, for the 数据分析师(vigilante)'s OKR-output checks. */
+  private investigatedByVigilante: Set<string> = new Set();
   /** Compressed record of last round's discussion — fed into next round's context for memory. */
   private lastRoundSpeeches: Array<{ name: string; text: string }> = [];
   /** v6.25 P1 — psy-war leaks submitted by the spectator via GhostChatPanel's
@@ -851,30 +853,45 @@ export class GameEngine extends EventEmitter {
       );
       if (nearby.length > 0) {
         const victim = nearby[Math.floor(Math.random() * nearby.length)];
-        // v6.52 P1 — 工会代表 protection: a covered target dodges the "优化".
-        // The attempt is still consumed (cooldown applies) — no re-pick.
-        if (victim.id === this.state.protectedPlayerId) {
-          dog.killCooldown = this.state.config.killCooldown;
+        // Attempt is consumed regardless of outcome (no re-pick on a save).
+        dog.killCooldown = this.state.config.killCooldown;
+
+        // v6.52 P1 / v6.53 P1 — resolve protections: 工会代表 nullifies,
+        // 法务顾问 body-blocks (dies in the victim's place), else it lands.
+        const bodyguard = this.state.players.find((p) => p.role === Role.BODYGUARD_CAT);
+        const res = resolveKillTarget(victim.id, {
+          protectedId: this.state.protectedPlayerId,
+          bodyguardTargetId: this.state.bodyguardTargetId,
+          bodyguardId: bodyguard?.id,
+          bodyguardAlive: bodyguard?.isAlive ?? false,
+        });
+
+        if (res.outcome === 'blocked') {
           this.addEvent('protect', `${victim.name} 本来要被"优化",被工会代表暗中保住了`);
           this.emitState();
           break;
         }
-        victim.isAlive = false;
-        dog.killCooldown = this.state.config.killCooldown;
-        this.state.deadBodyLocation = victim.position.room;
 
-        this.addEvent('kill', `${dog.name} 在 ${victim.position.room} "优化"了 ${victim.name}`);
+        // Whoever actually goes down — the victim, or the 法务顾问 who threw
+        // itself in front.
+        const downed = this.state.players.find((p) => p.id === res.dies) ?? victim;
+        downed.isAlive = false;
+        this.state.deadBodyLocation = downed.position.room;
+
+        if (res.outcome === 'intercepted') {
+          this.addEvent('intercept', `${downed.name}(法务顾问)用法律手段替 ${victim.name} 挡了一刀,自己被"优化"了`);
+        } else {
+          this.addEvent('kill', `${dog.name} 在 ${downed.position.room} "优化"了 ${downed.name}`);
+        }
         this.emit('kill', {
           killerId: dog.id,
           killerName: dog.name,
-          victimId: victim.id,
-          victimName: victim.name,
-          location: victim.position.room,
-          // v6.24 P1 — include victim's personality in the event itself so
-          // the client's EliminationReveal doesn't have to look it up in
-          // `players` (race-prone: kill fires concurrently with state
-          // updates that may flag the victim dead before the lookup).
-          victimPersonality: victim.personality,
+          victimId: downed.id,
+          victimName: downed.name,
+          location: downed.position.room,
+          // v6.24 P1 — include personality so the client's EliminationReveal
+          // doesn't race a stale players.find lookup.
+          victimPersonality: downed.personality,
         });
         this.emitState();
         break; // Only one kill per free-roam
@@ -1516,11 +1533,12 @@ export class GameEngine extends EventEmitter {
    * result, so the deduction stays interesting.
    */
   private resolveNightActions(): void {
-    // Protection is per-round — clear last round's cover first.
+    // Protections are per-round — clear last round's cover first.
     this.state.protectedPlayerId = undefined;
+    this.state.bodyguardTargetId = undefined;
     const alive = this.alivePlayers();
 
-    // 工会代表 (MEDIC_CAT) — protect one living player from tonight's kill.
+    // 工会代表 (MEDIC_CAT) — nullify-protect one living player from tonight's kill.
     const medic = alive.find((p) => p.role === Role.MEDIC_CAT);
     if (medic) {
       const targetId = chooseProtectTarget(medic.id, alive);
@@ -1530,6 +1548,40 @@ export class GameEngine extends EventEmitter {
         this.agents.get(medic.id)?.addRoleIntel(
           `你(工会代表)这一轮暗中罩着 ${target?.name ?? targetId},挡住了针对 TA 的"优化"。`,
         );
+      }
+    }
+
+    // 法务顾问 (BODYGUARD_CAT) — body-block: if its ward is attacked, it dies
+    // instead. Distinct from the medic's clean nullify (v6.53 P1).
+    const bodyguard = alive.find((p) => p.role === Role.BODYGUARD_CAT);
+    if (bodyguard) {
+      const targetId = chooseProtectTarget(bodyguard.id, alive);
+      if (targetId) {
+        this.state.bodyguardTargetId = targetId;
+        const target = this.state.players.find((p) => p.id === targetId);
+        this.agents.get(bodyguard.id)?.addRoleIntel(
+          `你(法务顾问)这一轮贴身护着 ${target?.name ?? targetId},真出事你会用法律手段替 TA 挡下(自己担风险)。`,
+        );
+      }
+    }
+
+    // 数据分析师 (VIGILANTE_CAT) — pull one living player's OKR backlog. Cats
+    // carry real tasks; 资本家/摸鱼神 carry none, so a 0-backlog is a soft
+    // "not a real worker" tell (can't tell 资本家 from 摸鱼神 — distinct from
+    // the detective's hard faction read). v6.53 P2.
+    const vigilante = alive.find((p) => p.role === Role.VIGILANTE_CAT);
+    if (vigilante) {
+      const targetId = chooseInvestigateTarget(vigilante.id, alive, this.investigatedByVigilante);
+      if (targetId) {
+        this.investigatedByVigilante.add(targetId);
+        const target = this.state.players.find((p) => p.id === targetId);
+        if (target) {
+          const backlog = target.tasks?.length ?? 0;
+          this.agents.get(vigilante.id)?.addRoleIntel(
+            `你(数据分析师)调了 ${target.name} 的 OKR 后台:TA 名下挂着 ${backlog} 个待办${backlog === 0 ? '(一个活都没有,可疑)' : ''}。`,
+          );
+          this.addEvent('role_action', '📊 数据分析师这一轮扒了一个人的 OKR 后台');
+        }
       }
     }
 

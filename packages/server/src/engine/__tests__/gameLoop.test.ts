@@ -143,4 +143,27 @@ describe('GameEngine — resolveNightActions (role abilities)', () => {
     night(e);
     expect(e.state.protectedPlayerId).toBeTruthy();
   });
+
+  // 法务顾问 + 数据分析师 only spawn in 9/10-player presets — use 10.
+  it('法务顾问 sets a living body-block target other than itself', () => {
+    const e = freshEngine(10);
+    const bodyguard = e.state.players.find((p) => p.role === Role.BODYGUARD_CAT)!;
+    night(e);
+    const id = e.state.bodyguardTargetId;
+    expect(id).toBeTruthy();
+    expect(id).not.toBe(bodyguard.id);
+    expect(e.state.players.find((p) => p.id === id)!.isAlive).toBe(true);
+  });
+
+  it('数据分析师 accrues OKR checks + gets readable backlog intel', () => {
+    const e = freshEngine(10);
+    const vigilante = e.state.players.find((p) => p.role === Role.VIGILANTE_CAT)!;
+    night(e);
+    night(e);
+    const seen = (e as unknown as { investigatedByVigilante: Set<string> }).investigatedByVigilante;
+    expect(seen.size).toBe(2);
+    const agent = (e as unknown as { agents: Map<string, unknown> }).agents.get(vigilante.id);
+    const intel = (agent as { roleIntel: string[] }).roleIntel;
+    expect(intel.some((l) => l.includes('OKR'))).toBe(true);
+  });
 });

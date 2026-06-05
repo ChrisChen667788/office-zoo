@@ -3,7 +3,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Team } from '@furball/shared';
-import { chooseInvestigateTarget, chooseProtectTarget, teamLabel } from '../roleAbilities';
+import {
+  chooseInvestigateTarget, chooseProtectTarget, teamLabel, resolveKillTarget,
+} from '../roleAbilities';
 
 const alive = [{ id: 'p0' }, { id: 'p1' }, { id: 'p2' }, { id: 'p3' }];
 // deterministic rand: always picks index 0 of the pool.
@@ -52,5 +54,43 @@ describe('teamLabel', () => {
     expect(teamLabel(Team.DOG)).toBe('资本家(管理层)');
     expect(teamLabel(Team.CAT)).toBe('打工人');
     expect(teamLabel(Team.NEUTRAL)).toBe('摸鱼人(中立)');
+  });
+});
+
+describe('resolveKillTarget (protection matrix)', () => {
+  it('kills the victim when there is no protection', () => {
+    expect(resolveKillTarget('v', {})).toEqual({ outcome: 'kill', dies: 'v' });
+  });
+
+  it('工会代表 nullify takes priority — nobody dies', () => {
+    expect(resolveKillTarget('v', { protectedId: 'v' })).toEqual({ outcome: 'blocked', dies: null });
+  });
+
+  it('法务顾问 intercepts — bodyguard dies in the victim\'s place', () => {
+    const r = resolveKillTarget('v', { bodyguardTargetId: 'v', bodyguardId: 'bg', bodyguardAlive: true });
+    expect(r).toEqual({ outcome: 'intercepted', dies: 'bg' });
+  });
+
+  it('medic nullify beats bodyguard intercept when both cover the victim', () => {
+    const r = resolveKillTarget('v', {
+      protectedId: 'v', bodyguardTargetId: 'v', bodyguardId: 'bg', bodyguardAlive: true,
+    });
+    expect(r.outcome).toBe('blocked');
+  });
+
+  it('bodyguard guarding a DIFFERENT player does not intercept', () => {
+    const r = resolveKillTarget('v', { bodyguardTargetId: 'other', bodyguardId: 'bg', bodyguardAlive: true });
+    expect(r).toEqual({ outcome: 'kill', dies: 'v' });
+  });
+
+  it('a dead bodyguard cannot intercept', () => {
+    const r = resolveKillTarget('v', { bodyguardTargetId: 'v', bodyguardId: 'bg', bodyguardAlive: false });
+    expect(r).toEqual({ outcome: 'kill', dies: 'v' });
+  });
+
+  it('bodyguard cannot body-block for itself (no free save)', () => {
+    // bodyguard IS the victim and guarding itself → just a normal kill.
+    const r = resolveKillTarget('bg', { bodyguardTargetId: 'bg', bodyguardId: 'bg', bodyguardAlive: true });
+    expect(r).toEqual({ outcome: 'kill', dies: 'bg' });
   });
 });
