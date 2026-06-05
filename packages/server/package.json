@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "npx tsx --watch src/index.ts"
+    "dev": "npx tsx --watch src/index.ts",
+    "squad:ab": "npx tsx src/scripts/squadAb.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",

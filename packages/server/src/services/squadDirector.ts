@@ -51,6 +51,11 @@ interface DirectorResult {
 export async function directSquadStory(opts: {
   members: SquadMember[];
   scenarioBrief?: string;
+  /** v6.51 P2 — explicit model override for A/B comparison harnesses.
+   *  When set, wins over SQUAD_DIRECTOR_MODEL/env so the squad:ab script
+   *  can run the same roster through opus vs sonnet. Production callers
+   *  omit it and keep the env-driven default. */
+  model?: string;
 }): Promise<DirectorResult> {
   // Build the squad roster block — gives the LLM each member's id,
   // emoji, name, archetype, and 3-4 traits to anchor on. The ids are
@@ -117,7 +122,8 @@ export async function directSquadStory(opts: {
   // to override (e.g. 'gpt-5', 'gpt-5.5', 'gpt-4.5-turbo',
   // 'claude-sonnet-4-7' for cheaper) — see .env.example for notes.
   const directorModelName =
-    process.env.SQUAD_DIRECTOR_MODEL
+    opts.model
+    ?? process.env.SQUAD_DIRECTOR_MODEL
     ?? process.env.OPENAI_MODEL
     ?? 'claude-opus-4-7';
   const model = openai(directorModelName);
