@@ -2,21 +2,16 @@
 /**
  * capture_screenshots.mjs — v3.0.0 README screenshot harvester.
  *
- * Walks the app's core surfaces in a headless Chromium and writes
- * PNGs to assets/screenshots/. Designed to be run AFTER you've taken
- * the quiz at least once with the demo user so the Profile + Squad
- * cards have non-empty state.
+ * Walks the app's core static routes in a headless Chromium and writes
+ * PNGs to assets/screenshots/. The route↔file manifest lives in
+ * scripts/lib/shotsManifest.mjs (unit-tested); a malformed manifest
+ * fails fast here before any browser launches.
  *
- * Prereqs (one-time):
- *   pnpm add -wD playwright @playwright/test
- *   npx playwright install chromium
- *
- * Usage:
- *   node scripts/capture_screenshots.mjs
- *
- * The script assumes both `pnpm dev` servers are already running
- * (client on :5173, server on :3100). Exits early with a helpful
- * message if they aren't.
+ * Run:    npm run gen:screenshots   # runs both capture scripts; or: node scripts/capture_screenshots.mjs
+ * Prereq: npm run dev live (client :5173 + server :3100) — exits early
+ *         with a helpful message if not. One-time: npx playwright install
+ *         chromium. Take the quiz once first so Profile/Squad cards aren't empty.
+ * Output: assets/screenshots/01-landing.png … 08-premium.png (see shotsManifest.mjs)
  */
 
 import { chromium } from 'playwright';

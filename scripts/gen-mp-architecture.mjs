@@ -8,8 +8,8 @@
  * that render reproducible instead of a manual inline Playwright snippet
  * (v6.43 P3 generated it by hand).
  *
- * Run: node scripts/gen-mp-architecture.mjs
- * Source: assets/diagrams/architecture.svg
+ * Run:    npm run gen:mp-arch       # or: node scripts/gen-mp-architecture.mjs
+ * Prereq: assets/diagrams/architecture.svg (source). One-time: npx playwright install chromium
  * Output: packages/miniprogram/assets/architecture.png  (960×620 @2×)
  */
 import { chromium } from 'playwright';

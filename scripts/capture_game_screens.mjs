@@ -8,7 +8,8 @@
  * before screenshotting. Requires client:5173 + server:3100 live + a
  * working LLM key (the game loop calls the model).
  *
- * Run (after pnpm dev): node scripts/capture_game_screens.mjs
+ * Run:    npm run gen:screenshots   # runs both capture scripts; or: node scripts/capture_game_screens.mjs
+ * Prereq: npm run dev live (client :5173 + server :3100) + a working LLM key
  * Output: assets/screenshots/04-classic-game.png + 05-immersive-game.png
  */
 import { chromium } from 'playwright';
