@@ -7,6 +7,28 @@
 
 ---
 
+## v6.50 — 2026-06-05 · CHANGELOG 还债 + evidenceParser fuzzy + 班味分享
+
+### P1 — CHANGELOG 补登 v6.42–v6.49 + 修顶部排序
+- docs/CHANGELOG.md 停在 v6.40 且顶部 v6.40/41/39 乱序, pre-push hook 的
+  `head -1` 误取 v6.40 → 8 个版本欠账且 nag 关不掉. 补 v6.42–v6.49 (按真实
+  commit log 写, 非杜撰) + 顶部重排严格降序. hook latest-doc 现正确识别为
+  最新版, 检测管线返回空.
+
+### P2 — evidenceParser fuzzy 绰号/转述桥接 (Pass 3)
+- `EvidenceRef.kind` 早声明了 'fuzzy' (例子就是"某位说颗粒度的同学") 却从没
+  产出. 新增纯函数 `extractEpithetKeywords` 从转述子句挖描述词 (颗粒度/对齐),
+  桥接到真说过该词的前序发言者, 产出 kind:'fuzzy'. 切首个「的」防尾词泄漏,
+  函数词长词先剥, stopword 去噪保精度. +15 测试 (9 miner + 6 端到端).
+
+### P3 — 班味指数 转发+朋友圈 分享带自定义海报
+- banwei page: `wx.showShareMenu` 开 shareAppMessage+shareTimeline;
+  `_renderPoster()` 抽出 canvas→tempfile + 预渲染缓存; `onShareAppMessage` +
+  新 `onShareTimeline` 均带 imageUrl (复用 1080×1350 海报, 未就绪回落系统
+  页面截图).
+
+---
+
 ## v6.49 — 2026-06-05 · hook 文档 + SHOTS manifest 测试 + 脚本头统一
 
 ### P1 — README 贡献 section 加 pre-push hook 安装/静默说明
