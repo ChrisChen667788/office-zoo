@@ -13,6 +13,7 @@
  */
 import { chromium } from 'playwright';
 import path from 'node:path';
+import { matchesMode, CLASSIC_MODE, IMMERSIVE_MODE } from './lib/modeMatch.mjs';
 
 const CLIENT = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const OUT = path.resolve('assets/screenshots');
@@ -41,14 +42,15 @@ async function preflight() {
  *                                  other mode's badge)
  * @returns {Promise<boolean>}
  */
-async function assertMode(page, { wantBadge, wantCanvas, forbidBadge }) {
-  return page.evaluate(({ want, forbid, needCanvas }) => {
-    const t = document.body.innerText || '';
-    const hasCanvas = !!document.querySelector('canvas.gamemap-canvas-responsive');
-    const wantRe = new RegExp(want);
-    const forbidRe = new RegExp(forbid);
-    return wantRe.test(t) && hasCanvas === needCanvas && !forbidRe.test(t);
-  }, { want: wantBadge.source, forbid: forbidBadge.source, needCanvas: wantCanvas });
+async function assertMode(page, mode) {
+  // Observe the page, then delegate to the PURE matcher (unit-tested in
+  // scripts/__tests__/modeMatch.test.ts) so the runtime guard and the
+  // tested logic are literally the same code.
+  const observed = await page.evaluate(() => ({
+    bodyText: document.body.innerText || '',
+    hasCanvas: !!document.querySelector('canvas.gamemap-canvas-responsive'),
+  }));
+  return matchesMode(observed, mode);
 }
 
 async function captureClassic(browser) {
@@ -107,10 +109,8 @@ async function captureClassic(browser) {
   }
   await page.waitForTimeout(2000);
   // ASSERT we're actually on Classic (🏢 职场杀 badge + GameMap canvas),
-  // not immersive — via the shared assertMode helper.
-  const onClassic = await assertMode(page, {
-    wantBadge: /职场杀/, wantCanvas: true, forbidBadge: /沉浸 · v6/,
-  });
+  // not immersive — via the shared, unit-tested matcher.
+  const onClassic = await assertMode(page, CLASSIC_MODE);
   if (!onClassic) {
     console.error('  ✕ classic: 没落在经典局 (无 职场杀 badge / GameMap canvas). 不截图,避免误标.');
     await ctx.close();
@@ -151,11 +151,9 @@ async function captureImmersive(browser) {
     if (state.inRound && !state.inLobby) { ready = true; break; }
   }
   if (!ready) console.warn('  immersive: 未进入 discussion,截当前态');
-  // ASSERT we're on the immersive round-table (🎬 沉浸 badge, NO GameMap
-  // canvas, NOT 职场杀) — same shared helper as classic, mirror config.
-  const onImmersive = await assertMode(page, {
-    wantBadge: /沉浸 · v6/, wantCanvas: false, forbidBadge: /职场杀/,
-  });
+  // ASSERT we're on the immersive round-table — same shared, unit-tested
+  // matcher as classic, mirror config.
+  const onImmersive = await assertMode(page, IMMERSIVE_MODE);
   if (!onImmersive) {
     console.error('  ✕ immersive: 没落在沉浸圆桌 (无 沉浸 badge / 误含 GameMap). 不截图,避免误标.');
     await ctx.close();

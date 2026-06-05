@@ -8,7 +8,9 @@ import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   test: {
-    include: ['packages/**/__tests__/**/*.test.ts'],
+    // v6.47 P1 — also pick up scripts/__tests__ so the capture-script
+    // mode-match logic (extracted to scripts/lib) gets real coverage.
+    include: ['packages/**/__tests__/**/*.test.ts', 'scripts/**/__tests__/**/*.test.ts'],
     // node env keeps the bar low — no jsdom required for the initial
     // skeleton. Tests that need DOM can opt into 'jsdom' per-file.
     environment: 'node',
