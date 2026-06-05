@@ -9,7 +9,7 @@
 
 ## v6.55 — 2026-06-06 · 用户反馈四连(经典崩溃修复 / 头像去重 / 玩法调研 / 专属吐槽)
 
-用户实测反馈的 4 件事。+11 测试 → 276。
+用户实测反馈的 4 件事 + 二次代码/图标收尾。+14 测试 → 279。
 
 ### #1 — 经典局推进后"报错卡死"修复
 - 根因:startGame 主循环无容错。任一阶段(setPhase/runFreeRoam/runDiscussion/
@@ -34,6 +34,17 @@
 - `roastGenerator.ts`(纯 prompt+解析,+7 测试)+ `POST /api/talkshow/roast`
   (限流+安全复用)+ `RoastBooth.tsx`(输入今天的不爽 → AI 嘴替几句阴阳/自嘲金句 →
   逐句 ▶️ TTS 念出来)。挂在 /talkshow 顶部,纯情绪价值。
+
+### #5 — 收尾:头像去重端到端回归 + 图标二次元化 + 图像模型链实测
+- **头像重复复发**:用户第二次反馈"还是随机到重复头像"。排查发现 #2 的代码是对的,
+  真因是 5 个残留 `tsx --watch` 旧进程绑着旧代码 —— 全部 kill 重启后正常。为防回归,
+  补 `gameLoop.test.ts` 端到端 3 测试(createPlayers 全唯一 / 两个普通员工不同脸 /
+  getSerializedState 带 avatarKey),+3 → 279。
+- **图标"太 low"**:`iconGen.ts` art-direction 升级为二次元 cel-shaded(跟头像同风格)。
+- **图像模型链实测重排**:实测代理 `/models` + `/images/generations` —— `flux-schnell`
+  已下线(503)、`qwen-image-max` 不在列表、`gemini-2.5-flash-image` 是聊天多模态非 t2i
+  (500),`doubao-seedream-4-5-251128` 真出图(~21s)。链改为 seedream-4-5 领衔,
+  后续 regen 不再空耗已下线模型的 timeout。
 
 ---
 
