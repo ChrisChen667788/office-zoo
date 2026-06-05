@@ -49,6 +49,30 @@ export default function BanweiWrapped() {
   const [open, setOpen] = useState(false);
   const [stats, setStats] = useState<WrappedStats | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // v6.51 P4 — Wrapped 邮件订阅
+  const [email, setEmail] = useState('');
+  const [subState, setSubState] = useState<'idle' | 'sending' | 'ok' | 'err'>('idle');
+  const [deliverable, setDeliverable] = useState(true);
+
+  const subscribe = async () => {
+    setSubState('sending');
+    try {
+      const r = await fetch('/api/wrapped/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': getUserId() },
+        body: JSON.stringify({ email }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) {
+        setSubState('ok');
+        setDeliverable(d.deliverable !== false);
+      } else {
+        setSubState('err');
+      }
+    } catch {
+      setSubState('err');
+    }
+  };
 
   useEffect(() => {
     if (!open || stats) return; // lazy — only fetch on first expand
@@ -196,6 +220,48 @@ export default function BanweiWrapped() {
               boxShadow: '0 4px 14px rgba(176,134,255,0.32)',
             }}
           >📤 下载年终回顾海报 (1080×1350)</button>
+
+          {/* v6.51 P4 — 年终 Wrapped 邮件订阅 */}
+          {subState === 'ok' ? (
+            <div style={{
+              marginTop: 12, padding: '10px 14px', borderRadius: 10,
+              background: 'rgba(110,231,183,0.10)', border: '1px solid rgba(110,231,183,0.32)',
+              color: '#6ee7b7', fontSize: 12, textAlign: 'center', fontWeight: 700,
+            }}>
+              ✅ 已订阅{deliverable ? '' : '(发信暂未配置,先记下你)'} · 年终 Wrapped 出炉发你邮箱
+            </div>
+          ) : (
+            <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); if (subState === 'err') setSubState('idle'); }}
+                placeholder="邮箱 · 年终回顾发给你"
+                style={{
+                  flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: 10, fontSize: 13,
+                  background: 'rgba(255,255,255,0.06)', color: '#fff',
+                  border: `1px solid ${subState === 'err' ? 'rgba(239,68,68,0.6)' : 'rgba(255,255,255,0.16)'}`,
+                  fontFamily: 'inherit', outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                onClick={subscribe}
+                disabled={subState === 'sending' || !email}
+                style={{
+                  padding: '10px 16px', borderRadius: 10, border: 'none', fontWeight: 900, fontSize: 13,
+                  background: 'linear-gradient(135deg, #FFD58A 0%, #FF9F4C 100%)', color: '#0a0a1e',
+                  cursor: subState === 'sending' || !email ? 'default' : 'pointer',
+                  opacity: subState === 'sending' || !email ? 0.5 : 1, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                }}
+              >{subState === 'sending' ? '...' : '📧 订阅'}</button>
+            </div>
+          )}
+          {subState === 'err' && (
+            <div style={{ marginTop: 6, fontSize: 11, color: '#ef4444', textAlign: 'center' }}>
+              邮箱格式不对或网络问题,再试一下
+            </div>
+          )}
 
           <div style={{
             marginTop: 10, fontSize: 9.5, color: 'rgba(255,255,255,0.35)',
