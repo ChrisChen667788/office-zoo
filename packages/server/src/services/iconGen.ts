@@ -145,15 +145,21 @@ const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY || '';
 const MINIMAX_IMAGE_URL = process.env.MINIMAX_IMAGE_URL || 'https://api.minimaxi.com/v1/image_generation';
 
 const DEFAULT_MODEL_CHAIN = [
-  'flux-schnell',
+  // v6.55 — re-ordered after a live `/models` + `/images/generations` smoke
+  // test (Jun 2026): the QingYun proxy stopped serving `flux-schnell`
+  // (→ 503 "no available channel") and `qwen-image-max-2025-12-30`, and
+  // `gemini-2.5-flash-image` 500s ("not supported model for image generation"
+  // — it's a chat-multimodal model, not a t2i endpoint). The smoke test
+  // confirmed `doubao-seedream-4-5-251128` returns a real image (~21s), so it
+  // leads; the slower OpenAI family stays as fallback.
+  'doubao-seedream-4-5-251128',
   'doubao-seedream-3-0-t2i-250415',
-  'qwen-image-max-2025-12-30',
+  'flux-1.1-pro',
   'gpt-image-1.5',
   'gpt-image-1',
   // QingYun also proxies these — kept after the OpenAI family because they
   // tend to be slower / more rate-limited but rarely hit the same quotas.
   'dall-e-3',
-  'midjourney',
   // Sentinel — the helper picks up direct-Minimax when it sees this string
   // and switches base URL + auth key. Always last so we only burn the direct
   // Minimax quota if the QingYun proxy is fully exhausted.
