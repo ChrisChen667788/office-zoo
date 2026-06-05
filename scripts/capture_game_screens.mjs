@@ -27,6 +27,30 @@ async function preflight() {
   }
 }
 
+/**
+ * Verify the page is on the EXPECTED game mode before we screenshot —
+ * the guard that stops a classic/immersive mislabel (v6.43 shipped one
+ * precisely because only classic had this check, v6.45 added immersive,
+ * v6.46 factors out the shared logic).
+ *
+ * @param {import('playwright').Page} page
+ * @param {object} mode
+ * @param {RegExp} mode.wantBadge   badge text that MUST be present
+ * @param {boolean} mode.wantCanvas whether the GameMap canvas must exist
+ * @param {RegExp} mode.forbidBadge badge text that must be ABSENT (the
+ *                                  other mode's badge)
+ * @returns {Promise<boolean>}
+ */
+async function assertMode(page, { wantBadge, wantCanvas, forbidBadge }) {
+  return page.evaluate(({ want, forbid, needCanvas }) => {
+    const t = document.body.innerText || '';
+    const hasCanvas = !!document.querySelector('canvas.gamemap-canvas-responsive');
+    const wantRe = new RegExp(want);
+    const forbidRe = new RegExp(forbid);
+    return wantRe.test(t) && hasCanvas === needCanvas && !forbidRe.test(t);
+  }, { want: wantBadge.source, forbid: forbidBadge.source, needCanvas: wantCanvas });
+}
+
 async function captureClassic(browser) {
   const ctx = await browser.newContext({
     viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2, locale: 'zh-CN',
@@ -82,11 +106,10 @@ async function captureClassic(browser) {
     if (inRound) { ready = true; break; }
   }
   await page.waitForTimeout(2000);
-  // ASSERT we're actually on Classic (🏢 职场杀 badge), not immersive.
-  const onClassic = await page.evaluate(() => {
-    const t = document.body.innerText || '';
-    const hasCanvas = !!document.querySelector('canvas.gamemap-canvas-responsive');
-    return /职场杀/.test(t) && hasCanvas && !/沉浸 · v6/.test(t);
+  // ASSERT we're actually on Classic (🏢 职场杀 badge + GameMap canvas),
+  // not immersive — via the shared assertMode helper.
+  const onClassic = await assertMode(page, {
+    wantBadge: /职场杀/, wantCanvas: true, forbidBadge: /沉浸 · v6/,
   });
   if (!onClassic) {
     console.error('  ✕ classic: 没落在经典局 (无 职场杀 badge / GameMap canvas). 不截图,避免误标.');
@@ -128,15 +151,10 @@ async function captureImmersive(browser) {
     if (state.inRound && !state.inLobby) { ready = true; break; }
   }
   if (!ready) console.warn('  immersive: 未进入 discussion,截当前态');
-  // ASSERT we're on the immersive round-table (🎬 沉浸 badge) and NOT
-  // the Classic GameMap (no gamemap canvas / 职场杀 badge). Symmetric to
-  // captureClassic — v6.43 shipped an immersive shot mislabeled as
-  // classic precisely because there was no such guard here. Refuse to
-  // overwrite if the page isn't immersive.
-  const onImmersive = await page.evaluate(() => {
-    const t = document.body.innerText || '';
-    const hasGameMap = !!document.querySelector('canvas.gamemap-canvas-responsive');
-    return /沉浸 · v6/.test(t) && !hasGameMap && !/职场杀/.test(t);
+  // ASSERT we're on the immersive round-table (🎬 沉浸 badge, NO GameMap
+  // canvas, NOT 职场杀) — same shared helper as classic, mirror config.
+  const onImmersive = await assertMode(page, {
+    wantBadge: /沉浸 · v6/, wantCanvas: false, forbidBadge: /职场杀/,
   });
   if (!onImmersive) {
     console.error('  ✕ immersive: 没落在沉浸圆桌 (无 沉浸 badge / 误含 GameMap). 不截图,避免误标.');
