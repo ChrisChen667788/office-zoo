@@ -167,3 +167,29 @@ describe('GameEngine — resolveNightActions (role abilities)', () => {
     expect(intel.some((l) => l.includes('OKR'))).toBe(true);
   });
 });
+
+describe('GameEngine — avatarKey (v6.55 #2, end-to-end)', () => {
+  it('createPlayers assigns a UNIQUE avatarKey to every player', () => {
+    // preset 8 has 普通员工 ×2 — the exact "duplicate face" case.
+    const e = freshEngine(8);
+    const keys = e.state.players.map((p) => p.avatarKey);
+    expect(keys.every(Boolean)).toBe(true);
+    expect(new Set(keys).size).toBe(e.state.players.length); // all distinct
+  });
+
+  it('the two 普通员工 get DIFFERENT avatarKeys', () => {
+    const e = freshEngine(8);
+    const villagers = e.state.players.filter((p) => p.role === Role.VILLAGER_CAT);
+    expect(villagers.length).toBeGreaterThanOrEqual(2);
+    const keys = villagers.map((p) => p.avatarKey);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('getSerializedState carries avatarKey to the client payload', () => {
+    const e = freshEngine(8);
+    const serialized = (e as unknown as { getSerializedState(): { players: Array<{ avatarKey?: string }> } })
+      .getSerializedState();
+    expect(serialized.players.every((p) => !!p.avatarKey)).toBe(true);
+    expect(new Set(serialized.players.map((p) => p.avatarKey)).size).toBe(serialized.players.length);
+  });
+});
