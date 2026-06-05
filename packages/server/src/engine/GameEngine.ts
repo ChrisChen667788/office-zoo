@@ -30,6 +30,8 @@ import { getWeeklyLeaders } from '../services/characterVoteStore';
 // v6.51 P1 — cross-game 公司主题包 memory (NPCs remember prior games).
 import { listPackMemories, recordPackGame } from '../services/packMemoryStore';
 import { formatPackMemoryForNpc, summarizeWinner } from '../services/packMemoryFormat';
+// v6.52 P1 — special cat-role night actions (detective investigate / medic protect).
+import { chooseInvestigateTarget, chooseProtectTarget, teamLabel } from './roleAbilities';
 import { assignRoomActivity, commuteCaption, pickAnchor, pickCarriedItem } from './activity';
 // Activity + PlayerTickInfo are new — added separately to keep the diff
 // against the original import block obvious. PlayerState is already imported
@@ -263,6 +265,9 @@ export class GameEngine extends EventEmitter {
   private running = false;
   private destroyed = false;
   private discussionResolver?: () => void;
+  /** v6.52 P1 — players the HR总监(detective) has already investigated, so it
+   *  spends each round's check on someone new until the roster's exhausted. */
+  private investigatedByDetective: Set<string> = new Set();
   /** Compressed record of last round's discussion — fed into next round's context for memory. */
   private lastRoundSpeeches: Array<{ name: string; text: string }> = [];
   /** v6.25 P1 — psy-war leaks submitted by the spectator via GhostChatPanel's
@@ -834,6 +839,10 @@ export class GameEngine extends EventEmitter {
       }
     }
 
+    // v6.52 P1 — resolve special-role night actions (medic protect / detective
+    // investigate) BEFORE the kill so a protected target survives this round.
+    this.resolveNightActions();
+
     // Dogs attempt kills
     const dogs = this.alivePlayers().filter((p) => p.team === Team.DOG && p.killCooldown <= 0);
     for (const dog of dogs) {
@@ -842,6 +851,14 @@ export class GameEngine extends EventEmitter {
       );
       if (nearby.length > 0) {
         const victim = nearby[Math.floor(Math.random() * nearby.length)];
+        // v6.52 P1 — 工会代表 protection: a covered target dodges the "优化".
+        // The attempt is still consumed (cooldown applies) — no re-pick.
+        if (victim.id === this.state.protectedPlayerId) {
+          dog.killCooldown = this.state.config.killCooldown;
+          this.addEvent('protect', `${victim.name} 本来要被"优化",被工会代表暗中保住了`);
+          this.emitState();
+          break;
+        }
         victim.isAlive = false;
         dog.killCooldown = this.state.config.killCooldown;
         this.state.deadBodyLocation = victim.position.room;
@@ -1488,6 +1505,49 @@ export class GameEngine extends EventEmitter {
 
   private emitState(): void {
     this.emit('state', this.getSerializedState());
+  }
+
+  /**
+   * v6.52 P1 — resolve the special cat roles' night actions for this round.
+   * Runs at the start of post-roam, BEFORE the kill, so the 工会代表's
+   * protection can block this round's "优化". Each finding becomes the
+   * acting agent's PRIVATE intel (only they can act on it in discussion /
+   * voting) — the spectator only sees a vague "查了个人" log line, never the
+   * result, so the deduction stays interesting.
+   */
+  private resolveNightActions(): void {
+    // Protection is per-round — clear last round's cover first.
+    this.state.protectedPlayerId = undefined;
+    const alive = this.alivePlayers();
+
+    // 工会代表 (MEDIC_CAT) — protect one living player from tonight's kill.
+    const medic = alive.find((p) => p.role === Role.MEDIC_CAT);
+    if (medic) {
+      const targetId = chooseProtectTarget(medic.id, alive);
+      if (targetId) {
+        this.state.protectedPlayerId = targetId;
+        const target = this.state.players.find((p) => p.id === targetId);
+        this.agents.get(medic.id)?.addRoleIntel(
+          `你(工会代表)这一轮暗中罩着 ${target?.name ?? targetId},挡住了针对 TA 的"优化"。`,
+        );
+      }
+    }
+
+    // HR总监 (DETECTIVE_CAT) — learn one living player's true faction.
+    const detective = alive.find((p) => p.role === Role.DETECTIVE_CAT);
+    if (detective) {
+      const targetId = chooseInvestigateTarget(detective.id, alive, this.investigatedByDetective);
+      if (targetId) {
+        this.investigatedByDetective.add(targetId);
+        const target = this.state.players.find((p) => p.id === targetId);
+        if (target) {
+          this.agents.get(detective.id)?.addRoleIntel(
+            `你(HR总监)查了 ${target.name} 的真实绩效档案:TA 属于 ${teamLabel(target.team)}阵营。`,
+          );
+          this.addEvent('role_action', '🔍 HR总监这一轮暗中查了一个人的底');
+        }
+      }
+    }
   }
 
   private addEvent(type: string, description: string): void {

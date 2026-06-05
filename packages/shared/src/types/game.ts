@@ -194,6 +194,9 @@ export interface GameState {
   votes: Record<string, string>;
   /** 离职员工的劳动仲裁投票（与正常投票分开计票） */
   ghostVotes: Record<string, string>;
+  /** v6.52 P1 — 工会代表(MEDIC_CAT)本轮暗中保护的玩家 id。该玩家本轮若被
+   *  资本家(DOG)选为暗杀目标,暗杀被挡下。每轮开始清空。运行时字段,不下发客户端。 */
+  protectedPlayerId?: string;
   config: GameConfig;
 }
 

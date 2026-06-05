@@ -123,6 +123,10 @@ export class BaseAgent {
    *  global archetype memory. */
   readonly spectatorUserId: string | null;
   private systemPrompt: string;
+  /** v6.52 P1 — private role intel (detective findings / medic protection)
+   *  pushed by the engine's night-action resolver. Only THIS agent sees it,
+   *  so it stays a secret advantage the AI can act on in speech + votes. */
+  private roleIntel: string[] = [];
 
   constructor(
     playerId: string, playerName: string, role: Role, team: Team,
@@ -142,6 +146,23 @@ export class BaseAgent {
     if (packMemory) {
       this.systemPrompt += '\n\n' + packMemory;
     }
+  }
+
+  /** v6.52 P1 — engine pushes a private role-ability finding (e.g. "你查了
+   *  X,TA 是资本家阵营" / "你这轮保护了 Y")。Kept on the agent so it's
+   *  private + persists across the round's speech/vote calls. Capped to the
+   *  most recent few so the prompt stays tight. */
+  addRoleIntel(line: string): void {
+    this.roleIntel.push(line);
+    if (this.roleIntel.length > 6) this.roleIntel = this.roleIntel.slice(-6);
+  }
+
+  /** Build the private-intel prompt block (empty when the agent has none). */
+  private roleIntelBlock(): string {
+    if (this.roleIntel.length === 0) return '';
+    return `\n\n【你的角色内部情报 — 只有你知道,别人看不到你查到/护住了谁】\n${this.roleIntel
+      .map((l) => `- ${l}`)
+      .join('\n')}\n可以用这些情报去指控或洗白(像真人一样旁敲侧击,别直愣愣念"我是HR总监我查的"那么出戏)。`;
   }
 
   /**
@@ -239,7 +260,7 @@ export class BaseAgent {
     const res = await callLLMWithTimeout('SPEECH', {
       model: openai()(model()),
       system: this.systemPrompt,
-      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${snippetBlock}${leakedBlock}${priorBlock}
+      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${snippetBlock}${leakedBlock}${this.roleIntelBlock()}${priorBlock}
 
 请发表你的看法(2-4 句话,每句都要有戏,总字数 60-120 字)。硬性要求:
 
@@ -304,7 +325,7 @@ export class BaseAgent {
     const res = await callLLMWithTimeout('VOTE', {
       model: openai()(model()),
       system: this.systemPrompt,
-      prompt: `你是${this.playerName}。当前职场状况: ${context}\n可投票开除的对象: ${candidateList}\n也可选择 skip 弃票。${this.personality && PERSONALITY_REGISTRY[this.personality] ? `\n投票倾向提示: ${PERSONALITY_REGISTRY[this.personality].voteBias}` : ''}\n\n请只回复一个员工ID(如player_0)或skip，不要其他内容。`,
+      prompt: `你是${this.playerName}。当前职场状况: ${context}\n可投票开除的对象: ${candidateList}\n也可选择 skip 弃票。${this.personality && PERSONALITY_REGISTRY[this.personality] ? `\n投票倾向提示: ${PERSONALITY_REGISTRY[this.personality].voteBias}` : ''}${this.roleIntelBlock()}\n\n请只回复一个员工ID(如player_0)或skip，不要其他内容。`,
       maxTokens: 20,
       temperature: 0.5,
     });
