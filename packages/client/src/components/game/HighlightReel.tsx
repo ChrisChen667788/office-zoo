@@ -44,6 +44,7 @@ import {
   useWinner,
   usePhase,
   useGameActions,
+  useGameId,
 } from '../../stores/gameStore';
 import { ROLE_LABELS, teamForRole, TEAM_LABELS } from '../../constants/roles';
 import { sfx } from '../../utils/sfx';
@@ -136,6 +137,7 @@ export default function HighlightReel() {
   const players = usePlayers();
   const round = useRound();
   const winner = useWinner();
+  const gameId = useGameId();
   const eliminationLog = useEliminationLog();
   const predictionLog = usePredictionLog();
   const { reset } = useGameActions();
@@ -643,6 +645,19 @@ export default function HighlightReel() {
                   }}
                 >
                   继续围观
+                </button>
+                {/* v6.54 — jump to the full event-timeline replay (deep-linkable). */}
+                <button
+                  onClick={() => gameId && navigate(`/result/${gameId}`)}
+                  disabled={!gameId}
+                  className="px-4 py-2 rounded-xl text-[12px] font-bold transition hover:brightness-125 active:scale-95 disabled:opacity-40"
+                  style={{
+                    color: 'rgba(255,255,255,0.88)',
+                    background: 'rgba(124,58,237,0.18)',
+                    border: '1px solid rgba(124,58,237,0.4)',
+                  }}
+                >
+                  🎬 看完整回放
                 </button>
                 <button
                   onClick={goLobby}

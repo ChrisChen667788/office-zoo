@@ -6,8 +6,10 @@
  * Styling matches the rest of the redesigned chrome so nobody hits it and
  * thinks they've landed on the old build.
  */
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { groupTimelineByRound, type ReplayRecord, type ReplayPlayer } from '@furball/shared';
 import { usePlayers, useWinner, useRound, useGameActions } from '../stores/gameStore';
 import { colors } from '../constants/design';
 import { lottie } from '../constants/lottie';
@@ -44,13 +46,50 @@ const WIN_LABELS: Record<string, WinLabel> = {
   none:        { title: '散伙饭',         subtitle: '公司倒闭,没有赢家',     emoji: '🤷', accent: colors.semantic.warn },
 };
 
+// v6.54 — timeline event-type → icon for the 🎬 replay log.
+const EVENT_ICON: Record<string, string> = {
+  kill: '🔪', vote_out: '🗳️', vote_skip: '🤷', protect: '🛡️',
+  intercept: '⚖️', role_action: '🔍', body_found: '🚨',
+  ghost_vote: '👻', game_over: '🏆', leak_acked: '📣',
+};
+
 export default function Result() {
-  useParams(); // keeps the signature; gameId not directly used
+  const { gameId } = useParams();
   const navigate = useNavigate();
-  const players = usePlayers();
-  const winner = useWinner();
-  const round = useRound();
+  const livePlayers = usePlayers();
+  const liveWinner = useWinner();
+  const liveRound = useRound();
   const { reset } = useGameActions();
+
+  // v6.54 — load the persisted replay so /result/:gameId works on deep-link /
+  // refresh (the live store is empty then) AND so we can show the full event
+  // timeline the store never kept. The live store is the instant fallback.
+  const [replay, setReplay] = useState<ReplayRecord | null>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!gameId) return;
+    let on = true;
+    fetch(`/api/replay/${encodeURIComponent(gameId)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((rec: ReplayRecord) => { if (on) setReplay(rec); })
+      .catch(() => { /* evicted / not yet saved — live store carries it */ });
+    return () => { on = false; };
+  }, [gameId]);
+
+  const players: ReplayPlayer[] = replay?.players ?? (livePlayers as ReplayPlayer[]);
+  const winner = replay?.winner ?? liveWinner;
+  const round = replay?.rounds ?? liveRound;
+  const timeline = replay?.timeline ?? [];
+  const rounds = groupTimelineByRound(timeline);
+
+  const shareReplay = () => {
+    if (!gameId) return;
+    const url = `${window.location.origin}/result/${gameId}`;
+    void navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  };
 
   const winInfo = WIN_LABELS[winner] || WIN_LABELS.none;
   const sortedPlayers = [...players].sort((a, b) => {
@@ -171,6 +210,55 @@ export default function Result() {
           );
         })}
       </motion.div>
+
+      {/* v6.54 — 🎬 full event-timeline replay (from the persisted record). */}
+      {rounds.length > 0 && (
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="relative z-10 w-full max-w-2xl mb-8"
+        >
+          <h2 className="text-white/70 text-sm font-bold tracking-wide mb-3 text-center">
+            📜 完整回放 · {timeline.length} 个事件
+          </h2>
+          <div className="space-y-4">
+            {rounds.map((g) => (
+              <div key={g.round}>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-white/40 mb-1.5">
+                  {g.round === 0 ? '赛前' : `第 ${g.round} 个工作日`}
+                </div>
+                <div className="space-y-1">
+                  {g.events.map((e, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-2 text-[12px] text-white/75 rounded-lg px-3 py-1.5"
+                      style={{ background: 'rgba(255,255,255,0.03)' }}
+                    >
+                      <span className="flex-shrink-0">{EVENT_ICON[e.type] ?? '▪️'}</span>
+                      <span className="flex-1">{e.description}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {gameId && (
+        <motion.button
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          onClick={shareReplay}
+          whileTap={{ scale: 0.97 }}
+          className="relative z-10 mb-3 px-5 py-2 rounded-xl text-xs font-semibold tracking-wide text-white/85"
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)' }}
+        >
+          {copied ? '✓ 回放链接已复制' : '🔗 复制回放链接'}
+        </motion.button>
+      )}
 
       <motion.button
         initial={{ opacity: 0, y: 8 }}
