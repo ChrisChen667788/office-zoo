@@ -100,7 +100,7 @@
 - 🏆 **跨观众排行榜** (v6.36→v6.38) — 全网 Top 10 班味分公开榜 + 按地区/行业筛选 + "🏢 只看本公司同事 Top",一键下载 1080×1350 榜单分享卡
 - 🎁 **班味年终 Wrapped** (v6.39→v6.40) — Spotify-Wrapped 风年度回顾:峰值周 / 平均分 / 趋势 / 爆料命中率 / 成就墙 / 年度班味人格标签,一键导出海报
 - 🔥 **班味金句池 → 游戏世界回路** (v6.33→v6.36) — 观众投稿职场金句 → 提名计数加权 → 下一局 AI 鼠人更可能"出场"被提名的名字, GameMap 给热门鼠人加 🔥 badge
-- 🧪 **质量** — 171 vitest 全绿 · typecheck 干净 · Playwright 视觉探针验证 wrapped 卡 + 动画架构图
+- 🧪 **质量** — 251 vitest 全绿 · typecheck 干净 · Playwright 视觉探针验证 wrapped 卡 + 动画架构图
 
 ## 🌟 v6.1 升级 (2026-05-22)
 
@@ -254,12 +254,13 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 - ✅ **v3.0** 化学反应导演 — squad 编剧看全队 archetype mix 写专属剧
 - ✅ **v6.25-v6.36** PSYWAR 心理战 + 班味指数 / 金句池 / 周报 / 排行榜 + 小程序端
 - ✅ **v6.37-v6.42** 公司主题包(私有 NPC deploy)+ 跨观众排行榜 + 班味年终 Wrapped + 动画架构图
+- ✅ **v6.51** 真 Stripe Checkout(替换 v1.0 demo)+ Squad 导演 Sonnet A/B + 公司包跨局剧情记忆 + Wrapped 邮件订阅
+- ✅ **v6.52** 核心角色技能落地(HR总监查身份 / 工会代表保护,AI 会用)+ 核心对局循环测试覆盖
 
 **下一步(开放讨论):**
-- [ ] 真 Stripe checkout 替换 v1.0 demo
-- [ ] Squad LLM 用 Claude 4.5 Sonnet 替换 gpt-4o-mini 看演出效果
-- [ ] 公司主题包: avatar 上小程序端 + pack 内剧情记忆
-- [ ] 班味 Wrapped 邮件订阅(可选)
+- [ ] 补齐其余特殊角色技能(法务保镖 / 内审通灵 / 数据分析 等 5 个)
+- [ ] 🎬 对局回放(复用已有 HighlightReel + 时间线数据)
+- [ ] Premium 待建权益:高级音色 / 律师入口
 
 ## 安全须知
 
