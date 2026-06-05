@@ -74,7 +74,7 @@
 - 🏆 **Cross-spectator leaderboard** (v6.36→v6.38) — public global Top-10 Banwei board + region/industry filters + "🏢 your-company Top", one-tap 1080×1350 leaderboard share card.
 - 🎁 **Banwei Wrapped** (v6.39→v6.40) — Spotify-Wrapped-style year recap: peak week / average / trend / leak hit-rate / achievements / year persona, export to poster.
 - 🔥 **Hot-quote → game-world loop** (v6.33→v6.36) — spectators submit workplace one-liners → nomination-weighted bias → AI rats are more likely to "cast" a nominated name next game, with a 🔥 badge on GameMap.
-- 🧪 **Quality** — 251 vitest green · clean typecheck · Playwright visual probes for the Wrapped card + animated diagrams.
+- 🧪 **Quality** — 260 vitest green · clean typecheck · Playwright visual probes for the Wrapped card + animated diagrams.
 
 ## ✨ What's new in v2.x → v3.0 (May 2026)
 
@@ -163,7 +163,8 @@ Image: flux-schnell → doubao-seedream → qwen-image → gpt-image-1 → minim
 ✅ v6.37-6.42 Company Packs (private NPC deploy) + cross-spectator leaderboard + Banwei Wrapped + animated diagrams
 ✅ v6.51      Real Stripe Checkout (replaces demo) + squad-director Sonnet A/B + cross-game pack memory + Wrapped email
 ✅ v6.52      Special-role abilities go live (HR investigate / union-rep protect, AI-driven) + core game-loop tests
-🔜 next       Remaining special-role abilities · 🎬 match replay · Premium voice & lawyer perks
+✅ v6.53      Legal-counsel body-block + data-analyst OKR-leak — all in-rotation special roles now wired
+🔜 next       🎬 match replay · Premium voice & lawyer perks · (opt) rotate medium/adventurer into presets
 ```
 
 ## 🙏 Acknowledgements

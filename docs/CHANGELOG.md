@@ -7,6 +7,29 @@
 
 ---
 
+## v6.53 — 2026-06-05 · 补齐会上场的特殊角色技能(法务挡刀 + 数据分析查产出)
+
+延续 v6.52,把**真会上场**的特殊角色技能补完。先做 spawn 审计:其余角色里只有
+BODYGUARD(preset 9/10)、VIGILANTE(preset 10)真出现且有侦推价值,故只接这两个;
+MEDIUM/ADVENTURER 不在任何 preset(接了是死代码),ENGINEER 是定位向无侦推力。+9 测试 → 260。
+
+### P1 — 法务顾问(BODYGUARD)替身挡刀
+- 纯函数 `resolveKillTarget(victim, {protectedId, bodyguardTargetId, bodyguardId,
+  bodyguardAlive})` → blocked / intercepted / kill,优先级 工会代表清空 > 法务替死 >
+  正常裁。+7 测试(含 法务已死 / 不能替自己 等边界)。
+- `GameState.bodyguardTargetId` + resolveNightActions 选护对象 + 私密 intel;kill loop
+  重构到 resolveKillTarget,被护目标遇袭 → 法务替死("替 X 挡了一刀")。
+
+### P2 — 数据分析师(VIGILANTE)查 OKR 产出泄底
+- 每轮调一人名下 OKR 待办数(tasks.length)作私密 intel。猫有真任务、资本家/摸鱼神
+  没有 → 0 待办=可疑"非打工人"软线索;但(区别于侦探硬查身份)分不出资本家 vs 摸鱼神。
+
+### P3 — 角色覆盖诚实标注 + 收尾
+- resolveNightActions 头部加技能覆盖表(✅4 接入 / ▪️engineer 定位向 / ▫️medium+adventurer
+  不在轮换非 bug)。README zh+en roadmap 更新,vitest 计数 251 → 260。
+
+---
+
 ## v6.52 — 2026-06-05 · 核心角色技能落地 + 对局循环测试 + roadmap 收尾
 
 回到核心玩法打磨。特殊角色一直只有"装饰文字"没机制 —— 这轮把社交推理深度补上。+20 测试 → 251。

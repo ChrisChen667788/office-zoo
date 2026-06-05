@@ -1525,12 +1525,21 @@ export class GameEngine extends EventEmitter {
   }
 
   /**
-   * v6.52 P1 — resolve the special cat roles' night actions for this round.
-   * Runs at the start of post-roam, BEFORE the kill, so the 工会代表's
-   * protection can block this round's "优化". Each finding becomes the
-   * acting agent's PRIVATE intel (only they can act on it in discussion /
-   * voting) — the spectator only sees a vague "查了个人" log line, never the
-   * result, so the deduction stays interesting.
+   * v6.52 P1 / v6.53 P1+P2 — resolve the special cat roles' night actions for
+   * this round. Runs at the start of post-roam, BEFORE the kill, so the
+   * protectors can affect this round's "优化". Each finding becomes the acting
+   * agent's PRIVATE intel (only they can act on it in discussion / voting) —
+   * the spectator only sees a vague log line, never the result, so the
+   * deduction stays interesting.
+   *
+   * Ability coverage (only roles that appear in ROLE_PRESETS are wired):
+   *   ✅ DETECTIVE_CAT (HR总监)    — hard faction read         [presets 6/8/9/10]
+   *   ✅ MEDIC_CAT     (工会代表)  — nullify-protect            [presets 6/8/9/10]
+   *   ✅ BODYGUARD_CAT (法务顾问)  — body-block (dies for ward) [presets 9/10]
+   *   ✅ VIGILANTE_CAT (数据分析师)— OKR-backlog soft tell      [preset 10]
+   *   ▪️ ENGINEER_CAT  (程序员)    — positioning flavor only, no deduction power
+   *   ▫️ MEDIUM_CAT / ADVENTURER_CAT — defined in ROLE_REGISTRY but in NO
+   *      preset rotation, so deliberately not wired (would be dead code).
    */
   private resolveNightActions(): void {
     // Protections are per-round — clear last round's cover first.
