@@ -7,6 +7,36 @@
 
 ---
 
+## v6.55 — 2026-06-06 · 用户反馈四连(经典崩溃修复 / 头像去重 / 玩法调研 / 专属吐槽)
+
+用户实测反馈的 4 件事。+11 测试 → 276。
+
+### #1 — 经典局推进后"报错卡死"修复
+- 根因:startGame 主循环无容错。任一阶段(setPhase/runFreeRoam/runDiscussion/
+  runVoting/resolveVotes,都碰 LLM/TTS/网络)抛错 → 循环 reject 退出但 `running`
+  仍 true、不发 game_over,socketHandler 的 .catch 只 log 不清理 → 全体客户端永久
+  卡死。修:循环 + GAME_OVER 包 try/catch/finally(抛错→优雅 game_over+`running=false`
+  恒清);.catch 兜底 destroyGame;新增 `crashLog.ts` 把崩溃栈落盘
+  `data/engine-crashes.log`(pino 只进 stdout、detached 跑时无留痕 —— 正是当初查不到
+  日志的原因),复现可 grep 定位。
+
+### #2 — 沉浸/经典局 AI 头像重复(0 生成)
+- 根因:头像按 ROLE 缓存/解析,roster 里普通员工 ×2 → 同脸。修:`assignAvatarKeys`
+  纯函数给每人从 23 张池里分唯一 key(优先本角色,重复的取未用 key),
+  SerializedPlayer 带 `avatarKey`,GameMap+沉浸圆桌按 avatarKey 解析。不烧 image API。
+
+### #3 — 「裁了么」玩法调研 + 升级方案
+- 调研当下爆火机制(roguelike 牌组/meta 进度/遗物/extraction),产出
+  `docs/FIRED_GAMEPLAY_PROPOSAL.md`:把纯 chat 谈判升级为回合制话术牌局(方案 A MVP)
+  + 局间成长(B)+ 职场遗物(C)。
+
+### #4 — 班味单口「专属吐槽」(个性化生成 + TTS)
+- `roastGenerator.ts`(纯 prompt+解析,+7 测试)+ `POST /api/talkshow/roast`
+  (限流+安全复用)+ `RoastBooth.tsx`(输入今天的不爽 → AI 嘴替几句阴阳/自嘲金句 →
+  逐句 ▶️ TTS 念出来)。挂在 /talkshow 顶部,纯情绪价值。
+
+---
+
 ## v6.54 — 2026-06-05 · 🎬 对局回放(服务端持久化 + 时间线回放页)
 
 roadmap 收官:🎬 回放落地(它本身也是 Premium 的"历史回放"权益)。voice/lawyer
