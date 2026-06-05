@@ -38,6 +38,7 @@ import type { UserProfile } from '../utils/profileTypes';
 import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { EmptyState }   from '../components/ui/EmptyState';
 import { WaveformBars } from '../components/ui/WaveformBars';
+import RoastBooth from '../components/character/RoastBooth';
 
 interface ScriptSummary {
   id: string;
@@ -445,6 +446,11 @@ export default function Talkshow() {
               <p className="text-white/60 text-sm md:text-base">
                 AI 鼠人替你讲段子 · {scripts.length} 段职场暴论 · 真人音色播报
               </p>
+            </div>
+
+            {/* v6.55 #4 — 专属吐槽: vent a topic, AI fires back roast lines + TTS. */}
+            <div className="max-w-2xl mx-auto">
+              <RoastBooth />
             </div>
 
             {/* v0.7.5 sort chips + v0.8.1 "我的创作" filter — first row, the

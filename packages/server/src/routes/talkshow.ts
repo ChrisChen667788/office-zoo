@@ -23,6 +23,7 @@ import {
 } from '@furball/shared';
 import { generateTTSAudio } from '../services/tts';
 import { generateTalkshowScript } from '../services/talkshowGenerator';
+import { generateRoast } from '../services/roastGenerator';
 import {
   listUserScripts,
   findUserScript,
@@ -48,6 +49,9 @@ import {
 // can't burn a month of QingYun quota in 30 seconds. Liking + listening
 // is unlimited (cheap, server-cached).
 const generateLimiter = createRateLimiter({ windowMs: 3600_000, max: 5 });
+// v6.55 #4 — 专属吐槽 is cheaper than /generate (no title call, no persist) but
+// still an LLM hit; a looser cap so users can vent a few times an hour.
+const roastLimiter = createRateLimiter({ windowMs: 3600_000, max: 20 });
 
 export const talkshowRoutes = new Hono();
 
@@ -325,6 +329,36 @@ talkshowRoutes.post('/generate', async (c) => {
   }
 
   return c.json({ ...script, source: 'user', likes: 0, createdBy, evolution });
+});
+
+// v6.55 #4 — 班味单口「专属吐槽」: user vents what's eating them today and gets
+// a few punchy 阴阳/自嘲 one-liners to read + TTS-play. Ephemeral (not saved) —
+// it's emotional release, not UGC. Reuses the same safety + rate-limit guards.
+talkshowRoutes.post('/roast', async (c) => {
+  const ip = ipFrom(c);
+  const limit = roastLimiter.check(ip);
+  if (!limit.ok) {
+    return c.json(
+      {
+        error: 'rate limited',
+        message: `出气也得悠着点,${Math.ceil(limit.retryAfterSec / 60)} 分钟后再来一发`,
+        retryAfterSec: limit.retryAfterSec,
+      },
+      429,
+      { 'Retry-After': String(limit.retryAfterSec) },
+    );
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const topic = typeof body?.topic === 'string' ? body.topic.trim().slice(0, 200) : '';
+  if (topic.length < 2) return c.json({ error: '说说今天是哪儿不爽了(至少 2 个字)' }, 400);
+
+  const safety = checkTopicSafety(topic);
+  if (!safety.ok) return c.json({ error: 'topic rejected', message: safety.reason }, 400);
+
+  const lines = await generateRoast(topic);
+  if (lines.length === 0) return c.json({ error: 'AI 嘴替暂时离线,稍后再试' }, 502);
+  return c.json({ lines });
 });
 
 // ── v0.7.6 topic safety ────────────────────────────────────────────────
