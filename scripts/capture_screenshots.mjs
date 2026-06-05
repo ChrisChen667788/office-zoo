@@ -22,6 +22,9 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+// v6.49 P2 — manifest + validator extracted to scripts/lib for unit
+// coverage (a duplicate filename would silently overwrite a shot).
+import { SHOTS, validateShots } from './lib/shotsManifest.mjs';
 
 const CLIENT = process.env.CLIENT_URL ?? 'http://localhost:5173';
 const SERVER = process.env.SERVER_URL ?? 'http://localhost:3100';
@@ -29,19 +32,8 @@ const OUT    = path.resolve('assets/screenshots');
 
 const DEMO_USER_ID = 'screenshot-bot';
 
-/** The capture manifest. Each entry produces one PNG; route + setup
- *  isolate the page state so screenshots are deterministic. */
-const SHOTS = [
-  { file: '01-landing.png',         url: '/',                 wait: 800 },
-  { file: '02-quiz.png',            url: '/quiz',             wait: 600 },
-  { file: '03-profile.png',         url: '/profile/me',       wait: 1200,
-    note: '需要先完成一次 quiz,否则跳回 /quiz。脚本会自动 POST 一次。' },
-  { file: '04-fired-landing.png',   url: '/fired',            wait: 800 },
-  { file: '05-squad-lobby.png',     url: '/squad/new',        wait: 600 },
-  { file: '06-squad-history.png',   url: '/squad-history',    wait: 600 },
-  { file: '07-talkshow.png',        url: '/talkshow',         wait: 800 },
-  { file: '08-premium.png',         url: '/premium',          wait: 600 },
-];
+// SHOTS manifest now lives in scripts/lib/shotsManifest.mjs (imported
+// above) so its file↔URL invariants can be unit-tested.
 
 async function preflightCheck() {
   for (const url of [CLIENT, SERVER + '/api/health']) {
@@ -67,6 +59,13 @@ async function seedProfile() {
 }
 
 async function main() {
+  // Fail fast if the manifest got a duplicate filename/url etc — better a
+  // clear error than a silently-overwritten screenshot.
+  const problems = validateShots(SHOTS);
+  if (problems.length) {
+    console.error('✕ SHOTS manifest 校验失败:\n  - ' + problems.join('\n  - '));
+    process.exit(1);
+  }
   await preflightCheck();
   await seedProfile();
   await fs.mkdir(OUT, { recursive: true });

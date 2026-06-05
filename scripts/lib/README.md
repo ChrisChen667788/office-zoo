@@ -18,6 +18,7 @@ vitest coverage without spinning up Playwright / a browser.
 | file | exports | used by |
 |------|---------|---------|
 | `modeMatch.mjs` | `matchesMode`, `CLASSIC_MODE`, `IMMERSIVE_MODE` | `capture_game_screens.mjs` |
+| `shotsManifest.mjs` | `SHOTS`, `validateShots` | `capture_screenshots.mjs` |
 
 ## On a barrel `index.mjs`
 
