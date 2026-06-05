@@ -7,23 +7,117 @@
 
 ---
 
-## v6.40 — 2026-05-30 · 收尾 + 公司包/排行榜补强
+## v6.49 — 2026-06-05 · hook 文档 + SHOTS manifest 测试 + 脚本头统一
 
-### P1 — squash red commit 6b20315
-- v6.39 P6 那对 commit (red import 错 + hotfix) `git reset --soft` squash
-  成单个 green commit, `--force-with-lease` 推送. 远程历史不再含损坏 commit.
+### P1 — README 贡献 section 加 pre-push hook 安装/静默说明
+- CHANGELOG-nudge 钩子原本只在本文件 v6.29 条目里有载, 新 clone 无从发现.
+  README.md / README.en.md 各加 git hooks 小节: `npm run hooks:install` 装,
+  `OFFICE_ZOO_SKIP_CHANGELOG_NUDGE=1 git push` 静默.
 
-### P2 — pack avatar 同步 EliminationReveal
-- `EliminationEvent.avatar`; 裁员剧场名字上方加 emoji 圆徽 (队伍色环 + 辉光),
-  存活/淘汰两态. Classic 两处 setLastElim 传 `victim?.avatar`.
+### P2 — capture_screenshots SHOTS manifest 抽纯函数 + 测试
+- 截图清单原内联, 手滑写重文件名会静默覆盖截图. 抽到
+  `scripts/lib/shotsManifest.mjs` (SHOTS + validateShots 纯校验), 脚本启动
+  fail-fast. +9 vitest 覆盖 file↔url 映射. 179 → 188 测试.
 
-### P3 — 班味年终 wrapped PNG 导出
-- `banweiWrappedCard.ts` 画 1080×1350 (年度人格 hero + 2×2 stat 格 + 成就条),
-  BanweiWrapped 加下载按钮. `rgbTriplet()` 处理最低 tier 的 rgba accent.
+### P3 — 3 个根 .mjs 文件头统一
+- capture_screenshots / capture_game_screens / gen-mp-architecture 三种头方言
+  统一成 Run/Prereq/Output 三行, 各标 npm 别名 (gen:screenshots / gen:mp-arch).
 
-### P4 — pack leaderboard packId×tribe 交叉测试
-- leaderboard.test.ts +5: packId+region (AND) / packId+industry / 空 pack /
-  pack 内 score 排序 / 全网 pack+非pack 混算. 12 → 17 leaderboard.
+---
+
+## v6.48 — 2026-06-05 · npm 别名 + scripts/lib 约定
+
+### P1+P2 — gen:mp-arch + gen:screenshots npm 别名
+- `gen:mp-arch` → gen-mp-architecture.mjs; `gen:screenshots` → 两个 capture
+  脚本串跑. 不用再记完整 node 路径.
+
+### P3 — scripts/lib 约定文档
+- scripts/lib/README.md 说明纯函数约定 (无 playwright/fs, 每个配 vitest).
+  单模块暂不加 barrel index (3+ 才加).
+
+---
+
+## v6.47 — 2026-06-05 · assertMode vitest + architecture 重生脚本
+
+### P1 — assertMode 逻辑固化成 vitest
+- capture 的 mock case 从一次性脚本固化成真 vitest (`scripts/lib/modeMatch.mjs`
+  + modeMatch.test.ts, 8 测试覆盖 classic/immersive 双向误标).
+
+### P2 — mp README 路线图更新到 v6.44
+
+### P3 — gen-mp-architecture.mjs 自动重生 about 页架构图
+- 从 architecture.svg 渲染 PNG (替手动 Playwright snippet). 960×620 @2×.
+
+---
+
+## v6.46 — 2026-06-05 · assertMode 抽取 + 验证图清理 + mp README
+
+### P1 — 真机 devtools 导入验证 about 页
+- 受限于 project.config.json appid 占位 + 本地窗口焦点, 自动化导入做不到;
+  如实记录限制 (未伪造通过), 用 WXSS-fidelity HTML 渲染兜底.
+
+### P2 — capture 抽公共 assertMode() helper
+- classic + immersive 共用一个 assertMode(page, mode), 观察页面后委托 matchesMode.
+
+### P3 — un-track 一次性验证 preview render
+- mp-about-preview 这类一次性验证图 gitignore (assets/screenshots/*-preview.png).
+
+---
+
+## v6.45 — 2026-06-05 · 对称防御 + SVG 留白 + emoji 验证
+
+### P1 — capture 脚本 immersive 加 badge 断言 (对称防御)
+- 上一轮只给 classic 加了断言; immersive 也加, 防 classic/immersive 误标.
+
+### P2 — dataflow SVG 底部节点加留白
+- viewBox 600→628 + bg rect, 修底部节点贴边. architecture 94px 余量无需改.
+
+### P3 — about 页 emoji 头像渲染验证
+- 原生 <text> 渲纯 Unicode emoji, WXSS-fidelity HTML 验证布局正常 (附说明).
+
+---
+
+## v6.44 — 2026-06-05 · 截图修正 + SVG 留白 + 小程序 emoji 头像
+
+### P1 — 经典截图修正 (之前误把 immersive 当 classic)
+- 两张截图都带 🎬 沉浸 badge (都是 immersive, classic 从没截到). 根因: classic
+  进入键 socket 未连时 disabled + RulesModal 遮罩拦点. 修: socket-wait +
+  modal-dismiss + badge 断言. 用户直觉正确, 此前为本人疏漏.
+
+### P2 — sequence SVG 底部文字加留白
+- viewBox 560→588 + bg rect, 修底部文字贴边.
+
+### P3 — 公司主题包 emoji 头像展示 + 入口
+- about 页加 17 emoji 头像条 + CTA 到 company-pack 编辑页 (web-view).
+
+---
+
+## v6.43 — 2026-06-03 · 真机游戏截图 + README.en 还原 + 小程序架构页
+
+### P1 — Playwright 真机补齐游戏内截图
+- 补 classic 2.5D + immersive 截图; README 截图表换成真机 2×3 网格.
+  (此轮 classic/immersive 标注有误, v6.44 P1 修正.)
+
+### P2 — README.en.md 同步还原丰富版
+- banner / hero GIF / 截图网格 / 营销表 / 动画 SVG, 跟中文版对齐.
+
+### P3 — 小程序技术架构页
+- pages/about 原生页引用 architecture.png (widthFix).
+
+### fix — kill flaky packOverride fallback test
+- GameEngine.test 用 包-甲/乙/丙 collision-proof 前缀 (原 老王/小张/阿强 与
+  AI_NAMES 撞名). gitignore harvester 副产物截图.
+
+---
+
+## v6.42 — 2026-06-03 · 动画 SVG 架构图接入 README + ModelScope
+
+### P1 — 3 张动画 SVG 逐张渲染验证
+- architecture / sequence-psywar / dataflow-companypack 用 Playwright 逐张渲染验证.
+
+### P2 — SVG 接入 README + ModelScope
+- 替换原静态 mermaid; SMIL 动画 (流动虚线 + animateMotion 数据包) 在 GitHub
+  `<img>` 里可播.
 
 ---
 
@@ -41,6 +135,26 @@
 
 ### P3 — CHANGELOG 补 v6.30-v6.40 (本段)
 - pre-push hook 长期 nag 关闭.
+
+---
+
+## v6.40 — 2026-05-30 · 收尾 + 公司包/排行榜补强
+
+### P1 — squash red commit 6b20315
+- v6.39 P6 那对 commit (red import 错 + hotfix) `git reset --soft` squash
+  成单个 green commit, `--force-with-lease` 推送. 远程历史不再含损坏 commit.
+
+### P2 — pack avatar 同步 EliminationReveal
+- `EliminationEvent.avatar`; 裁员剧场名字上方加 emoji 圆徽 (队伍色环 + 辉光),
+  存活/淘汰两态. Classic 两处 setLastElim 传 `victim?.avatar`.
+
+### P3 — 班味年终 wrapped PNG 导出
+- `banweiWrappedCard.ts` 画 1080×1350 (年度人格 hero + 2×2 stat 格 + 成就条),
+  BanweiWrapped 加下载按钮. `rgbTriplet()` 处理最低 tier 的 rgba accent.
+
+### P4 — pack leaderboard packId×tribe 交叉测试
+- leaderboard.test.ts +5: packId+region (AND) / packId+industry / 空 pack /
+  pack 内 score 排序 / 全网 pack+非pack 混算. 12 → 17 leaderboard.
 
 ---
 
