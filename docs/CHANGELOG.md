@@ -7,6 +7,36 @@
 
 ---
 
+## v6.51 — 2026-06-05 · pack 跨局记忆 + Squad model A/B + 真 Stripe + Wrapped 邮件订阅
+
+四个路线图大项一轮落地(脚手架级,外部服务 env 驱动)。+43 测试 → 231。
+
+### P1 — 公司主题包 pack 内剧情记忆 (NPC 跨局记仇)
+- `packMemoryFormat.ts`(纯)+ `packMemoryStore.ts`(file-backed, cap 5 局,
+  keyed by packId)。一局结束把 survivors/eliminated/winner 折进 pack 记忆;
+  下一局同 pack 时给每个 NPC 注入"最近一局你被裁了,赢家是资本家阵营"的
+  prompt 片段,NPC 跨局记仇/记恩。BaseAgent 加 packMemory 形参。+8 测试。
+
+### P2 — Squad 导演 model A/B harness (+实跑 opus vs sonnet)
+- directSquadStory 加 `opts.model` 覆盖;`scripts/squadAb.ts` 同一 roster 跑
+  control vs variant,并排打印 + ⚠ 标模板兜底。实跑结论:opus-4-7 与
+  sonnet-4-5-20250929 都产出真·5 幕剧,sonnet 旁白更细,质量可换。修正
+  .env.example 里不存在的 'claude-sonnet-4-7'(查 GET /v1/models 得真 id)。
+
+### P3 — 真 Stripe Checkout 替换 v1.0 demo (test-mode + 优雅降级)
+- `stripeSignature.ts`(纯 webhook 验签,+9 测试)+ `routes/billing.ts`
+  (fetch 建 Checkout Session / 验签 webhook / status)+ `billingStore.ts`。
+  client `utils/billing.ts` + Premium 接真 checkout,无 STRIPE_SECRET_KEY 时
+  回落 demo,不破坏现有默认。永不接触卡号(在 Stripe 托管页输入)。
+
+### P4 — 班味 Wrapped 邮件订阅 (subscribe + 可插拔 sender)
+- `emailValidate.ts`(纯,+6)+ `wrappedEmail.ts`(纯 HTML digest 构建,转义防
+  注入,+5)+ `subscriberStore.ts` + `emailSender.ts`(console 默认 / Resend
+  env-gated)+ `routes/wrapped.ts`。BanweiWrapped 加邮箱订阅输入。无 provider
+  key 时只入库不发信。
+
+---
+
 ## v6.50 — 2026-06-05 · CHANGELOG 还债 + evidenceParser fuzzy + 班味分享
 
 ### P1 — CHANGELOG 补登 v6.42–v6.49 + 修顶部排序
