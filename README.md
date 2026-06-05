@@ -278,6 +278,22 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 
 **起 star ≠ 帮我,起 star = 让算法把这个项目推给更多打工人。**
 
+### git hooks(可选)
+
+仓库带一个**不拦截**的 pre-push 钩子:push 前用 `git-cliff` 列出
+还没写进 [`docs/CHANGELOG.md`](docs/CHANGELOG.md) 的提交,提醒你补一句版本日志
+(只 nag,push 照常进行)。一键安装:
+
+```bash
+npm run hooks:install        # 把 scripts/git-hooks/* 拷进 .git/hooks/
+```
+
+想临时静默(比如纯文档提交):
+
+```bash
+OFFICE_ZOO_SKIP_CHANGELOG_NUDGE=1 git push
+```
+
 ## 🙏 致谢
 
 OFFICE ZOO 站在一整套开源 AI 与 Web 生态的肩膀上,特此致谢:

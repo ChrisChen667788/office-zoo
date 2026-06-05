@@ -192,6 +192,23 @@ OFFICE ZOO stands on a stack of open-source AI + Web projects:
 
 PRs welcome. Open issues for ideas. Read [docs/DESIGN.md](docs/DESIGN.md) before submitting visual changes to keep the design system coherent across consumer + B2B surfaces.
 
+### git hooks (optional)
+
+The repo ships a **non-blocking** pre-push hook: before each push it runs
+`git-cliff` to list commits not yet written into
+[`docs/CHANGELOG.md`](docs/CHANGELOG.md) and prints a reminder — it only nags,
+the push still goes through. Install it once:
+
+```bash
+npm run hooks:install        # copies scripts/git-hooks/* into .git/hooks/
+```
+
+Silence it for a single push (e.g. a docs-only commit):
+
+```bash
+OFFICE_ZOO_SKIP_CHANGELOG_NUDGE=1 git push
+```
+
 ---
 
 <div align="center">
