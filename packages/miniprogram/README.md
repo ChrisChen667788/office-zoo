@@ -61,7 +61,7 @@ packages/miniprogram/
   跟 web 的 localStorage 同 key 名, 但两端 storage 互相隔离. 不同
   设备/端是两个独立的"我". 真要同步需要登录 (out of scope).
 
-## 路线 (v6.35 → v6.44)
+## 路线 (v6.35 → v6.50)
 
 **已完成:**
 - [x] **v6.35 P1** — Banwei page Canvas 班味海报 (score badge + 5 轴雷达)
@@ -70,9 +70,11 @@ packages/miniprogram/
 - [x] **v6.43 P3** — 技术架构页 (`pages/about`, 静态架构图 PNG)
 - [x] **v6.44 P3** — 公司主题包: `pages/company-pack` web-view 入口 +
       about 页原生 emoji 头像展示条
+- [x] **v6.50 P3** — 班味指数分享: `wx.showShareMenu` 开 转发+朋友圈,
+      `onShareAppMessage`/`onShareTimeline` 均带自定义 imageUrl (复用
+      1080×1350 海报, 预渲染缓存; 未就绪则回落系统页面截图)
 
 **待办:**
-- [ ] 班味指数 share to WeChat (wx.showShareMenu + 自定义 imageUrl)
 - [ ] 真机 devtools 验证 about 页 (需先填真实 appid — 见上方"about 页验证状态")
 - [ ] pack avatar 上小程序原生面 (目前只在 web-view / about 展示池)
 

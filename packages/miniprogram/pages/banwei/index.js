@@ -16,6 +16,16 @@ Page({
     err: null,
   },
 
+  onReady() {
+    // v6.50 P3 — enable BOTH 转发给好友 + 分享到朋友圈 from the system「···」
+    // menu (without this, shareTimeline is greyed out even though the
+    // handler exists).
+    wx.showShareMenu({
+      withShareTicket: true,
+      menus: ['shareAppMessage', 'shareTimeline'],
+    });
+  },
+
   onShow() {
     this.fetchBanwei();
   },
@@ -47,6 +57,9 @@ Page({
           priorScore: prior ? prior.score : null,
           delta,
         });
+        // v6.50 P3 — pre-render the poster so 转发/朋友圈 use a custom card
+        // image instead of WeChat's default page screenshot. Best-effort.
+        this._prepareShareImage();
       })
       .catch((e) => this.setData({ loading: false, err: String(e?.errMsg || e) }));
   },
@@ -64,37 +77,56 @@ Page({
   // wx.previewImage 预览, 用户长按可以保存到相册或分享。
   onShareCard() {
     wx.showLoading({ title: '生成海报...' });
-    const query = wx.createSelectorQuery();
-    query.select('#share-canvas')
-      .fields({ node: true, size: true })
-      .exec((res) => {
-        if (!res[0] || !res[0].node) {
-          wx.hideLoading();
-          wx.showToast({ title: '画布未就绪', icon: 'error' });
-          return;
-        }
-        const canvas = res[0].node;
-        const ctx = canvas.getContext('2d');
-        const W = 1080, H = 1350;
-        const dpr = wx.getSystemInfoSync().pixelRatio || 2;
-        canvas.width = W * dpr; canvas.height = H * dpr;
-        ctx.scale(dpr, dpr);
-        this.paintCanvas(ctx, W, H);
-
-        wx.canvasToTempFilePath({
-          canvas, width: W, height: H, destWidth: W, destHeight: H,
-          fileType: 'png',
-          success: (r) => {
-            wx.hideLoading();
-            wx.previewImage({ urls: [r.tempFilePath], current: r.tempFilePath });
-          },
-          fail: (e) => {
-            wx.hideLoading();
-            wx.showToast({ title: '导出失败', icon: 'error' });
-            console.error('[banwei] canvasToTempFilePath fail', e);
-          },
-        });
+    this._renderPoster()
+      .then((tempFilePath) => {
+        wx.hideLoading();
+        this.shareImagePath = tempFilePath; // reuse as custom share imageUrl
+        wx.previewImage({ urls: [tempFilePath], current: tempFilePath });
+      })
+      .catch((e) => {
+        wx.hideLoading();
+        wx.showToast({ title: '导出失败', icon: 'error' });
+        console.error('[banwei] poster render fail', e);
       });
+  },
+
+  /** Render the 1080×1350 班味 poster to a temp PNG; resolves to its path.
+   *  Shared by onShareCard (preview) and the custom share imageUrl
+   *  (v6.50 P3). The off-screen #share-canvas is always in the WXML, so
+   *  this is safe to call any time after the page data is set. */
+  _renderPoster() {
+    return new Promise((resolve, reject) => {
+      const query = wx.createSelectorQuery();
+      query.select('#share-canvas')
+        .fields({ node: true, size: true })
+        .exec((res) => {
+          if (!res[0] || !res[0].node) {
+            reject(new Error('share-canvas node not ready'));
+            return;
+          }
+          const canvas = res[0].node;
+          const ctx = canvas.getContext('2d');
+          const W = 1080, H = 1350;
+          const dpr = wx.getSystemInfoSync().pixelRatio || 2;
+          canvas.width = W * dpr; canvas.height = H * dpr;
+          ctx.scale(dpr, dpr);
+          this.paintCanvas(ctx, W, H);
+          wx.canvasToTempFilePath({
+            canvas, width: W, height: H, destWidth: W, destHeight: H,
+            fileType: 'png',
+            success: (r) => resolve(r.tempFilePath),
+            fail: reject,
+          });
+        });
+    });
+  },
+
+  /** v6.50 P3 — best-effort pre-render so 转发/朋友圈 have a custom card
+   *  ready. Silent on failure — share then falls back to a page screenshot. */
+  _prepareShareImage() {
+    this._renderPoster()
+      .then((tempFilePath) => { this.shareImagePath = tempFilePath; })
+      .catch(() => { /* keep shareImagePath unset → default screenshot */ });
   },
 
   /** Delegates to extracted pure fn (v6.36 P2). Real paint logic lives
@@ -211,12 +243,23 @@ Page({
     ctx.fillText('🐀 github.com/ChrisChen667788/office-zoo', W / 2, H - 60);
   },
 
-  // 系统分享按钮 — onShareAppMessage 让 banwei 数字成为转发凭据
+  // 系统分享 — 转发给好友. imageUrl 用预渲染的海报 (未就绪则 WeChat 自动截图页面).
   onShareAppMessage() {
     const { score, tierLabel } = this.data;
     return {
       title: `我的本周班味指数: ${score}/100 (${tierLabel})`,
       path: '/pages/banwei/index',
+      imageUrl: this.shareImagePath, // undefined ⇒ 默认页面截图
+    };
+  },
+
+  // v6.50 P3 — 分享到朋友圈. onShareTimeline 用 query (非 path) + 同一张海报.
+  onShareTimeline() {
+    const { score, tierLabel } = this.data;
+    return {
+      title: `我的本周班味指数: ${score}/100 (${tierLabel})`,
+      query: '',
+      imageUrl: this.shareImagePath,
     };
   },
 });
