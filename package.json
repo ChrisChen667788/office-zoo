@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit -p packages/server && tsc --noEmit -p packages/client",
     "changelog": "git-cliff --unreleased --output /tmp/cliff-unreleased.md && echo 'wrote /tmp/cliff-unreleased.md — review then splice into docs/CHANGELOG.md above latest section'",
     "changelog:full": "git-cliff --output docs/CHANGELOG.auto.md && echo 'wrote docs/CHANGELOG.auto.md (auto regen from scratch — NOT the curated docs/CHANGELOG.md)'",
-    "hooks:install": "bash scripts/install-hooks.sh"
+    "hooks:install": "bash scripts/install-hooks.sh",
+    "gen:mp-arch": "node scripts/gen-mp-architecture.mjs",
+    "gen:screenshots": "node scripts/capture_screenshots.mjs && node scripts/capture_game_screens.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

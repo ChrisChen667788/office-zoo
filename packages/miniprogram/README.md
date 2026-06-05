@@ -12,6 +12,7 @@ packages/miniprogram/
 ├─ app.wxss           深紫宇宙调色板
 ├─ assets/
 │  └─ architecture.png  从 architecture.svg 渲染的静态架构图 (about 页用)
+│                       重生: `npm run gen:mp-arch` (改了源 SVG 后跑)
 ├─ project.config.json  小程序项目配置 (appid 占位待填)
 ├─ sitemap.json
 └─ pages/

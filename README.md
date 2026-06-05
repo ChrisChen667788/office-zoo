@@ -152,7 +152,7 @@
 | **🎁 班味年终 Wrapped 海报** | **🪪 你是哪种打工人 · 班味卡** |
 | ![年终回顾](./assets/screenshots/banwei-wrapped-card.png) | ![班味卡](./assets/screenshots/03-profile.png) |
 
-> 截图由 `node scripts/capture_screenshots.mjs`(静态路由)+ `scripts/capture_game_screens.mjs`(活的游戏局)Playwright 真机抓取,每次发版刷新。
+> 截图由 `npm run gen:screenshots`(静态路由 + 活的游戏局,Playwright 真机抓取)刷新,需先 `npm run dev` 起本地服务。
 
 ## 30 秒跑起来
 
