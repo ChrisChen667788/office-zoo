@@ -1,22 +1,34 @@
 # OFFICE ZOO · 班味剧场 · 微信小程序端
 
-v6.34 P4 脚手架. 4-tab 结构, 大部分页面是 web-view 包装完整 H5 体验, 班味指数页是真原生小程序渲染.
+v6.34 P4 脚手架. 大部分页面是 web-view 包装完整 H5 体验, 班味指数页 +
+技术架构页是真原生小程序渲染.
 
 ## 结构
 
 ```
 packages/miniprogram/
-├─ app.json           4 tabBar 注册
+├─ app.json           6 page 注册 (5 在 tabBar)
 ├─ app.js             全局 userId + api(path, opts) wrapper
 ├─ app.wxss           深紫宇宙调色板
+├─ assets/
+│  └─ architecture.png  从 architecture.svg 渲染的静态架构图 (about 页用)
 ├─ project.config.json  小程序项目配置 (appid 占位待填)
 ├─ sitemap.json
 └─ pages/
    ├─ landing/        web-view → 完整 H5 Landing (4 模式选择)
    ├─ banwei/         原生 — 班味指数 score badge + 5 axis breakdown
+   ├─ hot-quotes/     原生 — 班味金句投稿表单
    ├─ anniversary/    web-view → /anniversary 6 milestone deck
-   └─ profile/        web-view → /profile/me 班味卡 + stats + achievements
+   ├─ profile/        web-view → /profile/me 班味卡 + stats + achievements
+   ├─ about/          原生 — 技术架构图 + 公司主题包 emoji 头像展示 (v6.43/v6.44)
+   └─ company-pack/   web-view → /company-pack/edit 公司主题包编辑器 (v6.44)
 ```
+
+> **about 页验证状态** (v6.45/v6.46): emoji 头像条用原生 `<text>` 渲染纯
+> Unicode emoji (走系统 emoji 字体, 无微信特有路径). 已用 1:1 WXSS-fidelity
+> HTML 渲染验证布局正常. **真机 devtools 验证待办** — 需先填真实 appid 再
+> 导入 `packages/miniprogram/`; 自动化导入受限于本地环境的窗口焦点问题,
+> 留给手动一次性确认.
 
 ## 部署前要做的 3 件事
 
