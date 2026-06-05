@@ -190,7 +190,12 @@ export function setupSocketHandler(io: SocketServer) {
       glog.info({ sid: socket.id }, 'starting game');
       engine.startGame().catch(err => {
         glog.error({ err }, 'game engine crashed');
-        io.to(gameId).emit('game:error', { message: 'Game engine error: ' + err.message });
+        io.to(gameId).emit('game:error', { message: 'Game engine error: ' + (err?.message ?? 'unknown') });
+        // v6.55 #1 — startGame now contains its own phase errors (graceful
+        // game_over + running=false), so reaching here means even that failed.
+        // Tear the engine down so a half-dead game can't linger in the Map and
+        // wedge future joins; small delay lets the error toast reach clients.
+        setTimeout(() => destroyGame(gameId, 'startGame rejected'), 5_000).unref();
       });
     });
 

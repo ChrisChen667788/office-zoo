@@ -32,6 +32,7 @@ import { listPackMemories, recordPackGame } from '../services/packMemoryStore';
 import { formatPackMemoryForNpc, summarizeWinner } from '../services/packMemoryFormat';
 // v6.52 P1 — special cat-role night actions (detective investigate / medic protect).
 import { chooseInvestigateTarget, chooseProtectTarget, teamLabel, resolveKillTarget } from './roleAbilities';
+import { logEngineCrash } from '../services/crashLog';
 import { assignRoomActivity, commuteCaption, pickAnchor, pickCarriedItem } from './activity';
 // Activity + PlayerTickInfo are new — added separately to keep the diff
 // against the original import block obvious. PlayerState is already imported
@@ -507,63 +508,87 @@ export class GameEngine extends EventEmitter {
     await this.setPhase(GamePhase.ROLE_REVEAL);
     await delay(3000);
 
-    // Main loop
-    while (this.running && this.state.winner === WinCondition.NONE) {
-      this.state.round++;
+    // v6.55 #1 — wrap the whole live loop so a single phase throwing (a
+    // transient LLM/TTS/network hiccup, or an edge case as players die) can't
+    // leave the game FROZEN mid-phase. Before this, an uncaught throw exited
+    // the loop with `running` still true and no game_over emitted → every
+    // client stuck forever ("报错卡死"). Now: log it, emit a graceful
+    // game_over so clients unfreeze, and ALWAYS clear `running` in finally so
+    // the engine can be torn down and a fresh game started cleanly.
+    try {
+      // Main loop
+      while (this.running && this.state.winner === WinCondition.NONE) {
+        this.state.round++;
 
-      // FREE_ROAM
-      await this.setPhase(GamePhase.FREE_ROAM);
-      await this.runFreeRoam();
+        // FREE_ROAM
+        await this.setPhase(GamePhase.FREE_ROAM);
+        await this.runFreeRoam();
 
-      if (this.checkWin()) break;
+        if (this.checkWin()) break;
 
-      // MEETING
-      await this.setPhase(GamePhase.MEETING);
-      await delay(2000);
+        // MEETING
+        await this.setPhase(GamePhase.MEETING);
+        await delay(2000);
 
-      // DISCUSSION
-      await this.setPhase(GamePhase.DISCUSSION);
-      await this.runDiscussion();
+        // DISCUSSION
+        await this.setPhase(GamePhase.DISCUSSION);
+        await this.runDiscussion();
 
-      // VOTING
-      await this.setPhase(GamePhase.VOTING);
-      await this.runVoting();
+        // VOTING
+        await this.setPhase(GamePhase.VOTING);
+        await this.runVoting();
 
-      // VOTE_RESULT
-      await this.setPhase(GamePhase.VOTE_RESULT);
-      await this.resolveVotes();
-      await delay(3000);
+        // VOTE_RESULT
+        await this.setPhase(GamePhase.VOTE_RESULT);
+        await this.resolveVotes();
+        await delay(3000);
 
-      if (this.checkWin()) break;
+        if (this.checkWin()) break;
+      }
+
+      // GAME_OVER
+      await this.setPhase(GamePhase.GAME_OVER);
+      // v6.8 — fold final state into per-character stats. Fire-and-forget;
+      // recordGameResults swallows its own errors so a stats write can never
+      // block GAME_OVER signaling. Stats power PersonaCard's 战绩 line.
+      void recordGameResults(this.state);
+      // v6.10 — fold spectator's per-character views into their personal
+      // ledger. Only when spectatorUserId is set (anonymous spectators
+      // don't accumulate personalized history). Powers personalized
+      // "你看过的 Top 3" on /profile.
+      if (this.spectatorUserId) {
+        void recordSpectatorViews(this.spectatorUserId, this.state);
+      }
+      // v6.51 P1 — fold this game's outcome into the pack's cross-game memory
+      // so the recurring cast carries grudges/loyalties into the next game.
+      // Fire-and-forget; never blocks GAME_OVER. Only when a company pack was used.
+      if (this.state.config.companyPackId) {
+        const packId = this.state.config.companyPackId;
+        void recordPackGame(packId, {
+          ts: Date.now(),
+          winnerLabel: summarizeWinner(this.state.winner),
+          survivors: this.state.players.filter((p) => p.isAlive).map((p) => p.name),
+          eliminated: this.state.players.filter((p) => !p.isAlive).map((p) => p.name),
+          roster: this.state.players.map((p) => p.name),
+        }).catch((err) => console.error('[packMemory] record failed:', err));
+      }
+    } catch (err) {
+      // A phase threw — contain it so the game ends instead of freezing.
+      this.log.error({ err }, 'game loop aborted — ending gracefully to avoid a frozen game');
+      // Persist a greppable crash record (stdout isn't captured when the dev
+      // server runs detached) so a recurrence can actually be root-caused.
+      void logEngineCrash({ gameId: this.state.id, round: this.state.round, phase: this.state.phase, err });
+      try {
+        this.state.phase = GamePhase.GAME_OVER;
+        this.addEvent('game_over', '本局出了点状况,提前散场了(可以重开一局)');
+        this.emit('game_over', { winner: this.state.winner, reason: 'engine_error' });
+        this.emitState();
+      } catch {
+        /* even the graceful-exit emit failed — nothing more we can safely do */
+      }
+    } finally {
+      this.running = false;
     }
-
-    // GAME_OVER
-    await this.setPhase(GamePhase.GAME_OVER);
-    // v6.8 — fold final state into per-character stats. Fire-and-forget;
-    // recordGameResults swallows its own errors so a stats write can never
-    // block GAME_OVER signaling. Stats power PersonaCard's 战绩 line.
-    void recordGameResults(this.state);
-    // v6.10 — fold spectator's per-character views into their personal
-    // ledger. Only when spectatorUserId is set (anonymous spectators
-    // don't accumulate personalized history). Powers personalized
-    // "你看过的 Top 3" on /profile.
-    if (this.spectatorUserId) {
-      void recordSpectatorViews(this.spectatorUserId, this.state);
-    }
-    // v6.51 P1 — fold this game's outcome into the pack's cross-game memory
-    // so the recurring cast carries grudges/loyalties into the next game.
-    // Fire-and-forget; never blocks GAME_OVER. Only when a company pack was used.
-    if (this.state.config.companyPackId) {
-      const packId = this.state.config.companyPackId;
-      void recordPackGame(packId, {
-        ts: Date.now(),
-        winnerLabel: summarizeWinner(this.state.winner),
-        survivors: this.state.players.filter((p) => p.isAlive).map((p) => p.name),
-        eliminated: this.state.players.filter((p) => !p.isAlive).map((p) => p.name),
-        roster: this.state.players.map((p) => p.name),
-      }).catch((err) => console.error('[packMemory] record failed:', err));
-    }
-    this.running = false;
   }
 
   stop(): void {
