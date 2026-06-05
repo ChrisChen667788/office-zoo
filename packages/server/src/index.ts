@@ -41,6 +41,7 @@ import { companyPackRoutes } from './routes/companyPack';
 import { barRoutes } from './routes/bar';
 import { characterRoutes } from './routes/characters';
 import { shareSocialRoutes } from './routes/shareSocial';
+import { billingRoutes } from './routes/billing';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -64,6 +65,9 @@ app.route('/api/squad', squadRoutes);
 // v6.8 — character IP roster (epithet + catchphrases + lifetime stats)
 // powering the PersonaCard popover on Classic/Immersive.
 app.route('/api/characters', characterRoutes);
+// v6.51 P3 — real Stripe Checkout (test-mode, env-driven). Falls back to
+// the client demo flow when STRIPE_SECRET_KEY is unset.
+app.route('/api/billing', billingRoutes);
 // v6.11 P4 — public crawler-friendly share pages. Mounted at /share (NOT
 // /api/share — keeps the path clean for social link sharing). Each route
 // returns full HTML with og:* meta tags for Twitter/Slack/WeChat unfurl.

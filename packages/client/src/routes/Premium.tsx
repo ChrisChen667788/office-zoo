@@ -29,6 +29,7 @@ import {
   type Entitlement,
   type PremiumPlan,
 } from '../utils/entitlement';
+import { startRealCheckout, syncEntitlementFromServer } from '../utils/billing';
 import { useT, type DictKey } from '../utils/i18n';
 
 // v1.2.1 — feature card data carries dict keys, not raw zh-CN strings.
@@ -76,6 +77,20 @@ export default function Premium() {
 
   // Re-render on entitlement changes (e.g. user downgraded in another tab).
   useEffect(() => subscribeEntitlement(setEntitlement), []);
+
+  // v6.51 P3 — mirror the server's authoritative billing record (real
+  // Stripe) into the local cache on mount + after a success redirect.
+  // No-ops when Stripe isn't configured, so the demo flow is untouched.
+  useEffect(() => {
+    void syncEntitlementFromServer();
+  }, []);
+
+  // v6.51 P3 — checkout: try real Stripe first; fall back to the demo
+  // modal when Stripe isn't configured (or the call fails).
+  const handleCheckout = async () => {
+    const redirected = await startRealCheckout(plan);
+    if (!redirected) setCheckoutOpen(true);
+  };
 
   const subscribed = isPremium();
 
@@ -131,7 +146,7 @@ export default function Premium() {
           <PricingCard
             plan={plan}
             onPlanChange={setPlan}
-            onCheckout={() => setCheckoutOpen(true)}
+            onCheckout={handleCheckout}
           />
         )}
 
