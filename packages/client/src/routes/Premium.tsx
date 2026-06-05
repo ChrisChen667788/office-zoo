@@ -43,7 +43,7 @@ const FEATURES: Array<{
   { emoji: '🌍', titleKey: 'premium.feature.faang.title',  bodyKey: 'premium.feature.faang.body',  status: 'live' },
   { emoji: '🎙️', titleKey: 'premium.feature.voice.title',  bodyKey: 'premium.feature.voice.body',  status: 'soon' },
   { emoji: '⚖️', titleKey: 'premium.feature.lawyer.title', bodyKey: 'premium.feature.lawyer.body', status: 'soon' },
-  { emoji: '🎬', titleKey: 'premium.feature.replay.title', bodyKey: 'premium.feature.replay.body', status: 'soon' },
+  { emoji: '🎬', titleKey: 'premium.feature.replay.title', bodyKey: 'premium.feature.replay.body', status: 'live' },
 ];
 
 // v1.2.1 — pricing data via dict lookup. Per-locale prices live in i18n

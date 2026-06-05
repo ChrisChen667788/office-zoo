@@ -7,6 +7,30 @@
 
 ---
 
+## v6.54 — 2026-06-05 · 🎬 对局回放(服务端持久化 + 时间线回放页)
+
+roadmap 收官:🎬 回放落地(它本身也是 Premium 的"历史回放"权益)。voice/lawyer
+经评估**不做**:voice 需 voice-clone 基建、lawyer 是"真人咨询"线下服务非纯代码,
+都偏商业化,与"回到核心玩法"取向不符 —— 如实标注不充数。+5 测试 → 265。
+
+### P1 — 服务端持久化 + 读取 API
+- 引擎是内存态、game_over 后 ~60s 销毁,/result/:gameId 一直是死占位。新增:
+  `shared/replay.ts`(ReplayRecord 类型 + 纯函数 digestReplay / groupTimelineByRound,
+  server+client 共用,+5 vitest);`replayStore.ts`(文件存储 capped ring 最近 50 局);
+  `routes/replay.ts`(GET /api/replay 列表 digest + GET /api/replay/:gameId 全量);
+  socketHandler game_over 钩子存盘(终局 roster + getTimeline),fire-and-forget。
+
+### P2 — 客户端回放页 + 赛后入口
+- Result.tsx 改为拉 /api/replay/:gameId,渲染终局信息 + 按轮分组的事件时间线
+  (类型图标 🔪🗳️🛡️⚖️🔍🏆)+ "复制回放链接"深链分享;live store 作即时兜底。
+  HighlightReel 赛后加"🎬 看完整回放"入口。
+
+### P3 — Premium 回放权益上线 + 诚实收尾
+- Premium 🎬 perk 'soon'→'live'。README zh+en roadmap 更新(voice/lawyer 标注暂缓
+  原因),vitest 计数 260 → 265。
+
+---
+
 ## v6.53 — 2026-06-05 · 补齐会上场的特殊角色技能(法务挡刀 + 数据分析查产出)
 
 延续 v6.52,把**真会上场**的特殊角色技能补完。先做 spawn 审计:其余角色里只有
