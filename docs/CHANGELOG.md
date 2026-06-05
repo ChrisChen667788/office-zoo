@@ -9,7 +9,7 @@
 
 ## v6.51 — 2026-06-05 · pack 跨局记忆 + Squad model A/B + 真 Stripe + Wrapped 邮件订阅
 
-四个路线图大项一轮落地(脚手架级,外部服务 env 驱动)。+43 测试 → 231。
+四个路线图大项一轮落地(脚手架级,外部服务 env 驱动)。+28 测试 → 231。
 
 ### P1 — 公司主题包 pack 内剧情记忆 (NPC 跨局记仇)
 - `packMemoryFormat.ts`(纯)+ `packMemoryStore.ts`(file-backed, cap 5 局,
