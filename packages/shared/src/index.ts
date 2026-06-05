@@ -2,6 +2,7 @@ export * from './types/game';
 export * from './types/roles';
 export * from './types/events';
 export * from './types/personality';
+export * from './replay';
 export * from './data/jargon';
 export * from './data/fired';
 export * from './data/talkshow';

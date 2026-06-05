@@ -43,6 +43,7 @@ import { characterRoutes } from './routes/characters';
 import { shareSocialRoutes } from './routes/shareSocial';
 import { billingRoutes } from './routes/billing';
 import { wrappedRoutes } from './routes/wrapped';
+import { replayRoutes } from './routes/replay';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -72,6 +73,8 @@ app.route('/api/billing', billingRoutes);
 // v6.51 P4 — 班味 Wrapped 邮件订阅 (subscribe + pluggable sender; console
 // until RESEND_API_KEY is set).
 app.route('/api/wrapped', wrappedRoutes);
+// v6.54 — 🎬 对局回放 read API (write side = socketHandler game_over hook).
+app.route('/api/replay', replayRoutes);
 // v6.11 P4 — public crawler-friendly share pages. Mounted at /share (NOT
 // /api/share — keeps the path clean for social link sharing). Each route
 // returns full HTML with og:* meta tags for Twitter/Slack/WeChat unfurl.

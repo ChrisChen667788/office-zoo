@@ -6,6 +6,7 @@ import {
 } from '../routes/stats';
 import { generateTTSAudio } from '../services/tts';
 import { extractEvidenceRefs } from '../services/evidenceParser';
+import { saveReplay } from '../services/replayStore';
 import { generateAvatar, getAllCachedAvatars } from '../services/imageGen';
 import { logger, gameLogger } from '../utils/logger';
 import { validateEvent } from '../utils/validate';
@@ -590,8 +591,22 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
 
   engine.on('game_over', (data) => {
     io.to(gameId).emit('game:over', data);
-    io.to(gameId).emit('game:state', engine.getSerializedState());
+    const finalState = engine.getSerializedState();
+    io.to(gameId).emit('game:state', finalState);
     bumpGameOver();
+    // v6.54 — persist the finished game for 🎬 replay BEFORE teardown.
+    // Fire-and-forget; a replay-save hiccup must never block game_over.
+    void saveReplay({
+      gameId,
+      endedAt: Date.now(),
+      winner: finalState.winner,
+      rounds: finalState.round,
+      players: finalState.players.map((p) => ({
+        id: p.id, name: p.name, role: p.role, team: p.team,
+        isAlive: p.isAlive, personality: p.personality, avatar: p.avatar ?? undefined,
+      })),
+      timeline: engine.getTimeline(),
+    }).catch((err) => console.error('[replay] save failed:', err));
     // Clean up after 60 s (clients have time to receive final state).
     // Use destroyGame to ensure listeners + agents are released, not just
     // the Map entry — otherwise EventEmitter listeners + agent references
