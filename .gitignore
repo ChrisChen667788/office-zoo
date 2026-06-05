@@ -76,3 +76,7 @@ assets/screenshots/04-fired-landing.png
 assets/screenshots/05-squad-lobby.png
 assets/screenshots/06-squad-history.png
 assets/screenshots/08-premium.png
+
+# v6.46 — one-off verification preview renders (not README-referenced).
+# Kept locally as session evidence, regenerated on demand; not tracked.
+assets/screenshots/*-preview.png
