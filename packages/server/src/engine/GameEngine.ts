@@ -271,6 +271,10 @@ export class GameEngine extends EventEmitter {
   private investigatedByDetective: Set<string> = new Set();
   /** v6.53 P2 — same, for the 数据分析师(vigilante)'s OKR-output checks. */
   private investigatedByVigilante: Set<string> = new Set();
+  /** v6.56 — dead employees the 内审专员(medium) has already audited. */
+  private auditedByMedium: Set<string> = new Set();
+  /** v6.56 — living players the 销售冠军(adventurer) has already tailed. */
+  private trackedByAdventurer: Set<string> = new Set();
   /** Compressed record of last round's discussion — fed into next round's context for memory. */
   private lastRoundSpeeches: Array<{ name: string; text: string }> = [];
   /** v6.25 P1 — psy-war leaks submitted by the spectator via GhostChatPanel's
@@ -1565,13 +1569,13 @@ export class GameEngine extends EventEmitter {
    * deduction stays interesting.
    *
    * Ability coverage (only roles that appear in ROLE_PRESETS are wired):
-   *   ✅ DETECTIVE_CAT (HR总监)    — hard faction read         [presets 6/8/9/10]
-   *   ✅ MEDIC_CAT     (工会代表)  — nullify-protect            [presets 6/8/9/10]
-   *   ✅ BODYGUARD_CAT (法务顾问)  — body-block (dies for ward) [presets 9/10]
-   *   ✅ VIGILANTE_CAT (数据分析师)— OKR-backlog soft tell      [preset 10]
+   *   ✅ DETECTIVE_CAT (HR总监)    — hard faction read         [presets 6/8/9/10/11/12]
+   *   ✅ MEDIC_CAT     (工会代表)  — nullify-protect            [presets 6/8/9/10/11/12]
+   *   ✅ BODYGUARD_CAT (法务顾问)  — body-block (dies for ward) [presets 9/10/11/12]
+   *   ✅ VIGILANTE_CAT (数据分析师)— OKR-backlog soft tell      [presets 10/11/12]
+   *   ✅ MEDIUM_CAT    (内审专员)  — audit the DEAD's faction    [presets 11/12]   (v6.56)
+   *   ✅ ADVENTURER_CAT(销售冠军)  — tail a living player's room [preset 12]       (v6.56)
    *   ▪️ ENGINEER_CAT  (程序员)    — positioning flavor only, no deduction power
-   *   ▫️ MEDIUM_CAT / ADVENTURER_CAT — defined in ROLE_REGISTRY but in NO
-   *      preset rotation, so deliberately not wired (would be dead code).
    */
   private resolveNightActions(): void {
     // Protections are per-round — clear last round's cover first.
@@ -1638,6 +1642,51 @@ export class GameEngine extends EventEmitter {
             `你(HR总监)查了 ${target.name} 的真实绩效档案:TA 属于 ${teamLabel(target.team)}阵营。`,
           );
           this.addEvent('role_action', '🔍 HR总监这一轮暗中查了一个人的底');
+        }
+      }
+    }
+
+    // 内审专员 (MEDIUM_CAT) — audit ONE departed (dead) employee's file and
+    // learn their true faction. Distinct from HR总监 (which reads the LIVING):
+    // the 内审专员 reads the dead, so it can retroactively confirm "was that
+    // fired person actually 资本家?". Nothing to audit until someone's left
+    // (round 1 → null → skipped). v6.56.
+    const medium = alive.find((p) => p.role === Role.MEDIUM_CAT);
+    if (medium) {
+      const dead = this.state.players.filter((p) => !p.isAlive);
+      const targetId = chooseInvestigateTarget(medium.id, dead, this.auditedByMedium);
+      if (targetId) {
+        this.auditedByMedium.add(targetId);
+        const target = this.state.players.find((p) => p.id === targetId);
+        if (target) {
+          this.agents.get(medium.id)?.addRoleIntel(
+            `你(内审专员)翻了已离职的 ${target.name} 的档案:TA 当年其实属于 ${teamLabel(target.team)}阵营。`,
+          );
+          this.addEvent('role_action', '🔎 内审专员这一轮查了一份离职员工的档案');
+        }
+      }
+    }
+
+    // 销售冠军 (ADVENTURER_CAT) — 人脉广: tail ONE living player and learn where
+    // they ended up tonight + who else was in that room (co-location). A soft
+    // tell for who's grouping with whom (e.g. a 资本家 lurking near a victim).
+    // v6.56.
+    const adventurer = alive.find((p) => p.role === Role.ADVENTURER_CAT);
+    if (adventurer) {
+      const targetId = chooseInvestigateTarget(adventurer.id, alive, this.trackedByAdventurer);
+      if (targetId) {
+        this.trackedByAdventurer.add(targetId);
+        const target = this.state.players.find((p) => p.id === targetId);
+        if (target) {
+          const room = target.position?.room ?? '某处';
+          const others = alive
+            .filter((p) => p.id !== target.id && p.position?.room === room)
+            .map((p) => p.name);
+          const company = others.length ? `身边还有 ${others.join('、')}` : '独来独往、身边没人';
+          this.agents.get(adventurer.id)?.addRoleIntel(
+            `你(销售冠军)靠人脉摸到 ${target.name} 今晚的行踪:TA 在 ${room},${company}。`,
+          );
+          this.addEvent('role_action', '🏆 销售冠军这一轮追踪了一个人的行踪');
         }
       }
     }

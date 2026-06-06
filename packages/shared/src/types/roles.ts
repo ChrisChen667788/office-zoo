@@ -177,5 +177,18 @@ export const ROLE_PRESETS: Record<number, { cat: Role[]; dog: Role[]; neutral: R
     cat: [Role.DETECTIVE_CAT, Role.MEDIC_CAT, Role.ENGINEER_CAT, Role.BODYGUARD_CAT, Role.VIGILANTE_CAT, Role.VILLAGER_CAT],
     dog: [Role.KILLER_DOG, Role.MORPHING_DOG, Role.NINJA_DOG],
     neutral: [Role.JESTER]
+  },
+  // v6.56 — extend the ladder so the last two defined-but-benched cat roles
+  // actually rotate in: 内审专员(MEDIUM) at 11+, 销售冠军(ADVENTURER) at 12.
+  // Their night skills are wired in GameEngine.resolveNightActions.
+  11: {
+    cat: [Role.DETECTIVE_CAT, Role.MEDIC_CAT, Role.ENGINEER_CAT, Role.BODYGUARD_CAT, Role.VIGILANTE_CAT, Role.MEDIUM_CAT, Role.VILLAGER_CAT],
+    dog: [Role.KILLER_DOG, Role.MORPHING_DOG, Role.NINJA_DOG],
+    neutral: [Role.JESTER]
+  },
+  12: {
+    cat: [Role.DETECTIVE_CAT, Role.MEDIC_CAT, Role.ENGINEER_CAT, Role.BODYGUARD_CAT, Role.VIGILANTE_CAT, Role.MEDIUM_CAT, Role.ADVENTURER_CAT],
+    dog: [Role.KILLER_DOG, Role.MORPHING_DOG, Role.NINJA_DOG, Role.SPY_DOG],
+    neutral: [Role.JESTER]
   }
 };
