@@ -8,6 +8,9 @@ node_modules/
 __pycache__/
 *.pyc
 
+# icons:cutout 的本地原图备份(可由 npm run icons:regen 重生,勿入库)
+.bak-bg/
+
 # Build output
 dist/
 build/
