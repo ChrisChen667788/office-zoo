@@ -32,6 +32,8 @@ export const LLM_TIMEOUTS = {
   SCORING: 15_000,
   SUGGESTIONS: 15_000,
   DIRECTOR: 75_000,
+  // v6.58 — 「裁了么」闯关牌局每次出牌的 HR 台词(≤80 tokens,要快,谈判节奏不能卡).
+  NEGOTIATION_HR_LINE: 15_000,
 } as const;
 
 export type LLMTimeoutKind = keyof typeof LLM_TIMEOUTS;

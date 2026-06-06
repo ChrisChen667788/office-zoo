@@ -44,6 +44,7 @@ import { shareSocialRoutes } from './routes/shareSocial';
 import { billingRoutes } from './routes/billing';
 import { wrappedRoutes } from './routes/wrapped';
 import { replayRoutes } from './routes/replay';
+import { negotiationRoutes } from './routes/negotiation';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -75,6 +76,8 @@ app.route('/api/billing', billingRoutes);
 app.route('/api/wrapped', wrappedRoutes);
 // v6.54 — 🎬 对局回放 read API (write side = socketHandler game_over hook).
 app.route('/api/replay', replayRoutes);
+// v6.58 — 「裁了么」闯关牌局 HR 台词(数值在客户端 shared 引擎跑,这里只配台词).
+app.route('/api/negotiation', negotiationRoutes);
 // v6.11 P4 — public crawler-friendly share pages. Mounted at /share (NOT
 // /api/share — keeps the path clean for social link sharing). Each route
 // returns full HTML with og:* meta tags for Twitter/Slack/WeChat unfurl.
