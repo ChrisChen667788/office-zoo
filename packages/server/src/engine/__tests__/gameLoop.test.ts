@@ -17,7 +17,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { GameEngine } from '../GameEngine';
-import { Role, Team, WinCondition } from '@furball/shared';
+import { Role, Team, WinCondition, ROLE_PRESETS } from '@furball/shared';
 
 function freshEngine(count = 8): GameEngine {
   const e = new GameEngine(count);
@@ -191,5 +191,59 @@ describe('GameEngine — avatarKey (v6.55 #2, end-to-end)', () => {
       .getSerializedState();
     expect(serialized.players.every((p) => !!p.avatarKey)).toBe(true);
     expect(new Set(serialized.players.map((p) => p.avatarKey)).size).toBe(serialized.players.length);
+  });
+});
+
+describe('ROLE_PRESETS — v6.56 extends the ladder to 11/12', () => {
+  it('11-player preset rotates in 内审专员 and totals 11', () => {
+    const p = ROLE_PRESETS[11];
+    expect(p).toBeTruthy();
+    expect(p.cat.length + p.dog.length + p.neutral.length).toBe(11);
+    expect(p.cat).toContain(Role.MEDIUM_CAT);
+  });
+
+  it('12-player preset rotates in 内审专员 + 销售冠军 and totals 12', () => {
+    const p = ROLE_PRESETS[12];
+    expect(p).toBeTruthy();
+    expect(p.cat.length + p.dog.length + p.neutral.length).toBe(12);
+    expect(p.cat).toContain(Role.MEDIUM_CAT);
+    expect(p.cat).toContain(Role.ADVENTURER_CAT);
+  });
+});
+
+describe('GameEngine — 内审专员 / 销售冠军 night skills (v6.56)', () => {
+  const night = (e: GameEngine) =>
+    (e as unknown as { resolveNightActions(): void }).resolveNightActions();
+
+  it('内审专员(MEDIUM) audits a DEPARTED employee and learns their faction', () => {
+    const e = freshEngine(12);
+    const medium = e.state.players.find((p) => p.role === Role.MEDIUM_CAT)!;
+    expect(medium).toBeTruthy();
+    // Round 1 — nobody's left yet, so there's nothing to audit.
+    night(e);
+    const audited0 = (e as unknown as { auditedByMedium: Set<string> }).auditedByMedium;
+    expect(audited0.size).toBe(0);
+    // Someone departs → the next audit lands on the dead pool.
+    const victim = e.state.players.find((p) => p.id !== medium.id)!;
+    victim.isAlive = false;
+    night(e);
+    const audited1 = (e as unknown as { auditedByMedium: Set<string> }).auditedByMedium;
+    expect(audited1.has(victim.id)).toBe(true);
+    const agent = (e as unknown as { agents: Map<string, unknown> }).agents.get(medium.id);
+    const intel = (agent as { roleIntel: string[] }).roleIntel;
+    expect(intel.some((l) => l.includes('离职') && l.includes('阵营'))).toBe(true);
+  });
+
+  it('销售冠军(ADVENTURER) tails a living player, accruing a new target each round', () => {
+    const e = freshEngine(12);
+    const adventurer = e.state.players.find((p) => p.role === Role.ADVENTURER_CAT)!;
+    expect(adventurer).toBeTruthy();
+    night(e);
+    night(e);
+    const tracked = (e as unknown as { trackedByAdventurer: Set<string> }).trackedByAdventurer;
+    expect(tracked.size).toBe(2);
+    const agent = (e as unknown as { agents: Map<string, unknown> }).agents.get(adventurer.id);
+    const intel = (agent as { roleIntel: string[] }).roleIntel;
+    expect(intel.some((l) => l.includes('行踪'))).toBe(true);
   });
 });
