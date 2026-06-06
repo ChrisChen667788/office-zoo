@@ -26,8 +26,10 @@ async function main() {
   const targets = explicit.length ? explicit : Object.keys(ICON_DETAILS);
 
   if (force) {
-    console.log('→ clearing icon cache');
-    clearIconCache();
+    // 只清要重生的目标 —— 指定单个图标时不要把整目录都删了(footgun:
+    // `--force furniture_cctv` 曾把另外 60 张已处理的图标全删了)。
+    console.log(`→ clearing icon cache${explicit.length ? ` (${targets.join(', ')})` : ' (all)'}`);
+    clearIconCache(explicit.length ? targets : undefined);
   }
 
   console.log(`→ generating ${targets.length} icons (force=${force})\n`);

@@ -356,8 +356,17 @@ export async function generateAllIcons(keys?: string[]): Promise<Record<string, 
   return results;
 }
 
-export function clearIconCache(): void {
+export function clearIconCache(only?: readonly string[]): void {
   if (!fs.existsSync(ICON_DIR)) return;
+  // 限定清理:只删指定 key 的 PNG(单图重生时不波及其余图标);不传则清全部。
+  if (only && only.length) {
+    for (const k of only) {
+      const p = path.join(ICON_DIR, `${k}.png`);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    }
+    console.log(`[IconGen] Icon cache cleared for ${only.length} target(s)`);
+    return;
+  }
   for (const f of fs.readdirSync(ICON_DIR)) {
     if (f.endsWith('.png')) fs.unlinkSync(path.join(ICON_DIR, f));
   }
