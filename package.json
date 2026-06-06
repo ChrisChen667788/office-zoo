@@ -16,7 +16,9 @@
     "changelog:full": "git-cliff --output docs/CHANGELOG.auto.md && echo 'wrote docs/CHANGELOG.auto.md (auto regen from scratch — NOT the curated docs/CHANGELOG.md)'",
     "hooks:install": "bash scripts/install-hooks.sh",
     "gen:mp-arch": "node scripts/gen-mp-architecture.mjs",
-    "gen:screenshots": "node scripts/capture_screenshots.mjs && node scripts/capture_game_screens.mjs"
+    "gen:screenshots": "node scripts/capture_screenshots.mjs && node scripts/capture_game_screens.mjs",
+    "icons:regen": "tsx packages/server/src/scripts/regen-icons.ts --force",
+    "icons:cutout": "python3.12 scripts/cutout_icon_bg.py"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

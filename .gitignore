@@ -4,6 +4,10 @@ node_modules/
 .npm
 .pnpm-store/
 
+# Python (scripts/cutout_icon_bg.py 等工具脚本)
+__pycache__/
+*.pyc
+
 # Build output
 dist/
 build/
