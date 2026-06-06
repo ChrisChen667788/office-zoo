@@ -7,6 +7,23 @@
 
 ---
 
+## v6.58 — 2026-06-06 · 闯关牌局可玩了(LLM 演出 + 客户端 UI)
+
+接着 v6.57 的数值核心,把闯关牌局做成**真能玩**的一局:数值定结果,LLM 配台词。+9 → 313。
+
+- **LLM 演出**(server):新增 `services/negotiationFlavor.ts` —— 每次出牌按「卡 × HR
+  当前姿态」的克制关系 + 终局类型组 prompt,走现有 `FIRED_HR_MODEL` 链路实时生成 HR
+  那句有戏的台词(被克→四两拨千斤 / 被将军→嘴硬心虚 / 掀桌→撕破脸狠话)。LLM 失败 /
+  超时**优雅降级**到确定性兜底台词,断网也能玩。`routes/negotiation.ts` 暴露无状态
+  `POST /api/negotiation/hr-line`(按 id 校验卡/姿态 + 限流 120/h)。
+- **客户端牌局 UI**(client):新增 `/fired/battle`(`NegotiationBattle.tsx`)—— 直接
+  import `shared/negotiation` 跑数值,渲染**手牌**(克制 🔥 / 被挡 🛡 角标)、**双血条**
+  (底气/筹码 vs 预算/耐心)、**赔偿阶梯**高亮、出牌后 HR 实时台词、「见好就收」与「掀桌」
+  终局弹层。FiredLanding 顶部加「⚔️ 闯关牌局 Beta」入口;纯 chat 谈判保留为「简单模式」。
+- **测试**:`negotiationFlavor.test.ts` 9 例(关系判定 / prompt 组装 / 收口 / 兜底,
+  纯函数;LLM 调用本身不测以免烧额度)。另给 `LLM_TIMEOUTS` 加 `NEGOTIATION_HR_LINE`(15s)。
+- 实测三种出牌真出戏(被克的工龄牌被 HR 用 KPI 顶回、掀桌台词"闹到法院谁都不好看")。
+
 ## v6.57 — 2026-06-06 · 「裁了么」闯关牌局 方案 A · 数值核心
 
 把 `docs/FIRED_GAMEPLAY_PROPOSAL.md` 的方案 A(裁员谈判 = 回合制话术牌局)落地第
