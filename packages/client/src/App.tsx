@@ -8,6 +8,7 @@ import FiredChat from './routes/FiredChat';
 import FiredResult from './routes/FiredResult';
 import FiredPack from './routes/FiredPack';
 import FiredRoom from './routes/FiredRoom';
+import NegotiationBattle from './routes/NegotiationBattle';
 import Talkshow from './routes/Talkshow';
 import Premium from './routes/Premium';
 import B2bBuilder from './routes/B2bBuilder';
@@ -54,6 +55,9 @@ export default function App() {
       <Route path="/result/:gameId" element={<Result />} />
       <Route path="/fired" element={<FiredLanding />} />
       <Route path="/fired/chat" element={<FiredChat />} />
+      {/* v6.58 — 闯关牌局(方案 A):回合制话术卡谈判,数值客户端跑 + HR 台词走 LLM。
+          Lives ABOVE /fired/result etc; literal "battle" segment, no collision. */}
+      <Route path="/fired/battle" element={<NegotiationBattle />} />
       <Route path="/fired/result" element={<FiredResult />} />
       {/* v0.9.0 — UGC pack play view (5 sequential scenarios). */}
       <Route path="/fired/pack/:packId" element={<FiredPack />} />

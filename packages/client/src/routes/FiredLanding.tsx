@@ -376,6 +376,20 @@ export default function FiredLanding() {
               每关一条法条,通关解锁下一个 BOSS。
             </p>
 
+            {/* v6.58 — 闯关牌局(方案 A)入口:回合制话术卡谈判,HR 台词由 LLM 实时演。
+                与下面的纯 chat「剧情/简单模式」并存。 */}
+            <button
+              onClick={() => navigate('/fired/battle')}
+              className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-black transition hover:scale-[1.03]"
+              style={{
+                background: 'linear-gradient(90deg, #7048e8, #e64980)',
+                boxShadow: '0 6px 20px rgba(150,80,220,0.35)',
+                color: '#fff',
+              }}
+            >
+              ⚔️ 试试新「闯关牌局」<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/20">Beta</span>
+            </button>
+
             {/* Achievement summary chip + mode tabs */}
             <div className="mt-6 flex flex-col items-center gap-4">
               <div
