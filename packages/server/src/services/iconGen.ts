@@ -110,7 +110,7 @@ export const ICON_DETAILS: Record<string, IconSpec> = {
   furniture_water_dispenser: { subject: 'an isometric office water dispenser with a big blue water bottle on top, 3/4 view', accent: '#4cb5ff', bgStyle: 'transparent' },
   furniture_printer:         { subject: 'an isometric office laser printer with a sheet of paper sticking out the top, 3/4 view', accent: '#90caf9', bgStyle: 'transparent' },
   furniture_server_rack:     { subject: 'an isometric tall server rack with blinking blue and green LEDs, 3/4 view', accent: '#00ced1', bgStyle: 'transparent' },
-  furniture_cctv:            { subject: 'an isometric wall of CCTV monitors showing 4 grid camera feeds, 3/4 view', accent: '#546e7a', bgStyle: 'transparent' },
+  furniture_cctv:            { subject: 'an isometric single black dome CCTV security camera with a glowing red recording light, 3/4 view', detail: 'one single device only, no monitors, no camera feeds, no people, centred with clear margin', accent: '#546e7a', bgStyle: 'transparent' },
   furniture_sofa:            { subject: 'an isometric tiny grey three-seat office sofa with two cushions, 3/4 view', accent: '#9e9e9e', bgStyle: 'transparent' },
   furniture_plant:           { subject: 'an isometric small office monstera plant in a white round pot, 3/4 view', accent: '#66bb6a', bgStyle: 'transparent' },
   furniture_elevator:        { subject: 'an isometric pair of closed metallic elevator doors with a glowing up/down arrow panel beside them, 3/4 view', accent: '#7c3aed', bgStyle: 'transparent' },
