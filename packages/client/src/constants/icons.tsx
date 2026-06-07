@@ -42,6 +42,27 @@ export const navIcons = {
 } as const;
 export type NavIconKey = keyof typeof navIcons;
 
+// --- v6.62 闯关牌局 UI 小图标(双血条状态 + 话术卡)----------------------
+export const battleStatIcons = {
+  budget:   url('negstat_budget'),
+  patience: url('negstat_patience'),
+  morale:   url('negstat_morale'),
+  chips:    url('negstat_chips'),
+} as const;
+/** 话术卡图标,key = 卡 id(对应 shared CARD_POOL / UNLOCKABLE_CARDS)。 */
+export const negotiationCardIcons: Record<string, string> = {
+  tenure_push:   url('negcard_tenure_push'),
+  labor_law:     url('negcard_labor_law'),
+  noncompete:    url('negcard_noncompete'),
+  sob_story:     url('negcard_sob_story'),
+  insider_dirt:  url('negcard_insider_dirt'),
+  beg:           url('negcard_beg'),
+  outside_offer: url('negcard_outside_offer'),
+  recording:     url('negcard_recording'),
+  arbitration:   url('negcard_arbitration'),
+  media_expose:  url('negcard_media_expose'),
+};
+
 // --- Personality badges (Immersive + Classic) ---------------------------
 export const personalityIcons = {
   social_butterfly:   url('personality_social_butterfly'),

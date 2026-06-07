@@ -148,6 +148,25 @@ export const ICON_DETAILS: Record<string, IconSpec> = {
   nav_bar:         { subject: 'a frothy beer mug with neon late-night glow, sticker', accent: '#f59e0b', bgStyle: 'solid' },
   nav_anniversary: { subject: 'a party popper bursting with colorful confetti, celebration sticker', accent: '#f472b6', bgStyle: 'solid' },
   nav_profile:     { subject: 'a friendly office-worker avatar bust inside a round frame, sticker', accent: '#818cf8', bgStyle: 'solid' },
+
+  // --- v6.62 闯关牌局 UI 小图标 -------------------------------------------
+  // 双血条状态 + 10 张话术卡的内联小图(替换 NegotiationBattle 里的 emoji)。
+  // 渲染在 14-24px,所以主体要单一、对比强、读得清。
+  negstat_budget:   { subject: 'a plump gold money bag with a red Chinese yuan ¥ sign, bold simple sticker', accent: '#ff6b6b', bgStyle: 'solid' },
+  negstat_patience: { subject: 'an irritated cartoon face huffing two puffs of steam, patience-running-out sticker', accent: '#ffa94d', bgStyle: 'solid' },
+  negstat_morale:   { subject: 'a clenched fist with a small blue flame aura, determination/guts sticker', accent: '#4dabf7', bgStyle: 'solid' },
+  negstat_chips:    { subject: 'a small neat stack of colorful poker chips, leverage sticker', accent: '#a78bfa', bgStyle: 'solid' },
+
+  negcard_tenure_push:  { subject: 'a gold long-service star medal with a tiny "8" for eight years, sticker', accent: '#fbbf24', bgStyle: 'solid' },
+  negcard_labor_law:    { subject: 'a red labor-law code book with a ribbon bookmark, sticker', accent: '#ef4444', bgStyle: 'solid' },
+  negcard_noncompete:   { subject: 'a contract scroll with a curved counter-attack arrow, sticker', accent: '#22d3ee', bgStyle: 'solid' },
+  negcard_sob_story:    { subject: 'a teary pleading cartoon face with one big tear drop, sticker', accent: '#60a5fa', bgStyle: 'solid' },
+  negcard_insider_dirt: { subject: 'a manila folder stamped 机密 with a peeking eye, sticker', accent: '#f59e0b', bgStyle: 'solid' },
+  negcard_beg:          { subject: 'two hands clasped together pleading, sticker', accent: '#f472b6', bgStyle: 'solid' },
+  negcard_outside_offer:{ subject: 'an open envelope with a glowing star offer letter popping out, sticker', accent: '#34d399', bgStyle: 'solid' },
+  negcard_recording:    { subject: 'a smartphone screen showing a red recording dot and a waveform, sticker', accent: '#ef4444', bgStyle: 'solid' },
+  negcard_arbitration:  { subject: 'a wooden judge gavel striking with a small spark, sticker', accent: '#DAA520', bgStyle: 'solid' },
+  negcard_media_expose: { subject: 'a glowing megaphone with sound waves and a tiny news flash, sticker', accent: '#fb7185', bgStyle: 'solid' },
 };
 
 const IMAGE_API_KEY = process.env.QINGYUN_API_KEY || '';
