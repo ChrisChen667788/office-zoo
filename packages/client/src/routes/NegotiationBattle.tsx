@@ -34,6 +34,12 @@ import {
   tierLabel,
   unlockedCardIds,
   xpProgress,
+  DEFAULT_HAND_SIZE,
+  type DeckState,
+  initDeck,
+  refillHand,
+  discardCard,
+  discardHand,
 } from '@furball/shared';
 import { battleStatIcons, negotiationCardIcons, Icon } from '../constants/icons';
 
@@ -87,6 +93,7 @@ export default function NegotiationBattle() {
   const [flash, setFlash] = useState('');
   const [reward, setReward] = useState<Reward | null>(null);
   const [leveledTo, setLeveledTo] = useState<string | null>(null);
+  const [deck, setDeck] = useState<DeckState | null>(null);
   const rewardedRef = useRef(false);
 
   const career = levelFromXp(progress.xp);
@@ -97,13 +104,14 @@ export default function NegotiationBattle() {
     const { config, excludeStances } = applyRelics(relicId ? [relicId] : [], { ...boss.config });
     const s = initBattle(config);
     setBattle(s);
+    setDeck(initDeck(unlockedCardIds(level), DEFAULT_HAND_SIZE));
     setMaxes({ morale: s.morale, patience: s.patience, budget: Math.max(BUDGET_MAX, s.budget) });
     setExclude(excludeStances);
     setHrLine(stanceById(s.stance).blurb);
     setFlash(''); setReward(null); setLeveledTo(null);
     rewardedRef.current = false;
     setPhase('battle');
-  }, [boss, relicId]);
+  }, [boss, relicId, level]);
 
   // 结算:对局一进入终局就发奖励 + 持久化(只发一次)。
   useEffect(() => {
@@ -149,6 +157,7 @@ export default function NegotiationBattle() {
     const mult = effectMultiplier(card.tag, stanceById(stanceId));
     const dealt = battle.budget - next.budget;
     setBattle(next);
+    setDeck((d) => (d ? discardCard(d, cardId) : d)); // 打出的牌进弃牌堆
     setFlash(`「${card.name}」×${mult} → HR 预算 −${dealt}`);
     setBusy(true); setHrLine('……');
     const line = await fetchHRLine(cardId, stanceId, next.outcome.kind);
@@ -158,6 +167,7 @@ export default function NegotiationBattle() {
 
   const onEndTurn = useCallback(() => {
     if (!battle || busy || battle.outcome.kind !== 'ongoing') return;
+    setDeck((d) => (d ? refillHand(discardHand(d), DEFAULT_HAND_SIZE) : d)); // 弃剩余手牌 + 重抽
     let next = endRound(battle);
     if (next.outcome.kind === 'ongoing') {
       next = hrTakeStance(next, chooseHRStance(next, Math.random, exclude));
@@ -298,14 +308,18 @@ export default function NegotiationBattle() {
         {flash && <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>{flash}</div>}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginBottom: 14 }}>
-        {handIds.map((id) => {
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, opacity: 0.6, marginBottom: 6 }}>
+        <span>🂠 手牌(回合结束重抽)</span>
+        <span>牌库 {deck?.draw.length ?? 0} · 弃 {deck?.discard.length ?? 0}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginBottom: 14, minHeight: 64 }}>
+        {(deck?.hand ?? []).map((id, i) => {
           const c = cardById(id); if (!c) return null;
           const mult = effectMultiplier(c.tag, stance);
           const afford = battle.chips >= c.cost && !over && !busy;
           const badge = mult === 1.5 ? '🔥克制 HR' : mult === 0.5 ? '🛡被挡' : '';
           return (
-            <button key={id} onClick={() => onPlay(id)} disabled={!afford}
+            <button key={`${id}-${i}`} onClick={() => onPlay(id)} disabled={!afford}
               style={{
                 textAlign: 'left', padding: 10, borderRadius: 10, cursor: afford ? 'pointer' : 'not-allowed',
                 background: afford ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.02)',
