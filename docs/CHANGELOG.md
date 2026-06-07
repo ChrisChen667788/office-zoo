@@ -7,6 +7,19 @@
 
 ---
 
+## v6.63 — 2026-06-06 · 闯关牌局上「牌库抽牌」(roguelike 牌库感)
+
+把牌局从「每回合摊开所有卡」改成真·deck-builder:从牌库抽一手,打牌进弃牌堆,回合
+结束弃手重抽,牌库抽空就把弃牌堆洗回来。+12 → 339。
+
+- **抽牌引擎**(`negotiation/deck.ts`,纯):`DeckState`(draw/hand/discard)+
+  `initDeck` / `refillHand`(牌库空→洗弃牌堆回来)/ `discardCard` / `discardHand` /
+  `shuffle`(Fisher–Yates,可注入 rng)。卡守恒(不丢不重)。
+- **牌局接入**:开局用职级解锁的卡起一副牌、抽 5 张起手;打牌进弃牌堆;「结束本回合」
+  弃掉剩余手牌 + 重抽;手牌区显示「牌库 N · 弃 N」。手牌是牌库的随机子集 → 每回合
+  不一样,筹码 + 抽到什么共同决定能打什么,roguelike 张力上来了。
+- **测试**:`negotiationDeck.test.ts` 12 例(洗牌确定性 / 守恒 / 弃牌堆回洗 / 不过抽)。
+
 ## v6.62 — 2026-06-06 · 闯关牌局 UI 小图标(图标 sweep 收官)
 
 把牌局 UI 最后一批 emoji 也换成 AI 二次元图,深层界面 emoji→AI 图标 sweep 至此全部完成。
