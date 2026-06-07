@@ -7,6 +7,22 @@
 
 ---
 
+## v6.60 — 2026-06-06 · 深层界面图标:emoji → AI 二次元图(第一批)
+
+承接用户反馈「二/三/四级界面默认 emoji 太 low」。`<Icon>` 基建 + 61 图标此前只覆盖
+核心对局;这轮给深层界面的入口/页头补一套 nav 图标并接上。
+
+- **9 张新 nav/section 图标**:班味单口 / 班味占卜 / 周报 / 打工人测试 / 攒局 /
+  Premium / 深夜酒馆 / 周年 / 我的 —— `iconGen.ts` ICON_DETAILS + 客户端
+  `constants/icons.tsx` 的 `navIcons`,doubao-seedream-4-5 生成 + 抠透明,跟头像同二次元
+  风。裁了么复用 `mode_fired`。
+- **接入深层界面**:首页二级入口 pill(班味占卜 🔮 / 周报 📊)+ 班味占卜卡背大图标
+  (7xl 🔮 → AI)+ 班味单口 / 周报页头 EventPill。全部走 `<Icon>` 带 emoji 兜底 ——
+  图标缺失(未本地生成)自动回退 emoji,不崩。
+- **工具**:`cutout_icon_bg.py` 加 `--only key1,key2`,增量重生只抠新图、不必全量重跑。
+- 图标是本地文件(gitignore),刷新即见。其余深层页(Premium / 酒馆 / quiz / squad /
+  周年)按同一 `navIcons` 模式后续继续扫。
+
 ## v6.59 — 2026-06-06 · 闯关牌局 方案 B(局间成长)+ C(职场遗物)
 
 把单局牌局做成有留存的 roguelite:打完有成长、开局有 build 选择。+14 → 327。
