@@ -7,6 +7,24 @@
 
 ---
 
+## v6.59 — 2026-06-06 · 闯关牌局 方案 B(局间成长)+ C(职场遗物)
+
+把单局牌局做成有留存的 roguelite:打完有成长、开局有 build 选择。+14 → 327。
+
+- **方案 B 局间成长**(`negotiation/progression.ts`,纯):职级阶梯 实习生→老油条→
+  维权斗士→劳动法之神(经验解锁);BOSS 难度阶梯 HR专员→HRD→CEO(覆盖预算/耐心 +
+  rewardMult 赔率递增,按职级解锁);进阶卡解锁(仲裁威胁 L2 / 媒体曝光 L3,本体在
+  battle.ts 的 `UNLOCKABLE_CARDS`);`awardFromOutcome` 按赔偿档 × BOSS 倍率发经验 +
+  遣散费(掀桌给安慰、认怂打折)。
+- **方案 C 职场遗物**(`negotiation/relics.ts`,纯):一次性道具开局选一件,改写规则 ——
+  工会卡(+1 筹码回复)/ 录音笔(封印 HR「威胁背调」)/ 大厂 offer(底气×2、耐心−2 的
+  豪赌)/ 赔偿计算器(开局削 18 预算)。`applyRelics` 叠加到 initBattle config + 姿态封印
+  (`chooseHRStance` 加 `exclude` 参数)。big_offer 不碰预算 —— playCard 会把预算 clamp 到
+  BUDGET_MAX,翻倍没意义,改成底气/耐心的纯风险回报。
+- **客户端**:`/fired/battle` 加「准备」界面(看职级/经验条/累计遣散费/胜场,选 BOSS +
+  选遗物 → 开战),手牌按职级解锁,打完弹结算奖励 + 升职提示,**localStorage 持久化**。
+- **测试**:`negotiationMeta.test.ts` 14 例(职级/BOSS/卡解锁/奖励/遗物叠加/姿态封印)。
+
 ## v6.58 — 2026-06-06 · 闯关牌局可玩了(LLM 演出 + 客户端 UI)
 
 接着 v6.57 的数值核心,把闯关牌局做成**真能玩**的一局:数值定结果,LLM 配台词。+9 → 313。
