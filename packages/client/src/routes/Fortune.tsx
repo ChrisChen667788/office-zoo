@@ -25,6 +25,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { navIcons, Icon } from '../constants/icons';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getUserId } from '../utils/userId';
@@ -98,7 +99,7 @@ export default function Fortune() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 首页
         </button>
-        <EventPill stars={5} subtle>🔮 班味占卜</EventPill>
+        <EventPill stars={5} subtle><Icon src={navIcons.fortune} emoji="🔮" size={15} alt="" /> 班味占卜</EventPill>
         {/* v5.7.0 — gallery shortcut. Sits where the date stamp used to,
             because the date is duplicated on the card itself; freeing
             this header slot for navigation has higher utility than
@@ -141,7 +142,7 @@ export default function Fortune() {
                     backfaceVisibility: 'hidden',
                     transform: 'rotateY(180deg)',
                   }}>
-                  <div className="text-7xl opacity-80">🔮</div>
+                  <div className="text-7xl opacity-80"><Icon src={navIcons.fortune} emoji="🔮" size={88} alt="" /></div>
                   <div className="absolute inset-x-0 bottom-6 text-center text-[11px] tracking-[0.4em] uppercase text-white/40">
                     OFFICE ZOO TAROT
                   </div>

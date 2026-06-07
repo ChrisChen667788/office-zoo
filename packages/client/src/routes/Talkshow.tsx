@@ -16,6 +16,7 @@
  * generated B-roll.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { navIcons, Icon } from '../constants/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -373,7 +374,7 @@ export default function Talkshow() {
           ← 返回首页
         </button>
         <div className="flex items-baseline gap-3">
-          <EventPill stars={5} subtle>🎤 班味单口</EventPill>
+          <EventPill stars={5} subtle><Icon src={navIcons.talkshow} emoji="🎤" size={15} alt="" /> 班味单口</EventPill>
           <span className="text-[10px] text-white/35">
             {scripts.length > 0 && `${scripts.length} 段`}
           </span>

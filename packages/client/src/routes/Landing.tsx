@@ -42,7 +42,7 @@ interface DailyDrama {
   archetypeEmoji?: string;
   archetypeName?: string;
 }
-import { modeIcons, Icon } from '../constants/icons';
+import { modeIcons, navIcons, Icon } from '../constants/icons';
 
 // v6.28 P4 — 9 added once ROLE_PRESETS[9] (v6.27 P1) landed. The
 // 6→8→9→10 ladder gives users a "1-step-up from default" option;
@@ -613,7 +613,7 @@ export default function Landing() {
                     }}
                     title="每天 1 张塔罗式班味卡 · 今日运势 + 一个微行动"
                   >
-                    🔮 班味占卜 · 抽今天的牌
+                    <Icon src={navIcons.fortune} emoji="🔮" size={16} alt="" /> 班味占卜 · 抽今天的牌
                   </button>
                   {/* v6.5.0 — 周报生成器入口. 金色配色, 跟米哈游 EventPill
                       同色系, 视觉上跟其他 chip 形成"主推新版本"的等级感. */}
@@ -628,7 +628,7 @@ export default function Landing() {
                     }}
                     title="1 句关键事件 → 4 风格周报 (阿里黑话/PUA/装腔/直球)"
                   >
-                    📊 周报生成器 · v6.5 NEW ✨
+                    <Icon src={navIcons.weekly} emoji="📊" size={16} alt="" /> 周报生成器 · v6.5 NEW ✨
                   </button>
                 </div>
               </>

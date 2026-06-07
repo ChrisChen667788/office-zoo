@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { navIcons, Icon } from '../constants/icons';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import EventPill from '../components/EventPill';
@@ -209,7 +210,7 @@ export default function Weekly() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 首页
         </button>
-        <EventPill stars={5}>📊 周报生成器 · v6.5</EventPill>
+        <EventPill stars={5}><Icon src={navIcons.weekly} emoji="📊" size={15} alt="" /> 周报生成器 · v6.5</EventPill>
         {/* v6.6 — 我的偏好仪表盘入口 */}
         <button onClick={() => navigate('/weekly/me')}
           className="text-[11px] text-white/55 hover:text-white/95 transition px-2 py-1 rounded"
