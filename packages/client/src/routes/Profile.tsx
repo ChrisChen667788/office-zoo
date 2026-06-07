@@ -23,6 +23,7 @@ import {
 } from '@furball/shared';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
+import { navIcons, Icon } from '../constants/icons';
 import { archetypeLabel, useT, type DictKey } from '../utils/i18n';
 import { useArchetypePortrait } from '../utils/archetypePortrait';
 import type { PersonalizedProfile, UserProfile } from '../utils/profileTypes';
@@ -156,7 +157,7 @@ export default function Profile() {
           className="text-xs px-3 py-1.5 rounded-full font-bold"
           style={{ background: 'rgba(255,255,255,0.85)', color: '#0a0a0a', border: '2px solid #0a0a0a' }}
         >← 首页</button>
-        <EventPill stars={5} subtle>🪪 我的班味卡</EventPill>
+        <EventPill stars={5} subtle><Icon src={navIcons.profile} emoji="🪪" size={15} alt="" /> 我的班味卡</EventPill>
         <button
           onClick={() => navigate('/quiz')}
           className="text-xs px-3 py-1.5 rounded-full font-bold"

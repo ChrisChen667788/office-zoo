@@ -26,6 +26,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { isPremium, subscribeEntitlement } from '../utils/entitlement';
 import { findArchetype, type Archetype } from '@furball/shared';
 import EventPill from '../components/EventPill';
+import { navIcons, Icon } from '../constants/icons';
 import type { UserProfile } from '../utils/profileTypes';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
@@ -339,7 +340,7 @@ export default function FiredLanding() {
           <span>←</span> 返回首页
         </button>
         <div className="flex items-center gap-3">
-          <EventPill stars={5} subtle>⚖️ 裁了么 · v6.3</EventPill>
+          <EventPill stars={5} subtle><Icon src={navIcons.fired} emoji="⚖️" size={15} alt="" /> 裁了么 · v6.3</EventPill>
           <SfxToggle />
         </div>
       </header>

@@ -18,6 +18,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import EventPill from '../components/EventPill';
+import { navIcons, Icon } from '../constants/icons';
 import { setProgress as setAchievementProgress } from '../utils/achievements';
 
 interface Milestone {
@@ -137,7 +138,7 @@ export default function Anniversary() {
           onClick={() => navigate('/')}
           className="text-sm text-white/70 hover:text-white font-bold"
         >← 回 Landing</button>
-        <EventPill>v6 周年回顾 · 28 轮</EventPill>
+        <EventPill><Icon src={navIcons.anniversary} emoji="🎉" size={15} alt="" /> v6 周年回顾 · 28 轮</EventPill>
         <div className="text-xs text-white/40 font-mono tracking-wider">
           {idx + 1} / {MILESTONES.length}
         </div>

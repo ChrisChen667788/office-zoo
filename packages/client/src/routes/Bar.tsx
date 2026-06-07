@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { navIcons, Icon } from '../constants/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getUserId } from '../utils/userId';
@@ -228,7 +229,7 @@ export default function Bar() {
           ← 出店
         </button>
         <div className="text-center">
-          <div style={stigmaChipStyle(elem)}>🍺 NIGHT BAR · 4★</div>
+          <div style={stigmaChipStyle(elem)} className="inline-flex items-center gap-1"><Icon src={navIcons.bar} emoji="🍺" size={14} alt="" /> NIGHT BAR · 4★</div>
           <div className="mt-1.5 text-sm font-black tracking-wide text-white/95"
             style={{ textShadow: mihoyo.glow.heroText }}>
             {ARCHETYPE_EMOJI[archetype] ?? '🐀'} {ARCHETYPE_DISPLAY[archetype] ?? archetype} 的酒馆

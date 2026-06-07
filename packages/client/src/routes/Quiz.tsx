@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { navIcons, Icon } from '../constants/icons';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QUIZ_QUESTIONS } from '@furball/shared';
@@ -258,11 +259,11 @@ function SubmittingCard() {
       className="y2k-sticker y2k-sparkle max-w-md w-full text-center"
     >
       <motion.div
-        className="text-6xl mb-4 inline-block"
+        className="mb-4 inline-block"
         animate={{ rotate: [0, 12, -12, 0] }}
         transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
       >
-        🧠
+        <Icon src={navIcons.quiz} emoji="🧠" size={64} alt="" />
       </motion.div>
       <h2 className="y2k-display text-2xl mb-2">
         AI 正在分析你的班味…

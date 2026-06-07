@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
+import { navIcons, Icon } from '../constants/icons';
 import SquadMemberCard from '../components/character/SquadMemberCard';
 import { renderChemistryHint, type ChemistryHint } from '../utils/chemistryHint';
 import { useT } from '../utils/i18n';
@@ -225,7 +226,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="relative min-h-screen overflow-hidden"
       style={{ background: 'linear-gradient(180deg, #0a0a1e 0%, #1a0d35 50%, #0a0a1e 100%)' }}>
       <header className="px-6 md:px-10 py-5">
-        <EventPill stars={5}>🎭 攒局 · 你们这一桌的故事</EventPill>
+        <EventPill stars={5}><Icon src={navIcons.squad} emoji="🎭" size={15} alt="" /> 攒局 · 你们这一桌的故事</EventPill>
       </header>
       {children}
     </div>

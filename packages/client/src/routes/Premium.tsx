@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { navIcons, Icon } from '../constants/icons';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -110,8 +111,8 @@ export default function Premium() {
         >
           {t('header.backHome')}
         </button>
-        <span className="text-[11px] uppercase tracking-[0.28em] text-white/55">
-          👑 Premium
+        <span className="text-[11px] uppercase tracking-[0.28em] text-white/55 inline-flex items-center gap-1">
+          <Icon src={navIcons.premium} emoji="👑" size={15} alt="" /> Premium
         </span>
         <div className="w-20" />
       </header>
