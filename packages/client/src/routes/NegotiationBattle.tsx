@@ -35,6 +35,7 @@ import {
   unlockedCardIds,
   xpProgress,
 } from '@furball/shared';
+import { battleStatIcons, negotiationCardIcons, Icon } from '../constants/icons';
 
 const TAG_CN: Record<CardTag, string> = {
   legal: '劳动法', tenure: '工龄', emotion: '情绪', insider: '爆料', market: '市场',
@@ -53,12 +54,14 @@ function saveProgress(p: Progress) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(p)); } catch { /* ignore */ }
 }
 
-function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+function Bar({ icon, emoji, label, value, max, color }: { icon?: string; emoji?: string; label: string; value: number; max: number; color: string }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return (
     <div style={{ marginBottom: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, opacity: 0.8, marginBottom: 3 }}>
-        <span>{label}</span><span>{Math.max(0, Math.round(value))}/{max}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {icon && <Icon src={icon} emoji={emoji} size={14} alt="" />}{label}
+        </span><span>{Math.max(0, Math.round(value))}/{max}</span>
       </div>
       <div style={{ height: 10, borderRadius: 6, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: color, transition: 'width .35s ease' }} />
@@ -274,8 +277,8 @@ export default function NegotiationBattle() {
           <span style={{ fontSize: 12, opacity: 0.7 }}>第 {battle.round} 回合</span>
         </div>
         <div style={{ minHeight: 44, fontSize: 15, lineHeight: 1.5, fontStyle: 'italic', marginBottom: 10 }}>“{hrLine}”</div>
-        <Bar label="💰 预算(打越低赔越多)" value={battle.budget} max={maxes.budget} color="#ff6b6b" />
-        <Bar label="😤 耐心(归零就掀桌)" value={battle.patience} max={maxes.patience} color="#ffa94d" />
+        <Bar icon={battleStatIcons.budget} emoji="💰" label="预算(打越低赔越多)" value={battle.budget} max={maxes.budget} color="#ff6b6b" />
+        <Bar icon={battleStatIcons.patience} emoji="😤" label="耐心(归零就掀桌)" value={battle.patience} max={maxes.patience} color="#ffa94d" />
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
@@ -290,8 +293,8 @@ export default function NegotiationBattle() {
       </div>
 
       <div style={{ ...card, background: 'rgba(80,150,255,0.08)', borderColor: 'rgba(80,150,255,0.25)', marginBottom: 12 }}>
-        <Bar label="🔥 底气(归零就认怂)" value={battle.morale} max={maxes.morale} color="#4dabf7" />
-        <Bar label="🎟️ 筹码(出牌资源)" value={battle.chips} max={battle.chipMax} color="#a78bfa" />
+        <Bar icon={battleStatIcons.morale} emoji="🔥" label="底气(归零就认怂)" value={battle.morale} max={maxes.morale} color="#4dabf7" />
+        <Bar icon={battleStatIcons.chips} emoji="🎟️" label="筹码(出牌资源)" value={battle.chips} max={battle.chipMax} color="#a78bfa" />
         {flash && <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>{flash}</div>}
       </div>
 
@@ -310,7 +313,12 @@ export default function NegotiationBattle() {
                 color: '#fff', opacity: afford ? 1 : 0.45,
               }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 14 }}>
-                <span>{c.name}</span><span>🎟️{c.cost}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Icon src={negotiationCardIcons[id]} emoji="🃏" size={18} alt="" />{c.name}
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                  <Icon src={battleStatIcons.chips} emoji="🎟️" size={12} alt="" />{c.cost}
+                </span>
               </div>
               <div style={{ fontSize: 11, opacity: 0.7, margin: '2px 0' }}>
                 {TAG_CN[c.tag]} · 力度 {c.pressure}{c.patienceHit ? ` · 激怒 ${c.patienceHit}` : ''}
