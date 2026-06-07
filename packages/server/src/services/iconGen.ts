@@ -134,6 +134,20 @@ export const ICON_DETAILS: Record<string, IconSpec> = {
   timeline_vote:      { subject: 'a paper ballot being slotted into a box', accent: '#7c3aed', bgStyle: 'solid' },
   dossier_mask:       { subject: 'a theatrical comedy/tragedy mask pair', accent: '#DAA520', bgStyle: 'solid' },
   ghost_speech:       { subject: 'a cute little cartoon ghost with a speech bubble', accent: '#6ee7b7', bgStyle: 'solid' },
+
+  // --- v6.60 deep-screen nav / section icons ----------------------------
+  // Replace the raw emoji that the 二/三/四级界面 (talkshow / fortune / weekly /
+  // quiz / squad / premium / bar / anniversary / profile entries) still use.
+  // 裁了么 reuses mode_fired. Drawn in the same 二次元 sticker style as the rest.
+  nav_talkshow:    { subject: 'a glossy retro standup-comedy microphone with little musical-note sparkles', accent: '#FF6B9D', bgStyle: 'solid' },
+  nav_fortune:     { subject: 'a mystical purple crystal ball glowing on a tiny stand with sparkles', accent: '#a855f7', bgStyle: 'solid' },
+  nav_weekly:      { subject: 'a clipboard with a rising bar chart and a tiny green check, sticker', accent: '#4cb5ff', bgStyle: 'solid' },
+  nav_quiz:        { subject: 'a glowing cartoon brain with a question-mark spark, sticker', accent: '#22d3ee', bgStyle: 'solid' },
+  nav_squad:       { subject: 'three little office-animal heads grouped together as a team, sticker', accent: '#fbbf24', bgStyle: 'solid' },
+  nav_premium:     { subject: 'a sparkling cyan diamond gem with a tiny gold crown, premium sticker', accent: '#38bdf8', bgStyle: 'solid' },
+  nav_bar:         { subject: 'a frothy beer mug with neon late-night glow, sticker', accent: '#f59e0b', bgStyle: 'solid' },
+  nav_anniversary: { subject: 'a party popper bursting with colorful confetti, celebration sticker', accent: '#f472b6', bgStyle: 'solid' },
+  nav_profile:     { subject: 'a friendly office-worker avatar bust inside a round frame, sticker', accent: '#818cf8', bgStyle: 'solid' },
 };
 
 const IMAGE_API_KEY = process.env.QINGYUN_API_KEY || '';

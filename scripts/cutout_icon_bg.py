@@ -167,10 +167,14 @@ def main() -> int:
     ap.add_argument("--white-t", type=int, default=WHITE_T)
     ap.add_argument("--feather", type=float, default=0.8)
     ap.add_argument("--no-backup", action="store_true", help="不备份原图(默认会备份)")
+    ap.add_argument("--only", default="", help="只处理这些 key(逗号分隔,不含 .png);省略=全部")
     args = ap.parse_args()
 
     d: Path = args.dir
     pngs = sorted(d.glob("*.png"))
+    if args.only:
+        keep = {k.strip() for k in args.only.split(",") if k.strip()}
+        pngs = [p for p in pngs if p.stem in keep]
     if not pngs:
         print(f"✗ 没找到 PNG:{d}", file=sys.stderr)
         return 1

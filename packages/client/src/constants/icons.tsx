@@ -25,6 +25,23 @@ export const modeIcons = {
   fired:     url('mode_fired'),
 } as const;
 
+// --- v6.60 deep-screen nav / section icons (二/三/四级界面入口) -----------
+// Replaces the raw emoji on the home secondary-nav buttons + each deep
+// screen's header. 裁了么 reuses mode_fired. Keys mirror iconGen.ts.
+export const navIcons = {
+  fired:       url('mode_fired'),
+  talkshow:    url('nav_talkshow'),
+  fortune:     url('nav_fortune'),
+  weekly:      url('nav_weekly'),
+  quiz:        url('nav_quiz'),
+  squad:       url('nav_squad'),
+  premium:     url('nav_premium'),
+  bar:         url('nav_bar'),
+  anniversary: url('nav_anniversary'),
+  profile:     url('nav_profile'),
+} as const;
+export type NavIconKey = keyof typeof navIcons;
+
 // --- Personality badges (Immersive + Classic) ---------------------------
 export const personalityIcons = {
   social_butterfly:   url('personality_social_butterfly'),
