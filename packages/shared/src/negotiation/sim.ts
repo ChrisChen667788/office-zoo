@@ -46,15 +46,24 @@ function weightedPick<T>(items: readonly T[], weights: number[], rand: () => num
 /**
  * HR picks a stance. Bias toward harder stances (甩锅KPI / 威胁背调) as its
  * budget drains or patience runs low — a cornered HR plays dirtier.
+ *
+ * v6.59 — `exclude` lets a relic 封印 a stance (录音笔 → HR 不敢 'threat')。若全被
+ * 排除则回退到完整池(永远有招可出)。
  */
-export function chooseHRStance(state: BattleState, rand: () => number = Math.random): HRStanceId {
+export function chooseHRStance(
+  state: BattleState,
+  rand: () => number = Math.random,
+  exclude: readonly HRStanceId[] = [],
+): HRStanceId {
+  const pool = STANCE_POOL.filter((s) => !exclude.includes(s.id));
+  const usable = pool.length > 0 ? pool : STANCE_POOL;
   const desperate = state.budget <= 50 || state.patience <= 3;
-  const weights = STANCE_POOL.map((s) => {
+  const weights = usable.map((s) => {
     if (s.id === 'threat') return desperate ? 4 : 1.5;
     if (s.id === 'kpi') return desperate ? 3 : 2;
     return 2; // pie / stall
   });
-  return weightedPick(STANCE_POOL, weights, rand).id;
+  return weightedPick(usable, weights, rand).id;
 }
 
 export interface EmployeePlan {

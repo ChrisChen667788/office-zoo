@@ -5,6 +5,8 @@ export * from './types/personality';
 export * from './replay';
 export * from './negotiation/battle';
 export * from './negotiation/sim';
+export * from './negotiation/progression';
+export * from './negotiation/relics';
 export * from './data/jargon';
 export * from './data/fired';
 export * from './data/talkshow';

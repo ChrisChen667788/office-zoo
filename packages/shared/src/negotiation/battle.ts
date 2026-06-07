@@ -59,6 +59,18 @@ export const CARD_POOL: readonly NegotiationCard[] = [
   { id: 'recording',    name: '录音暗示', tag: 'legal',   cost: 2, pressure: 15, patienceHit: 2, blurb: '刚才的对话……我手机一直开着呢。' },
 ];
 
+/**
+ * v6.59 (方案 B) — 局间成长解锁的进阶卡(比 starter 更猛)。本体定义放这里,等级
+ * 门槛在 progression.ts 的 CARD_UNLOCKS。cardById 会在 starter + 这些里一起查。
+ */
+export const UNLOCKABLE_CARDS: readonly NegotiationCard[] = [
+  { id: 'arbitration',  name: '仲裁威胁', tag: 'legal',   cost: 3, pressure: 22, patienceHit: 2, blurb: '大不了劳动仲裁,我时间多的是。' },
+  { id: 'media_expose', name: '媒体曝光', tag: 'insider', cost: 3, pressure: 26, patienceHit: 4, blurb: '这事捅到脉脉上,公司公关吃得消?' },
+];
+
+/** Starter + 可解锁卡的全集(cardById / LLM 演出 / UI 手牌都从这里取)。 */
+export const ALL_CARDS: readonly NegotiationCard[] = [...CARD_POOL, ...UNLOCKABLE_CARDS];
+
 export const STANCE_POOL: readonly HRStance[] = [
   // 克制矩阵补全(v6.57):五种卡类各被恰好一个姿态克制、且各被恰好一个姿态怕,
   // 没有任何姿态对同一卡类既克制又害怕(否则克制系数有歧义)。
@@ -69,7 +81,7 @@ export const STANCE_POOL: readonly HRStance[] = [
 ];
 
 export function cardById(id: string): NegotiationCard | undefined {
-  return CARD_POOL.find((c) => c.id === id);
+  return ALL_CARDS.find((c) => c.id === id);
 }
 export function stanceById(id: HRStanceId): HRStance {
   return STANCE_POOL.find((s) => s.id === id) ?? STANCE_POOL[0];
