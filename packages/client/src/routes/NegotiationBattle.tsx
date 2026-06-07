@@ -78,7 +78,7 @@ export default function NegotiationBattle() {
 
   const [battle, setBattle] = useState<BattleState | null>(null);
   const [exclude, setExclude] = useState<HRStanceId[]>([]);
-  const [maxes, setMaxes] = useState({ morale: 100, patience: 8 });
+  const [maxes, setMaxes] = useState({ morale: 100, patience: 8, budget: BUDGET_MAX });
   const [hrLine, setHrLine] = useState('');
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState('');
@@ -94,7 +94,7 @@ export default function NegotiationBattle() {
     const { config, excludeStances } = applyRelics(relicId ? [relicId] : [], { ...boss.config });
     const s = initBattle(config);
     setBattle(s);
-    setMaxes({ morale: s.morale, patience: s.patience });
+    setMaxes({ morale: s.morale, patience: s.patience, budget: Math.max(BUDGET_MAX, s.budget) });
     setExclude(excludeStances);
     setHrLine(stanceById(s.stance).blurb);
     setFlash(''); setReward(null); setLeveledTo(null);
@@ -274,7 +274,7 @@ export default function NegotiationBattle() {
           <span style={{ fontSize: 12, opacity: 0.7 }}>第 {battle.round} 回合</span>
         </div>
         <div style={{ minHeight: 44, fontSize: 15, lineHeight: 1.5, fontStyle: 'italic', marginBottom: 10 }}>“{hrLine}”</div>
-        <Bar label="💰 预算(打越低赔越多)" value={battle.budget} max={BUDGET_MAX} color="#ff6b6b" />
+        <Bar label="💰 预算(打越低赔越多)" value={battle.budget} max={maxes.budget} color="#ff6b6b" />
         <Bar label="😤 耐心(归零就掀桌)" value={battle.patience} max={maxes.patience} color="#ffa94d" />
       </div>
 
