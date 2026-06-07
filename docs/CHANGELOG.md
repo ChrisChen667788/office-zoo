@@ -7,6 +7,18 @@
 
 ---
 
+## v6.62 — 2026-06-06 · 闯关牌局 UI 小图标(图标 sweep 收官)
+
+把牌局 UI 最后一批 emoji 也换成 AI 二次元图,深层界面 emoji→AI 图标 sweep 至此全部完成。
+
+- **14 张新小图**:4 个状态(预算💰 / 耐心😤 / 底气🔥 / 筹码🎟️)+ 10 张话术卡
+  (工龄施压 / 劳动法 / 竞业反将 / 情绪施压 / 内部爆料 / 装可怜 / 外部 offer / 录音暗示 /
+  仲裁威胁 / 媒体曝光)。`iconGen.ts` ICON_DETAILS + 客户端 `battleStatIcons` /
+  `negotiationCardIcons`(key 对齐 shared 卡 id)。
+- **NegotiationBattle 接入**:双血条标签 + 出牌成本数字 + 每张手牌名前都换成 `<Icon>`
+  (emoji 兜底);Bar 组件加 `icon`/`emoji` 参数。
+- `negstat_patience` 首版满屏橙底没抠干净(2.3%)→ 重生一版,14/14 全透明。
+
 ## v6.61 — 2026-06-06 · 深层界面图标 sweep 收尾
 
 接 v6.60,把剩余深层页的入口/页头 emoji 也换成 v6.60 已生成的 nav 图标 —— 本轮纯接线、
