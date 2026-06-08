@@ -26,7 +26,25 @@
  *   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
  *
  * See `copyShareCardToClipboard` / `downloadShareCard` for one-call helpers.
+ *
+ * v6.71 — 复盘行里塞 AI 表情立绘(惊恐/委屈)。立绘是网络图(/icons),所以这一步是
+ * **尽力而为**:带超时预加载,加载失败/超时就回退 emoji,导出永不卡死、永不被污染。
  */
+import { expressionIcon } from '../constants/icons';
+
+/** 尽力预加载一张图(跨域匿名,带超时);失败/超时返回 null,调用方回退 emoji。 */
+function loadImageSafe(url: string, timeoutMs = 2500): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    let done = false;
+    const finish = (ok: boolean) => { if (done) return; done = true; clearTimeout(t); resolve(ok ? img : null); };
+    const t = setTimeout(() => finish(false), timeoutMs);
+    img.onload = () => finish(true);
+    img.onerror = () => finish(false);
+    img.src = url;
+  });
+}
 
 export interface ShareCardData {
   winner: 'cat_win' | 'dog_win' | 'neutral_win' | string;
@@ -296,6 +314,7 @@ function drawTimeline(
   ctx: CanvasRenderingContext2D,
   data: ShareCardData,
   y: number,
+  exprImgs: (HTMLImageElement | null)[] = [],
 ): number {
   if (data.timeline.length === 0) return y;
   let cursor = drawSectionHeader(ctx, '📜', '复盘', '这一局谁先下岗', y);
@@ -322,19 +341,40 @@ function drawTimeline(
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.fillText(`R${e.round}`, rbX + 26, ry);
 
-    // Icon
+    // v6.71 — 表情立绘缩略图(惊恐/委屈);加载到了画图,没到则回退 emoji
+    const img = exprImgs[i];
+    const thS = 34;
+    const thX = rbX + 60;
+    const thY = ry - thS / 2;
+    if (img) {
+      ctx.save();
+      roundRect(ctx, thX, thY, thS, thS, 9);
+      ctx.clip();
+      ctx.drawImage(img, thX, thY, thS, thS);
+      ctx.restore();
+      strokeRoundRect(ctx, thX, thY, thS, thS, 9, rgba(e.teamColor, 0.55), 1.5);
+    } else {
+      ctx.font = `28px ${SANS}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(e.type === 'kill' ? '😵' : '😭', thX + thS / 2, ry);
+    }
+
+    // Icon (kill/vote)
     ctx.font = `22px ${SANS}`;
-    ctx.fillText(e.type === 'kill' ? '🔪' : '🗳️', rbX + 80, ry);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fillText(e.type === 'kill' ? '🔪' : '🗳️', rbX + 118, ry);
 
     // Name
     ctx.font = `800 22px ${SANS}`;
     ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.fillText(e.name, rbX + 110, ry);
+    ctx.fillText(e.name, rbX + 142, ry);
 
     // Role tag
     const nameW = ctx.measureText(e.name).width;
-    const tagX = rbX + 110 + nameW + 14;
+    const tagX = rbX + 142 + nameW + 14;
     const tagY = ry - 13;
     ctx.font = `800 13px ${SANS}`;
     const roleText = e.roleLabel;
@@ -524,10 +564,16 @@ export async function generateShareCard(data: ShareCardData): Promise<Blob> {
   // the `textRendering` property on CanvasRenderingContext2D.
   (ctx as unknown as { textRendering?: string }).textRendering = 'geometricPrecision';
 
+  // v6.71 — 尽力预加载复盘前 5 行的表情立绘(超时/失败 → null → 行内回退 emoji)。
+  const exprRows = data.timeline.slice(0, 5);
+  const exprImgs = await Promise.all(
+    exprRows.map((e) => loadImageSafe(expressionIcon(e.type, e.name))),
+  );
+
   drawBackground(ctx, data);
   drawHeader(ctx, data);
   let y = drawWinner(ctx, data, 92);
-  y = drawTimeline(ctx, data, y + 12);
+  y = drawTimeline(ctx, data, y + 12, exprImgs);
   y = drawPrediction(ctx, data, y);
   drawPlayers(ctx, data, y, H - 100);
   drawFooter(ctx, data);
