@@ -57,6 +57,10 @@ interface GameMapProps {
    *  avatar so spectators see their nominations materialise. The
    *  right side stays reserved for the v6.22 👻 dot. */
   hotNames?: string[];
+  /** v6.69 — 每个 player 在地图上的归一化屏幕坐标(0..1,相对 canvas 盒子),
+   *  RAF 里节流上报。给 ReactionDanmaku 用:让"群众吐槽"从被裁的那只鼠的工位冒出来,
+   *  而不是随机车道。纯只读回调,拿不到也不影响渲染。 */
+  onPositions?: (pos: Record<string, { x: number; y: number }>) => void;
 }
 
 /* ---------- Room definitions ---------- */
@@ -597,8 +601,12 @@ const ACTIVITY_ICON_KEYS: Record<string, keyof typeof activityIcons> = {
 
 /* ---------- Component ----------------------------------------------- */
 
-export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = null, ghostVotes = {}, hotNames = [] }: GameMapProps) {
+export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = null, ghostVotes = {}, hotNames = [], onPositions }: GameMapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // v6.69 — onPositions via ref so the RAF loop reads the latest without re-subscribing.
+  const onPositionsRef = useRef(onPositions);
+  onPositionsRef.current = onPositions;
+  const lastPosEmit = useRef(0);
   const loadedImages = useRef<Record<string, HTMLImageElement>>({});
   // Pre-loaded activity icon images, keyed by activityIcons key (work/chat/...).
   const activityImages = useRef<Record<string, HTMLImageElement>>({});
@@ -1067,6 +1075,18 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
     });
 
     drawList.sort((a, b) => a.sy - b.sy);
+
+    // v6.69 — 节流上报每只鼠的归一化屏幕坐标(给弹幕当出发点)。每 ~400ms 一次,
+    // 调用方应写进 ref(不要 setState),否则会每帧触发父组件重渲染。
+    if (onPositionsRef.current) {
+      const nowEmit = Date.now();
+      if (nowEmit - lastPosEmit.current > 400) {
+        lastPosEmit.current = nowEmit;
+        const pos: Record<string, { x: number; y: number }> = {};
+        for (const d of drawList) pos[d.p.id] = { x: d.sx / CANVAS_W, y: d.sy / CANVAS_H };
+        onPositionsRef.current(pos);
+      }
+    }
 
     for (const { p, sx, sy, speakerHere } of drawList) {
       // v6.55 #2 — per-player unique avatar key, falls back to role.

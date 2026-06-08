@@ -14,6 +14,7 @@ import GameMap from '../components/game/GameMap';
 import GhostChatPanel from '../components/game/GhostChatPanel';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
 import { reactionLine } from '@furball/shared';
+import { fetchReactionLine } from '../utils/reactionLine';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
 import PredictionBar from '../components/game/PredictionBar';
@@ -113,6 +114,9 @@ export default function Classic() {
   const [lastElim, setLastElim] = useState<EliminationEvent | null>(null);
   // v6.68 — 群众吐槽弹幕触发(被裁/出局时丢一个,飘过地图)
   const [danmaku, setDanmaku] = useState<DanmakuTrigger | null>(null);
+  // v6.69 — 每只鼠在地图上的归一化坐标(GameMap 节流上报,写 ref 不触发重渲染)
+  const posRef = useRef<Record<string, { x: number; y: number }>>({});
+  const dmIdRef = useRef(0); // 弹幕单调 id(静态 + LLM 各占一个,确保 effect 重触发)
   // v6.26 P5 — DEV hook for Playwright probes. Registers a global
   // function that fires a synthetic elim event with realistic mock data
   // so we can visual-verify the reveal modal + 班味物件 + 新员工 frame
@@ -173,6 +177,28 @@ export default function Classic() {
   const pushEvent = useCallback((type: EventLogEntry['type'], text: string) => {
     setEventLog((prev) => [...prev, { id: nextId.current++, type, text, timestamp: Date.now() }]);
   }, []);
+
+  // v6.69 — 一只鼠被裁/出局时点燃"群众吐槽":先即时丢静态弹幕 + 事件,再异步拉一句
+  // LLM 实时吐槽(结合身份/性格)追加。弹幕都从被裁工位坐标冒出来(拿不到则横向飘)。
+  const fireReactions = useCallback((
+    kind: 'kill' | 'vote',
+    victimId: string,
+    victimName: string,
+    victim?: { role?: string; personality?: string },
+  ) => {
+    const origin = posRef.current[victimId];
+    // 即时:静态池(不依赖网络,先有反应)
+    setDanmaku({ id: ++dmIdRef.current, kind, origin });
+    pushEvent('reaction', reactionLine(kind, dmIdRef.current));
+    // 异步:LLM 实时那句(失败就算了,静态的已经飘了)
+    const victimRole = victim?.role ? ROLE_LABELS[victim.role] : undefined;
+    const victimPersonality = victim?.personality ? PERSONALITY_LABELS[victim.personality]?.label : undefined;
+    void fetchReactionLine({ kind, victimName, victimRole, victimPersonality }).then((line) => {
+      if (!line) return;
+      pushEvent('reaction', `🗣️ 群众:${line}`);
+      setDanmaku({ id: ++dmIdRef.current, kind, text: line, emoji: '🗣️', origin });
+    });
+  }, [pushEvent]);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [eventLog]);
 
@@ -377,9 +403,8 @@ export default function Classic() {
           personality: data.eliminatedPersonality ?? victim?.personality,
           avatar: victim?.avatar, // v6.67 — 立绘弹出用真头像(有 pack 头像时)
         });
-        // v6.67 — 群众表情包吐槽,紧跟在"被投票开除"播报后
-        pushEvent('reaction', reactionLine('vote', elimIdRef.current));
-        setDanmaku({ id: elimIdRef.current, kind: 'vote' }); // v6.68 — 同时飘上地图
+        // v6.67/68/69 — 群众吐槽:静态即时 + LLM 实时,弹幕从被裁工位冒出
+        fireReactions('vote', data.eliminated, data.playerName, victim);
         // Append to persistent recap log so HighlightReel can replay later.
         pushElimination({
           round,
@@ -409,9 +434,8 @@ export default function Classic() {
         personality: data.victimPersonality ?? victim?.personality,
         avatar: victim?.avatar, // v6.67 — 立绘弹出用得上(有 pack 头像就用真的)
       });
-      // v6.67 — 吃瓜群众表情包吐槽,紧跟在"被优化"播报后面刷一条
-      pushEvent('reaction', reactionLine('kill', elimIdRef.current));
-      setDanmaku({ id: elimIdRef.current, kind: 'kill' }); // v6.68 — 同时飘上地图
+      // v6.67/68/69 — 群众吐槽:静态即时 + LLM 实时,弹幕从被裁工位冒出
+      fireReactions('kill', data.victimId, name, victim);
       pushElimination({
         round,
         type: 'kill',
@@ -568,6 +592,7 @@ export default function Classic() {
             currentSpeakerId={currentSpeaker}
             ghostVotes={ghostVotes}
             hotNames={hotNames}
+            onPositions={(pos) => { posRef.current = pos; }}
           />
 
           {/* v6.68 — 吃瓜群众表情包弹幕,飘过地图 */}

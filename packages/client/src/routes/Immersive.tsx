@@ -15,6 +15,7 @@ import RoleLegend from '../components/onboarding/RoleLegend';
 import PredictionBar from '../components/game/PredictionBar';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
+import { fetchReactionLine } from '../utils/reactionLine';
 import { useNavigate } from 'react-router-dom';
 import KillFlashOverlay from '../components/game/KillFlashOverlay';
 import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
@@ -145,6 +146,16 @@ export default function Immersive() {
   const [lastElim, setLastElim] = useState<EliminationEvent | null>(null);
   // v6.68 — 沉浸局对齐:群众吐槽弹幕触发
   const [danmaku, setDanmaku] = useState<DanmakuTrigger | null>(null);
+  const dmIdRef = useRef(0);
+  // v6.69 — 静态弹幕即时 + LLM 实时那句追加(沉浸局是圆桌布局,弹幕横向飘,不带工位坐标)。
+  const fireReactions = (kind: 'kill' | 'vote', victimName: string, victim?: { role?: string; personality?: string }) => {
+    setDanmaku({ id: ++dmIdRef.current, kind });
+    const victimRole = victim?.role ? ROLE_LABELS[victim.role] : undefined;
+    const victimPersonality = victim?.personality ? PERSONALITY_LABELS[victim.personality]?.label : undefined;
+    void fetchReactionLine({ kind, victimName, victimRole, victimPersonality }).then((line) => {
+      if (line) setDanmaku({ id: ++dmIdRef.current, kind, text: line, emoji: '🗣️' });
+    });
+  };
   const [lastVoteEliminated, setLastVoteEliminated] = useState<string | null>(null);
   const [voteResultTick, setVoteResultTick] = useState(0);
   const elimIdRef = useRef(0);
@@ -236,7 +247,7 @@ export default function Immersive() {
           // v6.41 P2 — carry pack emoji avatar into the reveal + recap.
           avatar: victim?.avatar,
         });
-        setDanmaku({ id: elimIdRef.current, kind: 'vote' }); // v6.68 — 群众吐槽弹幕
+        fireReactions('vote', data.playerName, victim); // v6.68/69 — 群众吐槽(静态+LLM)
         pushElimination({
           round,
           type: 'vote',
@@ -264,7 +275,7 @@ export default function Immersive() {
         // v6.41 P2 — carry pack emoji avatar into the reveal + recap.
         avatar: victim?.avatar,
       });
-      setDanmaku({ id: elimIdRef.current, kind: 'kill' }); // v6.68 — 群众吐槽弹幕
+      fireReactions('kill', name, victim); // v6.68/69 — 群众吐槽(静态+LLM)
       pushElimination({
         round,
         type: 'kill',
