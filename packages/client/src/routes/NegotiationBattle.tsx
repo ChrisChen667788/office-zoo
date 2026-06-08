@@ -52,6 +52,7 @@ import {
   MAX_EXTRA_COPIES,
 } from '@furball/shared';
 import { battleStatIcons, negotiationCardIcons, Icon } from '../constants/icons';
+import { downloadNegotiationShareCard, shareNegotiationCard } from '../utils/negotiationShareCard';
 
 const TAG_CN: Record<CardTag, string> = {
   legal: '劳动法', tenure: '工龄', emotion: '情绪', insider: '爆料', market: '市场',
@@ -443,6 +444,26 @@ export default function NegotiationBattle() {
                 {leveledTo && <div style={{ color: '#ffd43b', fontWeight: 800, marginTop: 6 }}>🎉 升职!现在是「{leveledTo}」,解锁新对手 / 新卡!</div>}
               </div>
             )}
+            <button
+              onClick={() => {
+                const o = battle.outcome;
+                if (o.kind === 'ongoing') return;
+                const input = {
+                  outcomeKind: o.kind,
+                  tier: 'tier' in o ? o.tier : 0,
+                  multiple: 'multiple' in o ? o.multiple : '未谈成',
+                  bossName: boss.name, bossEmoji: boss.emoji,
+                  relicName: relicId ? RELIC_POOL.find((r) => r.id === relicId)?.name : undefined,
+                  rounds: battle.round,
+                  severance: reward?.severance ?? 0,
+                  xp: reward?.xp ?? 0,
+                  careerTitle: levelFromXp(progress.xp).title,
+                };
+                shareNegotiationCard(input).then((ok) => { if (!ok) downloadNegotiationShareCard(input); });
+              }}
+              style={{ ...btnGood, width: '100%', marginBottom: 8, background: '#7048e8' }}>
+              📸 生成战绩卡
+            </button>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setPhase('prep')} style={{ ...btnPrimary, flex: 1 }}>再来一局</button>
               <button onClick={() => navigate('/fired')} style={{ ...btnGhost, flex: 1 }}>回裁了么</button>
