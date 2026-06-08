@@ -14,6 +14,7 @@ import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
 import PredictionBar from '../components/game/PredictionBar';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
+import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
 import { useNavigate } from 'react-router-dom';
 import KillFlashOverlay from '../components/game/KillFlashOverlay';
 import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
@@ -142,6 +143,8 @@ export default function Immersive() {
   // See Classic.tsx for the detailed rationale on monotonic ids and the
   // separate `voteResultTick` that drives PredictionBar resolution.
   const [lastElim, setLastElim] = useState<EliminationEvent | null>(null);
+  // v6.68 — 沉浸局对齐:群众吐槽弹幕触发
+  const [danmaku, setDanmaku] = useState<DanmakuTrigger | null>(null);
   const [lastVoteEliminated, setLastVoteEliminated] = useState<string | null>(null);
   const [voteResultTick, setVoteResultTick] = useState(0);
   const elimIdRef = useRef(0);
@@ -233,6 +236,7 @@ export default function Immersive() {
           // v6.41 P2 — carry pack emoji avatar into the reveal + recap.
           avatar: victim?.avatar,
         });
+        setDanmaku({ id: elimIdRef.current, kind: 'vote' }); // v6.68 — 群众吐槽弹幕
         pushElimination({
           round,
           type: 'vote',
@@ -260,6 +264,7 @@ export default function Immersive() {
         // v6.41 P2 — carry pack emoji avatar into the reveal + recap.
         avatar: victim?.avatar,
       });
+      setDanmaku({ id: elimIdRef.current, kind: 'kill' }); // v6.68 — 群众吐槽弹幕
       pushElimination({
         round,
         type: 'kill',
@@ -748,6 +753,9 @@ export default function Immersive() {
       )}
 
       {/* Dramatic elimination moment — 3s fullscreen on every kill/vote-out */}
+      {/* v6.68 — 沉浸局对齐:群众吐槽弹幕飘过全屏 */}
+      <ReactionDanmaku trigger={danmaku} fixed />
+
       <EliminationReveal latest={lastElim} activeNames={players.map((p) => p.name)} />
 
       {/* v0.5.1 punchy animation pack — same wiring as Classic.tsx. */}

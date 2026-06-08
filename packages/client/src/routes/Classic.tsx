@@ -12,6 +12,7 @@ import {
 } from '../stores/gameStore';
 import GameMap from '../components/game/GameMap';
 import GhostChatPanel from '../components/game/GhostChatPanel';
+import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
 import { reactionLine } from '@furball/shared';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
@@ -110,6 +111,8 @@ export default function Classic() {
   const [sessionLocked, setSessionLocked] = useState(false);
   // Elimination reveal: monotonic id + payload. Bumping id triggers the overlay.
   const [lastElim, setLastElim] = useState<EliminationEvent | null>(null);
+  // v6.68 — 群众吐槽弹幕触发(被裁/出局时丢一个,飘过地图)
+  const [danmaku, setDanmaku] = useState<DanmakuTrigger | null>(null);
   // v6.26 P5 — DEV hook for Playwright probes. Registers a global
   // function that fires a synthetic elim event with realistic mock data
   // so we can visual-verify the reveal modal + 班味物件 + 新员工 frame
@@ -376,6 +379,7 @@ export default function Classic() {
         });
         // v6.67 — 群众表情包吐槽,紧跟在"被投票开除"播报后
         pushEvent('reaction', reactionLine('vote', elimIdRef.current));
+        setDanmaku({ id: elimIdRef.current, kind: 'vote' }); // v6.68 — 同时飘上地图
         // Append to persistent recap log so HighlightReel can replay later.
         pushElimination({
           round,
@@ -407,6 +411,7 @@ export default function Classic() {
       });
       // v6.67 — 吃瓜群众表情包吐槽,紧跟在"被优化"播报后面刷一条
       pushEvent('reaction', reactionLine('kill', elimIdRef.current));
+      setDanmaku({ id: elimIdRef.current, kind: 'kill' }); // v6.68 — 同时飘上地图
       pushElimination({
         round,
         type: 'kill',
@@ -564,6 +569,9 @@ export default function Classic() {
             ghostVotes={ghostVotes}
             hotNames={hotNames}
           />
+
+          {/* v6.68 — 吃瓜群众表情包弹幕,飘过地图 */}
+          <ReactionDanmaku trigger={danmaku} />
 
           {/* v6.22 — 前同事吐槽群 panel. Right-bottom floating, collapsed
               by default to a small "👻 N" pill. Re-uses the same
