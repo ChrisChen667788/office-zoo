@@ -30,7 +30,7 @@ import PersonaCard from '../components/character/PersonaCard';
 import IdleBeat from '../components/character/IdleBeat';
 import { uid } from '../utils/uid';
 import { playTtsFromUrl, stopTts, speakViaBrowserTTS, hasBrowserTTS } from '../utils/audioUnlock';
-import { sfx } from '../utils/sfx';
+import { sfx, isSfxMuted } from '../utils/sfx';
 import { recordLeakSubmit, recordLeakQuoted } from '../utils/leakStats';
 import { phaseIcons, personalityIcons, glyphIcons, Icon } from '../constants/icons';
 
@@ -197,6 +197,8 @@ export default function Classic() {
       if (!line) return;
       pushEvent('reaction', `🗣️ 群众:${line}`);
       setDanmaku({ id: ++dmIdRef.current, kind, text: line, emoji: '🗣️', origin });
+      // v6.70 — 用浏览器 TTS 把这句"群众吐槽"念出来(吃瓜路人音:略快略高);静音时不念
+      if (!isSfxMuted()) void speakViaBrowserTTS(line, { rate: 1.12, pitch: 1.3 });
     });
   }, [pushEvent]);
 
