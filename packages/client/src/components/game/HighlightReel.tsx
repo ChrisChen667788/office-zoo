@@ -55,7 +55,7 @@ import {
 } from '../../utils/shareCard';
 import LottieAsset from '../LottieAsset';
 import { lottie } from '../../constants/lottie';
-import { teamIcons, glyphIcons, Icon } from '../../constants/icons';
+import { teamIcons, glyphIcons, Icon, expressionIcon } from '../../constants/icons';
 import ShareVideoButton from './ShareVideoButton';
 
 interface WinnerConfig {
@@ -439,6 +439,14 @@ export default function HighlightReel() {
                               ? <Icon src={glyphIcons.timelineKill} emoji="🔪" size={18} />
                               : <Icon src={glyphIcons.timelineVote} emoji="🗳️" size={18} />}
                           </span>
+                          {/* v6.70 — 被优化角色表情立绘(惊恐/委屈),复盘里也认得出谁 */}
+                          <Icon
+                            src={expressionIcon(e.type, e.playerName)}
+                            emoji={e.type === 'kill' ? '😵' : '😭'}
+                            size={26}
+                            alt=""
+                            style={{ borderRadius: '30%', objectFit: 'cover', border: `1px solid ${teamColor}55`, flexShrink: 0 }}
+                          />
                           {/* v6.41 P2 — 公司主题包 emoji avatar badge, shown
                               before the name so a custom-pack rat is
                               recognizable in the recap. */}
