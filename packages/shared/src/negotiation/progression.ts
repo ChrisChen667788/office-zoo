@@ -58,9 +58,12 @@ export interface BossTier {
 }
 
 export const BOSS_TIERS: readonly BossTier[] = [
-  { id: 'hr',  name: 'HR 专员',     emoji: '🧑‍💼', minLevel: 1, rewardMult: 1,   blurb: '刚入行,嘴还嫩,好说话。',           config: { budget: 90,  patience: 9 } },
-  { id: 'hrd', name: 'HRD 总监',    emoji: '💼',   minLevel: 2, rewardMult: 1.6, blurb: '老江湖,预算厚、套路深。',           config: { budget: 110, patience: 8 } },
-  { id: 'ceo', name: 'CEO 亲自下场', emoji: '👑',   minLevel: 3, rewardMult: 2.4, blurb: '要钱没有,要命一条 —— 但赔得最狠。', config: { budget: 130, patience: 7 } },
+  { id: 'hr',      name: 'HR 专员',     emoji: '🧑‍💼', minLevel: 1, rewardMult: 1,   blurb: '刚入行,嘴还嫩,好说话。',             config: { budget: 90,  patience: 9 } },
+  { id: 'hrd',     name: 'HRD 总监',    emoji: '💼',   minLevel: 2, rewardMult: 1.6, blurb: '老江湖,预算厚、套路深。',             config: { budget: 110, patience: 8 } },
+  { id: 'ceo',     name: 'CEO 亲自下场', emoji: '👑',   minLevel: 3, rewardMult: 2.4, blurb: '要钱没有,要命一条 —— 但赔得最狠。',   config: { budget: 130, patience: 7 } },
+  // v6.66 — 第 4 档:满级「劳动法之神」专属。已经不是 HR,是出钱的人本人。预算最厚、
+  // 耐心最薄(没空跟你磨),赔率拉满 —— N+6 不是梦,但一句话不对就掀桌走仲裁。
+  { id: 'capital', name: '资本本尊',    emoji: '🐉',   minLevel: 4, rewardMult: 3.6, blurb: '到这层就不跟 HR 谈了 —— 出钱的人亲自来。要么 N+6,要么仲裁见。', config: { budget: 170, patience: 6 } },
 ];
 
 export function bossById(id: string): BossTier {

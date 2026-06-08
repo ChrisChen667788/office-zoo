@@ -10,6 +10,8 @@ export * from './negotiation/relics';
 export * from './negotiation/deck';
 export * from './negotiation/shop';
 export * from './negotiation/shareCard';
+export * from './negotiation/leaderboard';
+export * from './negotiation/bridge';
 export * from './data/jargon';
 export * from './data/fired';
 export * from './data/talkshow';
