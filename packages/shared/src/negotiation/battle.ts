@@ -80,8 +80,24 @@ export const STANCE_POOL: readonly HRStance[] = [
   { id: 'threat', name: '威胁背调', resists: ['market'],           weakTo: ['insider', 'tenure'], moraleDrain: 15, blurb: '闹大了,对你以后找工作可不好看。' },
 ];
 
+/** v6.64 — 升级版话术卡的力度加成。升级卡的 id 在基础 id 后加一个 '+'。 */
+export const UPGRADE_PRESSURE = 6;
+
 export function cardById(id: string): NegotiationCard | undefined {
-  return ALL_CARDS.find((c) => c.id === id);
+  const direct = ALL_CARDS.find((c) => c.id === id);
+  if (direct) return direct;
+  // 升级版(deck-building):id 末尾 '+' → 取基础卡 + 力度加成,名字加「+」。
+  // 这样升级卡无需逐张定义,playCard / LLM 演出 / UI 全自动支持。
+  if (id.endsWith('+')) {
+    const base = ALL_CARDS.find((c) => c.id === id.slice(0, -1));
+    if (base) return { ...base, id, name: `${base.name}+`, pressure: base.pressure + UPGRADE_PRESSURE };
+  }
+  return undefined;
+}
+
+/** 去掉升级标记 '+',拿基础卡 id(用于图标查表等)。 */
+export function baseCardId(id: string): string {
+  return id.endsWith('+') ? id.slice(0, -1) : id;
 }
 export function stanceById(id: HRStanceId): HRStance {
   return STANCE_POOL.find((s) => s.id === id) ?? STANCE_POOL[0];

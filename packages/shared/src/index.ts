@@ -8,6 +8,7 @@ export * from './negotiation/sim';
 export * from './negotiation/progression';
 export * from './negotiation/relics';
 export * from './negotiation/deck';
+export * from './negotiation/shop';
 export * from './data/jargon';
 export * from './data/fired';
 export * from './data/talkshow';
