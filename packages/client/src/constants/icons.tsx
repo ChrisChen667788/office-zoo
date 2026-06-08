@@ -49,6 +49,16 @@ export const battleStatIcons = {
   morale:   url('negstat_morale'),
   chips:    url('negstat_chips'),
 } as const;
+
+// --- v6.69 被优化角色「表情立绘」AI 图(kill→惊恐 / vote→委屈,各 3 版按名字稳定选)---
+const EXPR_PANIC = ['expr_panic_1', 'expr_panic_2', 'expr_panic_3'];
+const EXPR_AGGRIEVED = ['expr_aggrieved_1', 'expr_aggrieved_2', 'expr_aggrieved_3'];
+/** 按事件 + 鼠名稳定选一张表情立绘 src。图没生成时 <Icon> 会自动回退到 emoji 兜底。 */
+export function expressionIcon(kind: 'kill' | 'vote', name: string): string {
+  const pool = kind === 'kill' ? EXPR_PANIC : EXPR_AGGRIEVED;
+  const h = [...(name || '')].reduce((a, c) => a + c.charCodeAt(0), 0);
+  return url(pool[h % pool.length]);
+}
 /** 话术卡图标,key = 卡 id(对应 shared CARD_POOL / UNLOCKABLE_CARDS)。 */
 export const negotiationCardIcons: Record<string, string> = {
   tenure_push:   url('negcard_tenure_push'),

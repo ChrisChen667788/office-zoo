@@ -31,6 +31,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CHARACTERS } from '@furball/shared';
+import { Icon, expressionIcon } from '../../constants/icons';
 import { sfx } from '../../utils/sfx';
 import { pickLastWords, pickNewHire } from './lastWords';
 
@@ -392,18 +393,24 @@ export default function EliminationReveal({
                 transition={{ duration: 0.85, times: [0, 0.4, 0.62, 0.82, 1], ease: 'easeOut', delay: 0.12 }}
                 style={{ width: 104, height: 104 }}
               >
-                {/* 立绘底盘 */}
+                {/* 立绘底盘 —— v6.69 优先 AI 表情立绘(惊恐/委屈),没生成则回退 emoji 大头 */}
                 <div
                   style={{
                     width: 104, height: 104, borderRadius: '28%',
-                    display: 'grid', placeItems: 'center', fontSize: 58, lineHeight: 1,
+                    display: 'grid', placeItems: 'center', fontSize: 58, lineHeight: 1, overflow: 'hidden',
                     background: `radial-gradient(circle at 38% 30%, ${cfg.color}33, rgba(15,14,46,0.95))`,
                     border: `3px solid ${cfg.color}`,
                     boxShadow: `0 0 32px ${cfg.color}77, inset 0 2px 0 rgba(255,255,255,0.12)`,
                     filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.55))',
                   }}
                 >
-                  {portraitGlyph}
+                  <Icon
+                    src={expressionIcon(latest.type, latest.playerName)}
+                    emoji={portraitGlyph}
+                    size={98}
+                    alt=""
+                    style={{ objectFit: 'cover', borderRadius: '22%' }}
+                  />
                 </div>
 
                 {/* 事件图标角标(刀 / 票)左上角 */}

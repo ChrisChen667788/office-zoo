@@ -167,6 +167,15 @@ export const ICON_DETAILS: Record<string, IconSpec> = {
   negcard_recording:    { subject: 'a smartphone screen showing a red recording dot and a waveform, sticker', accent: '#ef4444', bgStyle: 'solid' },
   negcard_arbitration:  { subject: 'a wooden judge gavel striking with a small spark, sticker', accent: '#DAA520', bgStyle: 'solid' },
   negcard_media_expose: { subject: 'a glowing megaphone with sound waves and a tiny news flash, sticker', accent: '#fb7185', bgStyle: 'solid' },
+
+  // v6.69 — 被优化角色「表情立绘」:惊恐(被裁瞬间)/ 委屈(被投票出局)各 3 版。
+  // 二次元贴纸头像风,上半身,表情夸张,放进 EliminationReveal 的立绘底盘(圆角裁切)。
+  expr_panic_1:     { subject: 'a cute anime office-worker mouse in a white shirt with a horrified panicked face, eyes wide open, both paws on cheeks, big sweat drops, mouth open in a silent scream', detail: 'upper-body portrait, exaggerated shocked expression, clean solid background', accent: '#ef4444', bgStyle: 'solid' },
+  expr_panic_2:     { subject: 'a terrified cartoon office mouse with jaw dropped and bulging eyes, trembling, cold sweat beads, hands raised in shock', detail: 'upper-body anime sticker portrait, dramatic fear, clean solid background', accent: '#f97316', bgStyle: 'solid' },
+  expr_panic_3:     { subject: 'a panicked cartoon mouse clutching a cardboard box of desk stuff, eyes popping in fear, blue shock lines on forehead', detail: 'upper-body anime sticker portrait, comedic horror, clean solid background', accent: '#fb7185', bgStyle: 'solid' },
+  expr_aggrieved_1: { subject: 'a cute anime office-worker mouse with a wronged teary face, big watery glossy eyes, trembling lip, holding a resignation letter', detail: 'upper-body sticker portrait, pitiful aggrieved expression, clean solid background', accent: '#60a5fa', bgStyle: 'solid' },
+  expr_aggrieved_2: { subject: 'a sad cartoon office mouse about to cry, glassy teary eyes welling up, droopy ears, quivering mouth', detail: 'upper-body anime sticker portrait, wronged look, clean solid background', accent: '#a78bfa', bgStyle: 'solid' },
+  expr_aggrieved_3: { subject: 'a teary cartoon mouse hugging a cardboard box of belongings, a single big tear rolling down, pitiful wronged pout', detail: 'upper-body anime sticker portrait, melancholy, clean solid background', accent: '#38bdf8', bgStyle: 'solid' },
 };
 
 const IMAGE_API_KEY = process.env.QINGYUN_API_KEY || '';
