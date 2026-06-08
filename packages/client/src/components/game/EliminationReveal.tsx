@@ -148,6 +148,8 @@ export default function EliminationReveal({
     // a double-played kill SFX is two short tones on top of each other.
     if (latest.type === 'kill') sfx.playKill();
     else sfx.playVote();
+    // v6.70 — 立绘出场音效:卡在立绘 spring-in 的瞬间(~150ms),叠在主音上"啵"一下
+    const revealT = setTimeout(() => sfx.playReveal(latest.type), 150);
     // v6.23 P4 — chained timers: main dismiss, then show new-hire frame,
     // then hide it. All tracked at the effect level so the outer cleanup
     // can clear all three on unmount / new event (StrictMode safe).

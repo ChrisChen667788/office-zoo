@@ -209,6 +209,25 @@ class SfxPlayer {
     this.tone(330, t + 0.18, 0.55, { type: 'sine', peak: 0.15 });
   }
 
+  /**
+   * v6.70 — 被优化角色「立绘」弹出的出场音效,叠在 kill/vote 主音之上做"啵"的一下。
+   * kill→惊恐:快速上扬的"啊!"+ 气声;vote→委屈:下行小号呜咽(迷你 sad-trombone)。
+   * 音量压低只当点缀,不抢主音。
+   */
+  playReveal(kind: 'kill' | 'vote') {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    if (kind === 'kill') {
+      this.tone(420, t, 0.18, { type: 'square', peak: 0.16, attack: 0.004, sweepTo: 1050 });
+      this.tone(860, t + 0.02, 0.12, { type: 'sine', peak: 0.1, sweepTo: 1500 });
+      this.noise(t, 0.09, { peak: 0.1, filter: 5200, type: 'highpass' });
+    } else {
+      this.tone(330, t, 0.5, { type: 'sawtooth', peak: 0.17, attack: 0.01, sweepTo: 196 });
+      this.tone(165, t, 0.55, { type: 'sine', peak: 0.11, sweepTo: 110 });
+    }
+  }
+
   /** Win — rising C major arpeggio + shimmer. */
   playWin() {
     const ctx = this.ensure();
