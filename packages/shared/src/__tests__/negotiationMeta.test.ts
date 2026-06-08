@@ -46,12 +46,21 @@ describe('progression — BOSS / 卡解锁', () => {
     expect(unlockedBosses(1).map((b) => b.id)).toEqual(['hr']);
     expect(unlockedBosses(2).map((b) => b.id)).toEqual(['hr', 'hrd']);
     expect(unlockedBosses(3).map((b) => b.id)).toEqual(['hr', 'hrd', 'ceo']);
+    // v6.66 — 第 4 档「资本本尊」满级专属
+    expect(unlockedBosses(4).map((b) => b.id)).toEqual(['hr', 'hrd', 'ceo', 'capital']);
   });
 
   it('harder bosses pay more', () => {
     expect(bossById('ceo').rewardMult).toBeGreaterThan(bossById('hr').rewardMult);
     expect(bossById('nope').id).toBe('hr'); // fallback
-    expect(BOSS_TIERS.length).toBe(3);
+    expect(BOSS_TIERS.length).toBe(4);
+  });
+
+  it('v6.66 — capital is the apex tier (level 4, richest reward)', () => {
+    const capital = bossById('capital');
+    expect(capital.minLevel).toBe(4);
+    expect(capital.rewardMult).toBe(Math.max(...BOSS_TIERS.map((b) => b.rewardMult)));
+    expect(capital.config.budget).toBe(Math.max(...BOSS_TIERS.map((b) => b.config.budget ?? 0)));
   });
 
   it('cards unlock by level', () => {
