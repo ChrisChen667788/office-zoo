@@ -165,6 +165,13 @@ export default function EliminationReveal({
   const cfg = latest ? TYPE_CONFIG[latest.type] : null;
   const teamColor = latest?.team ? TEAM_COLOR[latest.team] : undefined;
 
+  // v6.67 — 「表情立绘」素材:优先 pack 头像 → 角色绰号 emoji → 事件图标兜底;
+  // 配一张表情贴纸 + 一枚斜盖印章,让被优化的角色"弹"出来。
+  const portraitGlyph =
+    latest?.avatar || (latest ? CHARACTERS[latest.playerName]?.emoji : '') || cfg?.icon || '🐀';
+  const expressionSticker = latest?.type === 'kill' ? '😵' : '😭';
+  const stampText = latest?.type === 'kill' ? '已优化' : '已出局';
+
   // Re-derive particles whenever the event id changes (NOT on every render).
   const particles = useMemo(
     () => (latest && cfg ? buildParticles(cfg, latest.id) : []),
@@ -376,37 +383,72 @@ export default function EliminationReveal({
                 minWidth: 340,
               }}
             >
-              {/* Icon with shake */}
+              {/* v6.67 — 被优化角色「表情立绘」弹出:角色大头 + 事件图标角标 +
+                  表情贴纸 + 斜盖「已优化 / 已出局」印章。一弹一抖,放大节目效果。 */}
               <motion.div
-                className="text-6xl mb-2"
-                animate={{
-                  scale: [1, 1.25, 1],
-                  rotate: [0, -10, 8, -5, 0],
-                }}
-                transition={{ duration: 0.7, times: [0, 0.25, 0.5, 0.75, 1] }}
-                style={{ filter: `drop-shadow(0 0 20px ${cfg.color}aa)` }}
+                className="relative mx-auto mb-2.5"
+                initial={{ scale: 0, rotate: -25, y: 12 }}
+                animate={{ scale: [0, 1.32, 0.96, 1.06, 1], rotate: [-25, 12, -6, 3, 0], y: 0 }}
+                transition={{ duration: 0.85, times: [0, 0.4, 0.62, 0.82, 1], ease: 'easeOut', delay: 0.12 }}
+                style={{ width: 104, height: 104 }}
               >
-                {cfg.icon}
-              </motion.div>
-
-              {/* v6.40 P2 — 公司主题包 emoji avatar badge. Shown above the
-                  name so a custom-pack rat is recognizable in its send-off.
-                  Skipped for default rosters (no avatar). */}
-              {latest.avatar && (
+                {/* 立绘底盘 */}
                 <div
-                  className="mx-auto mb-1.5"
                   style={{
-                    width: 56, height: 56, borderRadius: '50%',
-                    display: 'grid', placeItems: 'center', fontSize: 30,
-                    background: 'rgba(15,14,46,0.92)',
-                    border: `2px solid ${cfg.color}`,
-                    boxShadow: `0 0 18px ${cfg.color}66`,
-                    filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.55))',
+                    width: 104, height: 104, borderRadius: '28%',
+                    display: 'grid', placeItems: 'center', fontSize: 58, lineHeight: 1,
+                    background: `radial-gradient(circle at 38% 30%, ${cfg.color}33, rgba(15,14,46,0.95))`,
+                    border: `3px solid ${cfg.color}`,
+                    boxShadow: `0 0 32px ${cfg.color}77, inset 0 2px 0 rgba(255,255,255,0.12)`,
+                    filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.55))',
                   }}
                 >
-                  {latest.avatar}
+                  {portraitGlyph}
                 </div>
-              )}
+
+                {/* 事件图标角标(刀 / 票)左上角 */}
+                <div
+                  style={{
+                    position: 'absolute', left: -8, top: -8,
+                    width: 34, height: 34, borderRadius: '50%', fontSize: 18,
+                    display: 'grid', placeItems: 'center',
+                    background: 'rgba(15,14,46,0.95)', border: `2px solid ${cfg.color}`,
+                    boxShadow: `0 0 12px ${cfg.color}66`,
+                  }}
+                >
+                  {cfg.icon}
+                </div>
+
+                {/* 表情贴纸(右下角弹一下) */}
+                <motion.div
+                  initial={{ scale: 0, rotate: 30 }}
+                  animate={{ scale: [0, 1.4, 1], rotate: [30, -12, 0] }}
+                  transition={{ delay: 0.58, duration: 0.5, ease: 'easeOut' }}
+                  style={{
+                    position: 'absolute', right: -10, bottom: -8, fontSize: 40, lineHeight: 1,
+                    filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))',
+                  }}
+                >
+                  {expressionSticker}
+                </motion.div>
+
+                {/* 斜盖印章 */}
+                <motion.div
+                  initial={{ scale: 1.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.82, type: 'spring', stiffness: 280, damping: 13 }}
+                  style={{
+                    position: 'absolute', left: '50%', top: '56%',
+                    transform: 'translate(-50%, -50%) rotate(-17deg)',
+                    padding: '2px 10px', fontSize: 15, fontWeight: 900, letterSpacing: '0.06em',
+                    color: cfg.color, border: `2.5px solid ${cfg.color}`, borderRadius: 6,
+                    background: 'rgba(15,14,46,0.5)', textShadow: `0 0 8px ${cfg.color}`,
+                    whiteSpace: 'nowrap', backdropFilter: 'blur(2px)',
+                  }}
+                >
+                  {stampText}
+                </motion.div>
+              </motion.div>
 
               {/* Name — big, punchy */}
               <div

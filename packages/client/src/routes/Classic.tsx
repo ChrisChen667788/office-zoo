@@ -12,6 +12,7 @@ import {
 } from '../stores/gameStore';
 import GameMap from '../components/game/GameMap';
 import GhostChatPanel from '../components/game/GhostChatPanel';
+import { reactionLine } from '@furball/shared';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
 import PredictionBar from '../components/game/PredictionBar';
@@ -65,7 +66,7 @@ function inferGenderFromRoleClassic(role?: string): 'male' | 'female' | undefine
 
 interface EventLogEntry {
   id: number;
-  type: 'speech' | 'vote' | 'kill' | 'phase' | 'system' | 'ghost';
+  type: 'speech' | 'vote' | 'kill' | 'phase' | 'system' | 'ghost' | 'reaction';
   text: string;
   timestamp: number;
 }
@@ -371,7 +372,10 @@ export default function Classic() {
           // is authoritative since it's set at elimination time on the
           // server, immune to client-side state-update races.
           personality: data.eliminatedPersonality ?? victim?.personality,
+          avatar: victim?.avatar, // v6.67 — 立绘弹出用真头像(有 pack 头像时)
         });
+        // v6.67 — 群众表情包吐槽,紧跟在"被投票开除"播报后
+        pushEvent('reaction', reactionLine('vote', elimIdRef.current));
         // Append to persistent recap log so HighlightReel can replay later.
         pushElimination({
           round,
@@ -399,7 +403,10 @@ export default function Classic() {
         location: data.location,
         // v6.24 P1 — same authoritative-event-first pattern as vote_result.
         personality: data.victimPersonality ?? victim?.personality,
+        avatar: victim?.avatar, // v6.67 — 立绘弹出用得上(有 pack 头像就用真的)
       });
+      // v6.67 — 吃瓜群众表情包吐槽,紧跟在"被优化"播报后面刷一条
+      pushEvent('reaction', reactionLine('kill', elimIdRef.current));
       pushElimination({
         round,
         type: 'kill',
@@ -451,6 +458,8 @@ export default function Classic() {
     phase:  { color: '#2fb8ff', bg: 'rgba(47,184,255,0.05)' },
     system: { color: '#a855f7', bg: 'rgba(168,85,247,0.05)' },
     ghost:  { color: '#6ee7b7', bg: 'rgba(110,231,183,0.05)' },
+    // v6.67 — 吃瓜群众表情包吐槽,粉系区别于正经播报
+    reaction: { color: '#f472b6', bg: 'rgba(244,114,182,0.07)' },
   };
 
   const phaseInfo = PHASE_NAMES[phase] || { label: phase, emoji: '🎮', icon: '' };
