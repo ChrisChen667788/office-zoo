@@ -40,6 +40,16 @@ import {
   refillHand,
   discardCard,
   discardHand,
+  type Loadout,
+  buildDeckIds,
+  buyRelic,
+  buyCopy,
+  buyUpgrade,
+  baseCardId,
+  RELIC_PRICE,
+  COPY_PRICE,
+  UPGRADE_PRICE,
+  MAX_EXTRA_COPIES,
 } from '@furball/shared';
 import { battleStatIcons, negotiationCardIcons, Icon } from '../constants/icons';
 
@@ -48,13 +58,27 @@ const TAG_CN: Record<CardTag, string> = {
 };
 
 const STORE_KEY = 'oz_neg_progress_v1';
-interface Progress { xp: number; severance: number; wins: number }
+// v6.64 — Progress 同时是商店 Loadout(severance 既是奖励货币也是商店货币)。
+interface Progress {
+  xp: number; severance: number; wins: number;
+  ownedRelics: string[];
+  extraCopies: Record<string, number>;
+  upgrades: Record<string, boolean>;
+}
 function loadProgress(): Progress {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) { const p = JSON.parse(raw); return { xp: p.xp || 0, severance: p.severance || 0, wins: p.wins || 0 }; }
+    if (raw) {
+      const p = JSON.parse(raw);
+      return {
+        xp: p.xp || 0, severance: p.severance || 0, wins: p.wins || 0,
+        ownedRelics: Array.isArray(p.ownedRelics) ? p.ownedRelics : [],
+        extraCopies: p.extraCopies && typeof p.extraCopies === 'object' ? p.extraCopies : {},
+        upgrades: p.upgrades && typeof p.upgrades === 'object' ? p.upgrades : {},
+      };
+    }
   } catch { /* ignore */ }
-  return { xp: 0, severance: 0, wins: 0 };
+  return { xp: 0, severance: 0, wins: 0, ownedRelics: [], extraCopies: {}, upgrades: {} };
 }
 function saveProgress(p: Progress) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(p)); } catch { /* ignore */ }
@@ -102,16 +126,32 @@ export default function NegotiationBattle() {
 
   const startBattle = useCallback(() => {
     const { config, excludeStances } = applyRelics(relicId ? [relicId] : [], { ...boss.config });
+    const loadout: Loadout = {
+      severance: progress.severance, ownedRelics: progress.ownedRelics,
+      extraCopies: progress.extraCopies, upgrades: progress.upgrades,
+    };
+    const deckIds = buildDeckIds(unlockedCardIds(level), loadout); // 含复制份数 + 升级标记
     const s = initBattle(config);
     setBattle(s);
-    setDeck(initDeck(unlockedCardIds(level), DEFAULT_HAND_SIZE));
+    setDeck(initDeck(deckIds, DEFAULT_HAND_SIZE));
     setMaxes({ morale: s.morale, patience: s.patience, budget: Math.max(BUDGET_MAX, s.budget) });
     setExclude(excludeStances);
     setHrLine(stanceById(s.stance).blurb);
     setFlash(''); setReward(null); setLeveledTo(null);
     rewardedRef.current = false;
     setPhase('battle');
-  }, [boss, relicId, level]);
+  }, [boss, relicId, level, progress]);
+
+  // 商店:用 shop 纯函数买东西,买成功就持久化(severance 既是奖励也是货币)。
+  const buy = useCallback((fn: (lo: Loadout) => Loadout | null) => {
+    setProgress((prev) => {
+      const next = fn({ severance: prev.severance, ownedRelics: prev.ownedRelics, extraCopies: prev.extraCopies, upgrades: prev.upgrades });
+      if (!next) return prev; // 买不起 / 非法 / 到顶
+      const np = { ...prev, ...next };
+      saveProgress(np);
+      return np;
+    });
+  }, []);
 
   // 结算:对局一进入终局就发奖励 + 持久化(只发一次)。
   useEffect(() => {
@@ -125,7 +165,7 @@ export default function NegotiationBattle() {
       const after = levelFromXp(xp);
       if (after.level > before) setLeveledTo(after.title);
       const won = battle.outcome.kind === 'settled' && 'tier' in battle.outcome && battle.outcome.tier >= 1;
-      const np = { xp, severance: prev.severance + r.severance, wins: prev.wins + (won ? 1 : 0) };
+      const np = { ...prev, xp, severance: prev.severance + r.severance, wins: prev.wins + (won ? 1 : 0) };
       saveProgress(np);
       return np;
     });
@@ -234,25 +274,65 @@ export default function NegotiationBattle() {
           })}
         </div>
 
-        {/* 遗物选择 */}
-        <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 6 }}>带一件职场遗物(一次性,改写规则;可不带)</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginBottom: 8 }}>
+        {/* 遗物:已买的可装备一件;没买的去商店买(花遣散费,永久拥有) */}
+        <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 6 }}>
+          职场遗物(装备一件;商店买后永久拥有)· 可用 💸 <b>{progress.severance}</b>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginBottom: 14 }}>
           {RELIC_POOL.map((r) => {
+            const owned = progress.ownedRelics.includes(r.id);
             const sel = relicId === r.id;
             return (
-              <button key={r.id} onClick={() => setRelicId(sel ? null : r.id)}
-                style={{
-                  ...rowBtn, textAlign: 'left', cursor: 'pointer',
-                  border: sel ? '1px solid rgba(220,180,90,0.85)' : '1px solid rgba(255,255,255,0.12)',
-                  background: sel ? 'rgba(220,170,70,0.16)' : 'rgba(255,255,255,0.05)',
-                }}>
+              <div key={r.id} style={{
+                ...rowBtn,
+                border: sel ? '1px solid rgba(220,180,90,0.85)' : '1px solid rgba(255,255,255,0.12)',
+                background: sel ? 'rgba(220,170,70,0.16)' : 'rgba(255,255,255,0.05)',
+              }}>
                 <div style={{ fontWeight: 700 }}>{r.emoji} {r.name}</div>
-                <div style={{ fontSize: 11, opacity: 0.72, marginTop: 2 }}>{r.blurb}</div>
-              </button>
+                <div style={{ fontSize: 11, opacity: 0.72, margin: '2px 0 6px' }}>{r.blurb}</div>
+                {owned ? (
+                  <button onClick={() => setRelicId(sel ? null : r.id)}
+                    style={{ ...chipBtn, background: sel ? '#2f9e44' : 'rgba(255,255,255,0.14)' }}>
+                    {sel ? '✓ 已装备' : '装备'}
+                  </button>
+                ) : (
+                  <button onClick={() => buy((lo) => buyRelic(lo, r.id))} disabled={progress.severance < RELIC_PRICE}
+                    style={{ ...chipBtn, opacity: progress.severance < RELIC_PRICE ? 0.4 : 1 }}>
+                    买 · 💸{RELIC_PRICE}
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
-        <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 14 }}>当前选择:{relicId ? RELIC_POOL.find((r) => r.id === relicId)?.name : '不带遗物'}</div>
+
+        {/* 卡牌商店:复制(同名多张)/ 升级(力度 +) —— deck-building */}
+        <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 6 }}>卡牌商店(复制 💸{COPY_PRICE} · 升级 💸{UPGRADE_PRICE})</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginBottom: 14 }}>
+          {unlockedCardIds(level).map((id) => {
+            const c = cardById(id); if (!c) return null;
+            const copies = 1 + (progress.extraCopies[id] ?? 0);
+            const upgraded = !!progress.upgrades[id];
+            const capped = copies >= 1 + MAX_EXTRA_COPIES;
+            return (
+              <div key={id} style={{ ...rowBtn, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)' }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>
+                  {c.name}{upgraded ? '+' : ''} <span style={{ opacity: 0.5, fontSize: 11 }}>×{copies}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <button onClick={() => buy((lo) => buyCopy(lo, id))} disabled={progress.severance < COPY_PRICE || capped}
+                    style={{ ...chipBtn, flex: 1, opacity: progress.severance < COPY_PRICE || capped ? 0.4 : 1 }}>
+                    {capped ? '满' : '复制'}
+                  </button>
+                  <button onClick={() => buy((lo) => buyUpgrade(lo, id))} disabled={progress.severance < UPGRADE_PRICE || upgraded}
+                    style={{ ...chipBtn, flex: 1, opacity: progress.severance < UPGRADE_PRICE || upgraded ? 0.4 : 1 }}>
+                    {upgraded ? '已升' : '升级'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         <button onClick={startBattle} style={{ ...btnPrimary, width: '100%', padding: 14, fontSize: 15 }}>
           开始谈判 ⚔️ vs {boss.emoji} {boss.name}
@@ -328,7 +408,7 @@ export default function NegotiationBattle() {
               }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 14 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <Icon src={negotiationCardIcons[id]} emoji="🃏" size={18} alt="" />{c.name}
+                  <Icon src={negotiationCardIcons[baseCardId(id)]} emoji="🃏" size={18} alt="" />{c.name}
                 </span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
                   <Icon src={battleStatIcons.chips} emoji="🎟️" size={12} alt="" />{c.cost}
@@ -381,3 +461,4 @@ const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 
 const btnGhost: React.CSSProperties = { background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13 };
 const btnPrimary: React.CSSProperties = { background: '#4263eb', color: '#fff', border: 'none', borderRadius: 8, padding: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700 };
 const btnGood: React.CSSProperties = { background: '#2f9e44', color: '#fff', border: 'none', borderRadius: 8, padding: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700 };
+const chipBtn: React.CSSProperties = { background: 'rgba(255,255,255,0.14)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700, width: '100%' };
