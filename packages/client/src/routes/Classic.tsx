@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import {
@@ -72,6 +72,7 @@ interface EventLogEntry {
 
 export default function Classic() {
   const { gameId } = useParams<{ gameId: string }>();
+  const navigate = useNavigate();
 
   // Atomic slice subscriptions — component re-renders only when the slice it
   // reads actually changes, rather than on every unrelated `set()` call.
@@ -918,6 +919,17 @@ export default function Classic() {
                   }}>
                     {p.ghostVoteUsed ? '仲裁已用' : '仲裁票 ×1'}
                   </span>
+                  {/* v6.66 — 牌局机制反哺主对局:替这只被裁的鼠去闯关牌局谈赔偿 */}
+                  <button
+                    onClick={() => navigate(`/fired/battle?for=${encodeURIComponent(p.name)}`)}
+                    title={`替 ${p.name} 去跟 HR 谈赔偿(闯关牌局)`}
+                    style={{
+                      fontSize: 10, padding: '1px 6px', borderRadius: 4, cursor: 'pointer',
+                      background: 'rgba(167,139,250,0.15)', color: 'rgba(196,181,253,0.95)',
+                      border: '1px solid rgba(167,139,250,0.4)',
+                    }}>
+                    ⚔️ 谈赔偿
+                  </button>
                 </div>
                 );
               })}

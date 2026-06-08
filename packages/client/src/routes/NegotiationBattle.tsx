@@ -7,7 +7,7 @@
  *   持久化),升职级解锁进阶卡 + 更狠的 BOSS。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   BUDGET_MAX,
   BOSS_TIERS,
@@ -50,9 +50,14 @@ import {
   COPY_PRICE,
   UPGRADE_PRICE,
   MAX_EXTRA_COPIES,
+  settlementVibe,
+  buildBridge,
+  type NegRun,
+  type NegRunSubmit,
 } from '@furball/shared';
 import { battleStatIcons, negotiationCardIcons, Icon } from '../constants/icons';
 import { downloadNegotiationShareCard, shareNegotiationCard } from '../utils/negotiationShareCard';
+import { getUserId } from '../utils/userId';
 
 const TAG_CN: Record<CardTag, string> = {
   legal: '劳动法', tenure: '工龄', emotion: '情绪', insider: '爆料', market: '市场',
@@ -102,6 +107,7 @@ function Bar({ icon, emoji, label, value, max, color }: { icon?: string; emoji?:
 }
 
 const TIERS = [0, 1, 2, 3] as const;
+const VIBE_DOT: Record<'win' | 'meh' | 'lose', string> = { win: '#22c55e', meh: '#fbbf24', lose: '#ef4444' };
 
 export default function NegotiationBattle() {
   const navigate = useNavigate();
@@ -121,9 +127,28 @@ export default function NegotiationBattle() {
   const [deck, setDeck] = useState<DeckState | null>(null);
   const rewardedRef = useRef(false);
 
+  // v6.66 — 战绩榜 + 主对局桥接。
+  const [params] = useSearchParams();
+  const bridgeFor = (params.get('for') || '').slice(0, 24); // 替哪只被裁的鼠谈(主对局桥接)
+  const [wall, setWall] = useState<NegRun[] | null>(null);
+  const [wallOpen, setWallOpen] = useState(false);
+
   const career = levelFromXp(progress.xp);
   const level = career.level;
   const boss = bossById(bossId);
+
+  // v6.66 — 从主对局「替 TA 谈赔偿」进来时,按鼠名预选一档已解锁 BOSS。
+  useEffect(() => {
+    if (bridgeFor) setBossId(buildBridge(bridgeFor, levelFromXp(progress.xp).level).bossId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bridgeFor]);
+
+  const loadWall = useCallback(() => {
+    fetch('/api/negotiation/leaderboard?limit=10')
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d: { top: NegRun[] }) => setWall(Array.isArray(d.top) ? d.top : []))
+      .catch(() => setWall([]));
+  }, []);
 
   const startBattle = useCallback(() => {
     const { config, excludeStances } = applyRelics(relicId ? [relicId] : [], { ...boss.config });
@@ -170,6 +195,25 @@ export default function NegotiationBattle() {
       saveProgress(np);
       return np;
     });
+
+    // v6.66 — 上报全网战绩榜(取本局结果;userId + ts 服务端注入)。锦上添花,失败不打扰。
+    const o = battle.outcome;
+    const oc = o.kind as 'settled' | 'caved' | 'flipped';
+    const tierNow = 'tier' in o ? o.tier : 0;
+    const run: NegRunSubmit = {
+      severance: r.severance, xp: r.xp, outcomeKind: oc,
+      tier: tierNow, multiple: 'multiple' in o ? o.multiple : '未谈成',
+      bossId: boss.id, bossName: boss.name, bossEmoji: boss.emoji,
+      careerTitle: levelFromXp(progress.xp + r.xp).title,
+      vibe: settlementVibe({ outcomeKind: oc, tier: tierNow }),
+      rounds: battle.round,
+      ...(relicId ? { relicName: RELIC_POOL.find((x) => x.id === relicId)?.name } : {}),
+    };
+    fetch('/api/negotiation/score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': getUserId() },
+      body: JSON.stringify(run),
+    }).catch(() => { /* 榜单失败不影响本局 */ });
   }, [battle, boss]);
 
   const fetchHRLine = useCallback(async (cardId: string, stanceId: HRStanceId, outcomeKind: string) => {
@@ -238,6 +282,22 @@ export default function NegotiationBattle() {
           <button onClick={() => navigate('/fired')} style={btnGhost}>← 返回</button>
           <h2 style={{ fontSize: 18, margin: 0 }}>⚔️ 赔偿谈判·闯关牌局 <span style={{ fontSize: 12, opacity: 0.5 }}>Beta</span></h2>
         </div>
+
+        {/* v6.66 — 主对局桥接横幅:替被裁的鼠去谈赔偿 */}
+        {bridgeFor && (
+          <div style={{
+            ...card, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10,
+            border: '1px solid rgba(110,231,183,0.45)', background: 'rgba(110,231,183,0.10)',
+          }}>
+            <span style={{ fontSize: 26 }}>🎯</span>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{buildBridge(bridgeFor, level).banner}</div>
+              <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
+                TA 在局里被裁了 —— 你替 TA 跟 HR 把赔偿谈回来。已按职级配好对手,也可手动改。
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 职级 / 经验 / 遣散费 */}
         <div style={{ ...card, marginBottom: 14 }}>
@@ -333,6 +393,43 @@ export default function NegotiationBattle() {
               </div>
             );
           })}
+        </div>
+
+        {/* v6.66 — 全网战绩榜(晒图入口:每行可重画那局的战绩卡) */}
+        <div style={{ marginBottom: 14 }}>
+          <button
+            onClick={() => { setWallOpen((o) => !o); if (!wallOpen && wall === null) loadWall(); }}
+            style={{ ...rowBtn, width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+            <span style={{ fontWeight: 700 }}>🏆 全网战绩榜 <span style={{ fontSize: 11, opacity: 0.55 }}>遣散费排名</span></span>
+            <span style={{ fontSize: 12, opacity: 0.6 }}>{wallOpen ? '收起 ▲' : '展开 ▼'}</span>
+          </button>
+          {wallOpen && (
+            <div style={{ ...card, marginTop: 8 }}>
+              {wall === null && <div style={{ fontSize: 12, opacity: 0.6, textAlign: 'center', padding: '10px 0' }}>⏳ 加载中…</div>}
+              {wall && wall.length === 0 && <div style={{ fontSize: 12, opacity: 0.6, textAlign: 'center', padding: '10px 0' }}>还没人上榜 —— 打一局,你就是榜一。</div>}
+              {wall && wall.map((row, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 13,
+                  borderTop: i ? '1px solid rgba(255,255,255,0.07)' : 'none',
+                }}>
+                  <span style={{ width: 22, textAlign: 'center', fontWeight: 800, opacity: 0.7 }}>{i + 1}</span>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: VIBE_DOT[row.vibe], flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {row.bossEmoji} <b>{row.severance}</b> 个月 · {row.multiple}
+                    <span style={{ opacity: 0.55 }}> · {row.careerTitle}</span>
+                  </span>
+                  <button
+                    title="生成这局的战绩卡"
+                    onClick={() => downloadNegotiationShareCard({
+                      outcomeKind: row.outcomeKind, tier: row.tier, multiple: row.multiple,
+                      bossName: row.bossName, bossEmoji: row.bossEmoji, relicName: row.relicName,
+                      rounds: row.rounds, severance: row.severance, xp: row.xp, careerTitle: row.careerTitle,
+                    })}
+                    style={{ ...chipBtn, padding: '2px 8px', width: 'auto', flexShrink: 0 }}>📸</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <button onClick={startBattle} style={{ ...btnPrimary, width: '100%', padding: 14, fontSize: 15 }}>

@@ -14,6 +14,7 @@ import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
 import PredictionBar from '../components/game/PredictionBar';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
+import { useNavigate } from 'react-router-dom';
 import KillFlashOverlay from '../components/game/KillFlashOverlay';
 import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
 import EmergencyMeetingTransition from '../components/game/EmergencyMeetingTransition';
@@ -111,6 +112,7 @@ function inferGenderFromRole(role?: string): 'male' | 'female' | undefined {
 
 export default function Immersive() {
   const { socket, connected } = useSocket();
+  const navigate = useNavigate();
 
   // Atomic slice subscriptions — prevents whole-component re-renders on
   // unrelated state changes (e.g. avatar URL updates during active speech).
@@ -603,6 +605,21 @@ export default function Immersive() {
                       }}>
                       {player.ghostVoteUsed ? '仲裁已用' : '⚖️ 仲裁票'}
                     </span>
+                  )}
+
+                  {/* v6.66 — 牌局机制反哺主对局:替这只被裁的鼠去闯关牌局谈赔偿 */}
+                  {!player.isAlive && (
+                    <button
+                      onClick={() => navigate(`/fired/battle?for=${encodeURIComponent(player.name)}`)}
+                      title={`替 ${player.name} 去跟 HR 谈赔偿(闯关牌局)`}
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5"
+                      style={{
+                        color: 'rgba(196,181,253,0.95)',
+                        background: 'rgba(167,139,250,0.15)',
+                        border: '1px solid rgba(167,139,250,0.4)',
+                      }}>
+                      ⚔️ 谈赔偿
+                    </button>
                   )}
                 </motion.div>
               </motion.div>
