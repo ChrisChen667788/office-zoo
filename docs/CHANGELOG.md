@@ -7,6 +7,19 @@
 
 ---
 
+## v6.64 — 2026-06-06 · 闯关牌局 局间商店(遗物购买 + 卡牌 deck-building)
+
+把攒的遣散费变成可花的 meta 货币:局间开商店买遗物 / 复制卡 / 升级卡。+10 → 349。
+
+- **纯经济**(`negotiation/shop.ts`):`Loadout`(severance / ownedRelics / extraCopies /
+  upgrades)+ `buyRelic`(8,永久拥有)/ `buyCopy`(4,每卡额外份数封顶 2)/ `buyUpgrade`
+  (6)+ `buildDeckIds`(解锁卡 × loadout → 这一局的牌列表)。`battle.cardById` 支持
+  「id+」**升级版**(力度 +6,名字加 +),无需逐张定义;`baseCardId` 去标记。
+- **准备界面**:遗物从「免费随便选」改成「**已买可装备 / 没买花遣散费买(永久)**」;新增
+  **卡牌商店**(每张解锁卡可复制 / 升级);开局用 `buildDeckIds` 组牌(含份数 + 升级)。
+  `Progress` 持久化扩 ownedRelics / extraCopies / upgrades。
+- **测试**:`negotiationShop.test.ts` 10 例(买/复制封顶/升级一次/组牌 + 升级卡解析)。
+
 ## v6.63 — 2026-06-06 · 闯关牌局上「牌库抽牌」(roguelike 牌库感)
 
 把牌局从「每回合摊开所有卡」改成真·deck-builder:从牌库抽一手,打牌进弃牌堆,回合
