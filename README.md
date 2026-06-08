@@ -274,6 +274,7 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 - ✅ **v6.68** 群众吐槽「**弹幕飘地图**」(`ReactionDanmaku`:被裁/出局时从右往左飘一串粉色吐槽 pill,分车道错时延,几秒自清)+ **沉浸局演出对齐**(沉浸局也接弹幕;立绘头像两端一致)
 - ✅ **v6.69** 裁员演出**全面升级**:立绘接 **AI 表情图**(惊恐×3/委屈×3,doubao 生成,emoji 兜底)+ 群众吐槽接 **LLM 实时生成**(结合谁/身份/性格,`/api/reaction/line` + FIRED_HR_MODEL,静态池兜底)+ 弹幕**从被裁工位飘出**(`GameMap.onPositions` 节流上报坐标 → `ReactionDanmaku.origin` 上飘)
 - ✅ **v6.70** 演出**收尾三连**:群众吐槽接 **TTS 念出来**(经典局,吃瓜路人音,静音可关)+ 立绘进 **HighlightReel 复盘**时间线(惊恐/委屈缩略图)+ 立绘**出场音效**(`sfx.playReveal`:惊恐"啊!"/委屈呜咽,叠在 kill/vote 主音上)
+- ✅ **v6.71** 打磨:表情立绘**烤进导出的战报 PNG**(`shareCard` 复盘行尽力预加载立绘 + 圆角 `drawImage`,超时/失败回退 emoji,不污染 canvas)—— 复盘屏幕 + 分享卡两端都有立绘
 
 **下一步(开放讨论):**
 - [x] ~~赔偿结算分享卡~~ —— v6.65 已上(战绩图 boss / 赔偿档 / 遗物 / 回合数,一键分享)
