@@ -7,6 +7,21 @@
 
 ---
 
+## v6.77 — 2026-06-10 · 关系网收尾(真 engine 回归 + 本周最毒世仇榜)
+
+把 v6.76 的两个口子焊死:① 投票反哺补上**真引擎集成回归**(之前只 throwaway 脚本验过),
+② 关系图谱加**本周最毒世仇榜**。+4 测试 → 434。
+
+- **① runVoting 真 engine 集成测试**(`grudgeVote.test.ts`,+2):跑真 `GameEngine` —— `createPlayers`
+  拿到真 archetype → 往 `relationStore` 种世仇(backstab×2 = -90)→ mock 掉所有 `agent.generateVote`
+  (不碰 LLM)→ 调私有 `runVoting` → 断言「世仇候选时基础票被**真的改投** + 时间线落 `grudge_vote`」;
+  另证普通记仇(-32,未到世仇)不强改票。relationStore 单例缓存 test/引擎共享,case 间清缓存+删盘隔离。
+- **② 本周最毒世仇榜**(纯函数 `topFeuds` + 2 测试):窗口内(7 天,按 `lastTs`)记仇级边按 score
+  升序取前 N;`RelationNetworkPanel` 顶部加「🏆 本周最毒世仇」榜(🥇🥈🥉 + 分数,读已有
+  `/api/relations` 的边,Date.now 只在组件里)。
+- 验证:434 测试全绿;Playwright 探针确认榜单(社牛💢杠精 -92 / 杠精 -77 / 舔狗 -64,+卷王→社牛
+  绿交情不进榜只进图)。
+
 ## v6.76 — 2026-06-10 · 关系网长牙(投票真反哺 + 恩怨进战绩卡)
 
 把 v6.75 那层「嘴上记仇」的关系网做实:世仇真的会被优先投票,恩怨录进赛后战绩卡 + 分享。+4 测试 → 430。
