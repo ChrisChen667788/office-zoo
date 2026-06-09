@@ -100,7 +100,7 @@
 - 🏆 **跨观众排行榜** (v6.36→v6.38) — 全网 Top 10 班味分公开榜 + 按地区/行业筛选 + "🏢 只看本公司同事 Top",一键下载 1080×1350 榜单分享卡
 - 🎁 **班味年终 Wrapped** (v6.39→v6.40) — Spotify-Wrapped 风年度回顾:峰值周 / 平均分 / 趋势 / 爆料命中率 / 成就墙 / 年度班味人格标签,一键导出海报
 - 🔥 **班味金句池 → 游戏世界回路** (v6.33→v6.36) — 观众投稿职场金句 → 提名计数加权 → 下一局 AI 鼠人更可能"出场"被提名的名字, GameMap 给热门鼠人加 🔥 badge
-- 🧪 **质量** — 426 vitest 全绿 · typecheck 干净 · Playwright 视觉探针验证 wrapped 卡 + 动画架构图
+- 🧪 **质量** — 430 vitest 全绿 · typecheck 干净 · Playwright 视觉探针验证 wrapped 卡 + 动画架构图
 
 ## 🌟 v6.1 升级 (2026-05-22)
 
@@ -279,6 +279,7 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 - ✅ **v6.73** 爆款①·短视频:**名场面识别升级**(`highlightPicker` 新增 反转/完美伪装/绝地翻盘/腥风血雨 4 种高戏剧性名场面,接 `predictionLog`,基础分压过普通击杀,+8 测试)+ 帧标签/字幕/分享文案补新 kind + 系统分享挂 # 话题(竖版 9:16/LLM 字幕/mp4 转码 v0.3–0.4 已有)
 - ✅ **v6.74** 爆款②·下注:旁观局 `PredictionBar` → **观众下注盘 `BettingBar`**(筹码/赔率/派彩,押中按锁定赔率结算,每日补给+破产兜底,纯引擎 `betting/betting.ts` +11 测试)+ **全网战绩榜「赌怪榜」**(💰 筹码榜 / 🎯 神算榜带样本门槛,纯排序 `betting/leaderboard.ts` +8 测试 + 服务端 `bettingStore` mirror 落盘 + `/api/betting/*`);仍写 `predictionLog` 不破坏 HighlightReel/名场面
 - ✅ **v6.75** 爆款③·关系:**AI 记忆关系网**(鼠人跨局记仇/记恩)—— 纯引擎 `memory/relationships.ts`(archetype 持久身份键的有向情绪图,投票把我投出=记仇、同阵营投我=叛变记大仇、救我=记恩,+13 测试)+ 服务端 `relationStore`(串行写队列)+ GameEngine round-end ingest + `/api/relations` + **🕸️ 恩怨录关系图谱 UI**(红线结仇/绿线交情/箭头指向被记的那只)+ `BaseAgent` 发言注入旧账让 AI 甩「上次你卖过我」;跟 pgvector 情景记忆流互补(那层 episodic,这层结构化社交图谱)
+- ✅ **v6.76** 关系网长牙:**① 投票真反哺**(纯函数 `resolveVoteWithGrudge`,真·世仇 ≤-60 才把票真的拽过去 + 甩旧账,普通记仇只进 prompt,有界不破坏推理,接进 `runVoting` 全程 fail-safe,+4 测试)+ **② 恩怨录进战绩卡/分享**(赛后 `Result`「🕸️ 本局恩怨录」只亮在场两只之间的红仇/绿恩,复制回放捎带头牌恩怨)
 
 **下一步(开放讨论):**
 - [x] ~~赔偿结算分享卡~~ —— v6.65 已上(战绩图 boss / 赔偿档 / 遗物 / 回合数,一键分享)
