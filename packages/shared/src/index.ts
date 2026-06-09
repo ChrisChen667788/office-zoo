@@ -24,3 +24,4 @@ export * from './data/characters';
 export * from './data/reactions';
 export * from './betting/betting';
 export * from './betting/leaderboard';
+export * from './memory/relationships';
