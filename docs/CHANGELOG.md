@@ -7,6 +7,23 @@
 
 ---
 
+## v6.74 — 2026-06-09 · 观众下注盘(看戏升级成"有筹码的看戏")
+
+爆款玩法第②弹(下注)。把旁观局的 `PredictionBar`(只「选谁 + 命中率」)升级成有**筹码 / 赔率 /
+派彩**的下注盘。+11 测试 → 405。
+
+- **纯下注引擎**(`shared/betting/betting.ts` + 11 测试):赔率 = 概率倒数 × house edge,封下限;
+  押中按**下注时锁定的赔率**派彩;筹码经济(`placeBet` 扣费 / `creditResult` 入账 / `applyDrip`
+  每日补给 + 破产兜底);盘口构建(`roundVoteMarket` 候选含 heat 加权 / `winningTeamMarket`)。
+  全纯函数、无随机、无 I/O。
+- **下注 UI**(`BettingBar`,**替换** `PredictionBar`):每回合用在场玩家开「谁被投票开除」盘口,
+  注额 20/50/100/200,点候选 = 锁赔率下注;`vote_result` 结算派彩 + 余额/命中率/结算 toast;
+  筹码本地存(`oz_betting_v1`),挂载补给一次(全新存档不白送)。经典 + 沉浸局都换上。
+- **不破坏老东西**:`BettingBar` 仍写 `gameStore.predictionLog`,所以 HighlightReel 复盘 +
+  v6.73「看走眼」名场面照常工作。
+- 验证:11 测试锁引擎;Playwright 探针截图确认盘口(6 人局每个候选 5.52× = 1/6 × edge)。
+- 注:`PredictionBar.tsx` 已被取代,暂留作历史参考(无引用)。服务端跨人排行榜(P3)按计划留作下一步。
+
 ## v6.73 — 2026-06-09 · 名场面识别升级(短视频更炸)
 
 爆款玩法第①弹(短视频)。竖版 9:16 / LLM 字幕 / 系统分享 / mp4 转码早就有了(v0.3–0.4),
