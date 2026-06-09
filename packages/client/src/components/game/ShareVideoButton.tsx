@@ -30,10 +30,20 @@ import {
   useAvatarUrls,
   useEliminationLog,
   usePlayers,
+  usePredictionLog,
   useRound,
   useSpeechHistory,
   useWinner,
 } from '../../stores/gameStore';
+
+/** v6.73 — 带话题的分享文案,按胜负出钩子,末尾挂 # 便于抖音/小红书聚合。 */
+function buildShareText(winner?: string): string {
+  const hook =
+    winner === 'cat' ? '我手下的 AI 鼠把资本家斗下台了,这波操作给我看乐了'
+  : winner === 'dog' ? '我的 AI 同事卧底到最后赢麻,演技比我老板还好'
+  : '看 9 个 AI 员工在办公室互相"优化",比上班还精彩';
+  return `${hook}\n#办公室幸存者 #我的AI同事 #OFFICEZOO #班味`;
+}
 
 type Status = 'idle' | 'captions' | 'rendering' | 'transcoding' | 'done' | 'error';
 
@@ -56,6 +66,7 @@ export default function ShareVideoButton() {
   const round = useRound();
   const winner = useWinner();
   const avatarUrls = useAvatarUrls();
+  const predictionLog = usePredictionLog();
 
   const [status, setStatus] = useState<Status>('idle');
   const [progress, setProgress] = useState(0);
@@ -107,6 +118,7 @@ export default function ShareVideoButton() {
         speeches,
         winner,
         totalRounds: round,
+        predictionLog, // v6.73 — 挖"看走眼"反转名场面
       });
 
       // v0.3.1 — fetch LLM captions in parallel before render. Soft-fail:
@@ -139,7 +151,7 @@ export default function ShareVideoButton() {
       setTimeout(() => { setStatus('idle'); setErrMsg(null); }, 3500);
     }
   }, [
-    status, players, eliminationLog, speechHistory, round, winner, avatarUrls, aspect,
+    status, players, eliminationLog, speechHistory, round, winner, avatarUrls, aspect, predictionLog,
   ]);
 
   /** v0.4.0 — pipe the cached webm/mp4 through /api/share/transcode for an
@@ -185,7 +197,7 @@ export default function ShareVideoButton() {
     const file = new File([lastResult.blob], lastResult.fileName, { type: lastResult.mimeType });
     const baseShare: ShareData = {
       title: 'OFFICE ZOO · 班味剧场',
-      text: '我的 AI 鼠人剧场战报 — 看 9 个 AI 员工怎么互卷开除我老板',
+      text: buildShareText(winner), // v6.73 — 带 # 话题 + 按胜负出钩子
       url: 'https://github.com/ChrisChen667788/office-zoo',
     };
     try {
@@ -208,7 +220,7 @@ export default function ShareVideoButton() {
       const isAbort = (err as Error)?.name === 'AbortError';
       if (!isAbort) console.warn('[ShareVideoButton] share failed', err);
     }
-  }, [lastResult]);
+  }, [lastResult, winner]);
 
   const label =
     status === 'captions'    ? '💡 生成爆款标题中…'
