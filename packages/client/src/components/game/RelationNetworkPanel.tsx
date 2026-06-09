@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { PERSONALITY_REGISTRY, type RelationKind } from '@furball/shared';
+import { PERSONALITY_REGISTRY, topFeuds, type RelationKind } from '@furball/shared';
 
 /** 自带开关状态的入口按钮(右下角小药丸),丢进对局页就能用。 */
 export function RelationNetworkButton() {
@@ -73,6 +73,9 @@ export default function RelationNetworkPanel({ onClose }: Props) {
     return { list, pos };
   }, [edges]);
 
+  // v6.77 — 本周最毒世仇榜:窗口内 score 最负的几对(纯函数挑,组件只画)。
+  const feuds = useMemo(() => topFeuds(edges ?? [], Date.now(), 3), [edges]);
+
   const SVG = 400;
 
   return (
@@ -101,6 +104,31 @@ export default function RelationNetworkPanel({ onClose }: Props) {
           </div>
         ) : (
           <>
+            {/* v6.77 — 🏆 本周最毒世仇榜:把最浓的几对仇拎到图谱顶上。 */}
+            {feuds.length > 0 && (
+              <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 12,
+                background: 'linear-gradient(135deg, rgba(239,68,68,0.13), rgba(249,115,22,0.07))',
+                border: '1px solid rgba(239,68,68,0.26)' }}>
+                <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 7 }}>🏆 本周最毒世仇</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {feuds.map((e, i) => {
+                    const h = nameOf(e.holderId), a = nameOf(e.aboutId);
+                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+                    return (
+                      <div key={`${e.holderId}->${e.aboutId}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+                        <span style={{ width: 18, flexShrink: 0 }}>{medal}</span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <b>{h.emoji}{h.label}</b>
+                          <span style={{ opacity: 0.55 }}> 死记着 </span>
+                          <b>{a.emoji}{a.label}</b>
+                        </span>
+                        <span style={{ color: '#ef4444', fontWeight: 800, flexShrink: 0 }}>{e.score}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <svg viewBox={`0 0 ${SVG} ${SVG}`} style={{ width: '100%', maxWidth: 400, display: 'block', margin: '0 auto' }}>
               <defs>
                 <marker id="arrowFoe" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
