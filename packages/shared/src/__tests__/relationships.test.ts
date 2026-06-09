@@ -6,9 +6,9 @@ import { describe, it, expect } from 'vitest';
 import {
   relationDelta, emptyGraph, applyEvent, applyEvents, bondTier, feelingOf, edgeOf,
   strongestGrudge, strongestBond, topEdges, allEdges, grudgeTaunt, bondNod,
-  eventsFromVoteResult, eventsFromGameEnd, resolveVoteWithGrudge,
+  eventsFromVoteResult, eventsFromGameEnd, resolveVoteWithGrudge, topFeuds, WEEK_MS,
   EDGE_CAP, GRUDGE_THRESHOLD, BOND_THRESHOLD, FOE_VOTE_THRESHOLD,
-  type RelationEvent,
+  type RelationEvent, type RelationEdge,
 } from '../memory/relationships';
 
 const ev = (over: Partial<RelationEvent> = {}): RelationEvent => ({
@@ -125,6 +125,26 @@ describe('relationships — topEdges 排序', () => {
       ev({ actorId: 'z', subjectId: 'me', kind: 'saved' }),     // +38
     ]);
     expect(topEdges(g, 'me').map((e) => e.aboutId)).toEqual(['y', 'z', 'x']);
+  });
+});
+
+describe('relationships — topFeuds(本周最毒世仇榜)', () => {
+  const now = 1_000_000_000;
+  const mk = (over: Partial<RelationEdge>): RelationEdge => ({
+    holderId: 'h', aboutId: 'a', score: -70, count: 2, lastKind: 'backstab', lastGameId: 'g', lastTs: now, ...over,
+  });
+  it('只收记仇级 + 本周内,按最毒(score 升序)排', () => {
+    const edges = [
+      mk({ aboutId: 'mild', score: -30 }),                              // 记仇,本周
+      mk({ aboutId: 'foe', score: -88 }),                               // 世仇,本周 ← 最毒
+      mk({ aboutId: 'pal', score: 70 }),                                // 交情 → 排除
+      mk({ aboutId: 'stale', score: -95, lastTs: now - WEEK_MS - 1 }),  // 够毒但过期 → 排除
+    ];
+    expect(topFeuds(edges, now, 3).map((e) => e.aboutId)).toEqual(['foe', 'mild']);
+  });
+  it('n 截断', () => {
+    const edges = [mk({ aboutId: 'a', score: -90 }), mk({ aboutId: 'b', score: -80 }), mk({ aboutId: 'c', score: -70 })];
+    expect(topFeuds(edges, now, 2)).toHaveLength(2);
   });
 });
 
