@@ -46,6 +46,7 @@ import { wrappedRoutes } from './routes/wrapped';
 import { replayRoutes } from './routes/replay';
 import { negotiationRoutes } from './routes/negotiation';
 import { reactionRoutes } from './routes/reaction';
+import { bettingRoutes } from './routes/betting';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -80,6 +81,8 @@ app.route('/api/replay', replayRoutes);
 // v6.58 — 「裁了么」闯关牌局 HR 台词(数值在客户端 shared 引擎跑,这里只配台词).
 app.route('/api/negotiation', negotiationRoutes);
 app.route('/api/reaction', reactionRoutes);
+// v6.74 P3 — 观众下注盘全网战绩榜(筹码榜 / 神算榜;数值在客户端 shared/betting 引擎跑).
+app.route('/api/betting', bettingRoutes);
 // v6.11 P4 — public crawler-friendly share pages. Mounted at /share (NOT
 // /api/share — keeps the path clean for social link sharing). Each route
 // returns full HTML with og:* meta tags for Twitter/Slack/WeChat unfurl.
