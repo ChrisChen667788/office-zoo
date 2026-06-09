@@ -157,6 +157,21 @@ export function allEdges(graph: RelationGraph, minAbs = 0): RelationEdge[] {
     .sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
 }
 
+export const WEEK_MS = 7 * 86_400_000;
+
+/**
+ * 「本周最毒世仇」榜:窗口内(默认 7 天,按 lastTs)记仇级(≤GRUDGE_THRESHOLD)的边,按
+ * score 升序(最负=最毒在前),取前 n。入参是已抽出的边数组(客户端拿 /api/relations 的边直接喂)。
+ */
+export function topFeuds(
+  edges: readonly RelationEdge[], now: number, n = 3, windowMs = WEEK_MS,
+): RelationEdge[] {
+  return edges
+    .filter((e) => e.score <= GRUDGE_THRESHOLD && now - e.lastTs <= windowMs)
+    .sort((a, b) => a.score - b.score)
+    .slice(0, Math.max(0, n));
+}
+
 // ---------------------------------------------------------------------------
 // 旧账嘴替:holder 见到 about(基于这条边)甩一句。纯查表,无随机 —— 用 round 选句保证可测。
 // ---------------------------------------------------------------------------
