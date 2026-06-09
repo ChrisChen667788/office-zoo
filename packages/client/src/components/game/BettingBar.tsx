@@ -14,6 +14,20 @@ import {
 } from '@furball/shared';
 import { useGameActions, type GamePlayer } from '../../stores/gameStore';
 import { sfx } from '../../utils/sfx';
+import { getUserId } from '../../utils/userId';
+import BettingLeaderboard from './BettingLeaderboard';
+
+/** 结算后把当前身家快照上报全网战绩榜(锦上添花,失败静默)。 */
+function reportScore(p: BettingProgress) {
+  if (p.settled <= 0) return; // 没结算过不灌空号
+  fetch('/api/betting/score', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': getUserId() },
+    body: JSON.stringify({
+      chips: p.chips, settled: p.settled, hits: p.hits, bestWin: p.bestWin, lifetimeWon: p.lifetimeWon,
+    }),
+  }).catch(() => { /* 榜单失败不影响玩 */ });
+}
 
 const STORE_KEY = 'oz_betting_v1';
 const STAKES = [20, 50, 100, 200] as const;
@@ -51,6 +65,7 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
   const [stake, setStake] = useState<number>(50);
   const [open, setOpen] = useState<Bet | null>(null);
   const [toast, setToast] = useState<{ text: string; win: boolean } | null>(null);
+  const [showLb, setShowLb] = useState(false);
   const resolvedRef = useRef<string>('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -94,7 +109,9 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
 
     const payout = settleBet(open, lastEliminated ?? '');
     const won = payout > 0;
-    setProg((p) => { const np = creditResult(p, payout, won); save(np); return np; });
+    const np = creditResult(prog, payout, won);
+    save(np); setProg(np);
+    reportScore(np); // 上报身家快照到全网战绩榜(锦上添花)
 
     // 仍写 predictionLog(HighlightReel 复盘 + v6.73 反转名场面)
     const actual = lastEliminated ? players.find((p) => p.id === lastEliminated) : null;
@@ -118,10 +135,15 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
   };
 
   return (
+    <>
     <div style={card}>
-      {/* 头:筹码 + 命中率 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-        <span style={{ fontWeight: 800 }}>🎰 押一把</span>
+      {/* 头:筹码 + 命中率 + 🏆 榜 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontWeight: 800 }}>🎰 押一把</span>
+          <button onClick={() => setShowLb(true)} title="全网战绩榜"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, opacity: 0.85 }}>🏆</button>
+        </span>
         <span style={{ fontSize: 11, opacity: 0.85 }}>
           💰 <b style={{ color: ACCENT }}>{prog.chips}</b> · 命中 {hitRate}%
         </span>
@@ -179,5 +201,7 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
         )}
       </AnimatePresence>
     </div>
+    {showLb && <BettingLeaderboard onClose={() => setShowLb(false)} />}
+    </>
   );
 }
