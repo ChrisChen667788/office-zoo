@@ -193,9 +193,13 @@ export interface IconProps {
   alt?: string;
   className?: string;
   style?: CSSProperties;
+  /** v6.72 — fires once the image resolves: true = loaded, false = errored
+   *  (fell back to emoji). Lets callers de-dupe overlays (e.g. hide a
+   *  redundant expression sticker when the real AI portrait loaded). */
+  onResolved?: (loaded: boolean) => void;
 }
 
-export function Icon({ src, emoji, size = 24, alt = '', className, style }: IconProps) {
+export function Icon({ src, emoji, size = 24, alt = '', className, style, onResolved }: IconProps) {
   const [failed, setFailed] = useState(false);
   const s: CSSProperties = { width: size, height: size, display: 'inline-block', objectFit: 'contain', ...style };
   if (failed) {
@@ -213,7 +217,8 @@ export function Icon({ src, emoji, size = 24, alt = '', className, style }: Icon
       style={s}
       loading="lazy"
       decoding="async"
-      onError={() => setFailed(true)}
+      onLoad={() => onResolved?.(true)}
+      onError={() => { setFailed(true); onResolved?.(false); }}
     />
   );
 }

@@ -138,11 +138,15 @@ export default function EliminationReveal({
   // gag is: company fires someone, immediately ready for the next
   // replaceable worker. Phase 2 of the same beat.
   const [newHireVisible, setNewHireVisible] = useState(false);
+  // v6.72 — 立绘 AI 图加载状态。'failed' 才显示角落 😵/😭 贴纸(emoji 兜底没表情,
+  // 用贴纸补);'loaded' 时 AI 图本身就有表情,贴纸冗余 → 隐藏去重。
+  const [exprState, setExprState] = useState<'pending' | 'loaded' | 'failed'>('pending');
 
   useEffect(() => {
     if (!latest) return;
     setVisible(true);
     setNewHireVisible(false);
+    setExprState('pending'); // v6.72 — 每个新事件重置立绘加载态
     // Fire SFX once per event — key is `latest?.id`, matching this effect's
     // dependency, so StrictMode's double-invoke is the only risk. Harmless:
     // a double-played kill SFX is two short tones on top of each other.
@@ -412,6 +416,7 @@ export default function EliminationReveal({
                     size={98}
                     alt=""
                     style={{ objectFit: 'cover', borderRadius: '22%' }}
+                    onResolved={(ok) => setExprState(ok ? 'loaded' : 'failed')}
                   />
                 </div>
 
@@ -428,18 +433,21 @@ export default function EliminationReveal({
                   {cfg.icon}
                 </div>
 
-                {/* 表情贴纸(右下角弹一下) */}
-                <motion.div
-                  initial={{ scale: 0, rotate: 30 }}
-                  animate={{ scale: [0, 1.4, 1], rotate: [30, -12, 0] }}
-                  transition={{ delay: 0.58, duration: 0.5, ease: 'easeOut' }}
-                  style={{
-                    position: 'absolute', right: -10, bottom: -8, fontSize: 40, lineHeight: 1,
-                    filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))',
-                  }}
-                >
-                  {expressionSticker}
-                </motion.div>
+                {/* 表情贴纸(右下角弹一下)—— v6.72 仅当 AI 立绘没加载到(emoji 兜底
+                    没表情)时才补;AI 图本身有表情时隐藏去重 */}
+                {exprState === 'failed' && (
+                  <motion.div
+                    initial={{ scale: 0, rotate: 30 }}
+                    animate={{ scale: [0, 1.4, 1], rotate: [30, -12, 0] }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                    style={{
+                      position: 'absolute', right: -10, bottom: -8, fontSize: 40, lineHeight: 1,
+                      filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.6))',
+                    }}
+                  >
+                    {expressionSticker}
+                  </motion.div>
+                )}
 
                 {/* 斜盖印章 */}
                 <motion.div
