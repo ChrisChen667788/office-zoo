@@ -202,6 +202,48 @@ export function bondNod(edge: RelationEdge, round = 0): string {
 }
 
 // ---------------------------------------------------------------------------
+// 关系网反哺投票:让世仇真的更容易被投出(不只嘴上记仇)。
+// ---------------------------------------------------------------------------
+/** 强改票门槛:只有 ≤ 这个分(真·世仇,得跨好几局攒背叛才到)才硬改投;
+ *  普通记仇(-25…-60)不强改——只该进 prompt 影响 LLM,免得破坏推理平衡。 */
+export const FOE_VOTE_THRESHOLD = -60;
+
+export interface GrudgeVoteResult {
+  /** 最终投谁(archetype id)。 */
+  pick: string;
+  /** 是否被世仇改了票(basePick 原本不是他)。 */
+  redirected: boolean;
+  /** 命中的世仇(没有则 null);redirected 或本就投他时 = pick。 */
+  foeId: string | null;
+  /** 改票/认仇时甩的旧账(否则空串)。 */
+  taunt: string;
+}
+
+/**
+ * 在基础票 basePick 之上叠加关系网:候选里若有 holder 的**真·世仇**(≤FOE_VOTE_THRESHOLD)
+ * 且当前没投他,就把票改投世仇(记仇压过策略);本就投他则保留并甩旧账。普通记仇不在这儿强改。
+ * 有界——世仇稀有,触发率低,不会把社交推理玩成纯复仇。纯函数,round 决定甩哪句。
+ */
+export function resolveVoteWithGrudge(args: {
+  basePick: string;
+  candidateIds: readonly string[];
+  graph: RelationGraph;
+  holderId: string;
+  round?: number;
+}): GrudgeVoteResult {
+  const { basePick, candidateIds, graph, holderId, round = 0 } = args;
+  const worst = strongestGrudge(graph, holderId, candidateIds);
+  if (!worst || worst.score > FOE_VOTE_THRESHOLD) {
+    return { pick: basePick, redirected: false, foeId: null, taunt: '' };
+  }
+  const taunt = grudgeTaunt(worst, round);
+  if (basePick === worst.aboutId) {
+    return { pick: basePick, redirected: false, foeId: worst.aboutId, taunt };
+  }
+  return { pick: worst.aboutId, redirected: true, foeId: worst.aboutId, taunt };
+}
+
+// ---------------------------------------------------------------------------
 // 从一局的结果派生事件(纯)。调用方先把 playerId 映射成 archetype id 再传进来。
 // ---------------------------------------------------------------------------
 export interface VoteResultInput {
