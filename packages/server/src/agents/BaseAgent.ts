@@ -1,8 +1,9 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { Team, Role, ROLE_REGISTRY, Personality, PERSONALITY_REGISTRY, snippetsForArchetype } from '@furball/shared';
+import { Team, Role, ROLE_REGISTRY, Personality, PERSONALITY_REGISTRY, snippetsForArchetype, bondTier } from '@furball/shared';
 import { callLLMWithTimeout } from '../utils/llm';
 import { logger } from '../utils/logger';
 import { recallMemories } from '../services/memoryRecall';
+import { getEdgesFor } from '../services/relationStore';
 
 const agentLog = logger.child({ component: 'agent' });
 
@@ -225,6 +226,26 @@ export class BaseAgent {
       }
     }
 
+    // v6.75 — 跨局「关系网」注入。把这个人格累积的记仇 / 记恩档塞进 prompt,让 AI 投票/发言时
+    // 能甩旧账(「上次你卖过我」)或抱团。LLM 已经在 context 里看到谁活着,会自己只对在场的鼠下手。
+    // best-effort、完全 fail-safe:relationStore 读不到就静默跳过,绝不阻断发言。
+    let relationBlock = '';
+    if (this.personality) {
+      try {
+        const edges = await getEdgesFor(this.personality, 4);
+        const foes = edges.filter((e) => e.score <= -25)
+          .map((e) => `跟「${PERSONALITY_REGISTRY[e.aboutId as Personality]?.label ?? e.aboutId}」${bondTier(e.score).label}(${bondTier(e.score).emoji})`);
+        const pals = edges.filter((e) => e.score >= 25)
+          .map((e) => `跟「${PERSONALITY_REGISTRY[e.aboutId as Personality]?.label ?? e.aboutId}」${bondTier(e.score).label}(${bondTier(e.score).emoji})`);
+        if (foes.length || pals.length) {
+          const lines = [...foes, ...pals].map((l) => `- ${l}`).join('\n');
+          relationBlock = `\n\n【你跨局攒下的恩怨(你是 ${this.personality}) — 旧账只对**还在场上**的那只鼠算】\n${lines}\n如果你的世仇/记仇对象这局也在,投票或发言时可以阴阳两句旧账(像"上次就是TA把我卖了"),逮着机会顺势投TA;有过命交情的就帮着说话、别投TA。没在场的就别提。`;
+        }
+      } catch (err) {
+        agentLog.debug({ err: (err as Error).message }, 'relation recall skipped');
+      }
+    }
+
     // v6.3.0 — 30% 概率注入 1-2 个 2026 新痛点段子作为"参考素材",
     // LLM 可以引用其中的具体场景或包袱, 不引用也 OK。让发言不只是
     // 重复经典阿里黑话, 也会带新一代职场新型坑 (调休骗局 / AI 焦虑 /
@@ -260,7 +281,7 @@ export class BaseAgent {
     const res = await callLLMWithTimeout('SPEECH', {
       model: openai()(model()),
       system: this.systemPrompt,
-      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${snippetBlock}${leakedBlock}${this.roleIntelBlock()}${priorBlock}
+      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${relationBlock}${snippetBlock}${leakedBlock}${this.roleIntelBlock()}${priorBlock}
 
 请发表你的看法(2-4 句话,每句都要有戏,总字数 60-120 字)。硬性要求:
 
