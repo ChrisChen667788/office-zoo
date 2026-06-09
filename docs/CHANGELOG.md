@@ -7,6 +7,28 @@
 
 ---
 
+## v6.75 — 2026-06-09 · AI 记忆关系网(鼠人跨局记仇 / 记恩)
+
+爆款玩法第③弹(关系)。给 9 只鼠加一层**跨局社交记忆**:谁投过我我记着、谁救过我我念着,
+下次同台投票就能甩旧账「上次你卖过我」或抱团护票。+13 测试 → 426。
+
+- **纯关系引擎**(`shared/memory/relationships.ts` + 13 测试):按 **archetype 持久身份**键的有向
+  情绪图(-100 世仇 … +100 过命交情)· `applyEvent` 累积封顶 · `bondTier` 关系档 · `strongestGrudge`
+  /`strongestBond` 投票针对/抱团 · `grudgeTaunt`/`bondNod` 旧账嘴替 · `eventsFromVoteResult`
+  (被开除者记住每个投他的人,**同阵营投他 = 叛变记大仇**)/`eventsFromGameEnd`(同阵营赢家互记恩)。
+  全纯函数、无随机、不碰时间。
+- **服务端落盘 + ingest**:`relationStore`(mirror 模式,**串行化写队列**防并发 round/game 抢锁覆盖)·
+  GameEngine round-end 钩子把 `state.votes`(playerId 键)映射成 archetype 喂进图 · `/api/relations`
+  读端点(整图 / 某只鼠)。
+- **关系网 UI**(`RelationNetworkPanel`):🕸️ 恩怨录弹窗,9 只鼠绕圈,**红线结仇 / 绿线交情、箭头指向
+  被记的那只、线越粗恩怨越深**,点边看详情。经典 + 沉浸局右下角 🕸️ 入口。
+- **AI 投票引用旧账**:`BaseAgent` 发言 prompt 注入这个人格的记仇/记恩档(LLM 自己只对**在场**的鼠下手),
+  让 AI 自然甩出「上次就是 TA 把我卖了」。best-effort、fail-safe。
+- 跟既有 pgvector 情景记忆流(`memoryWrite/Recall`,DB-gated、模糊召回喂 prompt)**互补**:那层是
+  episodic,这层是能画成图的**结构化社交图谱**。
+- 验证:13 测试锁引擎;真 ingest 路径灌两局 → curl `/api/relations` 跑通(backstab -90 世仇 / saved
+  +38 有交情)→ Playwright 探针截图关系图谱(红/绿/橙边 + 箭头 + 图例)。
+
 ## v6.74 — 2026-06-09 · 观众下注盘(看戏升级成"有筹码的看戏")
 
 爆款玩法第②弹(下注)。把旁观局的 `PredictionBar`(只「选谁 + 命中率」)升级成有**筹码 / 赔率 /
