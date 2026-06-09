@@ -6,8 +6,8 @@ import { describe, it, expect } from 'vitest';
 import {
   relationDelta, emptyGraph, applyEvent, applyEvents, bondTier, feelingOf, edgeOf,
   strongestGrudge, strongestBond, topEdges, allEdges, grudgeTaunt, bondNod,
-  eventsFromVoteResult, eventsFromGameEnd,
-  EDGE_CAP, GRUDGE_THRESHOLD, BOND_THRESHOLD,
+  eventsFromVoteResult, eventsFromGameEnd, resolveVoteWithGrudge,
+  EDGE_CAP, GRUDGE_THRESHOLD, BOND_THRESHOLD, FOE_VOTE_THRESHOLD,
   type RelationEvent,
 } from '../memory/relationships';
 
@@ -125,5 +125,36 @@ describe('relationships — topEdges 排序', () => {
       ev({ actorId: 'z', subjectId: 'me', kind: 'saved' }),     // +38
     ]);
     expect(topEdges(g, 'me').map((e) => e.aboutId)).toEqual(['y', 'z', 'x']);
+  });
+});
+
+describe('relationships — resolveVoteWithGrudge(反哺投票)', () => {
+  const foeGraph = applyEvents(emptyGraph(), [
+    ev({ actorId: 'foe', subjectId: 'me', kind: 'backstab' }),  // -45
+    ev({ actorId: 'foe', subjectId: 'me', kind: 'backstab' }),  // -90 → 世仇
+    ev({ actorId: 'mild', subjectId: 'me', kind: 'voted_out' }), // -32 → 只记仇,不到世仇
+  ]);
+  it('候选里有世仇且没投他 → 改投世仇 + 甩旧账', () => {
+    const r = resolveVoteWithGrudge({ basePick: 'mild', candidateIds: ['mild', 'foe', 'zoe'], graph: foeGraph, holderId: 'me', round: 0 });
+    expect(r.pick).toBe('foe');
+    expect(r.redirected).toBe(true);
+    expect(r.taunt.length).toBeGreaterThan(0);
+  });
+  it('本就投世仇 → 不算改票,但认仇甩话', () => {
+    const r = resolveVoteWithGrudge({ basePick: 'foe', candidateIds: ['mild', 'foe'], graph: foeGraph, holderId: 'me' });
+    expect(r.pick).toBe('foe');
+    expect(r.redirected).toBe(false);
+    expect(r.foeId).toBe('foe');
+  });
+  it('只有普通记仇(未到世仇阈值)→ 不强改票', () => {
+    const r = resolveVoteWithGrudge({ basePick: 'zoe', candidateIds: ['mild', 'zoe'], graph: foeGraph, holderId: 'me' });
+    expect(r.pick).toBe('zoe');
+    expect(r.redirected).toBe(false);
+    expect(r.foeId).toBeNull();
+  });
+  it('世仇不在候选里 → 不动', () => {
+    const r = resolveVoteWithGrudge({ basePick: 'zoe', candidateIds: ['zoe', 'mild'], graph: foeGraph, holderId: 'me' });
+    expect(r.redirected).toBe(false);
+    expect(FOE_VOTE_THRESHOLD).toBeLessThan(GRUDGE_THRESHOLD); // 世仇门槛比记仇更严
   });
 });
