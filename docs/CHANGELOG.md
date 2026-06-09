@@ -10,7 +10,7 @@
 ## v6.74 — 2026-06-09 · 观众下注盘(看戏升级成"有筹码的看戏")
 
 爆款玩法第②弹(下注)。把旁观局的 `PredictionBar`(只「选谁 + 命中率」)升级成有**筹码 / 赔率 /
-派彩**的下注盘。+11 测试 → 405。
+派彩 / 全网战绩榜**的下注盘。+19 测试 → 413。
 
 - **纯下注引擎**(`shared/betting/betting.ts` + 11 测试):赔率 = 概率倒数 × house edge,封下限;
   押中按**下注时锁定的赔率**派彩;筹码经济(`placeBet` 扣费 / `creditResult` 入账 / `applyDrip`
@@ -21,8 +21,13 @@
   筹码本地存(`oz_betting_v1`),挂载补给一次(全新存档不白送)。经典 + 沉浸局都换上。
 - **不破坏老东西**:`BettingBar` 仍写 `gameStore.predictionLog`,所以 HighlightReel 复盘 +
   v6.73「看走眼」名场面照常工作。
-- 验证:11 测试锁引擎;Playwright 探针截图确认盘口(6 人局每个候选 5.52× = 1/6 × edge)。
-- 注:`PredictionBar.tsx` 已被取代,暂留作历史参考(无引用)。服务端跨人排行榜(P3)按计划留作下一步。
+- **P3 · 全网战绩榜「赌怪榜」**(+8 测试 → 413):纯排序层 `betting/leaderboard.ts`(💰 筹码榜
+  身家降序 / 🎯 神算榜命中率降序 + **样本门槛**,运气哥 1/1 沉底)· 服务端 `bettingStore`
+  mirror 落盘(按 userId 留身家峰值)+ `/api/betting/{score,leaderboard}` · `BettingBar`
+  结算后上报身家快照,头部 🏆 开弹窗(自己那行高亮)。复用闯关榜那套 store/route 模式。
+- 验证:19 测试锁引擎(11 下注 + 8 榜单);Playwright 探针确认盘口(6 人局 5.52× = 1/6 × edge)
+  + 两榜弹窗(神算榜运气哥变灰沉底);curl 三号真数据跑通 score/leaderboard。
+- 注:`PredictionBar.tsx` 已被取代,暂留作历史参考(无引用)。
 
 ## v6.73 — 2026-06-09 · 名场面识别升级(短视频更炸)
 
