@@ -20,6 +20,7 @@ import {
   roomCenter,
   MAP_W,
   MAP_H,
+  eventsFromVoteResult,
 } from '@furball/shared';
 import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
@@ -1287,6 +1288,17 @@ export class GameEngine extends EventEmitter {
       survivors: survivorsSnapshot,
     });
 
+    // v6.75 — 跨局「关系网」:把这轮投票喂进关系图(被投出者按 archetype 记住每个投他的人;
+    // 同阵营投他 = 叛变记大仇)。fire-and-forget,失败不阻断引擎。
+    void this.recordRoundRelations({
+      gameId, round,
+      votes: { ...this.state.votes },
+      players: this.state.players.map((p) => ({
+        id: p.id, personality: p.personality, team: p.team as unknown as string | undefined,
+      })),
+      eliminatedId: eliminated && eliminated !== 'skip' ? eliminated : null,
+    });
+
     this.state.deadBodyLocation = undefined;
     this.state.meetingCaller = undefined;
     this.emitState();
@@ -1394,6 +1406,47 @@ export class GameEngine extends EventEmitter {
       }
     } catch (err) {
       this._log?.debug({ err: (err as Error).message }, 'memory write skipped');
+    }
+  }
+
+  /** v6.75 — 跨局「关系网」ingest。把这轮投票(playerId 键)映射成 archetype 键,派生
+   *  记仇/记恩事件喂进 relationStore。被开除者记住每个投他的人(同阵营=叛变)。纯查表 + 一次落盘,
+   *  best-effort:任何失败只记 debug,绝不阻断引擎 tick。平票轮(无人开除)直接跳过。 */
+  private async recordRoundRelations(args: {
+    gameId: string;
+    round: number;
+    votes: Record<string, string>;
+    players: Array<{ id: string; personality?: string; team?: string }>;
+    eliminatedId: string | null;
+  }): Promise<void> {
+    try {
+      if (!args.eliminatedId) return; // 平票:这轮不记仇
+      const idToArch = new Map<string, string>();
+      const teamOf: Record<string, string> = {};
+      for (const p of args.players) {
+        if (!p.personality) continue;
+        idToArch.set(p.id, p.personality);
+        if (p.team) teamOf[p.personality] = p.team;
+      }
+      const eliminatedArch = idToArch.get(args.eliminatedId);
+      if (!eliminatedArch) return;
+      // playerId 键的投票 → archetype 键(同局每个 archetype 唯一,1:1 映射)
+      const votes: Record<string, string> = {};
+      for (const [voterId, targetId] of Object.entries(args.votes)) {
+        const va = idToArch.get(voterId);
+        const ta = idToArch.get(targetId);
+        if (va && ta) votes[va] = ta;
+      }
+      const events = eventsFromVoteResult({
+        gameId: args.gameId, round: args.round, ts: Date.now(),
+        votes, eliminatedArch, teamOf,
+      });
+      if (events.length === 0) return;
+      const { ingestRelationEvents } = await import('../services/relationStore');
+      await ingestRelationEvents(events);
+      this._log?.debug?.({ count: events.length, eliminatedArch, round: args.round }, 'recorded relations');
+    } catch (err) {
+      this._log?.debug?.({ err: (err as Error).message }, 'relation ingest skipped');
     }
   }
 
