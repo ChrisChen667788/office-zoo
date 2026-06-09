@@ -13,6 +13,7 @@ import {
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
 import BettingBar from '../components/game/BettingBar';
+import { RelationNetworkButton } from '../components/game/RelationNetworkPanel';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
 import { fetchReactionLine } from '../utils/reactionLine';
@@ -765,6 +766,9 @@ export default function Immersive() {
           voteResultTick={voteResultTick}
         />
       )}
+
+      {/* v6.75 — 🕸️ 跨局恩怨录入口 */}
+      <RelationNetworkButton />
 
       {/* Dramatic elimination moment — 3s fullscreen on every kill/vote-out */}
       {/* v6.68 — 沉浸局对齐:群众吐槽弹幕飘过全屏 */}

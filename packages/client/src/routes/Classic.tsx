@@ -18,6 +18,7 @@ import { fetchReactionLine } from '../utils/reactionLine';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
 import BettingBar from '../components/game/BettingBar';
+import { RelationNetworkButton } from '../components/game/RelationNetworkPanel';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
 import KillFlashOverlay from '../components/game/KillFlashOverlay';
 import EmergencyMeetingTransition from '../components/game/EmergencyMeetingTransition';
@@ -1002,6 +1003,9 @@ export default function Classic() {
           voteResultTick={voteResultTick}
         />
       )}
+
+      {/* v6.75 — 🕸️ 跨局恩怨录入口(右下角) */}
+      <RelationNetworkButton />
 
       {/* Dramatic elimination moment — fullscreen 3s overlay */}
       <EliminationReveal latest={lastElim} activeNames={players.map((p) => p.name)} />
