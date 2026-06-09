@@ -27,7 +27,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 const MAX_CAPTION_LEN = 22;
 
 export interface CaptionInput {
-  kind: 'kill' | 'vote_eject' | 'roast' | 'reversal' | 'finale';
+  kind: 'kill' | 'vote_eject' | 'roast' | 'reversal' | 'perfect_bluff' | 'comeback' | 'bloodbath' | 'finale';
   playerName?: string;
   role?: string;
   team?: 'cat' | 'dog' | 'neutral';
@@ -96,6 +96,9 @@ function buildPrompt(item: CaptionInput): string {
   : item.kind === 'vote_eject' ? `事件:${item.playerName}${role} 被全员投票开除${team ? `,身份是${team}` : ''}。`
   : item.kind === 'roast'      ? `事件:${item.playerName} 在会议上发表了一段暴论:"${item.body ?? ''}"`
   : item.kind === 'reversal'   ? `事件:你押 ${item.playerName} 但实际开除的是别人,看走眼了。`
+  : item.kind === 'perfect_bluff' ? `事件:${item.playerName} 是资本家卧底,全程没露馅,演到最后赢了。`
+  : item.kind === 'comeback'   ? `事件:${team || '赢家阵营'}折损过半,绝地翻盘逆风翻盘。`
+  : item.kind === 'bloodbath'  ? `事件:这一回合多人同时出局,腥风血雨:${item.body ?? ''}`
   :                              `事件:本局结束,${item.headline}。`;
 
   const round = item.round ? `(第 ${item.round} 轮)` : '';
