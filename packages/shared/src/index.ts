@@ -22,3 +22,4 @@ export * from './data/fortune';
 export * from './data/workplace2026';
 export * from './data/characters';
 export * from './data/reactions';
+export * from './betting/betting';
