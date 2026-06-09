@@ -17,7 +17,7 @@ import { pickReaction } from '@furball/shared';
 import { fetchReactionLine } from '../utils/reactionLine';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
-import PredictionBar from '../components/game/PredictionBar';
+import BettingBar from '../components/game/BettingBar';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
 import KillFlashOverlay from '../components/game/KillFlashOverlay';
 import EmergencyMeetingTransition from '../components/game/EmergencyMeetingTransition';
@@ -991,9 +991,9 @@ export default function Classic() {
       {/* Role reference panel — opens on demand */}
       <RoleLegend />
 
-      {/* Spectator prediction layer — gamifies watching (bottom-left) */}
+      {/* v6.74 — 观众下注盘(原 PredictionBar 升级:筹码 + 赔率 + 派彩) */}
       {gameId && (
-        <PredictionBar
+        <BettingBar
           gameId={gameId}
           phase={phase}
           round={round}

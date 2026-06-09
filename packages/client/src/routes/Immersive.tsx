@@ -12,7 +12,7 @@ import {
 } from '../stores/gameStore';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
-import PredictionBar from '../components/game/PredictionBar';
+import BettingBar from '../components/game/BettingBar';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
 import { fetchReactionLine } from '../utils/reactionLine';
@@ -754,9 +754,9 @@ export default function Immersive() {
       {/* Role reference panel — opens on demand (always available after join) */}
       {gameId && <RoleLegend />}
 
-      {/* Spectator prediction layer — mode parity with Classic */}
+      {/* v6.74 — 观众下注盘(mode parity with Classic) */}
       {gameId && (
-        <PredictionBar
+        <BettingBar
           gameId={gameId}
           phase={phase}
           round={round}
