@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { groupTimelineByRound, type ReplayRecord, type ReplayPlayer } from '@furball/shared';
+import { groupTimelineByRound, bondTier, type ReplayRecord, type ReplayPlayer, type RelationEdge } from '@furball/shared';
 import { usePlayers, useWinner, useRound, useGameActions } from '../stores/gameStore';
 import { colors } from '../constants/design';
 import { lottie } from '../constants/lottie';
@@ -66,6 +66,7 @@ export default function Result() {
   // timeline the store never kept. The live store is the instant fallback.
   const [replay, setReplay] = useState<ReplayRecord | null>(null);
   const [copied, setCopied] = useState(false);
+  const [relEdges, setRelEdges] = useState<RelationEdge[]>([]);
   useEffect(() => {
     if (!gameId) return;
     let on = true;
@@ -76,6 +77,16 @@ export default function Result() {
     return () => { on = false; };
   }, [gameId]);
 
+  // v6.75 ② — 本局恩怨录:拉跨局关系网,赛后只亮「在场这几只」之间的恩怨。
+  useEffect(() => {
+    let on = true;
+    fetch('/api/relations?minAbs=25')
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('relations'))))
+      .then((d) => { if (on) setRelEdges(Array.isArray(d?.edges) ? d.edges : []); })
+      .catch(() => { /* 关系网锦上添花,拉不到就不显示 */ });
+    return () => { on = false; };
+  }, []);
+
   const players: ReplayPlayer[] = replay?.players ?? (livePlayers as ReplayPlayer[]);
   const winner = replay?.winner ?? liveWinner;
   const round = replay?.rounds ?? liveRound;
@@ -85,7 +96,13 @@ export default function Result() {
   const shareReplay = () => {
     if (!gameId) return;
     const url = `${window.location.origin}/result/${gameId}`;
-    void navigator.clipboard?.writeText(url).then(() => {
+    // v6.75 ② — 把本局头牌恩怨捎进分享文案(没有就只发链接)。
+    const top = castGrudges[0];
+    const grudge = top
+      ? `「办公室恩怨录」${nameOfArch(top.holderId)}${bondTier(top.score).emoji}${nameOfArch(top.aboutId)}(${bondTier(top.score).label}) · `
+      : '';
+    const text = `${grudge}OFFICE ZOO 战绩回放 ${url}`;
+    void navigator.clipboard?.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     });
@@ -97,6 +114,13 @@ export default function Result() {
     const order = ['cat', 'dog', 'neutral'];
     return order.indexOf(a.team || '') - order.indexOf(b.team || '');
   });
+
+  // 只保留「本局在场两只鼠之间」的恩怨边(API 已按 |score| 降序),取前 3 条上榜。
+  const castArch = new Set(players.map((p) => p.personality).filter(Boolean) as string[]);
+  const nameOfArch = (arch: string) => players.find((p) => p.personality === arch)?.name ?? arch;
+  const castGrudges = relEdges
+    .filter((e) => castArch.has(e.holderId) && castArch.has(e.aboutId))
+    .slice(0, 3);
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center p-8 noise" style={{ background: '#050510' }}>
@@ -210,6 +234,41 @@ export default function Result() {
           );
         })}
       </motion.div>
+
+      {/* v6.75 ② — 本局恩怨录:跨局记仇/记恩,只亮在场两只之间的。 */}
+      {castGrudges.length > 0 && (
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.35 }}
+          className="relative z-10 w-full max-w-2xl mb-8"
+        >
+          <h2 className="text-white/70 text-sm font-bold tracking-wide mb-3 text-center">🕸️ 本局恩怨录 · 跨局记仇记恩</h2>
+          <div className="space-y-2">
+            {castGrudges.map((e, i) => {
+              const t = bondTier(e.score);
+              const foe = t.tone === 'foe' || t.tone === 'cold';
+              return (
+                <div key={i} className="flex items-center gap-2 text-[12px] rounded-lg px-3 py-2"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${foe ? 'rgba(239,68,68,0.22)' : 'rgba(34,197,94,0.22)'}` }}>
+                  <span className="text-base flex-shrink-0">{t.emoji}</span>
+                  <span className="flex-1 text-white/80">
+                    <b className="text-white">{nameOfArch(e.holderId)}</b>
+                    {foe ? ' 还记着 ' : ' 念着 '}
+                    <b className="text-white">{nameOfArch(e.aboutId)}</b>
+                    <span className="text-white/45"> 的{foe ? '仇' : '恩'}</span>
+                  </span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{ color: foe ? '#ef4444' : '#22c55e', background: foe ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)' }}>
+                    {t.label} {e.score > 0 ? '+' : ''}{e.score}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-white/30 text-[10px] text-center mt-2">恩怨跨局累积 · 世仇下一局会被真的优先投票 🗡️</p>
+        </motion.div>
+      )}
 
       {/* v6.54 — 🎬 full event-timeline replay (from the persisted record). */}
       {rounds.length > 0 && (
