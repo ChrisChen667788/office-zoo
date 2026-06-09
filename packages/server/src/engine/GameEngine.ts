@@ -21,6 +21,9 @@ import {
   MAP_W,
   MAP_H,
   eventsFromVoteResult,
+  resolveVoteWithGrudge,
+  emptyGraph,
+  type RelationGraph,
 } from '@furball/shared';
 import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
@@ -1134,6 +1137,20 @@ export class GameEngine extends EventEmitter {
     const context = this.buildDiscussionContext();
     const aliveCandidates = alive.map((p) => ({ id: p.id, name: p.name }));
 
+    // v6.75 ① — 关系网反哺投票:先把整图 + archetype↔playerId 映射备好(best-effort);投完
+    // 票后用真·世仇把票拽过去(不只嘴上记仇)。读图失败退回空图 = 不反哺,绝不阻断投票。
+    const relationGraph = await this.loadRelationGraphSafe();
+    const archByPlayer = new Map<string, string>();
+    const playerByArch = new Map<string, string>();
+    const nameById = new Map<string, string>();
+    for (const p of alive) {
+      nameById.set(p.id, p.name);
+      if (p.personality) {
+        archByPlayer.set(p.id, p.personality);
+        if (!playerByArch.has(p.personality)) playerByArch.set(p.personality, p.id);
+      }
+    }
+
     // All alive players vote simultaneously
     const votePromises = alive.map(async (player) => {
       const agent = this.agents.get(player.id);
@@ -1141,7 +1158,7 @@ export class GameEngine extends EventEmitter {
 
       try {
         const target = await agent.generateVote(context, aliveCandidates);
-        this.state.votes[player.id] = target;
+        this.state.votes[player.id] = this.grudgeRedirect(player, target, relationGraph, archByPlayer, playerByArch, nameById);
       } catch {
         // Random vote on failure
         const others = alive.filter((p) => p.id !== player.id);
@@ -1753,6 +1770,50 @@ export class GameEngine extends EventEmitter {
       description,
       timestamp: Date.now(),
     });
+  }
+
+  /** v6.75 ① — 读跨局关系图,任何失败(没 store / IO 错)都退回空图,绝不阻断投票。 */
+  private async loadRelationGraphSafe(): Promise<RelationGraph> {
+    try {
+      const { getRelationGraph } = await import('../services/relationStore');
+      return await getRelationGraph();
+    } catch {
+      return emptyGraph();
+    }
+  }
+
+  /**
+   * v6.75 ① — 关系网反哺投票:基础票之上,若候选里有 voter 的**真·世仇**(≤FOE 阈值)且没投他,
+   * 就把票拽过去 + 时间线甩一句旧账。archetype 维度算,映射回本局 playerId。任何缺失退回原票。
+   */
+  private grudgeRedirect(
+    voter: PlayerState,
+    basePickId: string,
+    graph: RelationGraph,
+    archByPlayer: Map<string, string>,
+    playerByArch: Map<string, string>,
+    nameById: Map<string, string>,
+  ): string {
+    try {
+      const holderId = voter.personality;
+      const basePick = archByPlayer.get(basePickId);
+      if (!holderId || !basePick) return basePickId;
+      const r = resolveVoteWithGrudge({
+        basePick,
+        candidateIds: [...archByPlayer.values()],
+        graph,
+        holderId,
+        round: this.state.round,
+      });
+      if (!r.redirected || !r.foeId) return basePickId;
+      const foePlayerId = playerByArch.get(r.foeId);
+      if (!foePlayerId || foePlayerId === basePickId) return basePickId;
+      const foeName = nameById.get(foePlayerId) ?? '老冤家';
+      this.addEvent('grudge_vote', `🗡️ ${voter.name} 翻旧账改投 ${foeName}:${r.taunt}`);
+      return foePlayerId;
+    } catch {
+      return basePickId;
+    }
   }
 
   private updateTaskProgress(): void {
