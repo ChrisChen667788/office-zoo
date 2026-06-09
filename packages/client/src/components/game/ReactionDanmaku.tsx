@@ -21,6 +21,10 @@ export interface DanmakuTrigger {
   emoji?: string;
   /** v6.69 — 弹幕出发点(被裁工位,0..1 归一化)。给了就从这点冒出来 + 上飘。 */
   origin?: { x: number; y: number };
+  /** v6.72 — 同一次裁员的弹幕分到一组(默认 = id)。 */
+  groupId?: number;
+  /** v6.72 — true 时先清掉本组旧弹幕再放新的(LLM 到了替换静态,不叠加)。 */
+  replace?: boolean;
 }
 
 interface Bullet {
@@ -30,6 +34,7 @@ interface Bullet {
   lane: number; // 垂直车道(无 origin 时用)
   delay: number; // 错时延,做出"一串飘过"的感觉
   origin?: { x: number; y: number }; // 有就从这点上飘,没有就横向飘过
+  groupId: number; // v6.72 — 同次裁员一组,replace 时按组清
 }
 
 const LANES = 6;
@@ -62,23 +67,25 @@ export default function ReactionDanmaku({
 
   useEffect(() => {
     if (!trigger) return;
+    const gid = trigger.groupId ?? trigger.id;
     let made: Bullet[];
     if (trigger.text) {
       // v6.69 — LLM 实时那句:就飘这一条
       made = [{
         key: trigger.id * 10, emoji: trigger.emoji || '🗣️', text: trigger.text,
-        lane: (trigger.id * 2) % LANES, delay: 0, origin: trigger.origin,
+        lane: (trigger.id * 2) % LANES, delay: 0, origin: trigger.origin, groupId: gid,
       }];
     } else {
       made = Array.from({ length: PER_TRIGGER }, (_, n) => {
         const r = pickReaction(trigger.kind, trigger.id * 7 + n * 13);
         return {
           key: trigger.id * 10 + n, emoji: r.emoji, text: r.text,
-          lane: (trigger.id * 2 + n) % LANES, delay: n * 0.55, origin: trigger.origin,
+          lane: (trigger.id * 2 + n) % LANES, delay: n * 0.55, origin: trigger.origin, groupId: gid,
         };
       });
     }
-    setBullets((prev) => [...prev, ...made]);
+    // v6.72 — replace:先清掉本组旧弹幕(LLM 到了替换静态),否则直接追加
+    setBullets((prev) => [...(trigger.replace ? prev.filter((b) => b.groupId !== gid) : prev), ...made]);
     const t = setTimeout(() => {
       setBullets((prev) => prev.filter((b) => !made.some((m) => m.key === b.key)));
     }, LIFETIME_MS);
@@ -99,6 +106,7 @@ export default function ReactionDanmaku({
               key={b.key}
               initial={{ opacity: 0, scale: 0.7, x: '-50%', y: '-50%' }}
               animate={{ opacity: [0, 1, 1, 0], scale: 1, y: '-220%' }}
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
               transition={{ duration: 4.2, delay: b.delay, ease: 'easeOut', times: [0, 0.14, 0.7, 1] }}
               style={{
                 ...PILL,
@@ -114,6 +122,7 @@ export default function ReactionDanmaku({
               key={b.key}
               initial={{ left: '100%', opacity: 0 }}
               animate={{ left: '-105%', opacity: [0, 1, 1, 1, 0] }}
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
               transition={{ duration: 6.4, delay: b.delay, ease: 'linear', times: [0, 0.05, 0.5, 0.9, 1] }}
               style={{ ...PILL, top: `${7 + b.lane * 13}%` }}
             >

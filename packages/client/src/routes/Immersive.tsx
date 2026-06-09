@@ -16,6 +16,7 @@ import PredictionBar from '../components/game/PredictionBar';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
 import { fetchReactionLine } from '../utils/reactionLine';
+import { pickReaction } from '@furball/shared';
 import { useNavigate } from 'react-router-dom';
 import KillFlashOverlay from '../components/game/KillFlashOverlay';
 import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
@@ -147,13 +148,15 @@ export default function Immersive() {
   // v6.68 — 沉浸局对齐:群众吐槽弹幕触发
   const [danmaku, setDanmaku] = useState<DanmakuTrigger | null>(null);
   const dmIdRef = useRef(0);
-  // v6.69 — 静态弹幕即时 + LLM 实时那句追加(沉浸局是圆桌布局,弹幕横向飘,不带工位坐标)。
+  // v6.69/72 — 静态弹幕即时(1 条),LLM 那句到了就**替换**(不叠加)。沉浸局圆桌布局,弹幕横向飘。
   const fireReactions = (kind: 'kill' | 'vote', victimName: string, victim?: { role?: string; personality?: string }) => {
-    setDanmaku({ id: ++dmIdRef.current, kind });
+    const groupId = ++dmIdRef.current;
+    const r0 = pickReaction(kind, groupId);
+    setDanmaku({ id: groupId, kind, text: r0.text, emoji: r0.emoji, groupId });
     const victimRole = victim?.role ? ROLE_LABELS[victim.role] : undefined;
     const victimPersonality = victim?.personality ? PERSONALITY_LABELS[victim.personality]?.label : undefined;
     void fetchReactionLine({ kind, victimName, victimRole, victimPersonality }).then((line) => {
-      if (line) setDanmaku({ id: ++dmIdRef.current, kind, text: line, emoji: '🗣️' });
+      if (line) setDanmaku({ id: ++dmIdRef.current, kind, text: line, emoji: '🗣️', groupId, replace: true });
     });
   };
   const [lastVoteEliminated, setLastVoteEliminated] = useState<string | null>(null);

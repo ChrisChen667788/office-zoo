@@ -13,7 +13,7 @@ import {
 import GameMap from '../components/game/GameMap';
 import GhostChatPanel from '../components/game/GhostChatPanel';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
-import { reactionLine } from '@furball/shared';
+import { pickReaction } from '@furball/shared';
 import { fetchReactionLine } from '../utils/reactionLine';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
@@ -187,20 +187,23 @@ export default function Classic() {
     victim?: { role?: string; personality?: string },
   ) => {
     const origin = posRef.current[victimId];
-    // 即时:静态池(不依赖网络,先有反应)
-    setDanmaku({ id: ++dmIdRef.current, kind, origin });
-    pushEvent('reaction', reactionLine(kind, dmIdRef.current));
-    // 异步:LLM 实时那句(失败就算了,静态的已经飘了)
+    const groupId = ++dmIdRef.current;           // 本次裁员一组
+    const evId = 2_000_000 + groupId;            // 受控日志 id(不撞 pushEvent 的 nextId)
+    // v6.72 — 即时:静态一条(弹幕 1 颗 + 日志 1 行),不依赖网络先有反应
+    const r0 = pickReaction(kind, groupId);
+    setDanmaku({ id: groupId, kind, text: r0.text, emoji: r0.emoji, origin, groupId });
+    setEventLog((prev) => [...prev, { id: evId, type: 'reaction', text: `${r0.emoji} 群众:${r0.text}`, timestamp: Date.now() }]);
+    // 异步:LLM 那句到了就**替换**静态(弹幕 + 日志都替,不叠加);失败则静态留着
     const victimRole = victim?.role ? ROLE_LABELS[victim.role] : undefined;
     const victimPersonality = victim?.personality ? PERSONALITY_LABELS[victim.personality]?.label : undefined;
     void fetchReactionLine({ kind, victimName, victimRole, victimPersonality }).then((line) => {
       if (!line) return;
-      pushEvent('reaction', `🗣️ 群众:${line}`);
-      setDanmaku({ id: ++dmIdRef.current, kind, text: line, emoji: '🗣️', origin });
+      setDanmaku({ id: ++dmIdRef.current, kind, text: line, emoji: '🗣️', origin, groupId, replace: true });
+      setEventLog((prev) => prev.map((e) => (e.id === evId ? { ...e, text: `🗣️ 群众:${line}` } : e)));
       // v6.70 — 用浏览器 TTS 把这句"群众吐槽"念出来(吃瓜路人音:略快略高);静音时不念
       if (!isSfxMuted()) void speakViaBrowserTTS(line, { rate: 1.12, pitch: 1.3 });
     });
-  }, [pushEvent]);
+  }, []);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [eventLog]);
 
