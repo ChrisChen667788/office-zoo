@@ -22,6 +22,7 @@
 import type {
   EliminationLogEntry,
   GamePlayer,
+  PredictionLogEntry,
 } from '../stores/gameStore';
 
 // ---------------------------------------------------------------------------
@@ -33,6 +34,9 @@ export type HighlightKind =
   | 'vote_eject'     // 集体投票开除一个人
   | 'roast'          // 某发言极有戏 (长 + @ + 黑话)
   | 'reversal'       // 你押 X, 实际 Y (PredictionBar 看走眼)
+  | 'perfect_bluff'  // v6.73 卧底全程没露馅,赢到最后
+  | 'comeback'       // v6.73 赢家阵营折损过半还翻盘
+  | 'bloodbath'      // v6.73 一回合多人出局,腥风血雨
   | 'finale';        // 终局阵营揭晓
 
 export interface SpeechRecord {
@@ -73,6 +77,8 @@ export interface HighlightPickInput {
   winner?: 'cat' | 'dog' | 'neutral' | string;
   /** Total rounds played (for late-weight scoring). */
   totalRounds: number;
+  /** v6.73 — 观众的预测记录。用来挖"反转/看走眼"名场面(押 X 结果 Y)。 */
+  predictionLog?: PredictionLogEntry[];
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +96,12 @@ const SPEECH_JARGON_PER_KEYWORD = 4;
 const SPEECH_JARGON_CAP = 12;
 /** Bonus for speeches in the final third of the game (climax bias). */
 const LATE_GAME_BONUS = 10;
+
+// v6.73 — 高戏剧性名场面的基础分(故意压过普通 kill 65 / vote 60,让它们冒头)
+const PERFECT_BLUFF_SCORE = 82; // 卧底全程没露馅,最炸
+const COMEBACK_SCORE = 76;      // 折损过半还翻盘
+const REVERSAL_SCORE = 70;      // 观众看走眼(押错)
+const BLOODBATH_SCORE = 68;     // 一回合多杀
 
 const ALI_JARGON = [
   '赋能', '拉通', '对齐', '打透', '沉淀', '闭环', '对焦', '梭哈', '破局',
@@ -115,6 +127,11 @@ export function pickHighlights(
   const all: Highlight[] = [
     ...scoreEliminations(input.eliminationLog, input.totalRounds),
     ...scoreSpeeches(input.speeches, input.totalRounds),
+    // v6.73 — 高戏剧性名场面(从已有日志推断,无需新数据)
+    ...scoreReversals(input.predictionLog ?? [], input.totalRounds),
+    ...detectPerfectBluff(input),
+    ...detectComeback(input),
+    ...detectBloodbath(input.eliminationLog),
   ];
 
   // Stable sort by score desc — `Array.prototype.sort` is stable in modern JS.
@@ -219,6 +236,82 @@ function roundLateBonus(
   // Last third of the game gets the full bonus, scaled linearly.
   const ratio = Math.max(0, Math.min(1, round / Math.max(1, totalRounds)));
   return ratio > 0.66 ? LATE_GAME_BONUS : Math.round(LATE_GAME_BONUS * ratio * 0.6);
+}
+
+// v6.73 — 观众押错 →「反转/看走眼」名场面。每条押错的预测出一帧,排序决定取哪条。
+function scoreReversals(log: PredictionLogEntry[], totalRounds: number): Highlight[] {
+  return log
+    .filter((p) => !p.correct && p.actualName && p.pickName)
+    .map((p): Highlight => ({
+      kind: 'reversal',
+      score: REVERSAL_SCORE + roundLateBonus(p.round, totalRounds),
+      headline: '你看走眼了',
+      body: `押的是 ${p.pickName},结果出局的是 ${p.actualName}`,
+      round: p.round,
+    }));
+}
+
+// v6.73 — 卧底(资本家 dog)活到最后、全程没被票出 + 阵营赢 = 完美伪装。
+function detectPerfectBluff(input: HighlightPickInput): Highlight[] {
+  if (input.winner !== 'dog') return [];
+  const ejected = new Set(input.eliminationLog.map((e) => e.playerId));
+  const survivor = input.players.find((p) => p.isAlive && p.team === 'dog' && !ejected.has(p.id));
+  if (!survivor) return [];
+  return [{
+    kind: 'perfect_bluff',
+    score: PERFECT_BLUFF_SCORE,
+    playerId: survivor.id,
+    playerName: survivor.name,
+    team: 'dog',
+    headline: `${survivor.name} 全程没露馅`,
+    body: '资本家卧底,演到最后赢麻了',
+    round: input.totalRounds,
+  }];
+}
+
+// v6.73 — 赢家阵营折损 ≥2 且 ≥ 对家折损 = 绝地翻盘。
+function detectComeback(input: HighlightPickInput): Highlight[] {
+  const w = input.winner;
+  if (!w || w === 'none' || w === 'neutral') return [];
+  let winLost = 0, foeLost = 0;
+  for (const e of input.eliminationLog) {
+    if (e.team === w) winLost++;
+    else if (e.team) foeLost++;
+  }
+  if (winLost < 2 || winLost < foeLost) return [];
+  const label = w === 'cat' ? '打工人' : w === 'dog' ? '资本家' : String(w);
+  return [{
+    kind: 'comeback',
+    score: COMEBACK_SCORE,
+    team: w as 'cat' | 'dog' | 'neutral',
+    headline: '绝地翻盘',
+    body: `${label}折损 ${winLost} 人还是赢了`,
+    round: input.totalRounds,
+  }];
+}
+
+// v6.73 — 同一回合 ≥2 人出局 = 腥风血雨。取出局最多的那个回合。
+function detectBloodbath(log: EliminationLogEntry[]): Highlight[] {
+  const byRound = new Map<number, EliminationLogEntry[]>();
+  for (const e of log) {
+    const arr = byRound.get(e.round) ?? [];
+    arr.push(e);
+    byRound.set(e.round, arr);
+  }
+  let best: { round: number; entries: EliminationLogEntry[] } | null = null;
+  for (const [round, entries] of byRound) {
+    if (entries.length >= 2 && (!best || entries.length > best.entries.length)) {
+      best = { round, entries };
+    }
+  }
+  if (!best) return [];
+  return [{
+    kind: 'bloodbath',
+    score: BLOODBATH_SCORE,
+    headline: `第 ${best.round} 回合 · 腥风血雨`,
+    body: `${best.entries.length} 人同时出局:${best.entries.map((e) => e.playerName).join('、')}`,
+    round: best.round,
+  }];
 }
 
 function buildFinale(input: HighlightPickInput): Highlight | null {

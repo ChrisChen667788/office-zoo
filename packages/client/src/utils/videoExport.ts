@@ -469,11 +469,14 @@ function drawRibbon(
 ) {
   const y = 100;
   const tag =
-    h.kind === 'kill'       ? '🔪 优化时刻'
-  : h.kind === 'vote_eject' ? '🗳️ 全员开除'
-  : h.kind === 'roast'      ? '🔥 暴论现场'
-  : h.kind === 'reversal'   ? '🎯 走眼了'
-                            : '🏆 终局';
+    h.kind === 'kill'          ? '🔪 优化时刻'
+  : h.kind === 'vote_eject'    ? '🗳️ 全员开除'
+  : h.kind === 'roast'         ? '🔥 暴论现场'
+  : h.kind === 'reversal'      ? '🎯 走眼了'
+  : h.kind === 'perfect_bluff' ? '🎭 影帝时刻'
+  : h.kind === 'comeback'      ? '🔄 绝地翻盘'
+  : h.kind === 'bloodbath'     ? '🩸 腥风血雨'
+                               : '🏆 终局';
 
   // index pill
   ctx.fillStyle = 'rgba(255,255,255,0.10)';
