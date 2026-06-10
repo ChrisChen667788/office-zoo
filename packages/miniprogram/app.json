@@ -6,7 +6,8 @@
     "pages/anniversary/index",
     "pages/profile/index",
     "pages/about/index",
-    "pages/company-pack/index"
+    "pages/company-pack/index",
+    "pages/fortune/index"
   ],
   "window": {
     "navigationBarTextStyle": "white",
