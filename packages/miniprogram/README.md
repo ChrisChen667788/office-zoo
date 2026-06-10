@@ -24,7 +24,8 @@ packages/miniprogram/
    ├─ about/          原生 — 技术架构图 + 公司主题包 emoji 头像展示 (v6.43/v6.44)
    ├─ company-pack/   web-view → /company-pack/edit 公司主题包编辑器 (v6.44)
    ├─ fortune/        原生 — 班味占卜日卡 (翻牌 + 忠告/微行动 + 1080×1350 海报, v6.79)
-   └─ weekly/         原生 — 周报生成器 (1 句事件 → 4 风格 + 四宫格海报, v6.80)
+   ├─ weekly/         原生 — 周报生成器 (1 句事件 → 4 风格 + 四宫格海报, v6.80)
+   └─ talkshow/       原生 — 班味单口 (热度榜 + InnerAudioContext 直链 TTS, v6.81)
 ```
 
 > **about 页验证状态** (v6.45/v6.46): emoji 头像条用原生 `<text>` 渲染纯
@@ -81,10 +82,13 @@ packages/miniprogram/
       绘制代码平台无关) + banwei 页入口卡. 三大 H5 二级页第一个搬进小程序的.
 - [x] **v6.80** — 周报生成器原生页 (`pages/weekly`): POST /api/weekly/generate 4 风格
       并行 + 复制/❤️偏爱 (self-tuning) + weeklyPaint 四宫格海报 (+7 vitest) + 金句池入口卡
+- [x] **v6.81** — 班味单口原生页 (`pages/talkshow`): 热度榜 → 全文 → InnerAudioContext
+      直链 server GET /api/talkshow/tts (v6.81 新增 GET 变体, src 只吃 URL 所以 query 传参,
+      +6 路由测试 + smoke 真出 MP3); TTS 失败自动降级纯文字. 注意: InnerAudioContext 与
+      wx.request 共用 request 合法域名白名单, 上线前 apiBase 必须备案+加白
 
 **待办:**
-- [ ] 真机 devtools 验证 about 页 + fortune/weekly 页 (需先填真实 appid — 见上方"about 页验证状态")
-- [ ] 单口二级页照模板搬进小程序 (TTS 走 server GET 流 + InnerAudioContext)
+- [ ] 真机 devtools 验证 about/fortune/weekly/talkshow 页 (需先填真实 appid — 见上方"about 页验证状态")
 - [ ] pack avatar 上小程序原生面 (目前只在 web-view / about 展示池)
 
 ## 调试

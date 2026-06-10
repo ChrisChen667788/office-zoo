@@ -7,6 +7,24 @@
 
 ---
 
+## v6.81 — 2026-06-10 · 班味单口搬进小程序(wx 音频方案 A 落地)
+
+三大二级页最后一块。音频按侦察定的**方案 A**:`InnerAudioContext.src` 直链 server GET 流 ——
+小程序侧零二进制处理,微信自己拉 audio/mpeg。+6 测试 → 456。
+
+- **server `GET /api/talkshow/tts`**(+6 路由测试):`InnerAudioContext.src` 只吃 URL(发不了
+  POST body / 自定义 header),给 /tts 挂 GET 变体,query 传 `scriptId|text|persona`,与 POST
+  走同一 `respondWithTts`(抽出的共享实现)—— 校验/404/缓存策略(seed 86400 / inline no-store)
+  /播放计数完全一致。路由测试 mock 掉 Minimax 锁行为;**真机 smoke 实打**:无参 400 / 未知
+  scriptId 404 / `?scriptId=bit-001` → 200 audio/mpeg **574KB 真 MP3**(MPEG layer III 128kbps)。
+- **原生页 `pages/talkshow`**:热度榜列表(`/list?sort=hot`,标题/人设/标签/❤️/▶ 计数)→ 点开拉
+  全文(`/script/:id`)→ ▶️ 播放(loading/playing/done/failed 四态 + `onTimeUpdate` 进度条);
+  TTS 失败自动降级**纯文字阅读**(没 key / 域名没白名单都不挡体验)· `onHide/onUnload` 停播防泄漏。
+- **入口**:金句池 tab 第二张入口卡 🎤(粉色,周报下面)。
+- v1 范围诚实标注:听 + 读 + 转发;UGC 投稿 / 吐槽间 / 自定义生成仍在 H5 端(页脚注明)。
+- 注:上线前置与全小程序同一组 —— 真实 appid + apiBase 备案域名加 request 白名单
+  (InnerAudioContext 与 wx.request 共用同一张白名单,侦察已确认)。
+
 ## v6.80 — 2026-06-10 · 周报生成器搬进小程序(模板第二抄)
 
 照 v6.79 立的模板把**周报**搬进去(workflow 三路侦察先把 API 合同/限流/字段坑摸透)。+7 测试 → 450。
