@@ -1,1 +1,48 @@
-<web-view wx:if="{{src}}" src="{{src}}" />
+<!-- 配了真域名 → 完整 H5 班味卡;否则 → 原生壳(v6.82) -->
+<web-view wx:if="{{useWeb}}" src="{{src}}" binderror="onWebError" />
+
+<view wx:else class="root">
+  <!-- 🪪 工牌 -->
+  <view class="badge-card">
+    <view class="badge-emoji">🪪</view>
+    <view class="badge-main">
+      <view class="badge-title">打工人工牌</view>
+      <view class="badge-id">ID · {{badgeId}}</view>
+      <view class="badge-note">跨端隔离 — 小程序和 H5 是两个独立的"我"</view>
+    </view>
+  </view>
+
+  <!-- 🏢 我的公司包 · pack avatar 原生面 (v6.82) -->
+  <view class="sec-label">🏢 我的公司包</view>
+  <block wx:if="{{packs === null}}">
+    <view class="state">⏳ 拉取中...</view>
+  </block>
+  <block wx:elif="{{!packs.length}}">
+    <view class="pack-empty" bindtap="goPackEditor">
+      <view class="pe-line">{{packErr ? '⚠ 拉取失败(检查 apiBase)' : '还没建包'}}</view>
+      <view class="pe-sub">把同事做成 NPC,开一局全公司的戏 →</view>
+    </view>
+  </block>
+  <block wx:else>
+    <view class="pack-row" wx:for="{{packs}}" wx:key="packId" bindtap="goPackEditor">
+      <view class="pk-main">
+        <view class="pk-name">{{item.name}}</view>
+        <view class="pk-avatars">
+          <text class="pk-emoji" wx:for="{{item.emojis}}" wx:for-item="em" wx:key="*this">{{em}}</text>
+          <text wx:if="{{item.more > 0}}" class="pk-more">+{{item.more}}</text>
+        </view>
+      </view>
+      <view class="pk-count">{{item.count}} 人</view>
+    </view>
+  </block>
+
+  <!-- ⚡ 原生玩法直达 -->
+  <view class="sec-label">⚡ 我的玩法</view>
+  <view class="link-row" bindtap="goNative" data-url="/pages/fortune/index">🔮 今日占卜 <text class="arrow">→</text></view>
+  <view class="link-row" bindtap="goNative" data-url="/pages/weekly/index">📊 周报生成器 <text class="arrow">→</text></view>
+  <view class="link-row" bindtap="goNative" data-url="/pages/talkshow/index">🎤 班味单口 <text class="arrow">→</text></view>
+
+  <view class="footer">
+    <view class="ft-line">完整班味卡 / 成就墙 / 年终 Wrapped 在 H5 端 — 部署后这页自动切完整版</view>
+  </view>
+</view>

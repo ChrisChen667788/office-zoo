@@ -1,0 +1,52 @@
+/* pages/profile — v6.82 原生壳(工牌 + 我的公司包 + 玩法直达)。 */
+.root { padding: 32rpx; min-height: 100vh; }
+
+.badge-card {
+  display: flex; align-items: center; gap: 24rpx;
+  padding: 32rpx; border-radius: 24rpx; margin-bottom: 36rpx;
+  background: linear-gradient(135deg, rgba(255,215,0,0.14), rgba(255,169,71,0.06));
+  border: 2rpx solid rgba(255,215,0,0.3);
+}
+.badge-emoji { font-size: 72rpx; line-height: 1; }
+.badge-title { font-size: 30rpx; font-weight: 900; color: #fff; }
+.badge-id { margin-top: 8rpx; font-size: 24rpx; font-weight: 700; color: #FFD700; letter-spacing: 2rpx; }
+.badge-note { margin-top: 8rpx; font-size: 18rpx; color: rgba(255,255,255,0.4); }
+
+.sec-label {
+  font-size: 22rpx; font-weight: 900; letter-spacing: 5rpx;
+  color: #4ECDC4; margin: 8rpx 0 16rpx;
+}
+
+.state { text-align: center; padding: 30rpx 0; color: rgba(255,255,255,0.4); font-size: 24rpx; }
+
+.pack-empty {
+  padding: 30rpx; border-radius: 20rpx; margin-bottom: 32rpx; text-align: center;
+  background: rgba(255,255,255,0.04); border: 2rpx dashed rgba(255,255,255,0.18);
+}
+.pe-line { font-size: 26rpx; font-weight: 800; color: rgba(255,255,255,0.75); }
+.pe-sub { margin-top: 8rpx; font-size: 20rpx; color: rgba(255,255,255,0.4); }
+
+.pack-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 18rpx;
+  padding: 24rpx 26rpx; border-radius: 20rpx; margin-bottom: 16rpx;
+  background: rgba(255,255,255,0.04);
+  border: 2rpx solid rgba(255,255,255,0.10);
+}
+.pk-main { flex: 1; min-width: 0; }
+.pk-name { font-size: 26rpx; font-weight: 800; color: #fff; margin-bottom: 10rpx; }
+.pk-avatars { display: flex; align-items: center; gap: 6rpx; flex-wrap: wrap; }
+.pk-emoji { font-size: 32rpx; line-height: 1; }
+.pk-more { font-size: 20rpx; font-weight: 800; color: rgba(255,255,255,0.5); margin-left: 6rpx; }
+.pk-count { font-size: 20rpx; color: rgba(255,255,255,0.45); flex-shrink: 0; }
+
+.link-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 24rpx 26rpx; border-radius: 20rpx; margin-bottom: 14rpx;
+  font-size: 26rpx; font-weight: 700; color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.04);
+  border: 2rpx solid rgba(255,255,255,0.10);
+}
+.link-row .arrow { color: #B086FF; font-weight: 900; }
+
+.footer { margin-top: 28rpx; }
+.ft-line { text-align: center; font-size: 19rpx; color: rgba(255,255,255,0.35); line-height: 1.7; }
