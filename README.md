@@ -281,6 +281,7 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 - ✅ **v6.75** 爆款③·关系:**AI 记忆关系网**(鼠人跨局记仇/记恩)—— 纯引擎 `memory/relationships.ts`(archetype 持久身份键的有向情绪图,投票把我投出=记仇、同阵营投我=叛变记大仇、救我=记恩,+13 测试)+ 服务端 `relationStore`(串行写队列)+ GameEngine round-end ingest + `/api/relations` + **🕸️ 恩怨录关系图谱 UI**(红线结仇/绿线交情/箭头指向被记的那只)+ `BaseAgent` 发言注入旧账让 AI 甩「上次你卖过我」;跟 pgvector 情景记忆流互补(那层 episodic,这层结构化社交图谱)
 - ✅ **v6.76** 关系网长牙:**① 投票真反哺**(纯函数 `resolveVoteWithGrudge`,真·世仇 ≤-60 才把票真的拽过去 + 甩旧账,普通记仇只进 prompt,有界不破坏推理,接进 `runVoting` 全程 fail-safe,+4 测试)+ **② 恩怨录进战绩卡/分享**(赛后 `Result`「🕸️ 本局恩怨录」只亮在场两只之间的红仇/绿恩,复制回放捎带头牌恩怨)
 - ✅ **v6.77** 关系网收尾:**① 真 engine 回归**(`grudgeVote.test.ts` 跑真 `GameEngine` + seed 世仇 → `runVoting` → 断言票真改投 + 时间线落账,补上 v6.76 只用脚本验的缺口)+ **② 本周最毒世仇榜**(纯函数 `topFeuds` 取 7 天内最负的几对,`RelationNetworkPanel` 顶部🥇🥈🥉,+4 测试)
+- ✅ **v6.78** 二级页伴随页对齐:占卜牌库/历史 + 我的周报 + 段子投稿 4 个伴随页 header 补父页同款 AI 图标;7 页 360px 极窄屏 Playwright 全扫(无横向溢出 + 图标真加载 + 零报错)
 
 **下一步(开放讨论):**
 - [x] ~~赔偿结算分享卡~~ —— v6.65 已上(战绩图 boss / 赔偿档 / 遗物 / 回合数,一键分享)
