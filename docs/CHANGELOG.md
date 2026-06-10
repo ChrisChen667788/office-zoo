@@ -7,6 +7,23 @@
 
 ---
 
+## v6.80 — 2026-06-10 · 周报生成器搬进小程序(模板第二抄)
+
+照 v6.79 立的模板把**周报**搬进去(workflow 三路侦察先把 API 合同/限流/字段坑摸透)。+7 测试 → 450。
+
+- **原生页 `pages/weekly`**:写 1 句关键事件(8-300 字,实时计数)→ `POST /api/weekly/generate`
+  一次出 4 风格(服务端并行 4 路 LLM ~10s,骨架脉冲等待)→ 逐卡 **复制**(`wx.setClipboardData`)
+  + **❤️ 偏爱**(`POST /like` 喂 self-tuning,boosted 卡带 ⚡ 角标)· 「你最爱: X」chip 读
+  `/preferences` · 429 限流给人话提示(每小时 5 次)。
+- **四宫格海报**(`utils/weeklyPaint.js` 纯函数 + 7 vitest):照 H5 `weeklyShareCard` 构图重画
+  1080×1350 —— 事件框 + 4 风格卡 2×2(STYLE_PALETTE 四色与 H5 同源,顶部渐变色条)+ footer;
+  复用 fortunePaint 的 `wrapCn`;off-screen canvas + 转发/朋友圈自定义海报。
+- **入口**:金句池 tab 底部 📊 入口卡下钻(占卜在班味指数 tab,各回各家)。
+- 侦察留档(坑都写进注释):`/styles` 返回 `id` 而 `/generate` 返回 `style` 字段名不同;
+  `/generate` 与 `/compare` 共享 5 次/小时限流;`/like` 要求 userId ≥8 字符(mp 的 19 字符 ✓)。
+- 验证:7 vitest 锁纯函数;浏览器 Canvas probe 真渲染四宫格海报(发现并修了 probe 作用域
+  冲突);`node --check` ×3;JSON 校验。devtools 真机仍待 appid。
+
 ## v6.79 — 2026-06-10 · 班味占卜搬进小程序(原生页 + 海报模板)
 
 盘点出的真缺口:三大 H5 二级页(占卜/单口/周报)小程序端一个都没有。本版把最自包含的

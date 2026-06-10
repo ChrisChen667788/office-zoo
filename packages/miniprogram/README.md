@@ -23,7 +23,8 @@ packages/miniprogram/
    ├─ profile/        web-view → /profile/me 班味卡 + stats + achievements
    ├─ about/          原生 — 技术架构图 + 公司主题包 emoji 头像展示 (v6.43/v6.44)
    ├─ company-pack/   web-view → /company-pack/edit 公司主题包编辑器 (v6.44)
-   └─ fortune/        原生 — 班味占卜日卡 (翻牌 + 忠告/微行动 + 1080×1350 海报, v6.79)
+   ├─ fortune/        原生 — 班味占卜日卡 (翻牌 + 忠告/微行动 + 1080×1350 海报, v6.79)
+   └─ weekly/         原生 — 周报生成器 (1 句事件 → 4 风格 + 四宫格海报, v6.80)
 ```
 
 > **about 页验证状态** (v6.45/v6.46): emoji 头像条用原生 `<text>` 渲染纯
@@ -78,10 +79,12 @@ packages/miniprogram/
       (同一天确定性同一张) + CSS rotateY 翻牌 + 忠告/微行动块 + 1080×1350
       分享海报 (paintFortune 纯函数 + 9 vitest; 浏览器 Canvas probe 视觉验证,
       绘制代码平台无关) + banwei 页入口卡. 三大 H5 二级页第一个搬进小程序的.
+- [x] **v6.80** — 周报生成器原生页 (`pages/weekly`): POST /api/weekly/generate 4 风格
+      并行 + 复制/❤️偏爱 (self-tuning) + weeklyPaint 四宫格海报 (+7 vitest) + 金句池入口卡
 
 **待办:**
-- [ ] 真机 devtools 验证 about 页 + fortune 页 (需先填真实 appid — 见上方"about 页验证状态")
-- [ ] 周报 / 单口 二级页照 fortune 模板搬进小程序
+- [ ] 真机 devtools 验证 about 页 + fortune/weekly 页 (需先填真实 appid — 见上方"about 页验证状态")
+- [ ] 单口二级页照模板搬进小程序 (TTS 走 server GET 流 + InnerAudioContext)
 - [ ] pack avatar 上小程序原生面 (目前只在 web-view / about 展示池)
 
 ## 调试

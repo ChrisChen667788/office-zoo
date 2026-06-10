@@ -100,7 +100,7 @@
 - 🏆 **跨观众排行榜** (v6.36→v6.38) — 全网 Top 10 班味分公开榜 + 按地区/行业筛选 + "🏢 只看本公司同事 Top",一键下载 1080×1350 榜单分享卡
 - 🎁 **班味年终 Wrapped** (v6.39→v6.40) — Spotify-Wrapped 风年度回顾:峰值周 / 平均分 / 趋势 / 爆料命中率 / 成就墙 / 年度班味人格标签,一键导出海报
 - 🔥 **班味金句池 → 游戏世界回路** (v6.33→v6.36) — 观众投稿职场金句 → 提名计数加权 → 下一局 AI 鼠人更可能"出场"被提名的名字, GameMap 给热门鼠人加 🔥 badge
-- 🧪 **质量** — 443 vitest 全绿 · typecheck 干净 · Playwright 视觉探针验证 wrapped 卡 + 动画架构图
+- 🧪 **质量** — 450 vitest 全绿 · typecheck 干净 · Playwright 视觉探针验证 wrapped 卡 + 动画架构图
 
 ## 🌟 v6.1 升级 (2026-05-22)
 
@@ -283,6 +283,7 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 - ✅ **v6.77** 关系网收尾:**① 真 engine 回归**(`grudgeVote.test.ts` 跑真 `GameEngine` + seed 世仇 → `runVoting` → 断言票真改投 + 时间线落账,补上 v6.76 只用脚本验的缺口)+ **② 本周最毒世仇榜**(纯函数 `topFeuds` 取 7 天内最负的几对,`RelationNetworkPanel` 顶部🥇🥈🥉,+4 测试)
 - ✅ **v6.78** 二级页伴随页对齐:占卜牌库/历史 + 我的周报 + 段子投稿 4 个伴随页 header 补父页同款 AI 图标;7 页 360px 极窄屏 Playwright 全扫(无横向溢出 + 图标真加载 + 零报错)
 - ✅ **v6.79** 班味占卜搬进小程序:原生 `pages/fortune`(日卡翻牌 + 忠告/微行动 + 1080×1350 海报,`fortunePaint` 纯函数 +9 测试,浏览器 Canvas probe 视觉验证)+ banwei tab 入口卡;小程序二级页模板就此立起,周报/单口照抄
+- ✅ **v6.80** 周报生成器搬进小程序:原生 `pages/weekly`(1 句事件 → 4 风格并行生成 → 复制/❤️偏爱喂 self-tuning → 四宫格海报,`weeklyPaint` +7 测试)+ 金句池 tab 入口卡;workflow 三路侦察 API 合同先行
 
 **下一步(开放讨论):**
 - [x] ~~赔偿结算分享卡~~ —— v6.65 已上(战绩图 boss / 赔偿档 / 遗物 / 回合数,一键分享)
