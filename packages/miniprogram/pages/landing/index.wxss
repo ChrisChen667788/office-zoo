@@ -1,0 +1,45 @@
+/* pages/landing — v6.82 原生壳(webBase 占位/失败时的品牌化兜底)。 */
+.root { padding: 32rpx; min-height: 100vh; }
+
+.hero { text-align: center; padding: 48rpx 0 40rpx; }
+.hero-logo { font-size: 96rpx; line-height: 1; }
+.hero-title {
+  margin-top: 16rpx; font-size: 52rpx; font-weight: 900; letter-spacing: 8rpx;
+  background: linear-gradient(135deg, #FFD700, #FFA947);
+  -webkit-background-clip: text; color: transparent;
+}
+.hero-sub { margin-top: 8rpx; font-size: 26rpx; color: rgba(255,255,255,0.7); letter-spacing: 4rpx; }
+.hero-tag { margin-top: 12rpx; font-size: 22rpx; color: rgba(255,255,255,0.45); }
+
+.sec-label {
+  font-size: 22rpx; font-weight: 900; letter-spacing: 5rpx;
+  color: #4ECDC4; margin: 8rpx 0 16rpx;
+}
+
+.mode-card {
+  padding: 24rpx 28rpx; border-radius: 24rpx; margin-bottom: 32rpx;
+  background: rgba(15,14,46,0.6);
+  border: 2rpx solid rgba(255,215,0,0.22);
+}
+.mode-row { display: flex; align-items: baseline; gap: 14rpx; padding: 10rpx 0; }
+.mode-emoji { font-size: 30rpx; flex-shrink: 0; }
+.mode-name { font-size: 26rpx; font-weight: 800; color: #fff; flex-shrink: 0; }
+.mode-sub { font-size: 20rpx; color: rgba(255,255,255,0.45); }
+.mode-note {
+  margin-top: 14rpx; padding-top: 14rpx; border-top: 2rpx solid rgba(255,255,255,0.08);
+  font-size: 19rpx; color: rgba(255,215,0,0.5);
+}
+
+.grid { display: flex; flex-wrap: wrap; gap: 18rpx; margin-bottom: 32rpx; }
+.cell {
+  width: calc((100% - 36rpx) / 3); box-sizing: border-box;
+  padding: 24rpx 12rpx; border-radius: 20rpx; text-align: center;
+  background: rgba(255,255,255,0.04);
+  border: 2rpx solid rgba(255,255,255,0.10);
+}
+.cell-emoji { font-size: 48rpx; line-height: 1; }
+.cell-title { margin-top: 12rpx; font-size: 24rpx; font-weight: 800; color: #fff; }
+.cell-sub { margin-top: 6rpx; font-size: 18rpx; color: rgba(255,255,255,0.4); }
+
+.footer { margin-top: 8rpx; }
+.ft-line { text-align: center; font-size: 20rpx; color: rgba(255,215,0,0.45); }

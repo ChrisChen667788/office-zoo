@@ -1,1 +1,34 @@
-<web-view wx:if="{{src}}" src="{{src}}" />
+<!-- 配了真域名 → 完整 H5;否则 → 原生壳(v6.82) -->
+<web-view wx:if="{{useWeb}}" src="{{src}}" binderror="onWebError" />
+
+<view wx:else class="root">
+  <view class="hero">
+    <view class="hero-logo">🐀</view>
+    <view class="hero-title">OFFICE ZOO</view>
+    <view class="hero-sub">班味剧场 · 0 点的写字楼</view>
+    <view class="hero-tag">AI 鼠人替你拥抱变化,你回家躺平</view>
+  </view>
+
+  <view class="sec-label">🎮 主对局(完整体验在 H5 端)</view>
+  <view class="mode-card">
+    <view class="mode-row"><text class="mode-emoji">🏢</text><text class="mode-name">鼠人公司</text><text class="mode-sub">2.5D 写字楼 · 9 鼠自演</text></view>
+    <view class="mode-row"><text class="mode-emoji">🎬</text><text class="mode-name">全程开麦</text><text class="mode-sub">真人 TTS 沉浸局</text></view>
+    <view class="mode-row"><text class="mode-emoji">⚖️</text><text class="mode-name">裁了么</text><text class="mode-sub">1v1 斗 HR 学劳动法</text></view>
+    <view class="mode-row"><text class="mode-emoji">🍺</text><text class="mode-name">深夜酒馆</text><text class="mode-sub">凌晨 2 点 1v1 吐槽</text></view>
+    <view class="mode-note">部署 H5 + 配置 app.js → webBase 后,这里直接打开完整版</view>
+  </view>
+
+  <view class="sec-label">⚡ 小程序原生玩法 · 即点即玩</view>
+  <view class="grid">
+    <view class="cell" wx:for="{{natives}}" wx:key="title" bindtap="goNative"
+      data-url="{{item.url}}" data-kind="{{item.kind}}">
+      <view class="cell-emoji">{{item.emoji}}</view>
+      <view class="cell-title">{{item.title}}</view>
+      <view class="cell-sub">{{item.sub}}</view>
+    </view>
+  </view>
+
+  <view class="footer">
+    <view class="ft-line">🐀 github.com/ChrisChen667788/office-zoo · MIT</view>
+  </view>
+</view>
