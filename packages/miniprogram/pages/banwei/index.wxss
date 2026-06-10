@@ -82,3 +82,16 @@
   margin-bottom: 6rpx;
   line-height: 1.6;
 }
+
+/* v6.79 — 班味占卜入口卡 */
+.fortune-entry {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 24rpx; padding: 24rpx 28rpx; border-radius: 24rpx;
+  background: linear-gradient(135deg, rgba(124,58,237,0.22), rgba(255,85,136,0.10));
+  border: 2rpx solid rgba(176,134,255,0.35);
+}
+.fe-left { display: flex; align-items: center; gap: 20rpx; }
+.fe-emoji { font-size: 56rpx; line-height: 1; }
+.fe-title { font-size: 28rpx; font-weight: 900; color: #fff; }
+.fe-sub { font-size: 20rpx; color: rgba(255,255,255,0.55); margin-top: 4rpx; }
+.fe-arrow { font-size: 32rpx; color: #B086FF; font-weight: 900; }

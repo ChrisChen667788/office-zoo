@@ -243,6 +243,11 @@ Page({
     ctx.fillText('🐀 github.com/ChrisChen667788/office-zoo', W / 2, H - 60);
   },
 
+  // v6.79 — 班味占卜入口(同 tab 下钻原生页)。
+  goFortune() {
+    wx.navigateTo({ url: '/pages/fortune/index' });
+  },
+
   // 系统分享 — 转发给好友. imageUrl 用预渲染的海报 (未就绪则 WeChat 自动截图页面).
   onShareAppMessage() {
     const { score, tierLabel } = this.data;

@@ -46,6 +46,18 @@
     <button open-type="share" class="share-btn">📨 转发给朋友</button>
   </block>
 
+  <!-- v6.79 — 班味占卜入口(原生页,一天一张日卡) -->
+  <view class="fortune-entry" bindtap="goFortune">
+    <view class="fe-left">
+      <view class="fe-emoji">🔮</view>
+      <view>
+        <view class="fe-title">班味占卜 · 今日运势</view>
+        <view class="fe-sub">一天一张塔罗日卡 · 可出分享海报</view>
+      </view>
+    </view>
+    <view class="fe-arrow">→</view>
+  </view>
+
   <!-- v6.35 P1 — off-screen canvas for the 1080x1350 share card -->
   <canvas type="2d" id="share-canvas" class="off-canvas"></canvas>
 
