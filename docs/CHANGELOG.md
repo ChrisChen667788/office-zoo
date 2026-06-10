@@ -7,6 +7,24 @@
 
 ---
 
+## v6.79 — 2026-06-10 · 班味占卜搬进小程序(原生页 + 海报模板)
+
+盘点出的真缺口:三大 H5 二级页(占卜/单口/周报)小程序端一个都没有。本版把最自包含的
+**占卜**搬进去,顺手立起小程序二级页模板(取数 → 原生渲染 → Canvas 海报 → 分享),
+周报/单口以后照抄。+9 测试 → 443。
+
+- **原生页 `pages/fortune`**:GET `/api/fortune/me` 日卡(同一天确定性同一张,UTC 0 点重洗)·
+  CSS rotateY **翻牌动画**(600ms 延迟,跟 H5 同节奏)· 牌面渐变/运势条/大 emoji/忠告/微行动
+  全原生渲染 · 视觉对齐 banwei 那套玻璃拟态。
+- **1080×1350 分享海报**(`utils/fortunePaint.js` 纯函数 + 9 vitest):牌面渐变底 + 档位/运势条 +
+  大 emoji + 忠告/微行动块(中文手动换行 `wrapCn`,canvas 没有自动换行)+ 日期戳;`vibeTier`
+  分段与 H5 端 1:1。off-screen canvas + `onShareAppMessage`/`onShareTimeline` 自定义海报
+  (banwei v6.50 模板)。
+- **入口**:tabBar 满员(5/5),入口放「班味指数」tab 底部 —— 🔮 占卜入口卡 `wx.navigateTo` 下钻。
+- 验证:9 vitest 锁纯函数;**浏览器 Canvas probe 视觉验证海报**(绘制代码平台无关,Playwright
+  真渲染截图:渐变/翻牌要素/换行全对);`node --check` 三个 js;app.json/页面 json 解析通过。
+  微信开发者工具真机验证仍待真实 appid(与 about 页同一前置,mp README 已记)。
+
 ## v6.78 — 2026-06-10 · 二级页伴随页图标对齐 + 360px 极窄屏全扫
 
 盘点结论:占卜/单口/周报三大二级页 Web 端已打磨到位(390px 实测干净),真正的不一致只剩
