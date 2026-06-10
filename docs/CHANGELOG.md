@@ -7,6 +7,22 @@
 
 ---
 
+## v6.82 — 2026-06-10 · 小程序收尾:landing/profile 原生壳 + pack avatar 上原生面
+
+mp 线最后一刷。landing/profile 一直是裸 web-view 壳 —— webBase 没换掉 example.com 占位符前
+**打开就是白屏**。本版给两页加「原生壳」兜底,顺手把公司包头像第一次搬上原生面。+6 测试 → 462。
+
+- **`utils/mpShell.js` 纯函数**(+6 vitest):`shouldUseWebview`(必须 https 且非 example.com
+  占位符)+ `avatarStrip`(NPC → emoji 条,没设的回退 🐀,超 8 折叠 +N)。
+- **landing 原生壳**:占位符 / `binderror`(域名没白名单、服务挂)→ 品牌化首页 —— 🐀 金字 logo
+  + 4 主模式介绍卡(注明完整体验在 H5)+ **3×2 原生玩法宫格**(占卜/周报/单口 navigateTo,
+  班味/金句池 switchTab,架构页);配了真域名自动切回完整 H5。
+- **profile 原生壳**:🪪 工牌卡(8 位 userId + 跨端隔离说明)+ **🏢 我的公司包**(live
+  `GET /api/company-pack/mine`,每包名字 + NPC emoji 头像条 + 人数,点进编辑器)——
+  pack avatar 此前只在 web-view / about 的**写死展示池**里,这是第一次吃真数据上原生面
+  + 原生玩法直达 3 行。
+- 验证:6 vitest 锁纯函数;`node --check` ×3;全量 462 绿。devtools 真机统一待 appid(老前置)。
+
 ## v6.81 — 2026-06-10 · 班味单口搬进小程序(wx 音频方案 A 落地)
 
 三大二级页最后一块。音频按侦察定的**方案 A**:`InnerAudioContext.src` 直链 server GET 流 ——

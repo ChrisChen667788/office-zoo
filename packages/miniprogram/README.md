@@ -16,11 +16,11 @@ packages/miniprogram/
 ├─ project.config.json  小程序项目配置 (appid 占位待填)
 ├─ sitemap.json
 └─ pages/
-   ├─ landing/        web-view → 完整 H5 Landing (4 模式选择)
+   ├─ landing/        web-view → H5 Landing; 占位符/失败时原生壳 (v6.82)
    ├─ banwei/         原生 — 班味指数 score badge + 5 axis breakdown
    ├─ hot-quotes/     原生 — 班味金句投稿表单
    ├─ anniversary/    web-view → /anniversary 6 milestone deck
-   ├─ profile/        web-view → /profile/me 班味卡 + stats + achievements
+   ├─ profile/        web-view → /profile/me; 原生壳: 工牌+我的公司包 (v6.82)
    ├─ about/          原生 — 技术架构图 + 公司主题包 emoji 头像展示 (v6.43/v6.44)
    ├─ company-pack/   web-view → /company-pack/edit 公司主题包编辑器 (v6.44)
    ├─ fortune/        原生 — 班味占卜日卡 (翻牌 + 忠告/微行动 + 1080×1350 海报, v6.79)
@@ -87,9 +87,12 @@ packages/miniprogram/
       +6 路由测试 + smoke 真出 MP3); TTS 失败自动降级纯文字. 注意: InnerAudioContext 与
       wx.request 共用 request 合法域名白名单, 上线前 apiBase 必须备案+加白
 
+- [x] **v6.82** — landing/profile 原生壳 (webBase 占位/binderror → 品牌兜底, 不再白屏)
+      + pack avatar 上原生面 (profile 壳 live /api/company-pack/mine NPC emoji 条,
+      mpShell 纯函数 +6 vitest)
+
 **待办:**
-- [ ] 真机 devtools 验证 about/fortune/weekly/talkshow 页 (需先填真实 appid — 见上方"about 页验证状态")
-- [ ] pack avatar 上小程序原生面 (目前只在 web-view / about 展示池)
+- [ ] 真机 devtools 验证 about/fortune/weekly/talkshow/landing/profile 壳 (需先填真实 appid)
 
 ## 调试
 
