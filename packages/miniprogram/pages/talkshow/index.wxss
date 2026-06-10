@@ -1,0 +1,75 @@
+/* pages/talkshow — 班味单口 (v6.81)。视觉对齐 banwei/fortune/weekly 玻璃拟态。 */
+.root { padding: 32rpx; min-height: 100vh; }
+
+.header { margin-bottom: 32rpx; }
+.hd-label {
+  font-size: 22rpx; font-weight: 900; letter-spacing: 6rpx;
+  color: #FF4FA3; text-transform: uppercase; margin-bottom: 8rpx;
+}
+.hd-sub { font-size: 24rpx; color: rgba(255,255,255,0.55); }
+
+.state { text-align: center; padding: 80rpx 0; color: rgba(255,255,255,0.4); }
+.state.err { color: #ef4444; white-space: pre-line; }
+
+/* —— 列表 —— */
+.bit-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 20rpx;
+  padding: 26rpx 28rpx; border-radius: 24rpx; margin-bottom: 18rpx;
+  background: rgba(255,255,255,0.04);
+  border: 2rpx solid rgba(255,255,255,0.10);
+}
+.bi-main { flex: 1; min-width: 0; }
+.bi-title { font-size: 28rpx; font-weight: 800; color: #fff; margin-bottom: 8rpx; }
+.bi-meta { font-size: 20rpx; color: rgba(255,255,255,0.5); }
+.bi-stats { text-align: right; font-size: 20rpx; color: rgba(255,255,255,0.7); flex-shrink: 0; }
+.bi-stats .dim { color: rgba(255,255,255,0.35); margin-top: 6rpx; }
+
+/* —— 详情 —— */
+.back {
+  display: inline-block; margin-bottom: 24rpx; padding: 10rpx 24rpx; border-radius: 999rpx;
+  font-size: 24rpx; color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.06); border: 2rpx solid rgba(255,255,255,0.12);
+}
+.bit-card {
+  padding: 32rpx; border-radius: 24rpx; margin-bottom: 24rpx;
+  background: rgba(15,14,46,0.6);
+  border: 2rpx solid rgba(255,79,163,0.28);
+}
+.bit-title { font-size: 36rpx; font-weight: 900; color: #fff; margin-bottom: 16rpx; }
+.bit-chips { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 24rpx; }
+.chip {
+  font-size: 20rpx; font-weight: 700; color: #FF4FA3;
+  padding: 6rpx 16rpx; border-radius: 999rpx;
+  background: rgba(255,79,163,0.10); border: 2rpx solid rgba(255,79,163,0.28);
+}
+.chip.dim { color: rgba(255,255,255,0.55); background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.12); }
+
+.play-cta {
+  text-align: center; padding: 26rpx 0; border-radius: 20rpx;
+  font-size: 28rpx; font-weight: 900; letter-spacing: 4rpx; color: #fff;
+  background: linear-gradient(135deg, #FF4FA3, #7C3AED);
+  box-shadow: 0 12rpx 36rpx rgba(255,79,163,0.30);
+}
+.play-cta.playing { opacity: 0.85; }
+.progress {
+  margin-top: 16rpx; height: 8rpx; border-radius: 8rpx; overflow: hidden;
+  background: rgba(255,255,255,0.08);
+}
+.progress-fill { height: 100%; background: linear-gradient(90deg, #FF4FA3, #7C3AED); transition: width 0.25s linear; }
+
+.bit-text {
+  margin-top: 28rpx; font-size: 26rpx; color: rgba(255,255,255,0.9);
+  line-height: 1.85; white-space: pre-wrap;
+}
+
+.share-btn {
+  background: rgba(176,134,255,0.16);
+  color: #B086FF;
+  font-size: 26rpx; font-weight: 800;
+  letter-spacing: 4rpx;
+  border-radius: 20rpx;
+}
+.share-btn::after { border: none; }
+
+.footer { margin-top: 24rpx; }
+.ft-line { text-align: center; font-size: 20rpx; color: rgba(255,255,255,0.35); }
