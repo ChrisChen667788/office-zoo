@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
+import { navIcons, Icon } from '../constants/icons';
 
 const TAGS = [
   { value: 'overtime', label: '加班 / 周报', emoji: '🌙' },
@@ -145,7 +146,7 @@ export default function TalkshowUgc() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 段子库
         </button>
-        <EventPill stars={5}>🎤 段子投稿 · 月度精选</EventPill>
+        <EventPill stars={5}><Icon src={navIcons.talkshow} emoji="🎤" size={15} alt="" /> 段子投稿 · 月度精选</EventPill>
         <span className="w-12" />
       </header>
 

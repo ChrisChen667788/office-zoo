@@ -13,6 +13,7 @@ import { motion } from 'framer-motion';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
 import TrendShareCardModal from '../components/TrendShareCardModal';
+import { navIcons, Icon } from '../constants/icons';
 
 type Style = 'alibaba' | 'pua' | 'posh' | 'direct';
 
@@ -74,7 +75,7 @@ export default function WeeklyMe() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 生成周报
         </button>
-        <EventPill stars={4} subtle>📊 我的偏好</EventPill>
+        <EventPill stars={4} subtle><Icon src={navIcons.weekly} emoji="📊" size={15} alt="" /> 我的偏好</EventPill>
         <span className="w-12" />
       </header>
 

@@ -24,6 +24,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
+import { navIcons, Icon } from '../constants/icons';
 
 interface HistoryEntry {
   date: string;
@@ -112,7 +113,7 @@ export default function FortuneHistory() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 今日的牌
         </button>
-        <EventPill stars={4} subtle>📜 占卜历史</EventPill>
+        <EventPill stars={4} subtle><Icon src={navIcons.fortune} emoji="📜" size={15} alt="" /> 占卜历史</EventPill>
         <button onClick={() => navigate('/fortune/gallery')}
           className="text-[11px] text-white/55 hover:text-white/95 transition px-2 py-1 rounded"
           style={{ background: 'rgba(176,134,255,0.10)', border: '1px solid rgba(176,134,255,0.25)' }}>

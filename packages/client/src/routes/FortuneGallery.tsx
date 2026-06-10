@@ -27,6 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import FortuneShareCardModal from '../components/FortuneShareCardModal';
 import EventPill from '../components/EventPill';
+import { navIcons, Icon } from '../constants/icons';
 
 interface FortuneCard {
   id: string;
@@ -109,7 +110,7 @@ export default function FortuneGallery() {
           style={{ background: 'rgba(255,255,255,0.05)' }}>
           ← 今日的牌
         </button>
-        <EventPill stars={5} subtle>🔮 牌库 · 24 张</EventPill>
+        <EventPill stars={5} subtle><Icon src={navIcons.fortune} emoji="🔮" size={15} alt="" /> 牌库 · 24 张</EventPill>
         <span className="text-[10px] text-white/30 tabular-nums">{today}</span>
       </header>
 
