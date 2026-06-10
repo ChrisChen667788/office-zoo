@@ -43,6 +43,18 @@
     </view>
   </block>
 
+  <!-- v6.80 — 周报生成器入口(原生页,一句话出 4 种风格) -->
+  <view class="weekly-entry" bindtap="goWeekly">
+    <view class="we-left">
+      <view class="we-emoji">📊</view>
+      <view>
+        <view class="we-title">周报生成器 · 4 种说法</view>
+        <view class="we-sub">阿里黑话 / PUA / 装腔 / 直球 · 可出四宫格海报</view>
+      </view>
+    </view>
+    <view class="we-arrow">→</view>
+  </view>
+
   <view class="footer">
     <view class="ft-line">💡 服务器会在每场新局开始时, 抽 5 条 recent 金句</view>
     <view class="ft-line">塞进 AI 鼠人的 prompt 上下文 — 它真的可能照念你的话</view>

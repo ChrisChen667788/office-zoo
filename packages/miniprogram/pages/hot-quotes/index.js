@@ -60,4 +60,9 @@ Page({
     const d = new Date(ts);
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   },
+
+  // v6.80 — 周报生成器入口(下钻原生页)。
+  goWeekly() {
+    wx.navigateTo({ url: '/pages/weekly/index' });
+  },
 });

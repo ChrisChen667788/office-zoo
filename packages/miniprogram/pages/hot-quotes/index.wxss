@@ -72,3 +72,16 @@
   font-size: 22rpx; color: rgba(255,255,255,0.45);
   margin-bottom: 6rpx; line-height: 1.6;
 }
+
+/* v6.80 — 周报生成器入口卡 */
+.weekly-entry {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 24rpx; padding: 24rpx 28rpx; border-radius: 24rpx;
+  background: linear-gradient(135deg, rgba(78,205,196,0.18), rgba(74,144,226,0.10));
+  border: 2rpx solid rgba(78,205,196,0.35);
+}
+.we-left { display: flex; align-items: center; gap: 20rpx; }
+.we-emoji { font-size: 56rpx; line-height: 1; }
+.we-title { font-size: 28rpx; font-weight: 900; color: #fff; }
+.we-sub { font-size: 20rpx; color: rgba(255,255,255,0.55); margin-top: 4rpx; }
+.we-arrow { font-size: 32rpx; color: #4ECDC4; font-weight: 900; }
