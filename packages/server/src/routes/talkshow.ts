@@ -14,7 +14,7 @@
  *   - Future v0.7.5 will host server-rendered videos here too, so this is
  *     the natural namespace for everything talkshow-shaped
  */
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import {
   SEED_SCRIPTS,
@@ -201,11 +201,13 @@ const TtsRequestSchema = z.object({
   ] as const).optional(),
 });
 
-talkshowRoutes.post('/tts', async (c) => {
-  const v = await validateBody(c, TtsRequestSchema);
-  if (!v.ok) return v.response;
-  const { scriptId, text, persona } = v.data;
-
+/** POST /tts 与 GET /tts 的共享实现 — 参数已过 TtsRequestSchema 校验。
+ *  v6.81 抽出来:小程序 InnerAudioContext.src 只吃 URL(发不了 POST body /
+ *  自定义 header),所以同一逻辑挂一个 GET 变体,querystring 传参。 */
+async function respondWithTts(
+  c: Context,
+  { scriptId, text, persona }: { scriptId?: string; text?: string; persona?: keyof typeof PERSONA_TO_ROLE_HINT },
+) {
   let body: string | undefined = text;
   let voiceHint: string | undefined;
   let isUserGenerated = false;
@@ -256,6 +258,27 @@ talkshowRoutes.post('/tts', async (c) => {
         : 'no-store',
     },
   });
+}
+
+talkshowRoutes.post('/tts', async (c) => {
+  const v = await validateBody(c, TtsRequestSchema);
+  if (!v.ok) return v.response;
+  return respondWithTts(c, v.data);
+});
+
+// v6.81 — GET 变体,给小程序 InnerAudioContext 直链用(src 只吃 URL,带不了
+// POST body)。query: ?scriptId=… 或 ?text=…&persona=…,校验/缓存/计数与 POST
+// 完全同一条路径(respondWithTts)。
+talkshowRoutes.get('/tts', async (c) => {
+  const parsed = TtsRequestSchema.safeParse({
+    scriptId: c.req.query('scriptId') || undefined,
+    text: c.req.query('text') || undefined,
+    persona: c.req.query('persona') || undefined,
+  });
+  if (!parsed.success) {
+    return c.json({ error: 'invalid query', details: parsed.error.flatten() }, 400);
+  }
+  return respondWithTts(c, parsed.data);
 });
 
 // ---------- /generate (v0.7.4) ---------------------------------------------
