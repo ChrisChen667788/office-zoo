@@ -55,6 +55,18 @@
     <view class="we-arrow">→</view>
   </view>
 
+  <!-- v6.81 — 班味单口入口(原生页,AI 嘴替开麦) -->
+  <view class="weekly-entry talkshow" bindtap="goTalkshow">
+    <view class="we-left">
+      <view class="we-emoji">🎤</view>
+      <view>
+        <view class="we-title">班味单口 · AI 嘴替开麦</view>
+        <view class="we-sub">热门段子库 · 真人音色念给你听</view>
+      </view>
+    </view>
+    <view class="we-arrow pink">→</view>
+  </view>
+
   <view class="footer">
     <view class="ft-line">💡 服务器会在每场新局开始时, 抽 5 条 recent 金句</view>
     <view class="ft-line">塞进 AI 鼠人的 prompt 上下文 — 它真的可能照念你的话</view>

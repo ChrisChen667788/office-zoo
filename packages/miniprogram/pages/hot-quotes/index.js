@@ -65,4 +65,9 @@ Page({
   goWeekly() {
     wx.navigateTo({ url: '/pages/weekly/index' });
   },
+
+  // v6.81 — 班味单口入口(下钻原生页)。
+  goTalkshow() {
+    wx.navigateTo({ url: '/pages/talkshow/index' });
+  },
 });

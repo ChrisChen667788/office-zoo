@@ -85,3 +85,10 @@
 .we-title { font-size: 28rpx; font-weight: 900; color: #fff; }
 .we-sub { font-size: 20rpx; color: rgba(255,255,255,0.55); margin-top: 4rpx; }
 .we-arrow { font-size: 32rpx; color: #4ECDC4; font-weight: 900; }
+
+/* v6.81 — 单口入口卡(沿用 weekly-entry 骨架,换粉色) */
+.weekly-entry.talkshow {
+  background: linear-gradient(135deg, rgba(255,79,163,0.16), rgba(124,58,237,0.10));
+  border-color: rgba(255,79,163,0.35);
+}
+.we-arrow.pink { color: #FF4FA3; }
