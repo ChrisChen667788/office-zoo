@@ -1,0 +1,57 @@
+<view class="root">
+  <view class="header">
+    <view class="hd-label">📊 周报生成器 · WEEKLY MAKER</view>
+    <view class="hd-sub">同一件事 · 4 种说法 — 阿里黑话 / PUA / 装腔 / 直球</view>
+    <view wx:if="{{dominantLabel}}" class="pref-chip">❤️ 你最爱: {{dominantLabel}} · AI 在听你的</view>
+  </view>
+
+  <!-- 输入区 -->
+  <view class="card">
+    <view class="in-label">写 1 句这周关键事件</view>
+    <textarea class="in-box" value="{{event}}" bindinput="onInput"
+      maxlength="{{maxLen}}" placeholder="例: 本周 OKR 没过,因为甲方需求改了 3 次"
+      placeholder-class="in-ph" />
+    <view class="in-meta">
+      <text class="{{len >= minLen ? 'ok' : ''}}">{{len}}/{{maxLen}}{{len < minLen ? ' · 至少 ' + minLen + ' 字' : ''}}</text>
+    </view>
+    <view class="cta {{canGen && !busy ? '' : 'disabled'}}" bindtap="onGenerate">
+      {{busy ? '⏳ 4 路 AI 并行写作中 (~10s)...' : '⚡ 一键生成 4 种风格周报'}}
+    </view>
+    <view class="quota-hint">每小时 5 次生成额度 · 4 种风格一次出齐</view>
+  </view>
+
+  <view wx:if="{{err}}" class="state err">⚠ {{err}}</view>
+
+  <!-- 生成中骨架 -->
+  <block wx:if="{{busy}}">
+    <view class="skeleton" wx:for="{{[1,2,3,4]}}" wx:key="*this">✍️ 写作中...</view>
+  </block>
+
+  <!-- 结果卡 -->
+  <block wx:if="{{results.length && !busy}}">
+    <view class="result {{item.error ? 'broken' : ''}}" wx:for="{{results}}" wx:key="style">
+      <view class="rs-head">
+        <text class="rs-label">{{item.emoji}} {{item.label}}</text>
+        <text wx:if="{{item.boosted}}" class="rs-boost">⚡ 偏好加强</text>
+      </view>
+      <view class="rs-desc">{{item.description}}</view>
+      <view class="rs-text">{{item.text}}</view>
+      <view class="rs-actions" wx:if="{{!item.error}}">
+        <view class="rs-btn" bindtap="onCopy" data-idx="{{index}}">📋 复制</view>
+        <view class="rs-btn like {{likedStyle === item.style ? 'liked' : ''}}" bindtap="onLike" data-idx="{{index}}">
+          {{likedStyle === item.style ? '❤️ 已偏爱' : '🤍 最像我司'}}
+        </view>
+      </view>
+    </view>
+
+    <view class="cta" bindtap="onShareCard">📤 生成 1080×1350 四宫格海报</view>
+    <button open-type="share" class="share-btn">📨 转发给朋友</button>
+  </block>
+
+  <!-- off-screen canvas for the 1080x1350 share poster (banwei 模板) -->
+  <canvas type="2d" id="share-canvas" class="off-canvas"></canvas>
+
+  <view class="footer">
+    <view class="ft-line">💡 点 ❤️ 喂 AI 偏好 — 下次生成会偷偷加强你最爱的风格</view>
+  </view>
+</view>
