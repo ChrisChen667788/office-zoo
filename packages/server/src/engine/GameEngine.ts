@@ -286,6 +286,11 @@ export class GameEngine extends EventEmitter {
    *  "anonymous ex-coworker tips" the AI can quote/discredit/ignore.
    *  Cleared each round (`pushLeakedHint` keeps a sliding window). */
   private leakedHints: string[] = [];
+
+  /** v6.83 — 观众筹码买的「裁员保护协议」:罩住的 playerId,挡一刀即消费。 */
+  private interventionShieldId: string | null = null;
+  /** v6.83 — 观众「聚光灯」:这些鼠下次发言加戏(取走即消费)。 */
+  private spotlightIds = new Set<string>();
   /** Child logger bound to this engine's gameId — created lazily. */
   private _log?: ReturnType<typeof logger.child>;
   private get log() {
@@ -903,10 +908,17 @@ export class GameEngine extends EventEmitter {
           bodyguardTargetId: this.state.bodyguardTargetId,
           bodyguardId: bodyguard?.id,
           bodyguardAlive: bodyguard?.isAlive ?? false,
+          // v6.83 — 观众筹码买的一次性保护协议
+          interventionShieldId: this.interventionShieldId ?? undefined,
         });
 
         if (res.outcome === 'blocked') {
-          this.addEvent('protect', `${victim.name} 本来要被"优化",被工会代表暗中保住了`);
+          if (res.by === 'shield') {
+            this.interventionShieldId = null; // 挡一刀即消费
+            this.addEvent('intervene', `🛡 观众众筹的「裁员保护协议」生效 — ${victim.name} 这刀被合同条款弹开了`);
+          } else {
+            this.addEvent('protect', `${victim.name} 本来要被"优化",被工会代表暗中保住了`);
+          }
           this.emitState();
           break;
         }
@@ -1025,6 +1037,8 @@ export class GameEngine extends EventEmitter {
               // speech prompt. AI may believe / discredit / ignore based
               // on personality. Capped to 5 in BaseAgent itself.
               leakedHints: this.leakedHints,
+              // v6.83 — 观众聚光灯:取走即消费(delete 返回 true = 本次加戏)。
+              spotlight: this.spotlightIds.delete(player.id),
             });
             return { player, text };
           } catch {
@@ -1550,6 +1564,51 @@ export class GameEngine extends EventEmitter {
     this.leakedHints.push(text);
     if (this.leakedHints.length > 5) this.leakedHints.shift();
     this.emit('leak_acked', { text, total: this.leakedHints.length });
+    return { accepted: true };
+  }
+
+  /**
+   * v6.83 — 观众「筹码买干预」生效点。socket handler 限流校验后调进来;
+   * 筹码扣减在客户端纯引擎(信任模型同 v6.74,服务端限流兜底)。
+   *   shield    给 targetId 挂一次性「裁员保护协议」(夜杀弹开,见 resolveKillTarget)
+   *   clue      随机抽一只在场鼠,曝一条阵营线索(80% 真 / 20% 反,小道消息口径)
+   *   spotlight 给 targetId 下次发言加戏(BaseAgent prompt 注入,取走即消费)
+   */
+  applyIntervention(
+    itemId: 'shield' | 'clue' | 'spotlight',
+    targetId?: string,
+  ): { accepted: boolean; reason?: string } {
+    if (this.state.phase === 'game_over') return { accepted: false, reason: 'game_over' };
+
+    if (itemId === 'clue') {
+      const pool = this.alivePlayers();
+      if (pool.length === 0) return { accepted: false, reason: 'no_targets' };
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      const truthful = Math.random() < 0.8;
+      const shownTeam = truthful
+        ? pick.team
+        : (pick.team === Team.DOG ? Team.CAT : Team.DOG);
+      const label = shownTeam === Team.DOG ? '资本家那边' : '打工人这边';
+      this.addEvent('intervene', `🔍 观众买通了内部邮箱 — 背景调查显示 ${pick.name} 更像${label}的人(小道消息,别全信)`);
+      this.emitState();
+      return { accepted: true };
+    }
+
+    const target = this.state.players.find((p) => p.id === targetId && p.isAlive);
+    if (!target) return { accepted: false, reason: 'invalid_target' };
+
+    if (itemId === 'shield') {
+      if (this.interventionShieldId) return { accepted: false, reason: 'shield_active' };
+      this.interventionShieldId = target.id;
+      this.addEvent('intervene', `🛡 观众众筹了一份「裁员保护协议」罩住 ${target.name} — 本轮裁不动`);
+      this.emitState();
+      return { accepted: true };
+    }
+
+    // spotlight
+    this.spotlightIds.add(target.id);
+    this.addEvent('intervene', `🎭 观众给 ${target.name} 打了聚光灯 — 下轮发言加戏`);
+    this.emitState();
     return { accepted: true };
   }
 

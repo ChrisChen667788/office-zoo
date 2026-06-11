@@ -187,6 +187,9 @@ export class BaseAgent {
        *  anonymous leaks from fired ex-coworkers. The AI may believe,
        *  doubt, or ignore — personality decides the reaction. */
       leakedHints?: string[];
+      /** v6.83 — 观众筹码买的「聚光灯」:true = 这轮该鼠加戏(多讲 + 上情绪)。
+       *  Engine 取走即消费,一次性。 */
+      spotlight?: boolean;
     },
   ): Promise<string> {
     // v5.8.1 — memory recall. Best-effort, fully fail-safe: if pgvector
@@ -278,10 +281,15 @@ export class BaseAgent {
           .join('\n')}\n你可以引用其中一条作为攻击/质疑的弹药 (e.g. "听说" "群里有人说" "前同事爆料"), 也可以斥为已离职员工的酸话——但绝对不能假装没听到这些料.`
       : '';
 
+    // v6.83 — 观众筹码买的「聚光灯」:本轮该鼠是主角,放开演。
+    const spotlightBlock = opts?.spotlight
+      ? '\n\n【🎭 你被观众打了聚光灯】这轮你是全场主角:比平时多讲 1-2 句(总字数可放宽到 150 字),情绪拉满,上细节上比喻,该阴阳就狠狠阴阳——给观众一段值回票价的表演。'
+      : '';
+
     const res = await callLLMWithTimeout('SPEECH', {
       model: openai()(model()),
       system: this.systemPrompt,
-      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${relationBlock}${snippetBlock}${leakedBlock}${this.roleIntelBlock()}${priorBlock}
+      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${relationBlock}${snippetBlock}${leakedBlock}${spotlightBlock}${this.roleIntelBlock()}${priorBlock}
 
 请发表你的看法(2-4 句话,每句都要有戏,总字数 60-120 字)。硬性要求:
 
