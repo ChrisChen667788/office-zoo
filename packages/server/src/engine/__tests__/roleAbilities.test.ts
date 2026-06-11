@@ -64,7 +64,25 @@ describe('resolveKillTarget (protection matrix)', () => {
   });
 
   it('工会代表 nullify takes priority — nobody dies', () => {
-    expect(resolveKillTarget('v', { protectedId: 'v' })).toEqual({ outcome: 'blocked', dies: null });
+    expect(resolveKillTarget('v', { protectedId: 'v' })).toEqual({ outcome: 'blocked', dies: null, by: 'union' });
+  });
+
+  it('v6.83 观众保护协议 blocks — by: shield', () => {
+    expect(resolveKillTarget('v', { interventionShieldId: 'v' }))
+      .toEqual({ outcome: 'blocked', dies: null, by: 'shield' });
+  });
+
+  it('v6.83 shield 只罩目标鼠 — 别人照裁', () => {
+    expect(resolveKillTarget('v', { interventionShieldId: 'other' }))
+      .toEqual({ outcome: 'kill', dies: 'v' });
+  });
+
+  it('v6.83 shield 优先级高于工会 + 法务(by 标 shield)', () => {
+    const r = resolveKillTarget('v', {
+      interventionShieldId: 'v', protectedId: 'v',
+      bodyguardTargetId: 'v', bodyguardId: 'bg', bodyguardAlive: true,
+    });
+    expect(r).toEqual({ outcome: 'blocked', dies: null, by: 'shield' });
   });
 
   it('法务顾问 intercepts — bodyguard dies in the victim\'s place', () => {
