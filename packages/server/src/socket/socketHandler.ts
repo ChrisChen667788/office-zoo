@@ -116,6 +116,9 @@ export function setupSocketHandler(io: SocketServer) {
     // spam game:psy_war_leak and pollute every game's leakedHints FIFO.
     const psyWarTimes: number[] = [];   // unix ms of accepted leaks
     let psyWarTotal = 0;
+    // v6.83 — 观众干预道具限流(筹码在客户端,这里是服务端兜底闸)
+    const interveneTimes: number[] = [];
+    let interveneTotal = 0;
 
     socket.on('game:create', async (rawConfig: unknown) => {
       const v = validateEvent(GameCreateSchema, rawConfig);
@@ -276,6 +279,41 @@ export function setupSocketHandler(io: SocketServer) {
         bumpLeak(engine.spectatorUserId ?? undefined);
         socketLog.debug({ sid: socket.id, gameId: currentGameId, len: text.length, sessionTotal: psyWarTotal }, 'psy-war leak accepted');
       }
+    });
+
+    // v6.83 — 观众「筹码买干预」。客户端纯引擎扣筹码后 emit
+    // `game:intervene` {itemId, targetId?};这里只做服务端兜底:限流
+    // (3/分钟, 8/会话)+ itemId 白名单 + 转引擎生效点,ack 回
+    // `game:intervene_acked` 让商店面板更新状态。信任模型同 v6.74:
+    // 筹码可被改,但只坑自己;真正护栏是这道限流。
+    socket.on('game:intervene', (raw: unknown) => {
+      if (!currentGameId) return;
+      const engine = games.get(currentGameId);
+      if (!engine) return;
+      const itemId = (raw as { itemId?: string })?.itemId;
+      const targetId = (raw as { targetId?: string })?.targetId;
+      if (itemId !== 'shield' && itemId !== 'clue' && itemId !== 'spotlight') return;
+
+      const now = Date.now();
+      const WINDOW_MS = 60_000;
+      const PER_WINDOW = 3;
+      const SESSION_TOTAL = 8;
+      while (interveneTimes.length > 0 && interveneTimes[0] < now - WINDOW_MS) {
+        interveneTimes.shift();
+      }
+      if (interveneTotal >= SESSION_TOTAL || interveneTimes.length >= PER_WINDOW) {
+        socket.emit('game:intervene_acked', { itemId, accepted: false, reason: 'rate_limited' });
+        socketLog.warn({ sid: socket.id, itemId, interveneTotal }, 'intervene rate limited');
+        return;
+      }
+
+      const result = engine.applyIntervention(itemId, typeof targetId === 'string' ? targetId : undefined);
+      if (result.accepted) {
+        interveneTimes.push(now);
+        interveneTotal++;
+      }
+      socket.emit('game:intervene_acked', { itemId, accepted: result.accepted, reason: result.reason });
+      socketLog.debug({ sid: socket.id, gameId: currentGameId, itemId, accepted: result.accepted, reason: result.reason }, 'intervene');
     });
 
     socket.on('disconnect', async () => {
