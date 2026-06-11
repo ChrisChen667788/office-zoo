@@ -100,7 +100,7 @@
 - 🏆 **跨观众排行榜** (v6.36→v6.38) — 全网 Top 10 班味分公开榜 + 按地区/行业筛选 + "🏢 只看本公司同事 Top",一键下载 1080×1350 榜单分享卡
 - 🎁 **班味年终 Wrapped** (v6.39→v6.40) — Spotify-Wrapped 风年度回顾:峰值周 / 平均分 / 趋势 / 爆料命中率 / 成就墙 / 年度班味人格标签,一键导出海报
 - 🔥 **班味金句池 → 游戏世界回路** (v6.33→v6.36) — 观众投稿职场金句 → 提名计数加权 → 下一局 AI 鼠人更可能"出场"被提名的名字, GameMap 给热门鼠人加 🔥 badge
-- 🧪 **质量** — 462 vitest 全绿 · typecheck 干净 · Playwright 视觉探针验证 wrapped 卡 + 动画架构图
+- 🧪 **质量** — 476 vitest 全绿 · typecheck 干净 · Playwright 视觉探针验证 wrapped 卡 + 动画架构图
 
 ## 🌟 v6.1 升级 (2026-05-22)
 
@@ -286,6 +286,7 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 - ✅ **v6.80** 周报生成器搬进小程序:原生 `pages/weekly`(1 句事件 → 4 风格并行生成 → 复制/❤️偏爱喂 self-tuning → 四宫格海报,`weeklyPaint` +7 测试)+ 金句池 tab 入口卡;workflow 三路侦察 API 合同先行
 - ✅ **v6.81** 班味单口搬进小程序:server `GET /api/talkshow/tts`(InnerAudioContext 直链变体,与 POST 同一实现,+6 路由测试,smoke 实打出 574KB 真 MP3)+ 原生 `pages/talkshow`(热度榜 → 全文 → 四态播放 + 进度条,TTS 失败降级纯文字)—— 占卜/周报/单口三大二级页小程序端齐了
 - ✅ **v6.82** 小程序收尾:landing/profile **原生壳兜底**(webBase 占位符/web-view 失败不再白屏 → 品牌首页 + 玩法宫格 / 工牌卡)+ **pack avatar 上原生面**(profile 壳 live 读 `/api/company-pack/mine` 画 NPC emoji 头像条,`mpShell` 纯函数 +6 测试)
+- ✅ **v6.83** 筹码买干预道具:下注经济闭环 —— 🛡 保护协议(夜杀弹开,矩阵最高优先级)/ 🔍 内部邮件(80% 真线索)/ 🎭 聚光灯(prompt 加戏),BettingBar 🛒 商店 + `game:intervene` 限流链路,+14 测试;观众第一次真有剧情代理权
 
 **下一步(开放讨论):**
 - [x] ~~赔偿结算分享卡~~ —— v6.65 已上(战绩图 boss / 赔偿档 / 遗物 / 回合数,一键分享)

@@ -7,6 +7,28 @@
 
 ---
 
+## v6.83 — 2026-06-11 · 筹码买干预道具(下注经济闭环,观众真有代理权)
+
+回主对局第一弹。v6.74 的下注筹码只能滚雪球,现在**能花** —— 买道具真改剧情:
+下注 → 赢筹码 → 买干预 → 剧情变 → 再下注,直播间道具感闭环。+14 测试 → 476。
+
+- **纯道具引擎**(`shared/betting/intervene.ts` + 6 测试):三件套 —— 🛡 裁员保护协议
+  300(本轮免裁,一次性,每局限 1)· 🔍 内部邮件 200(随机曝阵营线索,80% 真 20% 反,
+  每局限 2)· 🎭 聚光灯 150(指定鼠下轮加戏,每局限 2);`buyIntervention` 扣筹码 + 限购
+  台账,**不走 placeBet**(不污染命中率统计)。
+- **生效点**:`resolveKillTarget` 矩阵加 `interventionShieldId`(优先级最高,`by:'shield'`
+  判别,+4 矩阵测试)→ 夜杀被弹开出「合同条款弹开」剧场事件,挡一刀即消费;
+  `GameEngine.applyIntervention`(+5 白盒测试:校验/重复 shield 拒/clue 落 🔍 事件/
+  spotlight 一次性集合/game_over 拒);聚光灯走 leakedHints 同款 prompt 注入
+  (`BaseAgent` spotlightBlock:多讲 1-2 句 + 情绪拉满,取走即消费)。
+- **链路**:`game:intervene` socket(PSYWAR 同款限流 3/分钟 8/会话 + itemId 白名单 +
+  `intervene_acked`)→ BettingBar 头部 🛒 **干预商店**(道具卡 + 价格 + 剩余次数,
+  需目标的弹在场鼠选择器)→ Classic/Immersive 接 `socket.emit`。
+- 信任模型与 v6.74 一致并写进注释:筹码在客户端 localStorage(可改,只坑自己),
+  服务端限流是真护栏 —— 不当真金白银看。
+- 验证:476 全绿(+14);Playwright 探针走通整条买入流(开商店 → 选 🛡 → 选目标 Lisa →
+  筹码 500→200 + toast + `onIntervene('shield','p1')` 回调命中);3 包 tsc 干净。
+
 ## v6.82 — 2026-06-10 · 小程序收尾:landing/profile 原生壳 + pack avatar 上原生面
 
 mp 线最后一刷。landing/profile 一直是裸 web-view 壳 —— webBase 没换掉 example.com 占位符前
