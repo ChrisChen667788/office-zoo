@@ -9,8 +9,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   type BettingProgress, type Bet, type BetMarket,
+  type InterventionLedger, type InterventionId,
   emptyProgress, applyDrip, placeBet, settleBet, creditResult,
   roundVoteMarket, oddsFromProb,
+  INTERVENTION_ITEMS, buyIntervention,
 } from '@furball/shared';
 import { useGameActions, type GamePlayer } from '../../stores/gameStore';
 import { sfx } from '../../utils/sfx';
@@ -55,17 +57,24 @@ interface Props {
   lastEliminated: string | null;
   /** Bumps whenever a fresh vote_result lands — the settle trigger. */
   voteResultTick: number;
+  /** v6.83 — 干预道具下单回调(路由层接 socket.emit('game:intervene'))。
+   *  不传则商店入口隐藏(如离线探针)。 */
+  onIntervene?: (itemId: InterventionId, targetId?: string) => void;
 }
 
 const ACCENT = '#a78bfa';
 
-export default function BettingBar({ gameId, phase, round, players, lastEliminated, voteResultTick }: Props) {
+export default function BettingBar({ gameId, phase, round, players, lastEliminated, voteResultTick, onIntervene }: Props) {
   const { pushPrediction } = useGameActions();
   const [prog, setProg] = useState<BettingProgress>(() => emptyProgress(0));
   const [stake, setStake] = useState<number>(50);
   const [open, setOpen] = useState<Bet | null>(null);
   const [toast, setToast] = useState<{ text: string; win: boolean } | null>(null);
   const [showLb, setShowLb] = useState(false);
+  // v6.83 — 干预商店:开关 / 每局限购台账 / 待选目标的道具
+  const [shopOpen, setShopOpen] = useState(false);
+  const [ledger, setLedger] = useState<InterventionLedger>({});
+  const [pendingItem, setPendingItem] = useState<InterventionId | null>(null);
   const resolvedRef = useRef<string>('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -78,8 +87,11 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
     setProg(p); save(p);
   }, []);
 
-  // 新局:清掉残留注 + 结算锁
-  useEffect(() => { setOpen(null); resolvedRef.current = ''; }, [gameId]);
+  // 新局:清掉残留注 + 结算锁 + 干预台账
+  useEffect(() => {
+    setOpen(null); resolvedRef.current = '';
+    setLedger({}); setShopOpen(false); setPendingItem(null);
+  }, [gameId]);
 
   const flashToast = useCallback((text: string, win: boolean) => {
     setToast({ text, win });
@@ -99,6 +111,27 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
     setOpen({ marketId: market.id, optionId, optionLabel, stake, odds, round });
     sfx.playBadge();
   }, [prog, stake, market.id, round, flashToast]);
+
+  // v6.83 — 买干预道具:纯引擎扣筹码 + 记台账 → 路由层 socket 下单 → toast。
+  const onBuyIntervention = useCallback((itemId: InterventionId, targetId?: string) => {
+    const r = buyIntervention(prog, ledger, itemId);
+    if (!r.ok) {
+      flashToast(
+        r.reason === 'insufficient_chips' ? '筹码不够 · 先去押两把'
+          : r.reason === 'cap_reached' ? '这道具本局限购已满' : '买不了',
+        false,
+      );
+      return;
+    }
+    setProg(r.progress); save(r.progress);
+    setLedger(r.ledger);
+    onIntervene?.(itemId, targetId);
+    const item = INTERVENTION_ITEMS.find((i) => i.id === itemId)!;
+    flashToast(`${item.emoji} ${item.label}已下单 — 看戏`, true);
+    sfx.playBadge();
+    setPendingItem(null);
+    setShopOpen(false);
+  }, [prog, ledger, onIntervene, flashToast]);
 
   // vote_result 结算
   useEffect(() => {
@@ -143,12 +176,71 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
           <span style={{ fontWeight: 800 }}>🎰 押一把</span>
           <button onClick={() => setShowLb(true)} title="全网战绩榜"
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, opacity: 0.85 }}>🏆</button>
+          {onIntervene && (
+            <button onClick={() => { setShopOpen((v) => !v); setPendingItem(null); }} title="干预商店 · 筹码能花了"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, opacity: 0.85 }}>🛒</button>
+          )}
         </span>
         <span style={{ fontSize: 11, opacity: 0.85 }}>
           💰 <b style={{ color: ACCENT }}>{prog.chips}</b> · 命中 {hitRate}%
         </span>
       </div>
 
+      {/* v6.83 — 干预商店:赢的筹码能花 —— 买道具真改剧情 */}
+      {shopOpen && (
+        <div>
+          <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6 }}>
+            🛒 干预商店 · 筹码真能改剧情
+          </div>
+          {pendingItem ? (
+            <div>
+              <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6 }}>
+                {INTERVENTION_ITEMS.find((i) => i.id === pendingItem)?.emoji} 选目标鼠:
+              </div>
+              <div style={{ maxHeight: 150, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {alive.map((p) => (
+                  <button key={p.id} onClick={() => onBuyIntervention(pendingItem, p.id)}
+                    style={{ padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, textAlign: 'left',
+                      border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#fff' }}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setPendingItem(null)}
+                style={{ marginTop: 6, width: '100%', padding: '5px 0', borderRadius: 8, cursor: 'pointer', fontSize: 11,
+                  border: '1px solid rgba(255,255,255,0.14)', background: 'none', color: 'rgba(255,255,255,0.6)' }}>
+                ← 换个道具
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {INTERVENTION_ITEMS.map((item) => {
+                const used = ledger[item.id] ?? 0;
+                const soldOut = used >= item.perGameCap;
+                const broke = prog.chips < item.price;
+                const disabled = soldOut || broke;
+                return (
+                  <button key={item.id} disabled={disabled}
+                    onClick={() => (item.needsTarget ? setPendingItem(item.id) : onBuyIntervention(item.id))}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '7px 10px', borderRadius: 8,
+                      cursor: disabled ? 'not-allowed' : 'pointer', textAlign: 'left', opacity: disabled ? 0.45 : 1,
+                      border: '1px solid rgba(167,139,250,0.22)', background: 'rgba(255,255,255,0.04)', color: '#fff' }}>
+                    <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700 }}>
+                      <span>{item.emoji} {item.label}</span>
+                      <span style={{ color: ACCENT, fontWeight: 800 }}>💰{item.price}</span>
+                    </span>
+                    <span style={{ fontSize: 10, opacity: 0.55 }}>
+                      {item.desc} · {soldOut ? '本局已用完' : `剩 ${item.perGameCap - used} 次`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!shopOpen && (
       <AnimatePresence mode="wait">
         {toast ? (
           <motion.div key="toast" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -200,6 +292,7 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
           </motion.div>
         )}
       </AnimatePresence>
+      )}
     </div>
     {showLb && <BettingLeaderboard onClose={() => setShowLb(false)} />}
     </>

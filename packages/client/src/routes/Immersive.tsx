@@ -764,6 +764,7 @@ export default function Immersive() {
           players={players}
           lastEliminated={lastVoteEliminated}
           voteResultTick={voteResultTick}
+          onIntervene={(itemId, targetId) => socket.emit('game:intervene', { itemId, targetId })}
         />
       )}
 
