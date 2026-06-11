@@ -167,6 +167,9 @@ export interface PlayerState {
   ghostVoteUsed: boolean;
   /** AI 人格类型 */
   personality: string;
+  /** v6.85 — 双公司模式所属公司('a'|'b')。单公司模式恒为 undefined,
+   *  旧逻辑零影响。分配规则见 shared/dual/assignDualCompanies(4+4,各 1 内鬼)。 */
+  companyId?: 'a' | 'b';
   /** v6.39 P3 — user-chosen emoji avatar from a 公司主题包 NPC. When set,
    *  the client renders this glyph instead of the role-generated image.
    *  Undefined for default (non-pack) rosters. */
