@@ -19,6 +19,9 @@ export enum WinCondition {
   CAT_WIN = 'cat_win',
   DOG_WIN = 'dog_win',
   NEUTRAL_WIN = 'neutral_win',
+  /** v6.85 P2 — 双公司模式终局(A/B 司获胜)。单公司模式不会出现。 */
+  COMPANY_A_WIN = 'company_a_win',
+  COMPANY_B_WIN = 'company_b_win',
   NONE = 'none'
 }
 
@@ -222,6 +225,9 @@ export interface GameConfig {
    *  user-defined NPC list. Hot-quote weighted bias still applies on
    *  top (pack name matched against nominationCounts). */
   companyPackId?: string;
+  /** v6.85 P2 — 'dual' = 双公司对抗(4+4 各 1 内鬼,市占率竞速 + 跨司挖人,
+   *  见 docs/DESIGN_DUAL_COMPANY.md)。缺省/'single' = 经典单公司,零影响。 */
+  mode?: 'single' | 'dual';
 }
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
