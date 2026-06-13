@@ -7,6 +7,29 @@
 
 ---
 
+## v6.85 P2 — 2026-06-11 · 双公司对抗:GameEngine 接线(引擎跑通)
+
+把 P1 的纯引擎接进 GameEngine。`mode:'dual'` 开关一开,8 鼠分两司、夜杀限同司、
+投票各开各的会、市占率竞速 + 跨司挖人全跑通。旧单公司模式逐字节零影响。+11 集成测试 → 503。
+
+- **`config.mode:'dual'` 开关**(socket `game:create` 透传,dual 强制 8 人)+
+  `WinCondition.COMPANY_A_WIN/B_WIN`。createPlayers 末尾 `assignDualCompanies` 分两司
+  (各 1 内鬼),分配失败静默退单公司,落 `dual_start` 开局事件。
+- **夜杀限同司**:内鬼只裁本公司同事(跳槽后跟着裁新东家)。
+- **投票按公司分组**:`runVoting` 候选只含本司(`grudgeRedirect` 加候选域参,世仇在对面
+  拽不动票);`resolveVotes` 拆两组独立计票 —— 一轮最多各裁 1 人,`vote_result` 带 `company`,
+  关系网钩子也按组各记各账。
+- **市占率 + 终局**:`checkWin` 双司走 `checkDualWin` → `dualMarket`(完成任务×9 封顶)+
+  shared `dualWinner` 矩阵(🏆垄断 > 💀团灭 > 🐀双鬼皆裁比市占 > ⏱回合上限),终局事件带
+  双司市占率。
+- **跨司挖人**:`maybeCrossActions` 每司每回合 50% 出手,挖对面跟本司关系最好的鼠
+  (`poachChance` 吃 v6.75 关系图)→ 跳槽翻 `companyId`、**team 保留**(拍板②内鬼带身份)、
+  老东家全员记 `backstab`;失败落「offer 已读不回」。
+- 验证:11 集成测试(分配/单司零影响/投票圈限本司/双组结算/终局矩阵/挖角成败 —— agent
+  全打桩 + `Math.random` 注桩,不碰 LLM);3 包 tsc 干净;全量 503 绿。
+- 下一刀 v6.86 演出层:双半区 GameMap + 市占率对撞条 + 跳槽/挖角剧场动画 + 客户端 dual
+  vote_result 适配 + Landing 模式入口(当前 dual 尚无 UI 入口,纯引擎已就绪)。
+
 ## v6.85 P1 — 2026-06-11 · 双公司对抗:纯引擎落地(设计已拍板)
 
 大版本第一刀。设计稿三问拍板:**4+4 鼠 · 跳槽内鬼身份带过去 · 单局 ~15 分钟**
