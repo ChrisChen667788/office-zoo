@@ -89,6 +89,14 @@ const DICT = {
     'ja-JP': 'AIネズミがあなたの代わりにネタを · 30本以上の職場あるある',
     'ko-KR': 'AI 직원이 대신 토크쇼 · 30개 이상의 직장 풍자',
   },
+  // v6.86 — 双公司对抗
+  'mode.dual.title':     { 'zh-CN': '双公司对抗',          'en-US': 'Company Clash',       'ja-JP': '2社対決',                'ko-KR': '두 회사 대결' },
+  'mode.dual.body':      {
+    'zh-CN': 'A 司 vs B 司 · 4+4 抢市场 · 互相挖墙脚',
+    'en-US': 'Company A vs B · 4+4 race for market · poach each other',
+    'ja-JP': 'A社 vs B社 · 4+4 で市場争奪 · 引き抜き合戦',
+    'ko-KR': 'A사 vs B사 · 4+4 시장 쟁탈 · 서로 빼가기',
+  },
 
   // Premium page — chrome
   'premium.title':       { 'zh-CN': 'Premium · 班味 Pro',  'en-US': 'Premium · Office Zoo Pro', 'ja-JP': 'Premium · Office Zoo Pro', 'ko-KR': 'Premium · Office Zoo Pro' },

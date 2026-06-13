@@ -50,7 +50,7 @@ import { modeIcons, navIcons, Icon } from '../constants/icons';
 // v6.56 — 11/12 added so 内审专员(MEDIUM, 11+) + 销售冠军(ADVENTURER, 12)
 // rosters can actually spawn (their night skills are wired server-side).
 const PLAYER_COUNTS = [6, 8, 9, 10, 11, 12] as const;
-type GameMode = 'classic' | 'immersive' | 'fired' | 'talkshow';
+type GameMode = 'classic' | 'immersive' | 'fired' | 'talkshow' | 'dual';
 
 interface ModeSpec {
   key: GameMode;
@@ -112,6 +112,18 @@ const MODES: ModeSpec[] = [
     features: ['真人音色播报', '8 种人格切换', '段子库每周更新'],
     accent: '#ff5588',
     accent2: '#7c3aed',
+  },
+  {
+    // v6.86 — 双公司对抗。无专属 PNG,沿用 talkshow 的 emoji-fallback 写法。
+    key: 'dual',
+    icon: '',
+    iconFallback: '🏢',
+    badge: '05',
+    titleKey:   'mode.dual.title',
+    taglineKey: 'mode.dual.body',
+    features: ['A 司 4 + B 司 4', '抢市场 / 防内鬼', '挖角带走身份'],
+    accent: '#4c9eff',
+    accent2: '#ff8a3d',
   },
 ];
 
@@ -243,9 +255,10 @@ export default function Landing() {
 
   useSocketEvent<{ gameId: string }>('game:created', ({ gameId }) => {
     setIsCreating(false);
-    // Landing currently only creates classic games (immersive/fired short-circuit
-    // in handleStart). Honour whatever mode was requested at click-time rather
-    // than reading current state — avoids route-mode desync.
+    // Landing creates classic + dual games here (immersive/fired/talkshow
+    // short-circuit in handleStart). Honour whatever mode was requested at
+    // click-time rather than reading current state — avoids route-mode desync.
+    // v6.86 — 双公司局跑在 classic 棋盘上(对撞条 + GameMap 公司徽标都在那)。
     const requested = pendingModeRef.current ?? 'classic';
     pendingModeRef.current = null;
     if (requested === 'immersive') {
@@ -299,7 +312,9 @@ export default function Landing() {
       } catch { /* tagging is best-effort */ }
     })();
     socket.emit('game:create', {
-      playerCount, mode: target, userId: getUserId(),
+      // v6.86 — 双公司锁 4+4=8(server 也会强制),其余模式用用户选的人数。
+      playerCount: target === 'dual' ? 8 : playerCount,
+      mode: target, userId: getUserId(),
       ...(packId ? { companyPackId: packId } : {}),
     });
   }, [isCreating, mode, playerCount, navigate, socket, companyPackId, companyPacks]);
@@ -678,7 +693,7 @@ export default function Landing() {
                   spec={m}
                   active={mode === m.key}
                   busy={isCreating && pendingModeRef.current === m.key}
-                  disabled={m.key === 'classic' && !connected}
+                  disabled={(m.key === 'classic' || m.key === 'dual') && !connected}
                   onSelect={() => setMode(m.key)}
                   onEnter={() => handleStart(m.key)}
                   delay={0.18 + i * 0.08}
@@ -807,7 +822,9 @@ export default function Landing() {
                      : `AI ${playerCount}명`)
                   : mode === 'immersive'
                     ? (locale === 'zh-CN' ? '8 名鼠人' : locale === 'en-US' ? '8 agents' : locale === 'ja-JP' ? 'AI 8名' : 'AI 8명')
-                    : (locale === 'zh-CN' ? '1v1 仲裁' : locale === 'en-US' ? '1v1 arbitration' : locale === 'ja-JP' ? '1対1 仲裁' : '1대1 중재')}
+                    : mode === 'dual'
+                      ? (locale === 'zh-CN' ? '4 vs 4' : locale === 'en-US' ? '4 vs 4' : locale === 'ja-JP' ? '4 vs 4' : '4 vs 4')
+                      : (locale === 'zh-CN' ? '1v1 仲裁' : locale === 'en-US' ? '1v1 arbitration' : locale === 'ja-JP' ? '1対1 仲裁' : '1대1 중재')}
               </div>
               <button
                 onClick={() => setRulesOpen(true)}
