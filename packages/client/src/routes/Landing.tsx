@@ -666,7 +666,7 @@ export default function Landing() {
 
             {/* Stat strip — keep but shrink, slot under the headline */}
             <div className="flex gap-6 md:gap-10 mt-7">
-              <StatCell label="模式" value="3" accent={colors.brand.neon} />
+              <StatCell label="模式" value="5" accent={colors.brand.neon} />
               <StatCell label="AI 鼠人" value="6 – 10" accent={colors.brand.violet} />
               <StatCell label="仲裁条款" value="4" accent={colors.semantic.warn} />
             </div>
@@ -684,9 +684,10 @@ export default function Landing() {
               </span>
             </div>
 
-            {/* v0.7.0 — bumped to 4 columns so 班味单口 fits without
-                wrapping the 经典/全程开麦/裁了么 trio onto two rows. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
+            {/* v0.7.0 — 4 columns so 班味单口 fits. v6.86 — 5th mode (双公司)
+                bumps lg to 5 cols (clean single row); on 2-col layouts 双公司
+                spans the full row so there's never a lonely half-card. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-5">
               {MODES.map((m, i) => (
                 <ModeBento
                   key={m.key}
@@ -698,6 +699,7 @@ export default function Landing() {
                   onEnter={() => handleStart(m.key)}
                   delay={0.18 + i * 0.08}
                   tall
+                  className={m.key === 'dual' ? 'sm:col-span-2 lg:col-span-1' : ''}
                 />
               ))}
             </div>
@@ -879,6 +881,9 @@ interface ModeBentoProps {
    *  icon, more padding, taller min-height. Used by the centred 3-col layout
    *  where each card has the full screen width / 3 to itself. */
   tall?: boolean;
+  /** v6.86 — extra grid classes (e.g. col-span) so a single card can break
+   *  the uniform grid — used to let 双公司 span the full row on 2-col layouts. */
+  className?: string;
 }
 
 // Each card is an independent "enter this mode" button now. Body tap still
@@ -887,7 +892,7 @@ interface ModeBentoProps {
 // earlier "clicking the arrow does nothing / every mode routes through the
 // big central CTA" bug — and prevents the classic/immersive race that used
 // to happen when setMode() changed mid-handshake.
-function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tall }: ModeBentoProps) {
+function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tall, className = '' }: ModeBentoProps) {
   const [pressed, setPressed] = useState(false);
   // v1.2.1 — resolve title + tagline from i18n dict.
   const { t: tt } = useT();
@@ -902,7 +907,7 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
   const featureCls = tall ? 'text-[12px] md:text-[13px]' : 'text-[11px]';
   return (
     <motion.div
-      className={`group relative overflow-hidden rounded-2xl text-left transition-all duration-300 ${padCls} ${minH}`}
+      className={`group relative overflow-hidden rounded-2xl text-left transition-all duration-300 ${padCls} ${minH} ${className}`}
       style={{
         background: active
           ? `linear-gradient(155deg, ${spec.accent}1a 0%, ${spec.accent2}10 100%)`
