@@ -134,7 +134,13 @@ export function setupSocketHandler(io: SocketServer) {
       // v6.37 P4 — companyPackId routes through GameConfig so the engine
       // sees it during startGame's pack-fetch step.
       const engine = new GameEngine(
-        { playerCount: config.playerCount, companyPackId: config.companyPackId },
+        {
+          playerCount: config.playerCount,
+          companyPackId: config.companyPackId,
+          // v6.85 P2 — 双公司对抗(payload 里早有 mode 字段,白名单只放 dual;
+          // dual 强制 8 人,createPlayers 分配失败会自动退回单公司)
+          ...(config.mode === 'dual' ? { mode: 'dual' as const, playerCount: 8 } : {}),
+        },
         config.userId,
       );
       const gameId = engine.state.id;
