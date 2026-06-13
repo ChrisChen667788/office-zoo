@@ -7,6 +7,27 @@
 
 ---
 
+## v6.86 — 2026-06-14 · 双公司对抗:演出层 + Landing 入口(可玩了)
+
+把 v6.85 跑通的引擎搬上台面 —— 旁观者现在看得见双司对撞、挖角跳槽、双边开除,
+并能从首页第 5 张卡直接开一局。单公司模式逐字节零影响,全量 503 绿。
+
+- **市占率对撞条**(Classic 顶栏):蓝(A)从左、橙(B)填剩余,分界线 = 双方市占率之比,
+  随 `game:state` 实时拉扯。市占率走 `getSerializedState`(不再只在终局发),live 更新。
+- **GameMap 公司徽标**:每只鼠脚下加虚线公司环(A 蓝 / B 橙)+ 角标 🅰/🅱 圆盘 ——
+  挖角跳槽后下一帧徽标即翻面,自由走位也认得出敌我。
+- **挖角/跳槽 live banner**:引擎 `maybeCrossActions` 新增 `cross_action` 实时事件
+  (socket 转 `game:cross_action`),挖角成功橙红高亮入 EVENT LOG,失败走系统色。
+- **双边开除合并发**:`resolveVotes` 双司结算改为**只发一次** `vote_result`(带
+  `dualEliminations[]`),根治客户端双触发(立绘闪、下注重复计、ghostVotes 覆盖);
+  Classic + Immersive 两端都按列表跑 recap / 吃瓜 / 立绘(首个驱动弹出,其余只记账)。
+- **终局复盘修黑屏**:HighlightReel 补 `COMPANY_A_WIN/COMPANY_B_WIN` 的 `WINNER_CONFIG`
+  + `normalizeWinner`(没有它双司局结束直接黑屏)+ 终局市占率对比行。`game:over` 文案
+  全胜负键映射(含 dual)。
+- **Landing 第 5 入口**「双公司对抗」:`GameMode += 'dual'` + 模式卡 + i18n(4 语)+
+  锁 4+4=8 + 路由进 classic 棋盘 + 断线置灰。
+- 验证:3 包 tsc 干净;全量 503 vitest 绿(dual 11 集成测试含「只发一次 vote_result」断言)。
+
 ## v6.85 P2 — 2026-06-11 · 双公司对抗:GameEngine 接线(引擎跑通)
 
 把 P1 的纯引擎接进 GameEngine。`mode:'dual'` 开关一开,8 鼠分两司、夜杀限同司、
