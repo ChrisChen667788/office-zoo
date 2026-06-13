@@ -45,6 +45,8 @@ import {
   usePhase,
   useGameActions,
   useGameId,
+  useMarket,
+  useDualMode,
 } from '../../stores/gameStore';
 import { ROLE_LABELS, teamForRole, TEAM_LABELS } from '../../constants/roles';
 import { sfx } from '../../utils/sfx';
@@ -110,6 +112,30 @@ const WINNER_CONFIG: Record<string, WinnerConfig> = {
     lottie: lottie.success,
     celebratory: true,
   },
+  // v6.86 — 双公司对抗终局。两司皆为打工人公司,用蓝/橙区分阵营(同 GameMap
+  // 对撞条配色)。没有 COMPANY_*_WIN 时双司局会黑屏,务必保留。
+  company_a_win: {
+    emoji: '🅰',
+    icon: teamIcons.cat,
+    label: 'A 司笑到最后',
+    color: '#4c9eff',
+    gradient: 'linear-gradient(135deg, #4c9eff, #2563eb)',
+    gradientStops: ['#4c9eff', '#2563eb'],
+    sub: '抢下市场、防住内鬼,B 司连夜搬空工位',
+    lottie: lottie.trophy,
+    celebratory: true,
+  },
+  company_b_win: {
+    emoji: '🅱',
+    icon: teamIcons.cat,
+    label: 'B 司笑到最后',
+    color: '#ff8a3d',
+    gradient: 'linear-gradient(135deg, #ff8a3d, #f97316)',
+    gradientStops: ['#ff8a3d', '#f97316'],
+    sub: '抢下市场、防住内鬼,A 司连夜搬空工位',
+    lottie: lottie.trophy,
+    celebratory: true,
+  },
 };
 
 const TEAM_COLOR: Record<'cat' | 'dog' | 'neutral', string> = {
@@ -125,6 +151,9 @@ function normalizeWinner(w: string): string {
   if (w === 'cat' || w === 'cat_win') return 'cat_win';
   if (w === 'dog' || w === 'dog_win') return 'dog_win';
   if (w === 'neutral' || w === 'neutral_win') return 'neutral_win';
+  // v6.86 — 双公司终局键(server 直接发 WinCondition,这里容忍简写)
+  if (w === 'company_a' || w === 'company_a_win') return 'company_a_win';
+  if (w === 'company_b' || w === 'company_b_win') return 'company_b_win';
   return w;
 }
 
@@ -138,6 +167,8 @@ export default function HighlightReel() {
   const round = useRound();
   const winner = useWinner();
   const gameId = useGameId();
+  const market = useMarket();      // v6.86 — 双公司终局市占率(单公司 undefined)
+  const isDual = useDualMode();
   const eliminationLog = useEliminationLog();
   const predictionLog = usePredictionLog();
   const { reset } = useGameActions();
@@ -393,6 +424,14 @@ export default function HighlightReel() {
                 {winCfg.label}
               </motion.h2>
               <div className="text-xs text-white/45 tracking-wide mb-2">{winCfg.sub}</div>
+              {/* v6.86 — 双公司终局市占率对比 */}
+              {isDual && market && (
+                <div className="flex items-center justify-center gap-3 mb-2 text-xs font-semibold">
+                  <span style={{ color: '#4c9eff' }}>🅰 {market.a}%</span>
+                  <span className="text-white/25">市占</span>
+                  <span style={{ color: '#ff8a3d' }}>🅱 {market.b}%</span>
+                </div>
+              )}
               <div className="text-[11px] text-white/35 tracking-[0.15em] uppercase">
                 历时 {round} 轮 · {eliminationLog.length} 次出局
               </div>

@@ -235,33 +235,53 @@ export default function Immersive() {
     // Elimination events — newly wired for Immersive (were previously only in Classic).
     // Without these, Immersive had no EliminationReveal trigger and no recap data
     // for HighlightReel, so the dramatic beats went entirely unpublished.
-    'game:vote_result': (data: { votes: Record<string, string>; ghostVotes?: Record<string, string>; eliminated?: string; playerName?: string; eliminatedPersonality?: string }) => {
-      setLastVoteEliminated(data.eliminated ?? null);
+    'game:vote_result': (data: {
+      votes: Record<string, string>; ghostVotes?: Record<string, string>;
+      eliminated?: string; playerName?: string; eliminatedPersonality?: string;
+      // v6.86 — 双公司两司开除汇总在一条 vote_result(单司 undefined)。
+      dualEliminations?: Array<{ company?: 'a' | 'b'; eliminated?: string; eliminatedPersonality?: string }>;
+    }) => {
+      // 统一成出局列表:首个驱动 PredictionBar + 一次性立绘弹出,其余只走 recap+吐槽。
+      type Elim = { id: string; name: string; personality?: string };
+      const elims: Elim[] = [];
+      if (data.dualEliminations) {
+        for (const r of data.dualEliminations) {
+          if (!r.eliminated) continue;
+          const v = players.find((p) => p.id === r.eliminated);
+          elims.push({ id: r.eliminated, name: v?.name ?? '某员工', personality: r.eliminatedPersonality ?? v?.personality });
+        }
+      } else if (data.eliminated && data.playerName) {
+        elims.push({ id: data.eliminated, name: data.playerName, personality: data.eliminatedPersonality });
+      }
+
+      setLastVoteEliminated(elims[0]?.id ?? null);
       setVoteResultTick((n) => n + 1);
-      if (data.eliminated && data.playerName) {
-        const victim = players.find((p) => p.id === data.eliminated);
-        setLastElim({
-          id: ++elimIdRef.current,
-          type: 'vote',
-          playerName: data.playerName,
-          roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
-          team: teamForRole(victim?.role),
-          // v6.24 P1 — prefer event-authoritative personality.
-          personality: data.eliminatedPersonality ?? victim?.personality,
-          // v6.41 P2 — carry pack emoji avatar into the reveal + recap.
-          avatar: victim?.avatar,
-        });
-        fireReactions('vote', data.playerName, victim); // v6.68/69 — 群众吐槽(静态+LLM)
+      elims.forEach((e, i) => {
+        const victim = players.find((p) => p.id === e.id);
+        if (i === 0) {
+          setLastElim({
+            id: ++elimIdRef.current,
+            type: 'vote',
+            playerName: e.name,
+            roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
+            team: teamForRole(victim?.role),
+            // v6.24 P1 — prefer event-authoritative personality.
+            personality: e.personality ?? victim?.personality,
+            // v6.41 P2 — carry pack emoji avatar into the reveal + recap.
+            avatar: victim?.avatar,
+          });
+        }
+        fireReactions('vote', e.name, victim); // v6.68/69 — 群众吐槽(静态+LLM)
         pushElimination({
           round,
           type: 'vote',
-          playerId: data.eliminated,
-          playerName: data.playerName,
+          playerId: e.id,
+          playerName: e.name,
           role: victim?.role,
           team: teamForRole(victim?.role),
           avatar: victim?.avatar,
         });
-      }
+      });
     },
 
     'game:kill': (data: { victimId: string; victimName?: string; location?: string; victimPersonality?: string }) => {

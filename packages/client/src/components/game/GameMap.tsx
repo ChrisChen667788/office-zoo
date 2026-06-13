@@ -34,7 +34,12 @@ interface PlayerInfo {
   avatar?: string;
   /** v6.55 #2 — unique avatar key (falls back to role). */
   avatarKey?: string;
+  /** v6.86 — 双公司模式所属公司('a'|'b');单公司 undefined → 不画公司环。 */
+  companyId?: 'a' | 'b';
 }
+
+/** v6.86 — 双公司主色:A 司蓝、B 司暖橙。画公司外环 + A/B 角标。 */
+const COMPANY_COLOR: Record<'a' | 'b', string> = { a: '#4c9eff', b: '#ff8a3d' };
 
 /** Logical world dims — must match `MAP_W` / `MAP_H` in @furball/shared. We
  *  duplicate locally so this file has no monorepo deps (rootDir hassle). */
@@ -459,6 +464,31 @@ function drawPlayer(
     ctx.strokeStyle = 'rgba(255,255,255,0.6)';
     ctx.lineWidth = 1.2;
     ctx.stroke();
+  }
+
+  // v6.86 — 双公司外环 + A/B 角标:在 team ring 外再套一圈公司色虚线环,右下角一个
+  // 实心 A/B 徽标。companyId 缺省(单公司)直接跳过,经典局零变化。
+  if (player.companyId) {
+    const ccol = COMPANY_COLOR[player.companyId];
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius + 3.5, 0, Math.PI * 2);
+    ctx.strokeStyle = ccol;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.stroke();
+    ctx.restore();
+    // 角标 disc + 字母
+    const bx = cx + radius - 2, by = cy + radius - 2;
+    ctx.beginPath();
+    ctx.arc(bx, by, 7, 0, Math.PI * 2);
+    ctx.fillStyle = ccol;
+    ctx.fill();
+    ctx.fillStyle = '#0a0a1e';
+    ctx.font = '700 9px ui-sans-serif, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(player.companyId === 'a' ? 'A' : 'B', bx, by + 0.5);
   }
 
   // Name label — glass pill above the avatar. Keeps a tight 9 px font so it

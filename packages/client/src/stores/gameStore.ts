@@ -75,6 +75,9 @@ export interface GamePlayer {
   avatar?: string;
   /** v6.55 #2 — unique avatar key (falls back to role). */
   avatarKey?: string;
+  /** v6.86 — 双公司模式所属公司('a'|'b');单公司 undefined。服务端已透传,
+   *  此处补声明给 GameMap 双半区上色 + 公司外环用。 */
+  companyId?: 'a' | 'b';
 }
 
 interface SpeechItem {
@@ -198,6 +201,9 @@ interface GameStore {
   winner: string;
   votes: Record<string, string>;
   ghostVotes: Record<string, string>;
+  /** v6.86 — 双公司模式标记 + 实时市占率(对撞条);单公司 undefined。 */
+  mode?: 'single' | 'dual';
+  market?: { a: number; b: number };
 
   /** v6.36 P3 — names hot-nominated via hot-quote submissions ≥ 1 in the
    *  last 7 days. GameMap renders a 🔥 badge on matching sprites so
@@ -344,6 +350,9 @@ export const useGameStore = create<GameStore>((set) => ({
           winner: state.winner,
           votes: state.votes,
           ghostVotes: state.ghostVotes || {},
+          // v6.86 — 双公司:模式 + 实时市占率(undefined 时单公司,UI 自动隐藏对撞条)
+          mode: state.mode,
+          market: state.market,
           eliminationLog: patched.length
             ? [...s.eliminationLog, ...patched]
             : s.eliminationLog,
@@ -457,6 +466,9 @@ export const usePlayers = () => useGameStore((s) => s.players);
 export const useRound = () => useGameStore((s) => s.round);
 export const useTaskProgress = () => useGameStore((s) => s.taskProgress);
 export const useWinner = () => useGameStore((s) => s.winner);
+/** v6.86 — 双公司:实时市占率(undefined = 单公司,UI 隐藏对撞条)+ 模式标记。 */
+export const useMarket = () => useGameStore((s) => s.market);
+export const useDualMode = () => useGameStore((s) => s.mode === 'dual');
 
 export const useCurrentSpeaker = () => useGameStore((s) => s.currentSpeaker);
 export const useCurrentSpeech = () => useGameStore((s) => s.currentSpeech);
