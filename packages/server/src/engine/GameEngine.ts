@@ -24,6 +24,20 @@ import {
   resolveVoteWithGrudge,
   emptyGraph,
   type RelationGraph,
+  // v6.85 P2 — 双公司对抗纯引擎
+  assignDualCompanies,
+  poachChance,
+  resolvePoach,
+  eventsFromDefection,
+  canCrossAction,
+  recordCrossAction,
+  dualWinner,
+  feelingOf,
+  MARKET_STEP,
+  MARKET_WIN,
+  type CompanyId,
+  type CrossActionLedger,
+  type MarketState,
 } from '@furball/shared';
 import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
@@ -289,6 +303,8 @@ export class GameEngine extends EventEmitter {
 
   /** v6.83 — 观众筹码买的「裁员保护协议」:罩住的 playerId,挡一刀即消费。 */
   private interventionShieldId: string | null = null;
+  /** v6.85 P2 — 双公司跨司动作台账(每司每回合限 1 次挖人/曝料)。 */
+  private crossLedger: CrossActionLedger = {};
   /** v6.83 — 观众「聚光灯」:这些鼠下次发言加戏(取走即消费)。 */
   private spotlightIds = new Set<string>();
   /** Child logger bound to this engine's gameId — created lazily. */
@@ -439,6 +455,20 @@ export class GameEngine extends EventEmitter {
     // resolves avatarUrls[avatarKey ?? role].
     const avatarKeys = assignAvatarKeys(this.state.players);
     for (const p of this.state.players) p.avatarKey = avatarKeys[p.id];
+
+    // v6.85 P2 — 双公司模式:8 鼠 → 4+4,每公司恰好 1 内鬼(ROLE_PRESETS[8]
+    // 正好 2 狗)。分配失败(人数/狗数不符)静默退回单公司,游戏照常。
+    if (this.state.config.mode === 'dual') {
+      const dogs = this.state.players.filter((p) => p.team === Team.DOG).map((p) => p.id);
+      const assignment = assignDualCompanies(this.state.players.map((p) => p.id), dogs);
+      if (assignment) {
+        for (const p of this.state.players) p.companyId = assignment[p.id];
+        this.addEvent('dual_start', '🏢⚔️🏢 双公司对抗开局 — A 司 vs B 司,抢市场、防内鬼、互相挖人');
+      } else {
+        this.state.config.mode = 'single';
+        this._log?.warn?.({ count: this.state.players.length, dogs: dogs.length }, 'dual assignment failed, fallback to single');
+      }
+    }
   }
 
   // ---------- Main game loop ----------
@@ -894,6 +924,8 @@ export class GameEngine extends EventEmitter {
     for (const dog of dogs) {
       const nearby = this.alivePlayers().filter(
         (p) => p.id !== dog.id && p.team !== Team.DOG && p.position.room === dog.position.room
+          // v6.85 P2 — 双公司:内鬼只裁本公司同事(跳槽后跟着裁新东家)
+          && (this.state.config.mode !== 'dual' || p.companyId === dog.companyId)
       );
       if (nearby.length > 0) {
         const victim = nearby[Math.floor(Math.random() * nearby.length)];
@@ -1165,17 +1197,35 @@ export class GameEngine extends EventEmitter {
       }
     }
 
+    // v6.85 P2 — 双公司:先跑跨司动作(挖人,吃关系图),再各司关起门投票。
+    const isDual = this.state.config.mode === 'dual';
+    if (isDual) {
+      await this.maybeCrossActions(relationGraph);
+    }
+    /** 双公司时投票/旧账都只在本公司圈内;单公司 = 全员。 */
+    const candidatesFor = (p: PlayerState) =>
+      isDual && p.companyId
+        ? aliveCandidates.filter((c) =>
+            this.state.players.find((x) => x.id === c.id)?.companyId === p.companyId)
+        : aliveCandidates;
+
     // All alive players vote simultaneously
     const votePromises = alive.map(async (player) => {
       const agent = this.agents.get(player.id);
       if (!agent) return;
 
+      const myCandidates = candidatesFor(player);
+      const myCandidateArchs = myCandidates
+        .map((c) => archByPlayer.get(c.id))
+        .filter((a): a is string => !!a);
       try {
-        const target = await agent.generateVote(context, aliveCandidates);
-        this.state.votes[player.id] = this.grudgeRedirect(player, target, relationGraph, archByPlayer, playerByArch, nameById);
+        const target = await agent.generateVote(context, myCandidates);
+        this.state.votes[player.id] = this.grudgeRedirect(
+          player, target, relationGraph, archByPlayer, playerByArch, nameById, myCandidateArchs,
+        );
       } catch {
-        // Random vote on failure
-        const others = alive.filter((p) => p.id !== player.id);
+        // Random vote on failure(双公司时也只随机到本公司)
+        const others = myCandidates.filter((c) => c.id !== player.id);
         const pick = others[Math.floor(Math.random() * others.length)];
         this.state.votes[player.id] = pick?.id ?? 'skip';
       }
@@ -1192,7 +1242,7 @@ export class GameEngine extends EventEmitter {
       if (!agent) return;
 
       try {
-        const target = await agent.generateGhostVote(context, aliveCandidates);
+        const target = await agent.generateGhostVote(context, candidatesFor(ghost));
         if (target !== 'pass') {
           this.state.ghostVotes[ghost.id] = target;
           ghost.ghostVoteUsed = true;
@@ -1246,58 +1296,93 @@ export class GameEngine extends EventEmitter {
   }
 
   private async resolveVotes(): Promise<void> {
-    const tally: Record<string, number> = {};
+    // v6.85 P2 — 分组结算:单公司 = 一个全员组(行为与历史版本完全一致);
+    // 双公司 = 按投票者所属公司拆两组,各组独立计票/独立开除(一轮最多裁 2 人,
+    // 每司 1 人)。每组发自己的 vote_result(双司时带 company 字段;客户端
+    // 双司适配在 v6.86 演出层 —— 当前 dual 尚无 UI 入口,不影响线上)。
+    const isDual = this.state.config.mode === 'dual';
+    const companyOf = (pid: string): CompanyId | undefined =>
+      this.state.players.find((p) => p.id === pid)?.companyId;
+    const groups: Array<{ company?: CompanyId; votes: Record<string, string>; ghostVotes: Record<string, string> }> =
+      isDual
+        ? (['a', 'b'] as const).map((c) => ({
+            company: c,
+            votes: Object.fromEntries(Object.entries(this.state.votes).filter(([vid]) => companyOf(vid) === c)),
+            ghostVotes: Object.fromEntries(Object.entries(this.state.ghostVotes).filter(([gid]) => companyOf(gid) === c)),
+          }))
+        : [{ votes: this.state.votes, ghostVotes: this.state.ghostVotes }];
 
-    // Count alive player votes (weight: 1)
-    for (const target of Object.values(this.state.votes)) {
-      tally[target] = (tally[target] || 0) + 1;
-    }
+    let firstEliminated: string | undefined; // 给后面 memory 钩子(单司语义不变)
 
-    // Count ghost votes (weight: 1 - 劳动仲裁投票与普通投票等权)
-    for (const target of Object.values(this.state.ghostVotes)) {
-      tally[target] = (tally[target] || 0) + 1;
-    }
+    for (const g of groups) {
+      const tally: Record<string, number> = {};
 
-    // Find highest votes (two-pass to correctly handle 3-way ties)
-    const maxVotes = Object.values(tally).reduce((m, c) => Math.max(m, c), 0);
-    const topCandidates = maxVotes > 0
-      ? Object.entries(tally).filter(([, c]) => c === maxVotes)
-      : [];
-    const eliminated: string | undefined = topCandidates.length === 1
-      ? topCandidates[0][0]
-      : undefined; // Tie (2+ players share max) = no elimination
-
-    let eliminatedRole: string | undefined;
-    let eliminatedPersonality: string | undefined;
-
-    if (eliminated && eliminated !== 'skip') {
-      const player = this.state.players.find((p) => p.id === eliminated);
-      if (player) {
-        player.isAlive = false;
-        eliminatedRole = player.role;
-        eliminatedPersonality = player.personality;
-        const ghostVoters = Object.keys(this.state.ghostVotes).filter(
-          (gid) => this.state.ghostVotes[gid] === eliminated
-        );
-        const ghostSuffix = ghostVoters.length > 0
-          ? ` (含${ghostVoters.length}票劳动仲裁)`
-          : '';
-        this.addEvent('vote_out', `${player.name} 被投票开除了${ghostSuffix}! 职位: ${ROLE_REGISTRY[player.role as Role]?.displayNameCN ?? player.role}`);
+      // Count alive player votes (weight: 1)
+      for (const target of Object.values(g.votes)) {
+        tally[target] = (tally[target] || 0) + 1;
       }
-    } else {
-      this.addEvent('vote_skip', '投票平局，无人被开除');
-    }
 
-    this.emit('vote_result', {
-      votes: this.state.votes,
-      ghostVotes: this.state.ghostVotes,
-      eliminated,
-      eliminatedRole,
-      // v6.24 P1 — include eliminated personality so client's
-      // EliminationReveal can read it directly instead of doing a
-      // potentially-stale players.find lookup.
-      eliminatedPersonality,
-    });
+      // Count ghost votes (weight: 1 - 劳动仲裁投票与普通投票等权)
+      for (const target of Object.values(g.ghostVotes)) {
+        tally[target] = (tally[target] || 0) + 1;
+      }
+
+      // Find highest votes (two-pass to correctly handle 3-way ties)
+      const maxVotes = Object.values(tally).reduce((m, c) => Math.max(m, c), 0);
+      const topCandidates = maxVotes > 0
+        ? Object.entries(tally).filter(([, c]) => c === maxVotes)
+        : [];
+      const eliminated: string | undefined = topCandidates.length === 1
+        ? topCandidates[0][0]
+        : undefined; // Tie (2+ players share max) = no elimination
+
+      let eliminatedRole: string | undefined;
+      let eliminatedPersonality: string | undefined;
+      const tag = g.company ? `【${g.company === 'a' ? 'A 司' : 'B 司'}】` : '';
+
+      if (eliminated && eliminated !== 'skip') {
+        const player = this.state.players.find((p) => p.id === eliminated);
+        if (player) {
+          player.isAlive = false;
+          eliminatedRole = player.role;
+          eliminatedPersonality = player.personality;
+          if (!firstEliminated) firstEliminated = eliminated;
+          const ghostVoters = Object.keys(g.ghostVotes).filter(
+            (gid) => g.ghostVotes[gid] === eliminated
+          );
+          const ghostSuffix = ghostVoters.length > 0
+            ? ` (含${ghostVoters.length}票劳动仲裁)`
+            : '';
+          this.addEvent('vote_out', `${tag}${player.name} 被投票开除了${ghostSuffix}! 职位: ${ROLE_REGISTRY[player.role as Role]?.displayNameCN ?? player.role}`);
+        }
+      } else {
+        this.addEvent('vote_skip', `${tag}投票平局，无人被开除`);
+      }
+
+      this.emit('vote_result', {
+        votes: g.votes,
+        ghostVotes: g.ghostVotes,
+        eliminated,
+        eliminatedRole,
+        // v6.24 P1 — include eliminated personality so client's
+        // EliminationReveal can read it directly instead of doing a
+        // potentially-stale players.find lookup.
+        eliminatedPersonality,
+        // v6.85 P2 — 双公司时标明哪家(单司 undefined,老客户端忽略)
+        company: g.company,
+      });
+
+      // v6.75 — 关系网按组喂(双司各喂各的票面,被裁者只记本司投他的人)
+      void this.recordRoundRelations({
+        gameId: this.state.id, round: this.state.round,
+        votes: { ...g.votes },
+        players: this.state.players.map((p) => ({
+          id: p.id, personality: p.personality, team: p.team as unknown as string | undefined,
+        })),
+        eliminatedId: eliminated && eliminated !== 'skip' ? eliminated : null,
+      });
+    }
+    const eliminated = firstEliminated;
 
     // v5.8.1 — round-end memory writes. Fire-and-forget; failure must
     // not block the engine tick. We snapshot the data the hook needs
@@ -1319,16 +1404,7 @@ export class GameEngine extends EventEmitter {
       survivors: survivorsSnapshot,
     });
 
-    // v6.75 — 跨局「关系网」:把这轮投票喂进关系图(被投出者按 archetype 记住每个投他的人;
-    // 同阵营投他 = 叛变记大仇)。fire-and-forget,失败不阻断引擎。
-    void this.recordRoundRelations({
-      gameId, round,
-      votes: { ...this.state.votes },
-      players: this.state.players.map((p) => ({
-        id: p.id, personality: p.personality, team: p.team as unknown as string | undefined,
-      })),
-      eliminatedId: eliminated && eliminated !== 'skip' ? eliminated : null,
-    });
+    // (v6.75 的关系网钩子已在上面的分组循环里按组喂 —— 双司各记各的账。)
 
     this.state.deadBodyLocation = undefined;
     this.state.meetingCaller = undefined;
@@ -1484,6 +1560,9 @@ export class GameEngine extends EventEmitter {
   // ---------- Win condition check ----------
 
   private checkWin(): boolean {
+    // v6.85 P2 — 双公司模式走独立终局矩阵(垄断/团灭/双鬼皆裁/回合上限)
+    if (this.state.config.mode === 'dual') return this.checkDualWin();
+
     const aliveCats = this.alivePlayers().filter((p) => p.team === Team.CAT).length;
     const aliveDogs = this.alivePlayers().filter((p) => p.team === Team.DOG).length;
 
@@ -1510,6 +1589,105 @@ export class GameEngine extends EventEmitter {
     }
 
     return false;
+  }
+
+  // ---------- v6.85 P2 — 双公司终局 ----------
+
+  /** 市占率 = 各司完成任务数 × STEP(纯派生,跳槽鼠带着业绩走——按当前 companyId 计)。 */
+  private dualMarket(): MarketState {
+    const done = (c: CompanyId) => this.state.players
+      .filter((p) => p.companyId === c)
+      .reduce((sum, p) => sum + p.tasks.filter((t) => t.completed).length, 0);
+    return {
+      a: Math.min(MARKET_WIN, done('a') * MARKET_STEP),
+      b: Math.min(MARKET_WIN, done('b') * MARKET_STEP),
+    };
+  }
+
+  /** 双公司终局:shared dualWinner 矩阵 → WinCondition + 剧场文案。 */
+  private checkDualWin(): boolean {
+    const aliveOf = (c: CompanyId) => this.alivePlayers().filter((p) => p.companyId === c);
+    const market = this.dualMarket();
+    const verdict = dualWinner({
+      market,
+      aliveA: aliveOf('a').length,
+      aliveB: aliveOf('b').length,
+      insiderAliveA: aliveOf('a').some((p) => p.team === Team.DOG),
+      insiderAliveB: aliveOf('b').some((p) => p.team === Team.DOG),
+      round: this.state.round,
+    });
+    if (!verdict.reason) return false;
+
+    const REASON_CN: Record<string, string> = {
+      monopoly: '市占率 100% — 市场垄断',
+      wipeout: '对面团灭 — 全员被"优化"光了',
+      insiders_down: '两边内鬼都被裁 — 比市占率定胜负',
+      round_cap: '财年结束 — 比市占率定胜负',
+    };
+    const winner = verdict.winner === 'a'
+      ? WinCondition.COMPANY_A_WIN
+      : verdict.winner === 'b' ? WinCondition.COMPANY_B_WIN : WinCondition.NONE;
+    const label = verdict.winner ? `${verdict.winner === 'a' ? 'A' : 'B'} 司获胜` : '两败俱伤,无人获胜';
+    this.state.winner = winner;
+    this.addEvent('game_over', `🏢⚔️🏢 ${label}!${REASON_CN[verdict.reason]}(市占率 A ${market.a}% : B ${market.b}%)`);
+    this.emit('game_over', { winner, reason: REASON_CN[verdict.reason], market, dualReason: verdict.reason });
+    return true;
+  }
+
+  /**
+   * v6.85 P2 — 跨司动作(每司每回合限 1 次,50% 概率出手):挖角对面跟本司
+   * 关系最好的鼠。概率走 shared poachChance(吃 v6.75 关系图);成功 → 跳槽
+   * (companyId 翻面,**team 保留** —— 拍板②内鬼带身份)+ 老东家全员记 backstab。
+   * 全程 best-effort,失败不阻断回合。
+   */
+  private async maybeCrossActions(graph: RelationGraph): Promise<void> {
+    try {
+      for (const company of ['a', 'b'] as const) {
+        if (!canCrossAction(this.crossLedger, company, this.state.round)) continue;
+        if (Math.random() >= 0.5) continue; // 这轮按兵不动
+        const rival: CompanyId = company === 'a' ? 'b' : 'a';
+        const recruiters = this.alivePlayers().filter((p) => p.companyId === company);
+        const targets = this.alivePlayers().filter((p) => p.companyId === rival);
+        if (recruiters.length === 0 || targets.length === 0) continue;
+
+        // 选对面「对本司最有好感」的鼠(target 对任一 recruiter 的最高关系分)
+        let best: { target: PlayerState; feeling: number } | null = null;
+        for (const t of targets) {
+          if (!t.personality) continue;
+          const feeling = Math.max(...recruiters.map((r) =>
+            r.personality ? feelingOf(graph, t.personality, r.personality) : 0));
+          if (!best || feeling > best.feeling) best = { target: t, feeling };
+        }
+        if (!best) continue;
+
+        this.crossLedger = recordCrossAction(this.crossLedger, company, this.state.round);
+        const chance = poachChance(best.feeling);
+        const tag = company === 'a' ? 'A 司' : 'B 司';
+        if (resolvePoach(chance, Math.random())) {
+          const oldColleagues = this.state.players
+            .filter((p) => p.companyId === rival && p.id !== best.target.id && p.personality)
+            .map((p) => p.personality);
+          best.target.companyId = company; // 拍板②:team 不动,内鬼带身份潜伏新东家
+          this.addEvent('defection', `🤝 ${tag}挖角成功 — ${best.target.name} 拿着 offer 跳槽了(原同事连夜把 TA 移出群聊)`);
+          // 老东家全员记叛变(fire-and-forget)
+          if (best.target.personality) {
+            const evs = eventsFromDefection({
+              defectorArch: best.target.personality,
+              oldColleagueArchs: oldColleagues,
+              gameId: this.state.id, round: this.state.round, ts: Date.now(),
+            });
+            void import('../services/relationStore')
+              .then(({ ingestRelationEvents }) => ingestRelationEvents(evs))
+              .catch(() => { /* 关系网锦上添花 */ });
+          }
+        } else {
+          this.addEvent('poach_failed', `📩 ${tag}给 ${best.target.name} 发了 offer,被原地已读不回(忠诚度拉满)`);
+        }
+        this.emitState();
+      }
+    } catch (err) {
+      this._log?.debug?.({ err: (err as Error).message }, 'cross action skipped');
+    }
   }
 
   // ---------- Serialization ----------
@@ -1844,6 +2022,7 @@ export class GameEngine extends EventEmitter {
   /**
    * v6.75 ① — 关系网反哺投票:基础票之上,若候选里有 voter 的**真·世仇**(≤FOE 阈值)且没投他,
    * 就把票拽过去 + 时间线甩一句旧账。archetype 维度算,映射回本局 playerId。任何缺失退回原票。
+   * v6.85 P2 — candidateArchs 由调用方限定(双公司时只含本司,世仇在对面拽不动票)。
    */
   private grudgeRedirect(
     voter: PlayerState,
@@ -1852,6 +2031,7 @@ export class GameEngine extends EventEmitter {
     archByPlayer: Map<string, string>,
     playerByArch: Map<string, string>,
     nameById: Map<string, string>,
+    candidateArchs?: readonly string[],
   ): string {
     try {
       const holderId = voter.personality;
@@ -1859,7 +2039,7 @@ export class GameEngine extends EventEmitter {
       if (!holderId || !basePick) return basePickId;
       const r = resolveVoteWithGrudge({
         basePick,
-        candidateIds: [...archByPlayer.values()],
+        candidateIds: candidateArchs ?? [...archByPlayer.values()],
         graph,
         holderId,
         round: this.state.round,

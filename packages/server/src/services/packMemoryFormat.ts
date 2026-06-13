@@ -44,6 +44,9 @@ const WINNER_LABELS: Record<WinCondition, string> = {
   [WinCondition.CAT_WIN]: '资本家(管理层)',
   [WinCondition.DOG_WIN]: '打工人',
   [WinCondition.NEUTRAL_WIN]: '摸鱼人',
+  // v6.85 P2 — 双公司模式终局
+  [WinCondition.COMPANY_A_WIN]: 'A 公司',
+  [WinCondition.COMPANY_B_WIN]: 'B 公司',
   [WinCondition.NONE]: '未分胜负',
 };
 
