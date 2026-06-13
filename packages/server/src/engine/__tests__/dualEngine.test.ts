@@ -84,7 +84,7 @@ describe('dual — 投票圈限本司 + 双组结算', () => {
     }
   });
 
-  it('resolveVotes:双组独立计票,一轮各裁 1 人,vote_result 带 company', async () => {
+  it('resolveVotes:双组独立计票,一轮各裁 1 人,**只发一次** vote_result(带 dualEliminations)', async () => {
     const e = dualEngine();
     const a = e.state.players.filter((p) => p.companyId === 'a');
     const b = e.state.players.filter((p) => p.companyId === 'b');
@@ -93,16 +93,19 @@ describe('dual — 投票圈限本司 + 双组结算', () => {
       [a[1].id]: a[0].id, [a[2].id]: a[0].id, [a[3].id]: a[0].id,
       [b[1].id]: b[0].id, [b[2].id]: b[0].id, [b[3].id]: b[0].id,
     };
-    const results: Array<{ company?: string; eliminated?: string }> = [];
-    e.on('vote_result', (r: { company?: string; eliminated?: string }) => results.push(r));
+    const emits: Array<{ eliminated?: string; dualEliminations?: Array<{ company?: string; eliminated?: string }> }> = [];
+    e.on('vote_result', (r) => emits.push(r));
     await inner(e).resolveVotes();
 
     expect(e.state.players.find((p) => p.id === a[0].id)!.isAlive).toBe(false);
     expect(e.state.players.find((p) => p.id === b[0].id)!.isAlive).toBe(false);
-    expect(results).toHaveLength(2);
-    expect(results.map((r) => r.company).sort()).toEqual(['a', 'b']);
-    expect(results.find((r) => r.company === 'a')!.eliminated).toBe(a[0].id);
-    expect(results.find((r) => r.company === 'b')!.eliminated).toBe(b[0].id);
+    // v6.86:只发 1 次(避免客户端双触发),两司汇总在 dualEliminations
+    expect(emits).toHaveLength(1);
+    const dual = emits[0].dualEliminations!;
+    expect(dual).toHaveLength(2);
+    expect(dual.map((d) => d.company).sort()).toEqual(['a', 'b']);
+    expect(dual.find((d) => d.company === 'a')!.eliminated).toBe(a[0].id);
+    expect(dual.find((d) => d.company === 'b')!.eliminated).toBe(b[0].id);
   });
 });
 
@@ -118,7 +121,7 @@ describe('dual — checkDualWin 终局接通', () => {
     const e = dualEngine();
     const a0 = e.state.players.find((p) => p.companyId === 'a')!;
     a0.tasks = Array.from({ length: 3 }, (_, i) => ({
-      id: `t${i}`, name: 'OKR', location: '开放工区', steps: 1, currentStep: 1, completed: true,
+      id: `t${i}`, type: 'short' as const, location: '开放工区', steps: 1, currentStep: 1, completed: true,
     }));
     expect(inner(e).dualMarket()).toEqual({ a: 27, b: 0 });
   });
@@ -129,7 +132,7 @@ describe('dual — checkDualWin 终局接通', () => {
     const aSide = e.state.players.filter((p) => p.companyId === 'a');
     // 12 个完成任务 → 108 → 封顶 100
     aSide[0].tasks = Array.from({ length: 12 }, (_, i) => ({
-      id: `t${i}`, name: 'OKR', location: '开放工区', steps: 1, currentStep: 1, completed: true,
+      id: `t${i}`, type: 'short' as const, location: '开放工区', steps: 1, currentStep: 1, completed: true,
     }));
     let over: { winner?: string } | null = null;
     e.on('game_over', (p: { winner?: string }) => { over = p; });
@@ -152,7 +155,7 @@ describe('dual — checkDualWin 终局接通', () => {
     e.state.round = 2;
     for (const p of e.state.players.filter((x) => x.team === Team.DOG)) p.isAlive = false;
     const b0 = e.state.players.find((p) => p.companyId === 'b' && p.isAlive)!;
-    b0.tasks = [{ id: 't', name: 'OKR', location: '开放工区', steps: 1, currentStep: 1, completed: true }];
+    b0.tasks = [{ id: 't', type: 'short' as const, location: '开放工区', steps: 1, currentStep: 1, completed: true }];
     expect(inner(e).checkWin()).toBe(true);
     expect(e.state.winner).toBe(WinCondition.COMPANY_B_WIN);
   });

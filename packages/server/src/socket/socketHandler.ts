@@ -625,6 +625,15 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
     io.to(gameId).emit('game:psy_war_acked', data);
   });
 
+  // v6.86 — 双公司挖角/跳槽 live banner。挖角是双司局招牌时刻,实时播一条
+  // (map 徽标随下一帧 game:state 翻面)。单公司局永不触发。
+  engine.on('cross_action', (data: {
+    kind: 'defection' | 'poach_failed'; text: string; company: 'a' | 'b';
+    targetId: string; targetName: string;
+  }) => {
+    io.to(gameId).emit('game:cross_action', data);
+  });
+
   engine.on('vote_result', (data) => {
     io.to(gameId).emit('game:vote_result', {
       votes: data.votes,
@@ -634,6 +643,8 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
       // v6.24 P1 — pass through victim personality so client can drive
       // the elim剧场化 last-words pool without a stale players.find lookup.
       eliminatedPersonality: (data as { eliminatedPersonality?: string }).eliminatedPersonality,
+      // v6.86 — 双公司:两司开除汇总(单司 undefined,老客户端忽略)
+      dualEliminations: (data as { dualEliminations?: unknown }).dualEliminations,
     });
     io.to(gameId).emit('game:state', engine.getSerializedState());
   });
