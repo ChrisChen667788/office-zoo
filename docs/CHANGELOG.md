@@ -7,6 +7,27 @@
 
 ---
 
+## v6.87 — 2026-06-14 · 双公司对抗:闭环层(下注盘 + 道具分区 + 公司战报)
+
+双公司大版本收口。把对局接进 v6.74 下注经济 + v6.83 干预道具 + 分享卡三套现成系统,
+全程复用既有派彩/限购/canvas 模式。单公司局逐字节零影响,全量 521 绿(+18 测试)。
+
+- **P1 · 双司下注盘**:shared 新增 `companyWinnerMarket`(二选一 a/b 盘口,权重融合
+  存活人数 ×2 + 市占率 /12.5 —— 垄断看市占、团灭看人数);BettingBar 加独立 `companyBet`
+  槽(与回合盘并存),整局押一注、终局 winner 一次性结算;Classic/Immersive 透传
+  mode/market/gameWinner。**无服务端改动**(沿用 v6.74 全客户端模型)。
+- **P2 · 猎头快递 + 道具分区**:shared `intervene.ts` 加第 4 件 `headhunt`📦(dualOnly)+
+  `interventionsForMode`(单公司局过滤);server 白名单放行 + `applyIntervention` 复用
+  抽出的 `performDefection`(翻 companyId、内鬼带身份、发 cross_action banner、喂关系图)
+  —— 观众众筹强制对面鼠当场跳槽,不吃 AI 每回合挖角限额;道具铺台 dual 下给每个目标
+  打 🅰/🅱 公司标。
+- **P3 · 公司战报卡**:shared 纯函数 `buildBattleCard`(分组 / MVP / 拔河条 / 缘由派生 /
+  嘴替分档,10 测试锁死);client `companyBattleCard.ts` 仿 duelShareCard 双栏 canvas
+  画 1080×1350 PNG(蓝橙撞色 + 市占拔河条 + 两司存活·MVP·花名册);HighlightReel
+  dual 分支加「🏢 公司战报」按钮(复制优先、降级下载)。
+- 验证:3 包 tsc 干净;全量 521 vitest 绿(betting/intervene/intervention/battleCard
+  各补测);客户端 `vite build` 通过。
+
 ## v6.86 — 2026-06-14 · 双公司对抗:演出层 + Landing 入口(可玩了)
 
 把 v6.85 跑通的引擎搬上台面 —— 旁观者现在看得见双司对撞、挖角跳槽、双边开除,

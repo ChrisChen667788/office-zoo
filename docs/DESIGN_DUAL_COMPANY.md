@@ -39,7 +39,9 @@
 
 - **v6.85 引擎层**:`shared/dual/` 纯引擎(市占率推进/挖人概率/跨司动作合法性)+ GameEngine 多队伍字段(`companyId` on player,夜杀/投票按公司分组)。纯函数先锁,旧单公司模式 0 影响(配置开关 `mode:'dual'`)。
 - **v6.86 演出层**:GameMap 双半区渲染 + 市占率进度条对撞 UI + 挖人/曝料剧场动画 + EliminationReveal 注明公司。
-- **v6.87 闭环层**:双公司下注盘 + 干预道具分区 + 战绩卡「公司战报」+ 名场面(跳槽/绝杀)。
+- **v6.87 闭环层** ✅:双公司下注盘(`companyWinnerMarket`)+ 干预道具分区(目标 🅰🅱 标 +
+  新道具「猎头快递」强制跳槽)+ 战绩卡「公司战报」(`buildBattleCard` → canvas PNG)。
+  名场面(跳槽/挖角 banner)已在 v6.86 `cross_action` 落地。
 
 ## 开放问题(要你定)
 
