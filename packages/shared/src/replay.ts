@@ -8,6 +8,7 @@
  * and they're unit-tested without a running game.
  */
 import type { GameEvent, WinCondition } from './types/game';
+import type { CompanyId, DualEndReason, MarketState } from './dual/dual';
 
 export interface ReplayPlayer {
   id: string;
@@ -20,6 +21,8 @@ export interface ReplayPlayer {
   isAlive: boolean;
   personality?: string;
   avatar?: string;
+  /** v6.88 — 双公司归属(单公司局 undefined;跳槽后是终局所在司)。 */
+  companyId?: CompanyId;
 }
 
 export interface ReplayRecord {
@@ -31,6 +34,12 @@ export interface ReplayRecord {
   players: ReplayPlayer[];
   /** Full event timeline — each GameEvent carries its own round + phase. */
   timeline: GameEvent[];
+  // v6.88 — 双公司局快照(单公司局这三项 undefined,老回放向后兼容)。
+  mode?: 'single' | 'dual';
+  /** 终局市占率。 */
+  market?: MarketState;
+  /** 终局缘由(垄断/团灭/双鬼皆裁/回合上限)。 */
+  dualReason?: DualEndReason;
 }
 
 export interface ReplayDigest {
@@ -39,12 +48,14 @@ export interface ReplayDigest {
   votedOut: number;
   protects: number;
   intercepts: number;
+  /** v6.88 — 跨司跳槽次数(双公司局的招牌时刻)。 */
+  defections: number;
 }
 
 /** Compact stats over a timeline — for the recent-replays list preview and
  *  the replay header. Pure. */
 export function digestReplay(timeline: GameEvent[]): ReplayDigest {
-  const d: ReplayDigest = { rounds: 0, kills: 0, votedOut: 0, protects: 0, intercepts: 0 };
+  const d: ReplayDigest = { rounds: 0, kills: 0, votedOut: 0, protects: 0, intercepts: 0, defections: 0 };
   for (const e of timeline) {
     if (e.round > d.rounds) d.rounds = e.round;
     switch (e.type) {
@@ -52,6 +63,7 @@ export function digestReplay(timeline: GameEvent[]): ReplayDigest {
       case 'vote_out': d.votedOut++; break;
       case 'protect': d.protects++; break;
       case 'intercept': d.intercepts++; break;
+      case 'defection': d.defections++; break;
       default: break;
     }
   }

@@ -7,6 +7,7 @@ import {
 import { generateTTSAudio } from '../services/tts';
 import { extractEvidenceRefs } from '../services/evidenceParser';
 import { saveReplay } from '../services/replayStore';
+import type { DualEndReason } from '@furball/shared';
 import { generateAvatar, getAllCachedAvatars } from '../services/imageGen';
 import { logger, gameLogger } from '../utils/logger';
 import { validateEvent } from '../utils/validate';
@@ -665,8 +666,18 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
       players: finalState.players.map((p) => ({
         id: p.id, name: p.name, role: p.role, team: p.team,
         isAlive: p.isAlive, personality: p.personality, avatar: p.avatar ?? undefined,
+        // v6.88 — 双公司归属(单公司局 undefined),让回放页能两栏复盘。
+        companyId: p.companyId,
       })),
       timeline: engine.getTimeline(),
+      // v6.88 — 双公司终局快照:模式 + 市占率(来自 finalState)+ 终局缘由(来自 game_over 载荷)。
+      ...(finalState.mode === 'dual'
+        ? {
+            mode: 'dual' as const,
+            market: finalState.market,
+            dualReason: (data as { dualReason?: DualEndReason }).dualReason,
+          }
+        : {}),
     }).catch((err) => console.error('[replay] save failed:', err));
     // Clean up after 60 s (clients have time to receive final state).
     // Use destroyGame to ensure listeners + agents are released, not just

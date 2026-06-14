@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { groupTimelineByRound, bondTier, type ReplayRecord, type ReplayPlayer, type RelationEdge } from '@furball/shared';
+import { groupTimelineByRound, digestReplay, bondTier, type ReplayRecord, type ReplayPlayer, type RelationEdge } from '@furball/shared';
 import { usePlayers, useWinner, useRound, useGameActions } from '../stores/gameStore';
 import { colors } from '../constants/design';
 import { lottie } from '../constants/lottie';
@@ -44,6 +44,13 @@ const WIN_LABELS: Record<string, WinLabel> = {
   dog_win:     { title: '资本家阵营胜利', subtitle: '全员被优化,公司完蛋了', emoji: '💀', accent: colors.semantic.danger },
   neutral_win: { title: '摸鱼阵营胜利',   subtitle: '摸鱼才是最终赢家',       emoji: '😎', accent: colors.team.neutral,  lottie: lottie.success, celebratory: true },
   none:        { title: '散伙饭',         subtitle: '公司倒闭,没有赢家',     emoji: '🤷', accent: colors.semantic.warn },
+  // v6.88 — 双公司回放(没有这两条,双司局回放会错标成「散伙饭」)。
+  company_a_win: { title: '🅰 A 司笑到最后', subtitle: '抢下市场 / 防住内鬼,B 司搬空工位', emoji: '🅰', accent: '#4c9eff', lottie: lottie.trophy, celebratory: true },
+  company_b_win: { title: '🅱 B 司笑到最后', subtitle: '抢下市场 / 防住内鬼,A 司搬空工位', emoji: '🅱', accent: '#ff8a3d', lottie: lottie.trophy, celebratory: true },
+};
+
+const DUAL_REASON_CN: Record<string, string> = {
+  monopoly: '市场垄断', wipeout: '对家团灭', insiders_down: '双内鬼皆裁 · 比市占', round_cap: '回合耗尽 · 市占定胜',
 };
 
 // v6.54 — timeline event-type → icon for the 🎬 replay log.
@@ -177,6 +184,23 @@ export default function Result() {
           {winInfo.title}
         </h1>
         <p className="text-white/55 text-base mb-2">{winInfo.subtitle}</p>
+        {/* v6.88 — 双公司回放:终局市占率拔河条 + 缘由 + 跳槽次数 */}
+        {replay?.mode === 'dual' && replay.market && (
+          <div className="mx-auto mb-3 max-w-md">
+            <div className="flex items-center gap-2 text-sm font-bold mb-1.5">
+              <span style={{ color: '#4c9eff' }}>🅰 {replay.market.a}%</span>
+              <div className="flex-1 h-3 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <div style={{ width: `${replay.market.a + replay.market.b > 0 ? (replay.market.a / (replay.market.a + replay.market.b)) * 100 : 50}%`, background: '#4c9eff' }} />
+                <div style={{ flex: 1, background: '#ff8a3d' }} />
+              </div>
+              <span style={{ color: '#ff8a3d' }}>🅱 {replay.market.b}%</span>
+            </div>
+            <p className="text-white/40 text-xs">
+              🏆 {replay.dualReason ? DUAL_REASON_CN[replay.dualReason] ?? '' : ''}
+              {(() => { const n = digestReplay(timeline).defections; return n > 0 ? ` · 🤝 ${n} 次跳槽` : ''; })()}
+            </p>
+          </div>
+        )}
         <p className="text-white/35 text-xs tracking-[0.2em] uppercase">共经历 {round} 个工作日</p>
       </motion.div>
 
