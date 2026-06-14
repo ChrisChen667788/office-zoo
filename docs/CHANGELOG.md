@@ -7,6 +7,49 @@
 
 ---
 
+## v6.87 — 2026-06-14 · 双公司对抗:闭环层(下注盘 + 道具分区 + 公司战报)
+
+双公司大版本收口。把对局接进 v6.74 下注经济 + v6.83 干预道具 + 分享卡三套现成系统,
+全程复用既有派彩/限购/canvas 模式。单公司局逐字节零影响,全量 521 绿(+18 测试)。
+
+- **P1 · 双司下注盘**:shared 新增 `companyWinnerMarket`(二选一 a/b 盘口,权重融合
+  存活人数 ×2 + 市占率 /12.5 —— 垄断看市占、团灭看人数);BettingBar 加独立 `companyBet`
+  槽(与回合盘并存),整局押一注、终局 winner 一次性结算;Classic/Immersive 透传
+  mode/market/gameWinner。**无服务端改动**(沿用 v6.74 全客户端模型)。
+- **P2 · 猎头快递 + 道具分区**:shared `intervene.ts` 加第 4 件 `headhunt`📦(dualOnly)+
+  `interventionsForMode`(单公司局过滤);server 白名单放行 + `applyIntervention` 复用
+  抽出的 `performDefection`(翻 companyId、内鬼带身份、发 cross_action banner、喂关系图)
+  —— 观众众筹强制对面鼠当场跳槽,不吃 AI 每回合挖角限额;道具铺台 dual 下给每个目标
+  打 🅰/🅱 公司标。
+- **P3 · 公司战报卡**:shared 纯函数 `buildBattleCard`(分组 / MVP / 拔河条 / 缘由派生 /
+  嘴替分档,10 测试锁死);client `companyBattleCard.ts` 仿 duelShareCard 双栏 canvas
+  画 1080×1350 PNG(蓝橙撞色 + 市占拔河条 + 两司存活·MVP·花名册);HighlightReel
+  dual 分支加「🏢 公司战报」按钮(复制优先、降级下载)。
+- 验证:3 包 tsc 干净;全量 521 vitest 绿(betting/intervene/intervention/battleCard
+  各补测);客户端 `vite build` 通过。
+
+## v6.86 — 2026-06-14 · 双公司对抗:演出层 + Landing 入口(可玩了)
+
+把 v6.85 跑通的引擎搬上台面 —— 旁观者现在看得见双司对撞、挖角跳槽、双边开除,
+并能从首页第 5 张卡直接开一局。单公司模式逐字节零影响,全量 503 绿。
+
+- **市占率对撞条**(Classic 顶栏):蓝(A)从左、橙(B)填剩余,分界线 = 双方市占率之比,
+  随 `game:state` 实时拉扯。市占率走 `getSerializedState`(不再只在终局发),live 更新。
+- **GameMap 公司徽标**:每只鼠脚下加虚线公司环(A 蓝 / B 橙)+ 角标 🅰/🅱 圆盘 ——
+  挖角跳槽后下一帧徽标即翻面,自由走位也认得出敌我。
+- **挖角/跳槽 live banner**:引擎 `maybeCrossActions` 新增 `cross_action` 实时事件
+  (socket 转 `game:cross_action`),挖角成功橙红高亮入 EVENT LOG,失败走系统色。
+- **双边开除合并发**:`resolveVotes` 双司结算改为**只发一次** `vote_result`(带
+  `dualEliminations[]`),根治客户端双触发(立绘闪、下注重复计、ghostVotes 覆盖);
+  Classic + Immersive 两端都按列表跑 recap / 吃瓜 / 立绘(首个驱动弹出,其余只记账)。
+- **终局复盘修黑屏**:HighlightReel 补 `COMPANY_A_WIN/COMPANY_B_WIN` 的 `WINNER_CONFIG`
+  + `normalizeWinner`(没有它双司局结束直接黑屏)+ 终局市占率对比行。`game:over` 文案
+  全胜负键映射(含 dual)。
+- **Landing 第 5 入口**「双公司对抗」:`GameMode += 'dual'` + 模式卡 + i18n(4 语)+
+  锁 4+4=8 + 路由进 classic 棋盘 + 断线置灰。模式网格升 5 列(桌面单行),双公司卡在
+  窄屏横跨整行(`sm:col-span-2`)避免孤张;顶部「模式」统计 3→5 修正。
+- 验证:3 包 tsc 干净;全量 503 vitest 绿(dual 11 集成测试含「只发一次 vote_result」断言)。
+
 ## v6.85 P2 — 2026-06-11 · 双公司对抗:GameEngine 接线(引擎跑通)
 
 把 P1 的纯引擎接进 GameEngine。`mode:'dual'` 开关一开,8 鼠分两司、夜杀限同司、

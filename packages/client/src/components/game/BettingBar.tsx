@@ -11,8 +11,8 @@ import {
   type BettingProgress, type Bet, type BetMarket,
   type InterventionLedger, type InterventionId,
   emptyProgress, applyDrip, placeBet, settleBet, creditResult,
-  roundVoteMarket, oddsFromProb,
-  INTERVENTION_ITEMS, buyIntervention,
+  roundVoteMarket, companyWinnerMarket, oddsFromProb,
+  INTERVENTION_ITEMS, interventionsForMode, buyIntervention,
 } from '@furball/shared';
 import { useGameActions, type GamePlayer } from '../../stores/gameStore';
 import { sfx } from '../../utils/sfx';
@@ -60,15 +60,30 @@ interface Props {
   /** v6.83 — 干预道具下单回调(路由层接 socket.emit('game:intervene'))。
    *  不传则商店入口隐藏(如离线探针)。 */
   onIntervene?: (itemId: InterventionId, targetId?: string) => void;
+  // v6.87 — 双公司局:整局押「哪家公司笑到最后」盘口。
+  /** 'dual' 时才开公司盘口;默认单公司局无此盘。 */
+  mode?: 'single' | 'dual';
+  /** 双司实时市占率(驱动赔率,随 game:state 更新)。 */
+  companyMarket?: { a: number; b: number };
+  /** 终局赢家公司('a'/'b'),非 null 即结算公司盘口一次。 */
+  gameWinner?: 'a' | 'b' | null;
+  /** 公司名(绑了 pack 时);默认 A 司 / B 司。 */
+  companyLabels?: { a: string; b: string };
 }
 
 const ACCENT = '#a78bfa';
 
-export default function BettingBar({ gameId, phase, round, players, lastEliminated, voteResultTick, onIntervene }: Props) {
+export default function BettingBar({
+  gameId, phase, round, players, lastEliminated, voteResultTick, onIntervene,
+  mode = 'single', companyMarket, gameWinner = null, companyLabels = { a: 'A 司', b: 'B 司' },
+}: Props) {
   const { pushPrediction } = useGameActions();
   const [prog, setProg] = useState<BettingProgress>(() => emptyProgress(0));
   const [stake, setStake] = useState<number>(50);
   const [open, setOpen] = useState<Bet | null>(null);
+  // v6.87 — 公司盘口押注(整局一注,与回合注独立槽,终局才结算)
+  const [companyBet, setCompanyBet] = useState<Bet | null>(null);
+  const companyResolvedRef = useRef<string>('');
   const [toast, setToast] = useState<{ text: string; win: boolean } | null>(null);
   const [showLb, setShowLb] = useState(false);
   // v6.83 — 干预商店:开关 / 每局限购台账 / 待选目标的道具
@@ -87,9 +102,10 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
     setProg(p); save(p);
   }, []);
 
-  // 新局:清掉残留注 + 结算锁 + 干预台账
+  // 新局:清掉残留注 + 结算锁 + 干预台账 + 公司盘口
   useEffect(() => {
     setOpen(null); resolvedRef.current = '';
+    setCompanyBet(null); companyResolvedRef.current = '';
     setLedger({}); setShopOpen(false); setPendingItem(null);
   }, [gameId]);
 
@@ -104,6 +120,21 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
   const market: BetMarket = roundVoteMarket(gameId, round, alive.map((p) => ({ id: p.id, name: p.name })));
   const canBet = phase !== 'game_over' && !open && alive.length >= 2;
 
+  // v6.87 — 双公司整局盘口:存活人数从 players.companyId 派生,市占率走 companyMarket。
+  const isDual = mode === 'dual';
+  const aliveA = alive.filter((p) => p.companyId === 'a').length;
+  const aliveB = alive.filter((p) => p.companyId === 'b').length;
+  const companyBoard: BetMarket | null = isDual
+    ? companyWinnerMarket(
+        gameId,
+        { alive: aliveA, market: companyMarket?.a ?? 0 },
+        { alive: aliveB, market: companyMarket?.b ?? 0 },
+        companyLabels,
+      )
+    : null;
+  // 公司盘口可下注:dual + 没下过 + 没终局 + 两司都还有人(否则胜负已无悬念)
+  const canBetCompany = isDual && !companyBet && phase !== 'game_over' && aliveA > 0 && aliveB > 0;
+
   const onBet = useCallback((optionId: string, optionLabel: string, odds: number) => {
     const res = placeBet(prog, stake);
     if (!res.ok) { flashToast('筹码不够', false); return; }
@@ -111,6 +142,16 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
     setOpen({ marketId: market.id, optionId, optionLabel, stake, odds, round });
     sfx.playBadge();
   }, [prog, stake, market.id, round, flashToast]);
+
+  // v6.87 — 押公司盘口(整局一注,round 记 0,等终局结算)
+  const onCompanyBet = useCallback((optionId: string, optionLabel: string, odds: number) => {
+    if (!companyBoard) return;
+    const res = placeBet(prog, stake);
+    if (!res.ok) { flashToast('筹码不够', false); return; }
+    setProg(res.next); save(res.next);
+    setCompanyBet({ marketId: companyBoard.id, optionId, optionLabel, stake, odds, round: 0 });
+    sfx.playBadge();
+  }, [prog, stake, companyBoard, flashToast]);
 
   // v6.83 — 买干预道具:纯引擎扣筹码 + 记台账 → 路由层 socket 下单 → toast。
   const onBuyIntervention = useCallback((itemId: InterventionId, targetId?: string) => {
@@ -159,6 +200,24 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voteResultTick]);
 
+  // v6.87 — 公司盘口结算:终局 winner('a'/'b')一落地,结算整局那一注。
+  useEffect(() => {
+    if (!gameWinner || !companyBet) return;
+    const key = `${gameId}.${gameWinner}`;
+    if (companyResolvedRef.current === key) return;
+    companyResolvedRef.current = key;
+
+    const payout = settleBet(companyBet, gameWinner);
+    const won = payout > 0;
+    const np = creditResult(prog, payout, won);
+    save(np); setProg(np);
+    reportScore(np);
+    flashToast(won ? `🏢 公司盘押中!+${payout}` : `🏢 公司盘没中 −${companyBet.stake}`, won);
+    if (won) sfx.playWin(); else sfx.playLose();
+    setCompanyBet(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameWinner]);
+
   const hitRate = prog.settled ? Math.round((prog.hits / prog.settled) * 100) : 0;
   const card: React.CSSProperties = {
     position: 'fixed', left: 12, bottom: 12, zIndex: 70, width: 270,
@@ -198,13 +257,20 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
                 {INTERVENTION_ITEMS.find((i) => i.id === pendingItem)?.emoji} 选目标鼠:
               </div>
               <div style={{ maxHeight: 150, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {alive.map((p) => (
-                  <button key={p.id} onClick={() => onBuyIntervention(pendingItem, p.id)}
-                    style={{ padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, textAlign: 'left',
-                      border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#fff' }}>
-                    {p.name}
-                  </button>
-                ))}
+                {alive.map((p) => {
+                  // v6.87 道具分区:双公司局给目标鼠打 🅰/🅱 公司标,选谁帮哪家一目了然
+                  const tag = isDual && p.companyId ? (p.companyId === 'a' ? '🅰' : '🅱') : '';
+                  const tagColor = p.companyId === 'a' ? '#4c9eff' : '#ff8a3d';
+                  return (
+                    <button key={p.id} onClick={() => onBuyIntervention(pendingItem, p.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8,
+                        cursor: 'pointer', fontSize: 12, textAlign: 'left',
+                        border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#fff' }}>
+                      {tag && <span style={{ color: tagColor, fontWeight: 800 }}>{tag}</span>}
+                      <span>{p.name}</span>
+                    </button>
+                  );
+                })}
               </div>
               <button onClick={() => setPendingItem(null)}
                 style={{ marginTop: 6, width: '100%', padding: '5px 0', borderRadius: 8, cursor: 'pointer', fontSize: 11,
@@ -214,7 +280,8 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {INTERVENTION_ITEMS.map((item) => {
+              {/* v6.87 — 双公司局多出「猎头快递」;单公司局过滤掉 dualOnly 道具 */}
+              {interventionsForMode(mode).map((item) => {
                 const used = ledger[item.id] ?? 0;
                 const soldOut = used >= item.perGameCap;
                 const broke = prog.chips < item.price;
@@ -232,6 +299,36 @@ export default function BettingBar({ gameId, phase, round, players, lastEliminat
                     <span style={{ fontSize: 10, opacity: 0.55 }}>
                       {item.desc} · {soldOut ? '本局已用完' : `剩 ${item.perGameCap - used} 次`}
                     </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* v6.87 — 双公司整局盘口:押哪家笑到最后(与回合盘并存,终局结算) */}
+      {!shopOpen && isDual && companyBoard && (companyBet || canBetCompany) && (
+        <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 6 }}>🏢 整局 · 哪家笑到最后?(注 {stake})</div>
+          {companyBet ? (
+            <div style={{ textAlign: 'center', fontSize: 12, opacity: 0.9 }}>
+              已押 <b>{companyBet.optionLabel}</b> @ <b style={{ color: ACCENT }}>{companyBet.odds}×</b>
+              <span style={{ fontSize: 11, opacity: 0.7 }}> · 等终局</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 4 }}>
+              {companyBoard.options.map((o) => {
+                const odds = oddsFromProb(o.prob);
+                const tag = o.id === 'a' ? '🅰' : '🅱';
+                const color = o.id === 'a' ? '#4c9eff' : '#ff8a3d';
+                return (
+                  <button key={o.id} onClick={() => onCompanyBet(o.id, o.label, odds)}
+                    style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '6px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 12,
+                      border: `1px solid ${color}66`, background: `${color}1a`, color: '#fff' }}>
+                    <span style={{ fontWeight: 700 }}>{tag} {o.label}</span>
+                    <span style={{ color, fontWeight: 800 }}>{odds}×</span>
                   </button>
                 );
               })}

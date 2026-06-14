@@ -4,14 +4,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   INTERVENTION_ITEMS, interventionById, canBuyIntervention, buyIntervention,
-  emptyProgress,
+  interventionsForMode, emptyProgress,
 } from '../index';
 
 const rich = { ...emptyProgress(0), chips: 1000 };
 
 describe('intervene — 道具表', () => {
-  it('三件套:shield/clue/spotlight,价格为正,cap 为正', () => {
-    expect(INTERVENTION_ITEMS.map((i) => i.id)).toEqual(['shield', 'clue', 'spotlight']);
+  it('四件套:shield/clue/spotlight/headhunt,价格为正,cap 为正', () => {
+    expect(INTERVENTION_ITEMS.map((i) => i.id)).toEqual(['shield', 'clue', 'spotlight', 'headhunt']);
     for (const i of INTERVENTION_ITEMS) {
       expect(i.price).toBeGreaterThan(0);
       expect(i.perGameCap).toBeGreaterThan(0);
@@ -19,6 +19,15 @@ describe('intervene — 道具表', () => {
     expect(interventionById('shield')!.needsTarget).toBe(true);
     expect(interventionById('clue')!.needsTarget).toBe(false);
     expect(interventionById('nope' as never)).toBeUndefined();
+  });
+  it('v6.87 猎头快递:dualOnly + 需选目标', () => {
+    const hh = interventionById('headhunt')!;
+    expect(hh.dualOnly).toBe(true);
+    expect(hh.needsTarget).toBe(true);
+  });
+  it('interventionsForMode:单公司局过滤掉 dualOnly,双公司局全保留', () => {
+    expect(interventionsForMode('single').map((i) => i.id)).toEqual(['shield', 'clue', 'spotlight']);
+    expect(interventionsForMode('dual').map((i) => i.id)).toEqual(['shield', 'clue', 'spotlight', 'headhunt']);
   });
 });
 

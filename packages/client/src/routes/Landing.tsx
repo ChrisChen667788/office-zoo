@@ -50,7 +50,7 @@ import { modeIcons, navIcons, Icon } from '../constants/icons';
 // v6.56 — 11/12 added so 内审专员(MEDIUM, 11+) + 销售冠军(ADVENTURER, 12)
 // rosters can actually spawn (their night skills are wired server-side).
 const PLAYER_COUNTS = [6, 8, 9, 10, 11, 12] as const;
-type GameMode = 'classic' | 'immersive' | 'fired' | 'talkshow';
+type GameMode = 'classic' | 'immersive' | 'fired' | 'talkshow' | 'dual';
 
 interface ModeSpec {
   key: GameMode;
@@ -112,6 +112,18 @@ const MODES: ModeSpec[] = [
     features: ['真人音色播报', '8 种人格切换', '段子库每周更新'],
     accent: '#ff5588',
     accent2: '#7c3aed',
+  },
+  {
+    // v6.86 — 双公司对抗。无专属 PNG,沿用 talkshow 的 emoji-fallback 写法。
+    key: 'dual',
+    icon: '',
+    iconFallback: '🏢',
+    badge: '05',
+    titleKey:   'mode.dual.title',
+    taglineKey: 'mode.dual.body',
+    features: ['A 司 4 + B 司 4', '抢市场 / 防内鬼', '挖角带走身份'],
+    accent: '#4c9eff',
+    accent2: '#ff8a3d',
   },
 ];
 
@@ -243,9 +255,10 @@ export default function Landing() {
 
   useSocketEvent<{ gameId: string }>('game:created', ({ gameId }) => {
     setIsCreating(false);
-    // Landing currently only creates classic games (immersive/fired short-circuit
-    // in handleStart). Honour whatever mode was requested at click-time rather
-    // than reading current state — avoids route-mode desync.
+    // Landing creates classic + dual games here (immersive/fired/talkshow
+    // short-circuit in handleStart). Honour whatever mode was requested at
+    // click-time rather than reading current state — avoids route-mode desync.
+    // v6.86 — 双公司局跑在 classic 棋盘上(对撞条 + GameMap 公司徽标都在那)。
     const requested = pendingModeRef.current ?? 'classic';
     pendingModeRef.current = null;
     if (requested === 'immersive') {
@@ -299,7 +312,9 @@ export default function Landing() {
       } catch { /* tagging is best-effort */ }
     })();
     socket.emit('game:create', {
-      playerCount, mode: target, userId: getUserId(),
+      // v6.86 — 双公司锁 4+4=8(server 也会强制),其余模式用用户选的人数。
+      playerCount: target === 'dual' ? 8 : playerCount,
+      mode: target, userId: getUserId(),
       ...(packId ? { companyPackId: packId } : {}),
     });
   }, [isCreating, mode, playerCount, navigate, socket, companyPackId, companyPacks]);
@@ -651,7 +666,7 @@ export default function Landing() {
 
             {/* Stat strip — keep but shrink, slot under the headline */}
             <div className="flex gap-6 md:gap-10 mt-7">
-              <StatCell label="模式" value="3" accent={colors.brand.neon} />
+              <StatCell label="模式" value="5" accent={colors.brand.neon} />
               <StatCell label="AI 鼠人" value="6 – 10" accent={colors.brand.violet} />
               <StatCell label="仲裁条款" value="4" accent={colors.semantic.warn} />
             </div>
@@ -669,20 +684,22 @@ export default function Landing() {
               </span>
             </div>
 
-            {/* v0.7.0 — bumped to 4 columns so 班味单口 fits without
-                wrapping the 经典/全程开麦/裁了么 trio onto two rows. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
+            {/* v0.7.0 — 4 columns so 班味单口 fits. v6.86 — 5th mode (双公司)
+                bumps lg to 5 cols (clean single row); on 2-col layouts 双公司
+                spans the full row so there's never a lonely half-card. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-5">
               {MODES.map((m, i) => (
                 <ModeBento
                   key={m.key}
                   spec={m}
                   active={mode === m.key}
                   busy={isCreating && pendingModeRef.current === m.key}
-                  disabled={m.key === 'classic' && !connected}
+                  disabled={(m.key === 'classic' || m.key === 'dual') && !connected}
                   onSelect={() => setMode(m.key)}
                   onEnter={() => handleStart(m.key)}
                   delay={0.18 + i * 0.08}
                   tall
+                  className={m.key === 'dual' ? 'sm:col-span-2 lg:col-span-1' : ''}
                 />
               ))}
             </div>
@@ -807,7 +824,9 @@ export default function Landing() {
                      : `AI ${playerCount}명`)
                   : mode === 'immersive'
                     ? (locale === 'zh-CN' ? '8 名鼠人' : locale === 'en-US' ? '8 agents' : locale === 'ja-JP' ? 'AI 8名' : 'AI 8명')
-                    : (locale === 'zh-CN' ? '1v1 仲裁' : locale === 'en-US' ? '1v1 arbitration' : locale === 'ja-JP' ? '1対1 仲裁' : '1대1 중재')}
+                    : mode === 'dual'
+                      ? (locale === 'zh-CN' ? '4 vs 4' : locale === 'en-US' ? '4 vs 4' : locale === 'ja-JP' ? '4 vs 4' : '4 vs 4')
+                      : (locale === 'zh-CN' ? '1v1 仲裁' : locale === 'en-US' ? '1v1 arbitration' : locale === 'ja-JP' ? '1対1 仲裁' : '1대1 중재')}
               </div>
               <button
                 onClick={() => setRulesOpen(true)}
@@ -862,6 +881,9 @@ interface ModeBentoProps {
    *  icon, more padding, taller min-height. Used by the centred 3-col layout
    *  where each card has the full screen width / 3 to itself. */
   tall?: boolean;
+  /** v6.86 — extra grid classes (e.g. col-span) so a single card can break
+   *  the uniform grid — used to let 双公司 span the full row on 2-col layouts. */
+  className?: string;
 }
 
 // Each card is an independent "enter this mode" button now. Body tap still
@@ -870,7 +892,7 @@ interface ModeBentoProps {
 // earlier "clicking the arrow does nothing / every mode routes through the
 // big central CTA" bug — and prevents the classic/immersive race that used
 // to happen when setMode() changed mid-handshake.
-function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tall }: ModeBentoProps) {
+function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tall, className = '' }: ModeBentoProps) {
   const [pressed, setPressed] = useState(false);
   // v1.2.1 — resolve title + tagline from i18n dict.
   const { t: tt } = useT();
@@ -885,7 +907,7 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
   const featureCls = tall ? 'text-[12px] md:text-[13px]' : 'text-[11px]';
   return (
     <motion.div
-      className={`group relative overflow-hidden rounded-2xl text-left transition-all duration-300 ${padCls} ${minH}`}
+      className={`group relative overflow-hidden rounded-2xl text-left transition-all duration-300 ${padCls} ${minH} ${className}`}
       style={{
         background: active
           ? `linear-gradient(155deg, ${spec.accent}1a 0%, ${spec.accent2}10 100%)`

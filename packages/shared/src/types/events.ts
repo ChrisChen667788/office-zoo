@@ -23,6 +23,9 @@ export interface SerializedPlayer {
   totalTasks: number;
   /** 离职员工是否已用完劳动仲裁投票 */
   ghostVoteUsed: boolean;
+  /** v6.86 — 双公司模式所属公司('a'|'b');单公司模式 undefined,老客户端忽略。
+   *  跳槽后服务端会更新此字段,客户端据此把鼠画到对应半区 + 公司外环。 */
+  companyId?: 'a' | 'b';
   /** AI 人格类型 */
   personality?: string;
   /** v6.39 P3 — user-chosen emoji avatar from a 公司主题包 NPC. Client
@@ -56,6 +59,9 @@ export interface SerializedGameState {
   votes: Record<string, string>;
   /** 离职员工的劳动仲裁投票 */
   ghostVotes: Record<string, string>;
+  /** v6.86 — 双公司模式标记 + 实时市占率(给对撞条);单公司模式两者 undefined。 */
+  mode?: 'single' | 'dual';
+  market?: { a: number; b: number };
 }
 
 /**

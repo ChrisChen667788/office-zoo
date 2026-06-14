@@ -6,7 +6,7 @@
  * 每日补给 + 破产兜底。全部纯函数、无 I/O、无随机,可 vitest 锁死;UI / 持久化在客户端做。
  */
 
-export type MarketKind = 'round_vote' | 'winning_team';
+export type MarketKind = 'round_vote' | 'winning_team' | 'company_winner';
 
 export interface BetOption {
   id: string;
@@ -148,6 +148,34 @@ export function winningTeamMarket(
     kind: 'winning_team',
     round: 0,
     title: '谁笑到最后?',
+    options: weighted.map((w) => ({ id: w.id, label: w.label, prob: w.prob })),
+    status: 'open',
+  };
+}
+
+/**
+ * v6.87 — 双公司局「哪家公司笑到最后」盘口(二选一)。option id = 'a' / 'b'(对齐
+ * CompanyId + WinCondition.COMPANY_A/B_WIN)。权重融合存活人数与市占率 —— 终局既可能
+ * 靠垄断(看市占)也可能靠团灭(看人数),两者各占一半量纲:存活 ×2(0-8)、市占 /12.5
+ * (0-8)。整局只开一个,终局按 winner('a'/'b')一次性结算。
+ */
+export function companyWinnerMarket(
+  gameId: string,
+  a: { alive: number; market: number },
+  b: { alive: number; market: number },
+  labels: { a: string; b: string } = { a: 'A 司', b: 'B 司' },
+): BetMarket {
+  const weightOf = (c: { alive: number; market: number }) =>
+    Math.max(0, c.alive) * 2 + Math.max(0, c.market) / 12.5;
+  const weighted = normProb([
+    { id: 'a', label: labels.a, weight: weightOf(a) },
+    { id: 'b', label: labels.b, weight: weightOf(b) },
+  ]);
+  return {
+    id: `${gameId}:company`,
+    kind: 'company_winner',
+    round: 0,
+    title: '哪家公司笑到最后?',
     options: weighted.map((w) => ({ id: w.id, label: w.label, prob: w.prob })),
     status: 'open',
   };

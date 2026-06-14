@@ -8,7 +8,7 @@ import {
   useSpeechHistory, useGhostComments, useAvatarUrls,
   useCurrentSpeaker, useDiscussionProgress,
   useGhostVotes, useHotNames,
-  useGameActions,
+  useGameActions, useMarket, useDualMode,
 } from '../stores/gameStore';
 import GameMap from '../components/game/GameMap';
 import GhostChatPanel from '../components/game/GhostChatPanel';
@@ -69,7 +69,7 @@ function inferGenderFromRoleClassic(role?: string): 'male' | 'female' | undefine
 
 interface EventLogEntry {
   id: number;
-  type: 'speech' | 'vote' | 'kill' | 'phase' | 'system' | 'ghost' | 'reaction';
+  type: 'speech' | 'vote' | 'kill' | 'phase' | 'system' | 'ghost' | 'reaction' | 'defection';
   text: string;
   timestamp: number;
 }
@@ -84,6 +84,9 @@ export default function Classic() {
   const players = usePlayers();
   const round = useRound();
   const taskProgress = useTaskProgress();
+  // v6.86 — 双公司:实时市占率 + 模式标记(单公司时 market undefined → 对撞条隐藏)
+  const market = useMarket();
+  const isDual = useDualMode();
   const speechHistory = useSpeechHistory();
   const currentSpeaker = useCurrentSpeaker();
   const discussionProgress = useDiscussionProgress();
@@ -159,9 +162,14 @@ export default function Classic() {
   // real vote_result event, not on arbitrary phase toggles.
   const [lastVoteEliminated, setLastVoteEliminated] = useState<string | null>(null);
   const [voteResultTick, setVoteResultTick] = useState(0);
+  // v6.87 — 双公司终局赢家('a'/'b'),驱动下注盘公司盘口结算。
+  const [companyWinner, setCompanyWinner] = useState<'a' | 'b' | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(0);
   const elimIdRef = useRef(0);
+  // v6.87 — 换局清掉上一局的公司赢家,确保下注盘公司盘口的结算 effect(依赖 gameWinner)
+  // 在新一局能正常 null→'a'/'b' 触发(防 Router 复用 Classic 实例时残留)。
+  useEffect(() => { setCompanyWinner(null); }, [gameId]);
   // Browser-TTS fallback bookkeeping — see Immersive.tsx for the rationale.
   const pendingSpeechRef = useRef<{ text: string; gender?: 'male' | 'female' } | null>(null);
   const browserTtsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -376,9 +384,37 @@ export default function Classic() {
       }, 6000);
     },
 
-    'game:vote_result': (data: { votes: Record<string, string>; ghostVotes?: Record<string, string>; eliminated?: string; playerName?: string; eliminatedPersonality?: string }) => {
-      let msg = data.eliminated && data.playerName
-        ? `${data.playerName} 被投票开除` : '投票平局，无人被开除';
+    'game:vote_result': (data: {
+      votes: Record<string, string>; ghostVotes?: Record<string, string>;
+      eliminated?: string; playerName?: string; eliminatedPersonality?: string;
+      // v6.86 — dual mode merges both companies' results into ONE emit so the
+      // client never double-fires. Each entry is one company's round outcome.
+      dualEliminations?: Array<{ company?: 'a' | 'b'; eliminated?: string; eliminatedPersonality?: string }>;
+    }) => {
+      // Normalise to a uniform list of eliminations regardless of mode. The
+      // top-level eliminated/playerName is the "primary" (drives PredictionBar
+      // + the one-at-a-time dramatic reveal); dual adds a second company.
+      const COMPANY_TAG: Record<'a' | 'b', string> = { a: '🅰', b: '🅱' };
+      type Elim = { id: string; name: string; personality?: string; tag?: string };
+      const elims: Elim[] = [];
+      if (data.dualEliminations) {
+        for (const r of data.dualEliminations) {
+          if (!r.eliminated) continue;
+          const victim = players.find((p) => p.id === r.eliminated);
+          elims.push({
+            id: r.eliminated,
+            name: victim?.name ?? '某员工',
+            personality: r.eliminatedPersonality ?? victim?.personality,
+            tag: r.company ? COMPANY_TAG[r.company] : undefined,
+          });
+        }
+      } else if (data.eliminated && data.playerName) {
+        elims.push({ id: data.eliminated, name: data.playerName, personality: data.eliminatedPersonality });
+      }
+
+      let msg = elims.length
+        ? elims.map((e) => `${e.tag ? e.tag + ' ' : ''}${e.name} 被投票开除`).join(' · ')
+        : '投票平局，无人被开除';
       if (data.ghostVotes && Object.keys(data.ghostVotes).length > 0) {
         msg += ` (含${Object.keys(data.ghostVotes).length}票劳动仲裁)`;
       }
@@ -389,39 +425,44 @@ export default function Classic() {
       // beat as the elimination reveal, not 1-2s later.
       setGhostVotes(data.ghostVotes);
 
-      // Drive the PredictionBar resolution exactly once per vote event.
-      setLastVoteEliminated(data.eliminated ?? null);
+      // Drive the PredictionBar resolution exactly once per vote event — on the
+      // primary elimination (first in the list; null on a tie).
+      setLastVoteEliminated(elims[0]?.id ?? null);
       setVoteResultTick((n) => n + 1);
 
-      // Drive the dramatic reveal — only on actual eliminations (ties skip it).
-      if (data.eliminated && data.playerName) {
-        const victim = players.find((p) => p.id === data.eliminated);
-        setLastElim({
-          id: ++elimIdRef.current,
-          type: 'vote',
-          playerName: data.playerName,
-          roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
-          team: teamForRole(victim?.role),
-          // v6.24 P1 — prefer the personality the server attached to the
-          // event itself; fall back to the players.find lookup. The event
-          // is authoritative since it's set at elimination time on the
-          // server, immune to client-side state-update races.
-          personality: data.eliminatedPersonality ?? victim?.personality,
-          avatar: victim?.avatar, // v6.67 — 立绘弹出用真头像(有 pack 头像时)
-        });
+      // Recap log + crowd reactions for EVERY elimination (HighlightReel replay,
+      // betting payout, danmaku). The dramatic reveal popup is one-at-a-time, so
+      // only the primary clobbers setLastElim — secondary still gets recap+react.
+      elims.forEach((e, i) => {
+        const victim = players.find((p) => p.id === e.id);
+        if (i === 0) {
+          setLastElim({
+            id: ++elimIdRef.current,
+            type: 'vote',
+            playerName: e.name,
+            roleLabel: victim?.role ? ROLE_LABELS[victim.role] : undefined,
+            team: teamForRole(victim?.role),
+            // v6.24 P1 — prefer the personality the server attached to the
+            // event itself; fall back to the players.find lookup. The event
+            // is authoritative since it's set at elimination time on the
+            // server, immune to client-side state-update races.
+            personality: e.personality ?? victim?.personality,
+            avatar: victim?.avatar, // v6.67 — 立绘弹出用真头像(有 pack 头像时)
+          });
+        }
         // v6.67/68/69 — 群众吐槽:静态即时 + LLM 实时,弹幕从被裁工位冒出
-        fireReactions('vote', data.eliminated, data.playerName, victim);
+        fireReactions('vote', e.id, e.name, victim);
         // Append to persistent recap log so HighlightReel can replay later.
         pushElimination({
           round,
           type: 'vote',
-          playerId: data.eliminated,
-          playerName: data.playerName,
+          playerId: e.id,
+          playerName: e.name,
           role: victim?.role,
           team: teamForRole(victim?.role),
           avatar: victim?.avatar,
         });
-      }
+      });
     },
 
     'game:kill': (data: { victimId: string; victimName?: string; location?: string; victimPersonality?: string }) => {
@@ -454,9 +495,21 @@ export default function Classic() {
       });
     },
 
-    'game:over': (data: { winner: string }) => {
-      const w = data.winner === 'cat' ? '打工人阵营' : data.winner === 'dog' ? '资本家阵营' : data.winner;
-      pushEvent('system', `散伙饭! ${w} 获胜!`);
+    'game:over': (data: { winner: string; market?: { a: number; b: number } }) => {
+      // v6.86 — winner is a WinCondition string ('cat_win'/'dog_win' or the
+      // dual-mode 'company_a_win'/'company_b_win'). Map all of them; keep the
+      // legacy 'cat'/'dog' aliases as a belt-and-braces fallback.
+      const WIN_CN: Record<string, string> = {
+        cat_win: '打工人阵营', cat: '打工人阵营',
+        dog_win: '资本家阵营', dog: '资本家阵营',
+        company_a_win: '🅰 A 司', company_b_win: '🅱 B 司',
+      };
+      const w = WIN_CN[data.winner] ?? data.winner;
+      const tail = data.market ? `(市占 🅰${data.market.a}% : 🅱${data.market.b}%)` : '';
+      pushEvent('system', `散伙饭! ${w} 获胜!${tail}`);
+      // v6.87 — 把终局公司赢家落进 state,触发下注盘公司盘口一次性结算。
+      if (data.winner === 'company_a_win') setCompanyWinner('a');
+      else if (data.winner === 'company_b_win') setCompanyWinner('b');
       // v6.31 P2 — bump classic_finished progress for the achievement.
       void import('../utils/achievements').then((m) => m.bumpProgress('classic_finished', 1));
     },
@@ -473,6 +526,12 @@ export default function Classic() {
     'game:hot_names': (data: { names: string[] }) => {
       setHotNames(data.names);
       pushEvent('system', `🔥 本局热门鼠人: ${data.names.join('、')}`);
+    },
+
+    // v6.86 — 双公司挖角/跳槽 live banner。成功跳槽用 'defection' 染色(橙红,
+    // 区别于正经播报),失败用 system。companyId 徽标随下一帧 game:state 翻面。
+    'game:cross_action': (data: { kind: 'defection' | 'poach_failed'; text: string; targetName: string }) => {
+      pushEvent(data.kind === 'defection' ? 'defection' : 'system', data.text);
     },
   });
 
@@ -495,6 +554,8 @@ export default function Classic() {
     ghost:  { color: '#6ee7b7', bg: 'rgba(110,231,183,0.05)' },
     // v6.67 — 吃瓜群众表情包吐槽,粉系区别于正经播报
     reaction: { color: '#f472b6', bg: 'rgba(244,114,182,0.07)' },
+    // v6.86 — 双公司挖角成功,橙红高亮(招牌背叛时刻)
+    defection: { color: '#ff8a3d', bg: 'rgba(255,138,61,0.08)' },
   };
 
   const phaseInfo = PHASE_NAMES[phase] || { label: phase, emoji: '🎮', icon: '' };
@@ -586,6 +647,36 @@ export default function Classic() {
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 34, textAlign: 'right' }}>{Math.round(taskProgress)}%</span>
         </div>
       </div>
+
+      {/* v6.86 — 双公司「市占率对撞条」:A 司蓝从左推、B 司橙从右推,中线对撞。
+          单公司模式 market undefined → 整条不渲染。 */}
+      {isDual && market && (
+        <div style={{
+          position: 'relative', zIndex: 10,
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '8px 20px',
+          background: 'rgba(6,6,18,0.7)',
+          borderBottom: '1px solid rgba(255,138,61,0.14)',
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#4c9eff', minWidth: 64 }}>
+            🅰 {Math.round(market.a)}%
+          </span>
+          {/* 拔河条:蓝(A)从左、橙(B)填剩余,分界线 = 双方市占率之比;谁高谁把中线往对面推 */}
+          <div style={{
+            flex: 1, height: 14, borderRadius: 999, overflow: 'hidden', display: 'flex',
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+          }}>
+            <motion.div
+              animate={{ width: `${market.a + market.b > 0 ? (market.a / (market.a + market.b)) * 100 : 50}%` }}
+              transition={{ duration: 0.5 }}
+              style={{ height: '100%', background: 'linear-gradient(90deg,#2563eb,#4c9eff)', boxShadow: '0 0 10px rgba(76,158,255,0.5)' }} />
+            <div style={{ flex: 1, height: '100%', background: 'linear-gradient(90deg,#ff8a3d,#f97316)', boxShadow: '0 0 10px rgba(255,138,61,0.5)' }} />
+          </div>
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#ff8a3d', minWidth: 64, textAlign: 'right' }}>
+            🅱 {Math.round(market.b)}%
+          </span>
+        </div>
+      )}
 
       {/* Main content — v6.25 P2 responsive: row on ≥768px, column-stack
           on mobile (game-stage on top, game-side scrolls below). */}
@@ -1002,6 +1093,9 @@ export default function Classic() {
           lastEliminated={lastVoteEliminated}
           voteResultTick={voteResultTick}
           onIntervene={(itemId, targetId) => socket.emit('game:intervene', { itemId, targetId })}
+          mode={isDual ? 'dual' : 'single'}
+          companyMarket={market}
+          gameWinner={companyWinner}
         />
       )}
 
