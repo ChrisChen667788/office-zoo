@@ -9,6 +9,7 @@ import {
   type GhostCommentItem,
   useGameId, usePhase, usePlayers, useRound, useTaskProgress,
   useCurrentSpeaker, useCurrentSpeech, useAvatarUrls, useGameActions,
+  useMarket, useDualMode,
 } from '../stores/gameStore';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
@@ -125,6 +126,9 @@ export default function Immersive() {
   const players = usePlayers();
   const round = useRound();
   const taskProgress = useTaskProgress();
+  // v6.87 — 双公司:实时市占率 + 模式标记(驱动下注盘公司盘口)
+  const market = useMarket();
+  const isDual = useDualMode();
   const currentSpeaker = useCurrentSpeaker();
   const currentSpeech = useCurrentSpeech();
   const avatarUrls = useAvatarUrls();
@@ -162,6 +166,9 @@ export default function Immersive() {
   };
   const [lastVoteEliminated, setLastVoteEliminated] = useState<string | null>(null);
   const [voteResultTick, setVoteResultTick] = useState(0);
+  // v6.87 — 双公司终局赢家('a'/'b'),驱动下注盘公司盘口结算;换局清空。
+  const [companyWinner, setCompanyWinner] = useState<'a' | 'b' | null>(null);
+  useEffect(() => { setCompanyWinner(null); }, [gameId]);
   const elimIdRef = useRef(0);
 
   // Register all socket event handlers — auto-cleaned on unmount.
@@ -314,6 +321,9 @@ export default function Immersive() {
 
     'game:over': (data: any) => {
       if (data.winner) updateState({ ...data, phase: 'game_over' });
+      // v6.87 — 双公司终局赢家落 state,触发下注盘公司盘口结算。
+      if (data.winner === 'company_a_win') setCompanyWinner('a');
+      else if (data.winner === 'company_b_win') setCompanyWinner('b');
     },
     // v6.24 P2 — real-time ghost vote signal (mirrors Classic handler).
     'game:ghost_vote_cast': (data: { ghostId: string; ghostName: string; target: string }) => {
@@ -785,6 +795,9 @@ export default function Immersive() {
           lastEliminated={lastVoteEliminated}
           voteResultTick={voteResultTick}
           onIntervene={(itemId, targetId) => socket.emit('game:intervene', { itemId, targetId })}
+          mode={isDual ? 'dual' : 'single'}
+          companyMarket={market}
+          gameWinner={companyWinner}
         />
       )}
 

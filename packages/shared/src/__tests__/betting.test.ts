@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   oddsFromProb, withOdds, settleBet, totalPayout, placeBet, creditResult, applyDrip,
-  emptyProgress, roundVoteMarket, winningTeamMarket,
+  emptyProgress, roundVoteMarket, winningTeamMarket, companyWinnerMarket,
   STARTING_CHIPS, DAILY_DRIP, DRIP_INTERVAL_MS, BANKRUPT_FLOOR, MIN_ODDS,
   type Bet,
 } from '../betting/betting';
@@ -91,5 +91,29 @@ describe('betting — 盘口构建', () => {
     const cat = m.options.find((o) => o.id === 'cat')!;
     const dog = m.options.find((o) => o.id === 'dog')!;
     expect(cat.prob).toBeGreaterThan(dog.prob);
+  });
+  it('companyWinnerMarket:二选一 a/b,人多+市占高者夺冠概率高;概率求和≈1', () => {
+    const m = companyWinnerMarket('g1', { alive: 4, market: 60 }, { alive: 2, market: 20 });
+    expect(m.id).toBe('g1:company');
+    expect(m.kind).toBe('company_winner');
+    expect(m.options.map((o) => o.id)).toEqual(['a', 'b']); // 永远恰好两项
+    const sum = m.options.reduce((s, o) => s + o.prob, 0);
+    expect(sum).toBeCloseTo(1, 5);
+    const a = m.options.find((o) => o.id === 'a')!;
+    const b = m.options.find((o) => o.id === 'b')!;
+    expect(a.prob).toBeGreaterThan(b.prob);
+    expect(oddsFromProb(a.prob)).toBeLessThan(oddsFromProb(b.prob)); // 领先方赔率更低
+  });
+  it('companyWinnerMarket:市占率能反超人数(垄断在望)', () => {
+    // A 人少(2)但市占快满(95);B 人多(4)市占低(10)→ A 概率仍应更高
+    const m = companyWinnerMarket('g1', { alive: 2, market: 95 }, { alive: 4, market: 10 });
+    const a = m.options.find((o) => o.id === 'a')!;
+    const b = m.options.find((o) => o.id === 'b')!;
+    expect(a.prob).toBeGreaterThan(b.prob);
+  });
+  it('companyWinnerMarket:自定义公司名透传到 label', () => {
+    const m = companyWinnerMarket('g1', { alive: 3, market: 30 }, { alive: 3, market: 30 }, { a: '青藤', b: '巨浪' });
+    expect(m.options.find((o) => o.id === 'a')!.label).toBe('青藤');
+    expect(m.options.find((o) => o.id === 'b')!.label).toBe('巨浪');
   });
 });

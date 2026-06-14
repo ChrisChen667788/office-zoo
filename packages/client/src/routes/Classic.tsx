@@ -162,9 +162,14 @@ export default function Classic() {
   // real vote_result event, not on arbitrary phase toggles.
   const [lastVoteEliminated, setLastVoteEliminated] = useState<string | null>(null);
   const [voteResultTick, setVoteResultTick] = useState(0);
+  // v6.87 — 双公司终局赢家('a'/'b'),驱动下注盘公司盘口结算。
+  const [companyWinner, setCompanyWinner] = useState<'a' | 'b' | null>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(0);
   const elimIdRef = useRef(0);
+  // v6.87 — 换局清掉上一局的公司赢家,确保下注盘公司盘口的结算 effect(依赖 gameWinner)
+  // 在新一局能正常 null→'a'/'b' 触发(防 Router 复用 Classic 实例时残留)。
+  useEffect(() => { setCompanyWinner(null); }, [gameId]);
   // Browser-TTS fallback bookkeeping — see Immersive.tsx for the rationale.
   const pendingSpeechRef = useRef<{ text: string; gender?: 'male' | 'female' } | null>(null);
   const browserTtsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -502,6 +507,9 @@ export default function Classic() {
       const w = WIN_CN[data.winner] ?? data.winner;
       const tail = data.market ? `(市占 🅰${data.market.a}% : 🅱${data.market.b}%)` : '';
       pushEvent('system', `散伙饭! ${w} 获胜!${tail}`);
+      // v6.87 — 把终局公司赢家落进 state,触发下注盘公司盘口一次性结算。
+      if (data.winner === 'company_a_win') setCompanyWinner('a');
+      else if (data.winner === 'company_b_win') setCompanyWinner('b');
       // v6.31 P2 — bump classic_finished progress for the achievement.
       void import('../utils/achievements').then((m) => m.bumpProgress('classic_finished', 1));
     },
@@ -1085,6 +1093,9 @@ export default function Classic() {
           lastEliminated={lastVoteEliminated}
           voteResultTick={voteResultTick}
           onIntervene={(itemId, targetId) => socket.emit('game:intervene', { itemId, targetId })}
+          mode={isDual ? 'dual' : 'single'}
+          companyMarket={market}
+          gameWinner={companyWinner}
         />
       )}
 
