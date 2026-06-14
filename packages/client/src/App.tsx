@@ -3,6 +3,7 @@ import Landing from './routes/Landing';
 import Classic from './routes/Classic';
 import Immersive from './routes/Immersive';
 import Result from './routes/Result';
+import ErrorBoundary from './components/ErrorBoundary';
 import FiredLanding from './routes/FiredLanding';
 import FiredChat from './routes/FiredChat';
 import FiredResult from './routes/FiredResult';
@@ -49,10 +50,11 @@ export default function App() {
     <>
     <Routes>
       <Route path="/" element={<Landing />} />
-      <Route path="/classic/:gameId" element={<Classic />} />
-      <Route path="/immersive/new" element={<Immersive />} />
-      <Route path="/immersive/:gameId" element={<Immersive />} />
-      <Route path="/result/:gameId" element={<Result />} />
+      {/* v6.90 — 对局视图套 ErrorBoundary:任何渲染崩溃降级成「回大厅」,不再整端白屏 */}
+      <Route path="/classic/:gameId" element={<ErrorBoundary><Classic /></ErrorBoundary>} />
+      <Route path="/immersive/new" element={<ErrorBoundary><Immersive /></ErrorBoundary>} />
+      <Route path="/immersive/:gameId" element={<ErrorBoundary><Immersive /></ErrorBoundary>} />
+      <Route path="/result/:gameId" element={<ErrorBoundary><Result /></ErrorBoundary>} />
       <Route path="/fired" element={<FiredLanding />} />
       <Route path="/fired/chat" element={<FiredChat />} />
       {/* v6.58 — 闯关牌局(方案 A):回合制话术卡谈判,数值客户端跑 + HR 台词走 LLM。
