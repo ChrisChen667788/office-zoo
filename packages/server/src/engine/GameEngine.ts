@@ -1655,29 +1655,8 @@ export class GameEngine extends EventEmitter {
         const chance = poachChance(best.feeling);
         const tag = company === 'a' ? 'A 司' : 'B 司';
         if (resolvePoach(chance, Math.random())) {
-          const oldColleagues = this.state.players
-            .filter((p) => p.companyId === rival && p.id !== best.target.id && p.personality)
-            .map((p) => p.personality);
-          best.target.companyId = company; // 拍板②:team 不动,内鬼带身份潜伏新东家
           const defectMsg = `🤝 ${tag}挖角成功 — ${best.target.name} 拿着 offer 跳槽了(原同事连夜把 TA 移出群聊)`;
-          this.addEvent('defection', defectMsg);
-          // v6.86 演出:挖角是双司局的招牌时刻,实时播一条 banner(map 上 companyId
-          // 徽标也会随下一帧 state 翻面)。
-          this.emit('cross_action', {
-            kind: 'defection', text: defectMsg, company,
-            targetId: best.target.id, targetName: best.target.name,
-          });
-          // 老东家全员记叛变(fire-and-forget)
-          if (best.target.personality) {
-            const evs = eventsFromDefection({
-              defectorArch: best.target.personality,
-              oldColleagueArchs: oldColleagues,
-              gameId: this.state.id, round: this.state.round, ts: Date.now(),
-            });
-            void import('../services/relationStore')
-              .then(({ ingestRelationEvents }) => ingestRelationEvents(evs))
-              .catch(() => { /* 关系网锦上添花 */ });
-          }
+          this.performDefection(best.target, company, defectMsg);
         } else {
           const failMsg = `📩 ${tag}给 ${best.target.name} 发了 offer,被原地已读不回(忠诚度拉满)`;
           this.addEvent('poach_failed', failMsg);
@@ -1690,6 +1669,34 @@ export class GameEngine extends EventEmitter {
       }
     } catch (err) {
       this._log?.debug?.({ err: (err as Error).message }, 'cross action skipped');
+    }
+  }
+
+  /**
+   * v6.87 — 跳槽执行(AI 挖角成功 + 观众「猎头快递」共用):翻 companyId(team 不动,
+   * 拍板②内鬼带身份)→ 落 defection 事件 + 实时 cross_action banner → 老东家全员记
+   * backstab 喂关系图(fire-and-forget)。调用前 target.companyId 仍是「老东家」。
+   */
+  private performDefection(target: PlayerState, toCompany: CompanyId, text: string): void {
+    const from = target.companyId;
+    const oldColleagues = this.state.players
+      .filter((p) => p.companyId === from && p.id !== target.id && p.personality)
+      .map((p) => p.personality);
+    target.companyId = toCompany;
+    this.addEvent('defection', text);
+    this.emit('cross_action', {
+      kind: 'defection', text, company: toCompany,
+      targetId: target.id, targetName: target.name,
+    });
+    if (target.personality) {
+      const evs = eventsFromDefection({
+        defectorArch: target.personality,
+        oldColleagueArchs: oldColleagues,
+        gameId: this.state.id, round: this.state.round, ts: Date.now(),
+      });
+      void import('../services/relationStore')
+        .then(({ ingestRelationEvents }) => ingestRelationEvents(evs))
+        .catch(() => { /* 关系网锦上添花 */ });
     }
   }
 
@@ -1762,7 +1769,7 @@ export class GameEngine extends EventEmitter {
    *   spotlight 给 targetId 下次发言加戏(BaseAgent prompt 注入,取走即消费)
    */
   applyIntervention(
-    itemId: 'shield' | 'clue' | 'spotlight',
+    itemId: 'shield' | 'clue' | 'spotlight' | 'headhunt',
     targetId?: string,
   ): { accepted: boolean; reason?: string } {
     if (this.state.phase === 'game_over') return { accepted: false, reason: 'game_over' };
@@ -1788,6 +1795,20 @@ export class GameEngine extends EventEmitter {
       if (this.interventionShieldId) return { accepted: false, reason: 'shield_active' };
       this.interventionShieldId = target.id;
       this.addEvent('intervene', `🛡 观众众筹了一份「裁员保护协议」罩住 ${target.name} — 本轮裁不动`);
+      this.emitState();
+      return { accepted: true };
+    }
+
+    if (itemId === 'headhunt') {
+      // v6.87 — 猎头快递:仅双公司局有效;强制目标跳槽到对家(复用 AI 挖角同一套
+      // 跳槽逻辑 —— 翻 companyId、内鬼身份带走、老东家记 backstab)。不吃 crossLedger
+      // 限额(这是观众真金白银买的,不占 AI 每回合那一次)。
+      if (this.state.config.mode !== 'dual' || !target.companyId) {
+        return { accepted: false, reason: 'not_dual' };
+      }
+      const toCompany: CompanyId = target.companyId === 'a' ? 'b' : 'a';
+      const tag = toCompany === 'a' ? 'A 司' : 'B 司';
+      this.performDefection(target, toCompany, `📦 观众众筹的「猎头快递」砸到 ${target.name} 头上 — 当场打包跳槽去了 ${tag}(内鬼身份一起带走)`);
       this.emitState();
       return { accepted: true };
     }

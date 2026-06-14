@@ -12,7 +12,7 @@
  */
 import type { BettingProgress } from './betting';
 
-export type InterventionId = 'shield' | 'clue' | 'spotlight';
+export type InterventionId = 'shield' | 'clue' | 'spotlight' | 'headhunt';
 
 export interface InterventionItem {
   id: InterventionId;
@@ -24,6 +24,8 @@ export interface InterventionItem {
   /** 需要选目标鼠吗(clue 是随机曝,不用选)。 */
   needsTarget: boolean;
   desc: string;
+  /** v6.87 — 仅双公司局可买(如猎头快递:强制跳槽,单公司局无意义)。 */
+  dualOnly?: boolean;
 }
 
 export const INTERVENTION_ITEMS: InterventionItem[] = [
@@ -33,7 +35,15 @@ export const INTERVENTION_ITEMS: InterventionItem[] = [
     desc: '随机曝一条阵营线索(小道消息,别全信)' },
   { id: 'spotlight', label: '聚光灯',       emoji: '🎭', price: 150, perGameCap: 2, needsTarget: true,
     desc: '下轮这只鼠发言加戏(多讲 + 上情绪)' },
+  // v6.87 — 双公司专属:观众众筹一个 offer,强制目标鼠当场跳槽到对家(带内鬼身份过去)
+  { id: 'headhunt',  label: '猎头快递',     emoji: '📦', price: 350, perGameCap: 1, needsTarget: true, dualOnly: true,
+    desc: '强制这只鼠当场跳槽到对家公司(内鬼身份一起带走)' },
 ];
+
+/** v6.87 — 当前模式下能买的道具(单公司局过滤掉 dualOnly)。 */
+export function interventionsForMode(mode: 'single' | 'dual'): InterventionItem[] {
+  return INTERVENTION_ITEMS.filter((i) => mode === 'dual' || !i.dualOnly);
+}
 
 export function interventionById(id: string): InterventionItem | undefined {
   return INTERVENTION_ITEMS.find((i) => i.id === id);

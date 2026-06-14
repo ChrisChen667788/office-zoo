@@ -298,7 +298,8 @@ export function setupSocketHandler(io: SocketServer) {
       if (!engine) return;
       const itemId = (raw as { itemId?: string })?.itemId;
       const targetId = (raw as { targetId?: string })?.targetId;
-      if (itemId !== 'shield' && itemId !== 'clue' && itemId !== 'spotlight') return;
+      // v6.87 — headhunt(猎头快递)加入白名单;非双公司局由 engine 兜底拒绝。
+      if (itemId !== 'shield' && itemId !== 'clue' && itemId !== 'spotlight' && itemId !== 'headhunt') return;
 
       const now = Date.now();
       const WINDOW_MS = 60_000;

@@ -59,4 +59,36 @@ describe('GameEngine.applyIntervention', () => {
     (e.state as { phase: string }).phase = 'game_over';
     expect(e.applyIntervention('clue')).toEqual({ accepted: false, reason: 'game_over' });
   });
+
+  // v6.87 — 猎头快递(headhunt):双公司局强制跳槽
+  it('headhunt:单公司局拒绝(not_dual)', () => {
+    const e = fresh(); // 单公司,companyId 全 undefined
+    expect(e.applyIntervention('headhunt', e.state.players[0].id)).toEqual({ accepted: false, reason: 'not_dual' });
+  });
+
+  it('headhunt:双公司局把目标强制跳到对家(翻 companyId + 落 defection 事件)', () => {
+    const e = new GameEngine({ playerCount: 8, mode: 'dual' });
+    e.createPlayers();
+    const victim = e.state.players.find((p) => p.companyId === 'b' && p.isAlive)!;
+    const r = e.applyIntervention('headhunt', victim.id);
+    expect(r.accepted).toBe(true);
+    expect(e.state.players.find((p) => p.id === victim.id)!.companyId).toBe('a'); // b → a
+    expect(timelineOf(e).some((t) => t.type === 'defection' && t.description.includes(victim.name))).toBe(true);
+    // 4+4 → 5+3
+    expect(e.state.players.filter((p) => p.companyId === 'a')).toHaveLength(5);
+    expect(e.state.players.filter((p) => p.companyId === 'b')).toHaveLength(3);
+  });
+
+  it('headhunt:实时播 cross_action banner(kind=defection)', () => {
+    const e = new GameEngine({ playerCount: 8, mode: 'dual' });
+    e.createPlayers();
+    const victim = e.state.players.find((p) => p.companyId === 'a' && p.isAlive)!;
+    let banner: { kind?: string; company?: string; targetId?: string } | null = null;
+    e.on('cross_action', (d: { kind?: string; company?: string; targetId?: string }) => { banner = d; });
+    e.applyIntervention('headhunt', victim.id);
+    expect(banner).toBeTruthy();
+    expect(banner!.kind).toBe('defection');
+    expect(banner!.company).toBe('b'); // a → b
+    expect(banner!.targetId).toBe(victim.id);
+  });
 });
