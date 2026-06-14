@@ -7,6 +7,35 @@
 
 ---
 
+## v6.89 — 2026-06-14 · 双公司新玩法:商业抹黑(曝料)
+
+补上设计稿核心循环 step3 规划但一直没做的那一环。每司每回合(独立台账,~50%)可向
+对家放一条**真假参半**的内鬼线索 —— 黑对家最逼近垄断的鼠;命中给被黑者加「舆论票」,
+计票时折进对家那一组,**真的搅浑对面投票 / 加速对家自毁**(喂 wipeout 终局)。
+
+- **`shared/dual/smear.ts` 纯引擎**(+6 测试):`resolveSmear`(出手阈值)/`smearTruthful`
+  (真假阈值 0.55,略偏真但留搅局空间)/`pickSmearTarget`(选任务最多者,并列取靠前,确定性)+
+  常量 `SMEAR_CHANCE/PRESSURE/TRUTH_RATE`。
+- **engine `maybeCrossSmear`**:runVoting 里挖角之后放风;独立 `smearLedger`(不占挖角额度)+
+  `smearPressure`(每轮清空);命中落 `smear` 事件 + 复用 v6.86 `cross_action` banner
+  (kind 扩 `'smear'`)。`resolveVotes` 计票把舆论票折进被黑者本司组(单司局 `smearPressure`
+  恒空,逐字节零影响)。+2 集成测试(出手决策 / 舆论票打破平票定向开除)。
+- **客户端**:Classic `game:cross_action` 认 `'smear'` → 黄系 EVENT LOG 高亮(造谣搅局,
+  区别于橙红的跳槽)。
+- 验证:3 包 tsc 干净;全量 530 vitest 绿;client build 通过。
+
+## v6.88 — 2026-06-14 · 双公司:对局回放补双司字段
+
+回放页之前不带双司数据(`ReplayRecord` 只存单公司口径)。这刀把双司快照存进回放,
+赛后回放也能两栏复盘。
+
+- **shared replay**:`ReplayPlayer.companyId` + `ReplayRecord.{mode,market,dualReason}`;
+  `digestReplay` 新增 `defections`(数 `defection` 事件 —— 双司招牌时刻)。
+- **server saveReplay**:落 companyId per player + dual 模式的 market/dualReason 终局快照。
+- **client Result**:`WIN_LABELS` 补 `company_a/b_win`(**否则双司回放错标「散伙饭」**)+
+  终局市占率拔河条 + 缘由 + 跳槽次数。
+- 验证:digest 形状更新 +1 跳槽计数测试;3 包 tsc 干净;522 绿。
+
 ## v6.87 — 2026-06-14 · 双公司对抗:闭环层(下注盘 + 道具分区 + 公司战报)
 
 双公司大版本收口。把对局接进 v6.74 下注经济 + v6.83 干预道具 + 分享卡三套现成系统,

@@ -17,16 +17,23 @@ describe('digestReplay', () => {
       ev(2, 'protect'), ev(2, 'intercept'), ev(2, 'kill'),
       ev(3, 'vote_out'),
     ];
-    expect(digestReplay(tl)).toEqual({ rounds: 3, kills: 2, votedOut: 2, protects: 1, intercepts: 1 });
+    expect(digestReplay(tl)).toEqual({ rounds: 3, kills: 2, votedOut: 2, protects: 1, intercepts: 1, defections: 0 });
   });
 
   it('handles an empty timeline', () => {
-    expect(digestReplay([])).toEqual({ rounds: 0, kills: 0, votedOut: 0, protects: 0, intercepts: 0 });
+    expect(digestReplay([])).toEqual({ rounds: 0, kills: 0, votedOut: 0, protects: 0, intercepts: 0, defections: 0 });
   });
 
   it('ignores unrelated event types in the tallies', () => {
     const d = digestReplay([ev(1, 'body_found'), ev(1, 'ghost_vote'), ev(1, 'role_action')]);
-    expect(d).toEqual({ rounds: 1, kills: 0, votedOut: 0, protects: 0, intercepts: 0 });
+    expect(d).toEqual({ rounds: 1, kills: 0, votedOut: 0, protects: 0, intercepts: 0, defections: 0 });
+  });
+
+  it('v6.88 — 统计 defection(跨司跳槽)次数', () => {
+    const tl = [ev(1, 'defection'), ev(2, 'poach_failed'), ev(2, 'defection'), ev(3, 'kill')];
+    const d = digestReplay(tl);
+    expect(d.defections).toBe(2);   // poach_failed 不计
+    expect(d.kills).toBe(1);
   });
 });
 

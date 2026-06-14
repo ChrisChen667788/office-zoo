@@ -28,3 +28,4 @@ export * from './betting/intervene';
 export * from './memory/relationships';
 export * from './dual/dual';
 export * from './dual/battleCard';
+export * from './dual/smear';

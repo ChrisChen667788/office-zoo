@@ -38,6 +38,11 @@ import {
   type CompanyId,
   type CrossActionLedger,
   type MarketState,
+  // v6.89 — 商业抹黑(曝料)纯引擎
+  resolveSmear,
+  smearTruthful,
+  pickSmearTarget,
+  SMEAR_PRESSURE,
 } from '@furball/shared';
 import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
@@ -303,8 +308,13 @@ export class GameEngine extends EventEmitter {
 
   /** v6.83 — 观众筹码买的「裁员保护协议」:罩住的 playerId,挡一刀即消费。 */
   private interventionShieldId: string | null = null;
-  /** v6.85 P2 — 双公司跨司动作台账(每司每回合限 1 次挖人/曝料)。 */
+  /** v6.85 P2 — 双公司跨司动作台账(每司每回合限 1 次挖人)。 */
   private crossLedger: CrossActionLedger = {};
+  /** v6.89 — 商业抹黑独立台账(每司每回合限 1 次曝料,不占挖角额度)。 */
+  private smearLedger: CrossActionLedger = {};
+  /** v6.89 — 抹黑给被黑者加的「舆论票」(targetId→票数,每轮投票前清空,
+   *  resolveVotes 计票时折进其本司那一组)。 */
+  private smearPressure: Record<string, number> = {};
   /** v6.83 — 观众「聚光灯」:这些鼠下次发言加戏(取走即消费)。 */
   private spotlightIds = new Set<string>();
   /** Child logger bound to this engine's gameId — created lazily. */
@@ -1178,6 +1188,7 @@ export class GameEngine extends EventEmitter {
   private async runVoting(): Promise<void> {
     this.state.votes = {};
     this.state.ghostVotes = {};
+    this.smearPressure = {}; // v6.89 — 每轮投票前清掉上一轮的抹黑舆论票
     const alive = this.alivePlayers();
     const dead = this.deadPlayers().filter((p) => !p.ghostVoteUsed);
     const context = this.buildDiscussionContext();
@@ -1201,6 +1212,7 @@ export class GameEngine extends EventEmitter {
     const isDual = this.state.config.mode === 'dual';
     if (isDual) {
       await this.maybeCrossActions(relationGraph);
+      this.maybeCrossSmear(); // v6.89 — 挖角之后放风抹黑(给被黑者加舆论票)
     }
     /** 双公司时投票/旧账都只在本公司圈内;单公司 = 全员。 */
     const candidatesFor = (p: PlayerState) =>
@@ -1322,6 +1334,12 @@ export class GameEngine extends EventEmitter {
       const tally: Record<string, number> = {};
       for (const target of Object.values(g.votes)) tally[target] = (tally[target] || 0) + 1;
       for (const target of Object.values(g.ghostVotes)) tally[target] = (tally[target] || 0) + 1;
+      // v6.89 — 商业抹黑舆论票:只折进被黑者本司那一组(单司局 smearPressure 恒空,零影响)。
+      if (isDual) {
+        for (const [tid, n] of Object.entries(this.smearPressure)) {
+          if (companyOf(tid) === g.company) tally[tid] = (tally[tid] || 0) + n;
+        }
+      }
 
       const maxVotes = Object.values(tally).reduce((m, c) => Math.max(m, c), 0);
       const topCandidates = maxVotes > 0
@@ -1697,6 +1715,44 @@ export class GameEngine extends EventEmitter {
       void import('../services/relationStore')
         .then(({ ingestRelationEvents }) => ingestRelationEvents(evs))
         .catch(() => { /* 关系网锦上添花 */ });
+    }
+  }
+
+  /**
+   * v6.89 — 商业抹黑(曝料):每司每回合(限 1 次,独立台账)~50% 向对家放一条真假
+   * 参半的内鬼线索 —— 黑对家最逼近垄断的鼠(任务最多)。命中给被黑者加 SMEAR_PRESSURE
+   * 「舆论票」,resolveVotes 计票时折进对家那一组(搅浑投票 / 加速对家自毁)。全程
+   * best-effort,失败不阻断回合。Math.random 注桩可测(每出手司消耗 2 个 roll:出手判定 + 真假)。
+   */
+  private maybeCrossSmear(): void {
+    try {
+      for (const company of ['a', 'b'] as const) {
+        if (!canCrossAction(this.smearLedger, company, this.state.round)) continue;
+        if (!resolveSmear(Math.random())) continue; // 这轮不放风
+        const rival: CompanyId = company === 'a' ? 'b' : 'a';
+        const rivals = this.alivePlayers().filter((p) => p.companyId === rival);
+        if (rivals.length === 0) continue;
+        const pick = pickSmearTarget(
+          rivals.map((p) => ({ ref: p, tasksDone: p.tasks.filter((t) => t.completed).length })),
+        );
+        if (!pick) continue;
+        const target = pick.ref;
+
+        this.smearLedger = recordCrossAction(this.smearLedger, company, this.state.round);
+        const truthful = smearTruthful(Math.random());
+        const shownTeam = truthful ? target.team : (target.team === Team.DOG ? Team.CAT : Team.DOG);
+        const label = shownTeam === Team.DOG ? '资本家卧底' : '打工人卧底';
+        const tag = company === 'a' ? 'A 司' : 'B 司';
+        this.smearPressure[target.id] = (this.smearPressure[target.id] ?? 0) + SMEAR_PRESSURE;
+        const msg = `📰 ${tag}放风抹黑 —— 内部邮件指认对家 ${target.name} 是${label}(真假参半,但够搅浑对面投票了)`;
+        this.addEvent('smear', msg);
+        this.emit('cross_action', {
+          kind: 'smear', text: msg, company,
+          targetId: target.id, targetName: target.name,
+        });
+      }
+    } catch (err) {
+      this._log?.debug?.({ err: (err as Error).message }, 'cross smear skipped');
     }
   }
 
