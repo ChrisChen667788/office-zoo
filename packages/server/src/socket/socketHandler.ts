@@ -630,7 +630,7 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
   // v6.86 — 双公司挖角/跳槽 live banner。挖角是双司局招牌时刻,实时播一条
   // (map 徽标随下一帧 game:state 翻面)。单公司局永不触发。
   engine.on('cross_action', (data: {
-    kind: 'defection' | 'poach_failed'; text: string; company: 'a' | 'b';
+    kind: 'defection' | 'poach_failed' | 'smear'; text: string; company: 'a' | 'b';
     targetId: string; targetName: string;
   }) => {
     io.to(gameId).emit('game:cross_action', data);

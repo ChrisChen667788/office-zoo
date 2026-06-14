@@ -69,7 +69,7 @@ function inferGenderFromRoleClassic(role?: string): 'male' | 'female' | undefine
 
 interface EventLogEntry {
   id: number;
-  type: 'speech' | 'vote' | 'kill' | 'phase' | 'system' | 'ghost' | 'reaction' | 'defection';
+  type: 'speech' | 'vote' | 'kill' | 'phase' | 'system' | 'ghost' | 'reaction' | 'defection' | 'smear';
   text: string;
   timestamp: number;
 }
@@ -530,8 +530,9 @@ export default function Classic() {
 
     // v6.86 — 双公司挖角/跳槽 live banner。成功跳槽用 'defection' 染色(橙红,
     // 区别于正经播报),失败用 system。companyId 徽标随下一帧 game:state 翻面。
-    'game:cross_action': (data: { kind: 'defection' | 'poach_failed'; text: string; targetName: string }) => {
-      pushEvent(data.kind === 'defection' ? 'defection' : 'system', data.text);
+    'game:cross_action': (data: { kind: 'defection' | 'poach_failed' | 'smear'; text: string; targetName: string }) => {
+      // 跳槽成功 → 橙红 defection;曝料抹黑 → 黄系 smear(造谣搅局);其余走系统色。
+      pushEvent(data.kind === 'defection' ? 'defection' : data.kind === 'smear' ? 'smear' : 'system', data.text);
     },
   });
 
@@ -556,6 +557,8 @@ export default function Classic() {
     reaction: { color: '#f472b6', bg: 'rgba(244,114,182,0.07)' },
     // v6.86 — 双公司挖角成功,橙红高亮(招牌背叛时刻)
     defection: { color: '#ff8a3d', bg: 'rgba(255,138,61,0.08)' },
+    // v6.89 — 商业抹黑曝料,黄系(造谣搅局,半真半假)
+    smear: { color: '#fbbf24', bg: 'rgba(251,191,36,0.07)' },
   };
 
   const phaseInfo = PHASE_NAMES[phase] || { label: phase, emoji: '🎮', icon: '' };

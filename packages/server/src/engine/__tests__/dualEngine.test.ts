@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { GameEngine } from '../GameEngine';
-import { Team, WinCondition } from '@furball/shared';
+import { Team, WinCondition, SMEAR_PRESSURE } from '@furball/shared';
 
 function dualEngine(): GameEngine {
   const e = new GameEngine({ playerCount: 8, mode: 'dual' });
@@ -26,6 +26,10 @@ type AnyEngine = {
   dualMarket(): { a: number; b: number };
   maybeCrossActions(graph: unknown): Promise<void>;
   crossLedger: Record<string, number>;
+  // v6.89 — 商业抹黑
+  maybeCrossSmear(): void;
+  smearLedger: Record<string, number>;
+  smearPressure: Record<string, number>;
 };
 const inner = (e: GameEngine) => e as unknown as AnyEngine;
 
@@ -197,5 +201,49 @@ describe('dual — maybeCrossActions 挖角', () => {
     expect(e.state.players.filter((p) => p.companyId === 'a')).toHaveLength(4);
     expect(inner(e).timeline.some((t) => t.type === 'poach_failed')).toBe(true);
     expect(inner(e).crossLedger['a']).toBe(2);
+  });
+});
+
+describe('dual — maybeCrossSmear 商业抹黑', () => {
+  it('A 司放风:黑对家任务最多的鼠 → 加舆论票 + 落 smear 事件 + 锁台账 + 实时 banner', () => {
+    const e = dualEngine();
+    e.state.round = 2;
+    const bSide = e.state.players.filter((p) => p.companyId === 'b');
+    // 让 b[0] 任务最多 → pickSmearTarget 必中它
+    bSide[0].tasks = [{ id: 't', type: 'short' as const, location: '开放工区', steps: 1, currentStep: 1, completed: true }];
+    // Math.random 桩:A 出手 0.1(<0.5)→ 真假 0.1(<0.55 为真)→ B 不出手 0.9
+    const rolls = [0.1, 0.1, 0.9];
+    vi.spyOn(Math, 'random').mockImplementation(() => rolls.shift() ?? 0.99);
+
+    let banner: { kind?: string; company?: string; targetId?: string } | null = null;
+    e.on('cross_action', (d: { kind?: string; company?: string; targetId?: string }) => { banner = d; });
+
+    inner(e).maybeCrossSmear();
+
+    expect(inner(e).smearPressure[bSide[0].id]).toBe(SMEAR_PRESSURE);
+    expect(inner(e).timeline.some((t) => t.type === 'smear' && t.description.includes(bSide[0].name))).toBe(true);
+    expect(inner(e).smearLedger['a']).toBe(2);  // A 锁了本轮
+    expect(inner(e).smearLedger['b']).toBeUndefined(); // B 没出手
+    expect(banner).toBeTruthy();
+    expect(banner!.kind).toBe('smear');
+    expect(banner!.company).toBe('a');
+    expect(banner!.targetId).toBe(bSide[0].id);
+  });
+
+  it('舆论票折进对家计票:本来平票无人出局,抹黑加一票 → 打破平票定向开除', async () => {
+    const e = dualEngine();
+    const b = e.state.players.filter((p) => p.companyId === 'b');
+    // B 组:b2→b0、b3→b1 → b0:1 b1:1 平票(正常无人出局)
+    e.state.votes = { [b[2].id]: b[0].id, [b[3].id]: b[1].id };
+    // 抹黑给 b0 加 1 舆论票 → b0:2 独高 → b0 被开除
+    inner(e).smearPressure = { [b[0].id]: SMEAR_PRESSURE };
+
+    const emits: Array<{ dualEliminations?: Array<{ company?: string; eliminated?: string }> }> = [];
+    e.on('vote_result', (r) => emits.push(r));
+    await inner(e).resolveVotes();
+
+    expect(e.state.players.find((p) => p.id === b[0].id)!.isAlive).toBe(false);
+    const dualB = emits[0].dualEliminations!.find((d) => d.company === 'b')!;
+    expect(dualB.eliminated).toBe(b[0].id);
   });
 });
