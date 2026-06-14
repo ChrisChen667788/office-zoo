@@ -55,6 +55,9 @@ import {
   downloadShareCard,
   type ShareCardData,
 } from '../../utils/shareCard';
+// v6.87 — 双公司「公司战报」分享卡
+import { copyCompanyBattleCard, downloadCompanyBattleCard } from '../../utils/companyBattleCard';
+import type { BattleCardInput } from '@furball/shared';
 import LottieAsset from '../LottieAsset';
 import { lottie } from '../../constants/lottie';
 import { teamIcons, glyphIcons, Icon, expressionIcon } from '../../constants/icons';
@@ -305,6 +308,44 @@ export default function HighlightReel() {
     } catch {
       flashShare('error');
     }
+  };
+
+  // v6.87 — 公司战报卡:从 store 现取数据(players 带 companyId / market / winner)。
+  const battleInput = useMemo<BattleCardInput | null>(() => {
+    if (!isDual || !market) return null;
+    const winCompany: 'a' | 'b' | null =
+      winnerKey === 'company_a_win' ? 'a' : winnerKey === 'company_b_win' ? 'b' : null;
+    if (!winCompany) return null;
+    return {
+      winner: winCompany,
+      market,
+      round,
+      date: new Date().toISOString().slice(0, 10),
+      players: players
+        .filter((p) => p.companyId === 'a' || p.companyId === 'b')
+        .map((p) => ({
+          companyId: p.companyId as 'a' | 'b',
+          name: p.name,
+          isAlive: p.isAlive,
+          roleLabel: p.role ? ROLE_LABELS[p.role] : undefined,
+          tasksCompleted: p.tasksCompleted,
+        })),
+    };
+  }, [isDual, market, winnerKey, round, players]);
+
+  const [battleMsg, setBattleMsg] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
+  const handleBattleCard = async () => {
+    if (!battleInput || battleMsg === 'working') return;
+    setBattleMsg('working');
+    try {
+      const copied = await copyCompanyBattleCard(battleInput);
+      if (!copied) await downloadCompanyBattleCard(battleInput);
+      setBattleMsg('done');
+    } catch {
+      try { await downloadCompanyBattleCard(battleInput); setBattleMsg('done'); }
+      catch { setBattleMsg('error'); }
+    }
+    setTimeout(() => setBattleMsg('idle'), 2600);
   };
 
   const shouldShow =
@@ -678,6 +719,24 @@ export default function HighlightReel() {
                 >
                   💾
                 </button>
+                {/* v6.87 — 双公司局专属:公司战报卡(两司战报对比图) */}
+                {battleInput && (
+                  <button
+                    onClick={handleBattleCard}
+                    disabled={battleMsg === 'working'}
+                    className="px-4 py-2 rounded-xl text-[12px] font-bold transition hover:brightness-125 active:scale-95 disabled:opacity-50 disabled:cursor-wait"
+                    style={{
+                      color: battleMsg === 'done' ? '#6ee7b7' : battleMsg === 'error' ? '#f87171' : '#fff',
+                      background: 'linear-gradient(135deg, rgba(76,158,255,0.18), rgba(255,138,61,0.18))',
+                      border: '1px solid rgba(255,255,255,0.18)',
+                    }}
+                    title="生成双公司战报图"
+                  >
+                    {battleMsg === 'working' ? '渲染中…'
+                      : battleMsg === 'done' ? '✅ 战报已出'
+                        : battleMsg === 'error' ? '失败,再试' : '🏢 公司战报'}
+                  </button>
+                )}
               </div>
 
               {/* Primary action cluster */}
