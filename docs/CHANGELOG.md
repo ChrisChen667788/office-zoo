@@ -7,6 +7,27 @@
 
 ---
 
+## v6.92 — 2026-06-14 · 性能:路由级代码分包,首屏主包砍 60%
+
+`App.tsx` 原来 30+ 路由全静态 import,打进同一个 **~1303 KB**(gzip 397 KB)主 chunk,
+首屏全量下载——含只在分享(html2canvas 202 KB)/动画(lottie)用到的重依赖。
+
+- 除首屏 `Landing` 外**全部 `React.lazy` + `Suspense`**;各路由及其重依赖按需拉。
+- 主 chunk **1303 → 513 KB**(gzip **397 → 173 KB**,−56%);产物从 ~3 个 chunk 变 **55 个**
+  (Classic / Immersive / Fired* / Talkshow … 各自独立)。
+- lazy 切换那一瞬有轻量「加载中…」占位(`RouteFallback`)。
+- 验证:client tsc 干净;`vite build` 通过,分包生效。
+
+## v6.91 — 2026-06-14 · 玩法:双公司对撞条「活」起来(没市占时退化成存活比)
+
+真机实测双公司局的招牌「对撞条」**全程死在中线**:市占率 = 完成任务×步长,而 AI 早期
+基本不完成任务 → `🅰0% : 🅱0%`,核心张力没视觉化。
+
+- **`shared/dual/dualBar()` 纯函数**(+3 测试):有市占按市占率;**没市占退化成两司存活
+  人数比**,让条子随每轮裁员/夜杀真的动;条下加 caption 标「市占率 / 在职人数」。
+- Classic 顶栏对撞条接 `dualBar`(label 随之显「X%」或「N 人」)。
+- 验证:battleCard.test 13 绿;client tsc 干净。
+
 ## v6.90 — 2026-06-14 · 健壮性:玩家去重 + 对局视图 ErrorBoundary,堵整端白屏
 
 真机跑双公司局时抓到:某次 `game:state` 发来含**重复 id** 的玩家列表(preview 的
