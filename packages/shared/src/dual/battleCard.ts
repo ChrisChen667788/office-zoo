@@ -12,6 +12,47 @@ import type { CompanyId, DualEndReason } from './dual';
 export const COMPANY_CARD_COLORS: Record<CompanyId, string> = { a: '#4c9eff', b: '#ff8a3d' };
 export const COMPANY_CARD_TAG: Record<CompanyId, string> = { a: '🅰', b: '🅱' };
 
+/**
+ * v6.91 — 对撞条显示模型。市占率(完成任务×步长)早期常为 0:0,会让招牌拔河条
+ * 全程死在中线。这里:有市占就按市占,**没市占就退化成存活人数比**,让条子随每轮
+ * 裁员/夜杀真的动起来。纯函数,可单测。Classic 顶栏对撞条用它。
+ */
+export interface DualBarModel {
+  /** A 段填充百分比 0..100(B 段填剩余)。 */
+  aFillPct: number;
+  aLabel: string;
+  bLabel: string;
+  /** 当前条子表达的是什么('市占率' / '在职人数')。 */
+  caption: string;
+  /** true=按市占率,false=退化按存活人数。 */
+  byMarket: boolean;
+}
+export function dualBar(
+  market: { a: number; b: number } | undefined,
+  aliveA: number,
+  aliveB: number,
+): DualBarModel {
+  const a = Math.max(0, market?.a ?? 0);
+  const b = Math.max(0, market?.b ?? 0);
+  if (a + b > 0) {
+    return {
+      aFillPct: (a / (a + b)) * 100,
+      aLabel: `🅰 ${Math.round(a)}%`,
+      bLabel: `🅱 ${Math.round(b)}%`,
+      caption: '市占率',
+      byMarket: true,
+    };
+  }
+  const total = Math.max(0, aliveA) + Math.max(0, aliveB);
+  return {
+    aFillPct: total > 0 ? (Math.max(0, aliveA) / total) * 100 : 50,
+    aLabel: `🅰 ${aliveA} 人`,
+    bLabel: `🅱 ${aliveB} 人`,
+    caption: '在职人数 · 市占未开张',
+    byMarket: false,
+  };
+}
+
 export interface BattleCardPlayerInput {
   name: string;
   isAlive: boolean;

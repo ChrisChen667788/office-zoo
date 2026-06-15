@@ -13,7 +13,7 @@ import {
 import GameMap from '../components/game/GameMap';
 import GhostChatPanel from '../components/game/GhostChatPanel';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
-import { pickReaction } from '@furball/shared';
+import { pickReaction, dualBar } from '@furball/shared';
 import { fetchReactionLine } from '../utils/reactionLine';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
@@ -651,35 +651,47 @@ export default function Classic() {
         </div>
       </div>
 
-      {/* v6.86 — 双公司「市占率对撞条」:A 司蓝从左推、B 司橙从右推,中线对撞。
-          单公司模式 market undefined → 整条不渲染。 */}
-      {isDual && market && (
-        <div style={{
-          position: 'relative', zIndex: 10,
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '8px 20px',
-          background: 'rgba(6,6,18,0.7)',
-          borderBottom: '1px solid rgba(255,138,61,0.14)',
-        }}>
-          <span style={{ fontSize: 12, fontWeight: 800, color: '#4c9eff', minWidth: 64 }}>
-            🅰 {Math.round(market.a)}%
-          </span>
-          {/* 拔河条:蓝(A)从左、橙(B)填剩余,分界线 = 双方市占率之比;谁高谁把中线往对面推 */}
+      {/* v6.86 — 双公司「对撞条」:A 司蓝从左推、B 司橙从右推,中线对撞。
+          单公司模式 market undefined → 整条不渲染。
+          v6.91 — 市占率早期常 0:0(任务没完成),会让条子死在中线;dualBar 在没市占时
+          退化成「存活人数比」,让它随每轮裁员/夜杀真的动。 */}
+      {isDual && market && (() => {
+        const aliveA = players.filter((p) => p.companyId === 'a' && p.isAlive).length;
+        const aliveB = players.filter((p) => p.companyId === 'b' && p.isAlive).length;
+        const bar = dualBar(market, aliveA, aliveB);
+        return (
           <div style={{
-            flex: 1, height: 14, borderRadius: 999, overflow: 'hidden', display: 'flex',
-            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+            position: 'relative', zIndex: 10,
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '8px 20px',
+            background: 'rgba(6,6,18,0.7)',
+            borderBottom: '1px solid rgba(255,138,61,0.14)',
           }}>
-            <motion.div
-              animate={{ width: `${market.a + market.b > 0 ? (market.a / (market.a + market.b)) * 100 : 50}%` }}
-              transition={{ duration: 0.5 }}
-              style={{ height: '100%', background: 'linear-gradient(90deg,#2563eb,#4c9eff)', boxShadow: '0 0 10px rgba(76,158,255,0.5)' }} />
-            <div style={{ flex: 1, height: '100%', background: 'linear-gradient(90deg,#ff8a3d,#f97316)', boxShadow: '0 0 10px rgba(255,138,61,0.5)' }} />
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#4c9eff', minWidth: 56 }}>
+              {bar.aLabel}
+            </span>
+            {/* 拔河条:蓝(A)从左、橙(B)填剩余,分界线随 dualBar(市占/存活)拉扯 */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{
+                height: 14, borderRadius: 999, overflow: 'hidden', display: 'flex',
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+              }}>
+                <motion.div
+                  animate={{ width: `${bar.aFillPct}%` }}
+                  transition={{ duration: 0.5 }}
+                  style={{ height: '100%', background: 'linear-gradient(90deg,#2563eb,#4c9eff)', boxShadow: '0 0 10px rgba(76,158,255,0.5)' }} />
+                <div style={{ flex: 1, height: '100%', background: 'linear-gradient(90deg,#ff8a3d,#f97316)', boxShadow: '0 0 10px rgba(255,138,61,0.5)' }} />
+              </div>
+              <span style={{ fontSize: 9, letterSpacing: 1, textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>
+                {bar.caption}
+              </span>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#ff8a3d', minWidth: 56, textAlign: 'right' }}>
+              {bar.bLabel}
+            </span>
           </div>
-          <span style={{ fontSize: 12, fontWeight: 800, color: '#ff8a3d', minWidth: 64, textAlign: 'right' }}>
-            🅱 {Math.round(market.b)}%
-          </span>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Main content — v6.25 P2 responsive: row on ≥768px, column-stack
           on mobile (game-stage on top, game-side scrolls below). */}

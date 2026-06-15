@@ -2,7 +2,31 @@
  * v6.87 — 公司战报卡纯数据层回归:分组/MVP/拔河条/缘由派生/嘴替分档。
  */
 import { describe, it, expect } from 'vitest';
-import { buildBattleCard, type BattleCardInput } from '../dual/battleCard';
+import { buildBattleCard, dualBar, type BattleCardInput } from '../dual/battleCard';
+
+describe('dualBar — 对撞条退化', () => {
+  it('有市占 → 按市占率,caption=市占率', () => {
+    const m = dualBar({ a: 60, b: 20 }, 3, 4);
+    expect(m.byMarket).toBe(true);
+    expect(m.aFillPct).toBeCloseTo(75, 5); // 60/80
+    expect(m.aLabel).toBe('🅰 60%');
+    expect(m.bLabel).toBe('🅱 20%');
+    expect(m.caption).toBe('市占率');
+  });
+  it('市占 0:0 → 退化成存活人数比', () => {
+    const m = dualBar({ a: 0, b: 0 }, 3, 1);
+    expect(m.byMarket).toBe(false);
+    expect(m.aFillPct).toBeCloseTo(75, 5); // 3/4
+    expect(m.aLabel).toBe('🅰 3 人');
+    expect(m.bLabel).toBe('🅱 1 人');
+    expect(m.caption).toContain('在职');
+  });
+  it('market undefined + 双 0 存活 → 居中兜底,不 NaN', () => {
+    const m = dualBar(undefined, 0, 0);
+    expect(m.aFillPct).toBe(50);
+    expect(m.byMarket).toBe(false);
+  });
+});
 
 function players(): BattleCardInput['players'] {
   return [
