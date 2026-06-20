@@ -7,6 +7,37 @@
 
 ---
 
+## v6.93 — 2026-06-19 · 旁观者体验补完:下注/干预闭环 + 连接可见性 + 进局首屏
+
+多 agent 审计(玩法/视觉/UX 三维)交叉确认的 6 个高频痛点,全是「高影响 / S 成本」,一版打包:
+
+- **A · 下注赔率接通鬼魂票热度**(`shared/betting/tallyGhostHeat` 纯函数 +5 测试):原来
+  `roundVoteMarket` 的 `heat` 形参从没人传,候选人赔率几乎均等、押注=瞎猜。现在把
+  `ghostVotes`(ghostId→targetId)聚成每目标票数喂进去 —— 被多票指认者出局概率↑、赔率↓,
+  押冷门押中赔得多,博弈感成立。`market.id` 不随 heat 变(结算/去重不受影响)。
+- **B · 干预道具服务端回执闭环**(`shared/betting/INTERVENE_REASON_CN` +2 测试):服务端早就
+  emit `game:intervene_acked`,客户端**完全没监听** —— 买道具被拒(护盾占用/限流/非双公司局/
+  无目标)时筹码白扣还没动静。现在 Classic 接 `game:intervene_acked` → event log 留真实原因;
+  BettingBar 收到 `accepted=false` 就**退筹码 + 撤台账 + toast 中文原因**(tick 去重防退两次)。
+- **C · 统一猫队蓝**:`#2fb8ff` → `#4c9eff`(= design token `colors.team.cat`)。除最初的 GameMap 玩家
+  光圈 / Classic Speech 名 / Immersive `TEAM_CONFIG` 外,对抗审查又揪出 6 处**同源的 `team==='cat'`
+  渲染点**一并统一:GhostChatPanel 鬼魂气泡 / EliminationReveal 裁员卡 / HighlightReel 终局横幅+复盘
+  / videoExport 导出视频 / GameMap 飘字。房间地板色 / phase 事件色 / 班味分享卡 / 死代码 PredictionBar
+  语义不同,**保持不动**。
+- **D · 抹黑色与投票黄分开**:smear 事件色 `#fbbf24` → `#fb923c`(橙),不再和「投票开除」撞色。
+- **E · 断线/重连可见条幅**:顶栏 `AnimatePresence` 条 —— 断线橙条「正在重连(第 N 次)…下注已
+  暂停」,重连后绿条 2.5s 再隐(`justReconnected` 状态机);BettingBar 加 `connected` 门控,断线时
+  禁押 / 禁买 / 等待区显「🔌 断线重连中」。原来只有 event log 一行小字,盯着地图根本看不见。
+- **F · 进局首屏骨架**:`phase==='lobby' && players.length===0`(首个 `game:state` 落地前 1-3s)盖
+  一层「🐭 鼠人们正在打卡入职…」+ 跳动点,告别黑屏空地图的第一印象;state 一到自动淡出。
+- **对抗审查**:4 维度多 agent 审查 + 逐条独立反驳,确认 2 真问题并已修:① 重连绿条状态机在
+  StrictMode/重渲下会卡死 → 计时器拆成独立 `[justReconnected]` effect,幂等;② 沉浸局 BettingBar
+  漏传新 prop → 补 `connected`(断线禁押)+ `interveneAck`(干预退款),与经典局对齐。另顺手修退款
+  toast 在道具查不到时谎称「已退筹码」的措辞。其余 18 条经核实为误报(stale closure 实际稳定、
+  AnimatePresence 三元不会双渲等)。
+- 验证:3 包 tsc 干净;**全量 540 测试绿**(含新增 7 条纯层测试);`vite build` 通过;preview 真机
+  进 classic 路由 —— lobby 骨架渲染、BettingBar 挂载、零 console error、无 ErrorBoundary 兜底触发。
+
 ## v6.92 — 2026-06-14 · 性能:路由级代码分包,首屏主包砍 60%
 
 `App.tsx` 原来 30+ 路由全静态 import,打进同一个 **~1303 KB**(gzip 397 KB)主 chunk,

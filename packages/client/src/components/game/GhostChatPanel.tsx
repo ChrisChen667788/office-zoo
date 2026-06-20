@@ -103,7 +103,7 @@ function djb2(s: string): number {
 
 /** Per-ghost team accent for chat-bubble border. Matches GameMap team palette. */
 function teamColor(team?: string): string {
-  if (team === 'cat') return '#2fb8ff';
+  if (team === 'cat') return '#4c9eff'; // v6.93 统一猫队蓝 colors.team.cat
   if (team === 'dog') return '#ff4757';
   return '#fdd835';
 }

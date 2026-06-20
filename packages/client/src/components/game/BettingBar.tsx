@@ -11,8 +11,8 @@ import {
   type BettingProgress, type Bet, type BetMarket,
   type InterventionLedger, type InterventionId,
   emptyProgress, applyDrip, placeBet, settleBet, creditResult,
-  roundVoteMarket, companyWinnerMarket, oddsFromProb,
-  INTERVENTION_ITEMS, interventionsForMode, buyIntervention,
+  roundVoteMarket, companyWinnerMarket, oddsFromProb, tallyGhostHeat,
+  INTERVENTION_ITEMS, interventionsForMode, buyIntervention, INTERVENE_REASON_CN,
 } from '@furball/shared';
 import { useGameActions, type GamePlayer } from '../../stores/gameStore';
 import { sfx } from '../../utils/sfx';
@@ -69,6 +69,13 @@ interface Props {
   gameWinner?: 'a' | 'b' | null;
   /** 公司名(绑了 pack 时);默认 A 司 / B 司。 */
   companyLabels?: { a: string; b: string };
+  // v6.93 ——
+  /** 鬼魂投票 map(ghostId→targetId);驱动回合盘口的 heat → 被指认者赔率↓。 */
+  ghostVotes?: Record<string, string>;
+  /** socket 是否在线;断线时禁押 + 禁买,避免观众以为操作送达了。 */
+  connected?: boolean;
+  /** 服务端干预回执(被拒就退筹码 + 给真实原因)。tick 单调自增触发处理。 */
+  interveneAck?: { itemId: string; accepted: boolean; reason?: string; tick: number } | null;
 }
 
 const ACCENT = '#a78bfa';
@@ -76,6 +83,7 @@ const ACCENT = '#a78bfa';
 export default function BettingBar({
   gameId, phase, round, players, lastEliminated, voteResultTick, onIntervene,
   mode = 'single', companyMarket, gameWinner = null, companyLabels = { a: 'A 司', b: 'B 司' },
+  ghostVotes, connected = true, interveneAck = null,
 }: Props) {
   const { pushPrediction } = useGameActions();
   const [prog, setProg] = useState<BettingProgress>(() => emptyProgress(0));
@@ -91,6 +99,8 @@ export default function BettingBar({
   const [ledger, setLedger] = useState<InterventionLedger>({});
   const [pendingItem, setPendingItem] = useState<InterventionId | null>(null);
   const resolvedRef = useRef<string>('');
+  // v6.93 — 已处理过的干预回执 tick(防同一回执退两次筹码)
+  const ackProcessedRef = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 挂载:读档 + 每日补给(Date.now 只在 effect 里用,纯引擎不碰时间)
@@ -117,8 +127,13 @@ export default function BettingBar({
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
   const alive = players.filter((p) => p.isAlive);
-  const market: BetMarket = roundVoteMarket(gameId, round, alive.map((p) => ({ id: p.id, name: p.name })));
-  const canBet = phase !== 'game_over' && !open && alive.length >= 2;
+  // v6.93 — 鬼魂票热度喂进盘口:被多票指认的人出局概率↑、赔率↓ → 押注从「瞎猜」变「读局」
+  const heat = tallyGhostHeat(ghostVotes);
+  const market: BetMarket = roundVoteMarket(
+    gameId, round,
+    alive.map((p) => ({ id: p.id, name: p.name, heat: heat[p.id] ?? 0 })),
+  );
+  const canBet = phase !== 'game_over' && !open && alive.length >= 2 && connected;
 
   // v6.87 — 双公司整局盘口:存活人数从 players.companyId 派生,市占率走 companyMarket。
   const isDual = mode === 'dual';
@@ -132,8 +147,8 @@ export default function BettingBar({
         companyLabels,
       )
     : null;
-  // 公司盘口可下注:dual + 没下过 + 没终局 + 两司都还有人(否则胜负已无悬念)
-  const canBetCompany = isDual && !companyBet && phase !== 'game_over' && aliveA > 0 && aliveB > 0;
+  // 公司盘口可下注:dual + 没下过 + 没终局 + 两司都还有人(否则胜负已无悬念)+ 在线
+  const canBetCompany = isDual && !companyBet && phase !== 'game_over' && aliveA > 0 && aliveB > 0 && connected;
 
   const onBet = useCallback((optionId: string, optionLabel: string, odds: number) => {
     const res = placeBet(prog, stake);
@@ -155,6 +170,7 @@ export default function BettingBar({
 
   // v6.83 — 买干预道具:纯引擎扣筹码 + 记台账 → 路由层 socket 下单 → toast。
   const onBuyIntervention = useCallback((itemId: InterventionId, targetId?: string) => {
+    if (!connected) { flashToast('断线了 · 重连后再买', false); return; }
     const r = buyIntervention(prog, ledger, itemId);
     if (!r.ok) {
       flashToast(
@@ -172,7 +188,7 @@ export default function BettingBar({
     sfx.playBadge();
     setPendingItem(null);
     setShopOpen(false);
-  }, [prog, ledger, onIntervene, flashToast]);
+  }, [prog, ledger, onIntervene, flashToast, connected]);
 
   // vote_result 结算
   useEffect(() => {
@@ -217,6 +233,26 @@ export default function BettingBar({
     setCompanyBet(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameWinner]);
+
+  // v6.93 — 服务端干预回执:成功靠买入时的「已下单」反馈;被拒(护盾占用/限流/非双公司局
+  // /无目标…)就退回筹码 + 撤销台账 + 给真实中文原因,不再让筹码白白蒸发还没动静。
+  useEffect(() => {
+    if (!interveneAck || interveneAck.tick === 0) return;
+    if (ackProcessedRef.current === interveneAck.tick) return;
+    ackProcessedRef.current = interveneAck.tick;
+    if (interveneAck.accepted) return;
+    const reason = INTERVENE_REASON_CN[interveneAck.reason ?? ''] ?? '干预没生效';
+    const item = INTERVENTION_ITEMS.find((i) => i.id === interveneAck.itemId);
+    if (item) {
+      // 退回这道具的筹码 + 撤一次台账(只在真退款时才宣称「已退筹码」)
+      setProg((p) => { const np = { ...p, chips: p.chips + item.price }; save(np); return np; });
+      setLedger((l) => ({ ...l, [item.id]: Math.max(0, (l[item.id] ?? 0) - 1) }));
+      flashToast(`${reason} · 已退筹码`, false);
+    } else {
+      flashToast(reason, false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interveneAck]);
 
   const hitRate = prog.settled ? Math.round((prog.hits / prog.settled) * 100) : 0;
   const card: React.CSSProperties = {
@@ -384,8 +420,11 @@ export default function BettingBar({
           </motion.div>
         ) : (
           <motion.div key="wait" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            style={{ textAlign: 'center', padding: '8px 0', fontSize: 11, opacity: 0.55 }}>
-            {phase === 'game_over' ? '本局结束 · 下局再战' : '等下一回合开盘…'}
+            style={{ textAlign: 'center', padding: '8px 0', fontSize: 11,
+              opacity: !connected ? 0.85 : 0.55, color: !connected ? '#fb923c' : undefined }}>
+            {phase === 'game_over' ? '本局结束 · 下局再战'
+              : !connected ? '🔌 断线重连中 · 暂停下注'
+              : '等下一回合开盘…'}
           </motion.div>
         )}
       </AnimatePresence>

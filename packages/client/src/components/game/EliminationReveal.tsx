@@ -91,7 +91,7 @@ const TYPE_CONFIG: Record<
 };
 
 const TEAM_COLOR: Record<NonNullable<EliminationEvent['team']>, string> = {
-  cat: '#2fb8ff',
+  cat: '#4c9eff', // v6.93 统一猫队蓝 colors.team.cat
   dog: '#ff4757',
   neutral: '#a855f7',
 };

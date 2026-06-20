@@ -114,6 +114,21 @@ function normProb<T extends { weight: number }>(items: T[]): (T & { prob: number
   return items.map((i) => ({ ...i, prob: Math.max(0, i.weight) / total }));
 }
 
+/**
+ * v6.93 — 把鬼魂投票(ghostId → targetId)聚成「每个目标被投了几票」的热度表。
+ * 直接喂给 roundVoteMarket 的 `heat`:被多票指认的人出局概率↑、赔率↓,押他赔得少、
+ * 押冷门押中赔得多 —— 旁观者下注从「瞎猜」变「读局」。纯函数,可单测。
+ */
+export function tallyGhostHeat(ghostVotes: Record<string, string> | null | undefined): Record<string, number> {
+  const heat: Record<string, number> = {};
+  if (!ghostVotes) return heat;
+  for (const target of Object.values(ghostVotes)) {
+    if (!target) continue;
+    heat[target] = (heat[target] ?? 0) + 1;
+  }
+  return heat;
+}
+
 /** 「谁被投票开除」盘口:候选 = 在场玩家;heat(被指认热度,如鬼魂票数)抬高出局概率 → 压低赔率。 */
 export function roundVoteMarket(
   gameId: string,
