@@ -102,15 +102,17 @@ const TAG_LABELS: Record<string, { label: string; color: string }> = {
 const PERSONA_LABELS: Record<string, {
   emoji: string;
   imageUrl: string;
+  /** v6.94 — 活立绘:循环动态视频(图生视频产物)。缺失时播放器回退静态 imageUrl。 */
+  videoUrl: string;
   label: string;
   gender: 'female' | 'male';
 }> = {
-  shaonv:   { emoji: '👧',     imageUrl: '/talkshow-personas/shaonv.png',   label: '少女音',  gender: 'female' },
-  yujie:    { emoji: '💃',     imageUrl: '/talkshow-personas/yujie.png',    label: '御姐音',  gender: 'female' },
-  qingse:   { emoji: '🧑',     imageUrl: '/talkshow-personas/qingse.png',   label: '青涩男',  gender: 'male'   },
-  jingying: { emoji: '🧔',     imageUrl: '/talkshow-personas/jingying.png', label: '精英男',  gender: 'male'   },
-  badao:    { emoji: '👨‍💼', imageUrl: '/talkshow-personas/badao.png',    label: '霸道男',  gender: 'male'   },
-  qingnian: { emoji: '👤',     imageUrl: '/talkshow-personas/qingnian.png', label: '青年音',  gender: 'male'   },
+  shaonv:   { emoji: '👧',     imageUrl: '/talkshow-personas/shaonv.png',   videoUrl: '/talkshow-personas-video/shaonv.mp4',   label: '少女音',  gender: 'female' },
+  yujie:    { emoji: '💃',     imageUrl: '/talkshow-personas/yujie.png',    videoUrl: '/talkshow-personas-video/yujie.mp4',    label: '御姐音',  gender: 'female' },
+  qingse:   { emoji: '🧑',     imageUrl: '/talkshow-personas/qingse.png',   videoUrl: '/talkshow-personas-video/qingse.mp4',   label: '青涩男',  gender: 'male'   },
+  jingying: { emoji: '🧔',     imageUrl: '/talkshow-personas/jingying.png', videoUrl: '/talkshow-personas-video/jingying.mp4', label: '精英男',  gender: 'male'   },
+  badao:    { emoji: '👨‍💼', imageUrl: '/talkshow-personas/badao.png',    videoUrl: '/talkshow-personas-video/badao.mp4',    label: '霸道男',  gender: 'male'   },
+  qingnian: { emoji: '👤',     imageUrl: '/talkshow-personas/qingnian.png', videoUrl: '/talkshow-personas-video/qingnian.mp4', label: '青年音',  gender: 'male'   },
 };
 
 export default function Talkshow() {
@@ -1621,6 +1623,20 @@ function PlayerView({
                 // bounding box behind us) shows through.
                 (e.currentTarget as HTMLImageElement).style.display = 'none';
               }}
+            />
+            {/* v6.94 — 活立绘:循环静音动态视频盖在静态立绘之上(微表情/小情绪)。
+                无 poster,首帧到来前透明 → 露出下面那张静态图;视频 404 / 浏览器不支持时
+                onError 隐藏自己 → 同样露出静态图(再不行露 emoji)。三层兜底,缺视频也不空。 */}
+            <video
+              src={personaCfg.videoUrl}
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ background: 'transparent' }}
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+              onError={(e) => { (e.currentTarget as HTMLVideoElement).style.display = 'none'; }}
             />
             {/* EQ bars overlay — bottom-center, sits inside the disc so
                 it reads as "the avatar is the source of the sound". */}
