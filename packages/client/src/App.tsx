@@ -1,43 +1,61 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import Landing from './routes/Landing';
-import Classic from './routes/Classic';
-import Immersive from './routes/Immersive';
-import Result from './routes/Result';
+import Landing from './routes/Landing';          // 首屏:不分包,直出
 import ErrorBoundary from './components/ErrorBoundary';
-import FiredLanding from './routes/FiredLanding';
-import FiredChat from './routes/FiredChat';
-import FiredResult from './routes/FiredResult';
-import FiredPack from './routes/FiredPack';
-import FiredRoom from './routes/FiredRoom';
-import NegotiationBattle from './routes/NegotiationBattle';
-import Talkshow from './routes/Talkshow';
-import Premium from './routes/Premium';
-import B2bBuilder from './routes/B2bBuilder';
-import B2bEmbed from './routes/B2bEmbed';
-import Quiz from './routes/Quiz';
-import Profile from './routes/Profile';
-import Maker from './routes/Maker';
-import CharacterVotes from './routes/CharacterVotes';
-import VoteDuel from './routes/VoteDuel';
-import Squad from './routes/Squad';
-import SquadHistory from './routes/SquadHistory';
-import FiredChallenge from './routes/FiredChallenge';
-import FiredLeaderboard from './routes/FiredLeaderboard';
-import FiredDailyChallenge from './routes/FiredDailyChallenge';
-import Fortune from './routes/Fortune';
-import FortuneGallery from './routes/FortuneGallery';
-import FortuneHistory from './routes/FortuneHistory';
-import Settings from './routes/Settings';
-import TalkshowUgc from './routes/TalkshowUgc';
-import Weekly from './routes/Weekly';
-import WeeklyMe from './routes/WeeklyMe';
-import Bar from './routes/Bar';
-import Anniversary from './routes/Anniversary';
-import CompanyPackEdit from './routes/CompanyPackEdit';
-import CompanyPackView from './routes/CompanyPackView';
 import CharacterFocusModal from './components/character/CharacterFocusModal';
 import AchievementUnlockToast from './components/AchievementUnlockToast';
 import { markDayVisited, refreshAuto } from './utils/achievements';
+
+// v6.92 — 路由级代码分包:除首屏 Landing 外全部 React.lazy。原来所有路由静态 import
+// 进同一个 ~1.3MB 主 chunk,首屏全量下载(含只在分享/动画用到的 html2canvas / lottie)。
+// 改 lazy 后各路由(及其重依赖)按需拉,主包大幅瘦身、首屏更快。
+const Classic = lazy(() => import('./routes/Classic'));
+const Immersive = lazy(() => import('./routes/Immersive'));
+const Result = lazy(() => import('./routes/Result'));
+const FiredLanding = lazy(() => import('./routes/FiredLanding'));
+const FiredChat = lazy(() => import('./routes/FiredChat'));
+const FiredResult = lazy(() => import('./routes/FiredResult'));
+const FiredPack = lazy(() => import('./routes/FiredPack'));
+const FiredRoom = lazy(() => import('./routes/FiredRoom'));
+const NegotiationBattle = lazy(() => import('./routes/NegotiationBattle'));
+const Talkshow = lazy(() => import('./routes/Talkshow'));
+const Premium = lazy(() => import('./routes/Premium'));
+const B2bBuilder = lazy(() => import('./routes/B2bBuilder'));
+const B2bEmbed = lazy(() => import('./routes/B2bEmbed'));
+const Quiz = lazy(() => import('./routes/Quiz'));
+const Profile = lazy(() => import('./routes/Profile'));
+const Maker = lazy(() => import('./routes/Maker'));
+const CharacterVotes = lazy(() => import('./routes/CharacterVotes'));
+const VoteDuel = lazy(() => import('./routes/VoteDuel'));
+const Squad = lazy(() => import('./routes/Squad'));
+const SquadHistory = lazy(() => import('./routes/SquadHistory'));
+const FiredChallenge = lazy(() => import('./routes/FiredChallenge'));
+const FiredLeaderboard = lazy(() => import('./routes/FiredLeaderboard'));
+const FiredDailyChallenge = lazy(() => import('./routes/FiredDailyChallenge'));
+const Fortune = lazy(() => import('./routes/Fortune'));
+const FortuneGallery = lazy(() => import('./routes/FortuneGallery'));
+const FortuneHistory = lazy(() => import('./routes/FortuneHistory'));
+const Settings = lazy(() => import('./routes/Settings'));
+const TalkshowUgc = lazy(() => import('./routes/TalkshowUgc'));
+const Weekly = lazy(() => import('./routes/Weekly'));
+const WeeklyMe = lazy(() => import('./routes/WeeklyMe'));
+const Bar = lazy(() => import('./routes/Bar'));
+const Anniversary = lazy(() => import('./routes/Anniversary'));
+const CompanyPackEdit = lazy(() => import('./routes/CompanyPackEdit'));
+const CompanyPackView = lazy(() => import('./routes/CompanyPackView'));
+
+/** lazy 路由切换时的轻量占位(分包加载那一瞬)。 */
+function RouteFallback() {
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#050510', color: 'rgba(255,255,255,0.5)', fontSize: 14,
+      fontFamily: '"PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+    }}>
+      加载中…
+    </div>
+  );
+}
 
 // v6.30 P4 — fire-once on app boot: mark today + auto-evaluate any
 // achievements whose check predicate is satisfied (e.g. user already
@@ -48,6 +66,7 @@ refreshAuto();
 export default function App() {
   return (
     <>
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
       <Route path="/" element={<Landing />} />
       {/* v6.90 — 对局视图套 ErrorBoundary:任何渲染崩溃降级成「回大厅」,不再整端白屏 */}
@@ -128,6 +147,7 @@ export default function App() {
       {/* v6.38 P3 — read-only shared pack view + one-click import. */}
       <Route path="/company-pack/view/:packId" element={<CompanyPackView />} />
     </Routes>
+    </Suspense>
     {/* v6.11 P4 — global overlay watching ?character=<name> deep-links
         from /share/character/:name social bounces. Renders nothing when
         the query is absent so other routes are unaffected. */}
