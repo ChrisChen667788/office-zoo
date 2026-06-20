@@ -7,6 +7,30 @@
 
 ---
 
+## v6.94 — 2026-06-20 · 段子「活立绘」:图生视频让 persona 立绘动起来
+
+班味单口的 6 个 persona 原本是**静态立绘**;本版用 MiniMax 海螺「图生视频 (i2v)」把每张立绘
+升级成 **4-6s 循环动态视频**,内置符合人设的**微表情 / 小情绪**(御姐挑眉似笑非笑、霸道得意一笑、
+少女无奈嘟嘴…),播放段子时循环,沉浸感拉满。关键:立绘是**按 persona(6 张),不是按段子**,
+所以只需预生成 6 段、种子+UGC 段子全复用 —— 不用每段子实时生成,零播放延迟。
+
+- **`server/services/talkshowVideoGen.ts`**:海螺 i2v 全流程(提交→轮询→取文件→下载),
+  `MiniMax-Hailuo-2.3-Fast` / 768P / 6s,首帧 = 现有 `/talkshow-personas/<id>.png`。**纯函数 +9 测试**:
+  `buildVideoPrompt`(每 persona 人设微表情 prompt)/ `classifyTaskStatus`(任务态归一)/
+  `extractDownloadUrl`(响应字段容错挖取)。
+- **离线脚本 + npm 别名** `npm run gen:talkshow-videos`(`scripts/regen-talkshow-personas-video.ts`,
+  并发提交+各自轮询,墙钟≈最慢一段;`--force` 重生、可指定 persona)。产物落
+  `/public/talkshow-personas-video/<id>.mp4`。
+- **客户端**(`Talkshow.tsx`):播放器大立绘从 `<img>` 升级成循环静音 `<video>` 叠在静态图之上;
+  **三层兜底**——视频 404/不支持 → onError 露静态立绘 → 再不行露 emoji,缺视频也不空屏。
+- **安全**:视频用独立 `MINIMAX_VIDEO_API_KEY`(官方 sk-api key,与跑 TTS 的代理 key 分开,
+  互不影响),只写本地 gitignore 的 `.env`,不入库。
+- **状态**:流水线已对真 API 验证 —— key / endpoint / 模型 / 768P 参数**全部通过**;但该 MiniMax
+  账号当前 `insufficient balance`,**6 段视频尚未实际生成**。充值后跑 `npm run gen:talkshow-videos`
+  即可,客户端零改动(已自动回退静态立绘)。
+- 验证:3 包 tsc 干净;**549 测试绿**(+9 纯层);`vite build` 通过;preview 真机 talkshow 路由确认
+  png 200 / 缺失 mp4 404 / `<video>` onError 回退链路成立。
+
 ## v6.93 — 2026-06-19 · 旁观者体验补完:下注/干预闭环 + 连接可见性 + 进局首屏
 
 多 agent 审计(玩法/视觉/UX 三维)交叉确认的 6 个高频痛点,全是「高影响 / S 成本」,一版打包:

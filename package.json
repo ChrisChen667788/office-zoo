@@ -18,7 +18,8 @@
     "gen:mp-arch": "node scripts/gen-mp-architecture.mjs",
     "gen:screenshots": "node scripts/capture_screenshots.mjs && node scripts/capture_game_screens.mjs",
     "icons:regen": "tsx packages/server/src/scripts/regen-icons.ts --force",
-    "icons:cutout": "python3.12 scripts/cutout_icon_bg.py"
+    "icons:cutout": "python3.12 scripts/cutout_icon_bg.py",
+    "gen:talkshow-videos": "tsx scripts/regen-talkshow-personas-video.ts"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
