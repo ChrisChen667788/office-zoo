@@ -399,7 +399,8 @@ function drawPlayer(
   // Team palette — fill, ring, glow.
   let color = '#fdd835';
   let glow = 'rgba(253,216,53,0.45)';
-  if (player.team === 'cat') { color = '#2fb8ff'; glow = 'rgba(47,184,255,0.5)'; }
+  // v6.93 — 统一猫队蓝到设计 token colors.team.cat(#4c9eff),消除与 Speech/Immersive 的色漂移
+  if (player.team === 'cat') { color = '#4c9eff'; glow = 'rgba(76,158,255,0.5)'; }
   if (player.team === 'dog') { color = '#ff4757'; glow = 'rgba(255,71,87,0.5)'; }
 
   // Outer halo — wide blurred glow that gives the avatar visual weight on
@@ -1027,7 +1028,7 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
         const r = 3 + lifeT * 2;
         const iso = worldToIso(fp.worldX, fp.worldY);
         let rgb = '180,180,180';
-        if (fp.team === 'cat') rgb = '47,184,255';
+        if (fp.team === 'cat') rgb = '76,158,255'; // v6.93 统一猫队蓝 colors.team.cat
         else if (fp.team === 'dog') rgb = '255,71,87';
         else if (fp.team === 'neutral') rgb = '168,85,247';
         ctx.beginPath();

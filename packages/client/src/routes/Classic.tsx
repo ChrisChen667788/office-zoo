@@ -13,7 +13,7 @@ import {
 import GameMap from '../components/game/GameMap';
 import GhostChatPanel from '../components/game/GhostChatPanel';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
-import { pickReaction, dualBar } from '@furball/shared';
+import { pickReaction, dualBar, INTERVENE_REASON_CN } from '@furball/shared';
 import { fetchReactionLine } from '../utils/reactionLine';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
@@ -114,6 +114,13 @@ export default function Classic() {
   // this socket session. Both feed into GhostChatPanel as props.
   const [lockedUntilMs, setLockedUntilMs] = useState<number | undefined>(undefined);
   const [sessionLocked, setSessionLocked] = useState(false);
+  // v6.93 — 干预道具服务端回执(itemId/accepted/reason + 单调 tick)。喂给 BettingBar:
+  // 被拒就退筹码 + 给真实原因。tick 防同一回执重复处理。
+  const [interveneAck, setInterveneAck] = useState<{ itemId: string; accepted: boolean; reason?: string; tick: number } | null>(null);
+  const ackTickRef = useRef(0);
+  // v6.93 — 重连成功后短暂显示绿色「已恢复」条幅(2.5s)。
+  const [justReconnected, setJustReconnected] = useState(false);
+  const wasDisconnectedRef = useRef(false);
   // Elimination reveal: monotonic id + payload. Bumping id triggers the overlay.
   const [lastElim, setLastElim] = useState<EliminationEvent | null>(null);
   // v6.68 — 群众吐槽弹幕触发(被裁/出局时丢一个,飘过地图)
@@ -239,6 +246,16 @@ export default function Classic() {
   // unmount — the old code had 9 redundant `on`/`off` pairs prone to drift.
   useSocketEvents({
     'game:state': (state: any) => updateState(state),
+
+    // v6.93 — 服务端干预回执:同步给 BettingBar(被拒退筹码),并在 event log
+    // 留一行真实原因(护盾占用/限流/非双公司局/无目标…),不再「买完石沉大海」。
+    'game:intervene_acked': (data: { itemId: string; accepted: boolean; reason?: string }) => {
+      ackTickRef.current += 1;
+      setInterveneAck({ itemId: data.itemId, accepted: data.accepted, reason: data.reason, tick: ackTickRef.current });
+      if (!data.accepted) {
+        pushEvent('system', `🛒 干预未生效:${INTERVENE_REASON_CN[data.reason ?? ''] ?? '已退筹码'}`);
+      }
+    },
 
     // PR1 free-roam tick — high-frequency lightweight payload (~1.5s cadence
     // during free_roam phase only). Carries position + activity per player so
@@ -546,6 +563,23 @@ export default function Classic() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, connecting, reconnectAttempt]);
 
+  // v6.93 — 断线/重连「可见」条幅状态机:断线置位「曾断线」,重连后亮一次绿条。
+  // 注意:不在 effect 主体里改 ref 又靠 cleanup 清 timer —— 那种写法在 StrictMode
+  // double-invoke / 重渲下会把绿条卡死。计时器拆到下面独立 effect 里,保证幂等。
+  useEffect(() => {
+    if (!connected && reconnectAttempt > 0) { wasDisconnectedRef.current = true; return; }
+    if (connected && wasDisconnectedRef.current) {
+      wasDisconnectedRef.current = false;
+      setJustReconnected(true);
+    }
+  }, [connected, reconnectAttempt]);
+  // 绿条 2.5s 自动隐藏:计时器只依赖 justReconnected,cleanup 清、重跑重置 —— 幂等。
+  useEffect(() => {
+    if (!justReconnected) return;
+    const t = setTimeout(() => setJustReconnected(false), 2500);
+    return () => clearTimeout(t);
+  }, [justReconnected]);
+
   const eventTypeStyles: Record<string, { color: string; bg: string }> = {
     speech: { color: 'rgba(255,255,255,0.85)', bg: 'transparent' },
     vote:   { color: '#fbbf24', bg: 'rgba(251,191,36,0.05)' },
@@ -557,8 +591,8 @@ export default function Classic() {
     reaction: { color: '#f472b6', bg: 'rgba(244,114,182,0.07)' },
     // v6.86 — 双公司挖角成功,橙红高亮(招牌背叛时刻)
     defection: { color: '#ff8a3d', bg: 'rgba(255,138,61,0.08)' },
-    // v6.89 — 商业抹黑曝料,黄系(造谣搅局,半真半假)
-    smear: { color: '#fbbf24', bg: 'rgba(251,191,36,0.07)' },
+    // v6.89 — 商业抹黑曝料;v6.93 改橙系(orange-400)与投票黄拉开,造谣搅局的不安感
+    smear: { color: '#fb923c', bg: 'rgba(251,146,60,0.08)' },
   };
 
   const phaseInfo = PHASE_NAMES[phase] || { label: phase, emoji: '🎮', icon: '' };
@@ -650,6 +684,28 @@ export default function Classic() {
           <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 34, textAlign: 'right' }}>{Math.round(taskProgress)}%</span>
         </div>
       </div>
+
+      {/* v6.93 — 断线/重连「可见」条幅:观众一眼知道连接状态 + 下注是否暂停,
+          不再只靠 event log 里一行小字(眼睛盯着地图根本看不见)。 */}
+      <AnimatePresence>
+        {(!connected && reconnectAttempt > 0) ? (
+          <motion.div key="net-down"
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            style={{ position: 'relative', zIndex: 11, textAlign: 'center', padding: '6px 20px',
+              fontSize: 12, fontWeight: 700, color: '#fb923c',
+              background: 'rgba(251,146,60,0.12)', borderBottom: '1px solid rgba(251,146,60,0.3)' }}>
+            🔌 网络中断 · 正在重连(第 {reconnectAttempt} 次)… 下注已暂停
+          </motion.div>
+        ) : justReconnected ? (
+          <motion.div key="net-up"
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            style={{ position: 'relative', zIndex: 11, textAlign: 'center', padding: '6px 20px',
+              fontSize: 12, fontWeight: 700, color: '#22c55e',
+              background: 'rgba(34,197,94,0.12)', borderBottom: '1px solid rgba(34,197,94,0.3)' }}>
+            ✅ 已重新连接 · 下注恢复
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {/* v6.86 — 双公司「对撞条」:A 司蓝从左推、B 司橙从右推,中线对撞。
           单公司模式 market undefined → 整条不渲染。
@@ -929,7 +985,7 @@ export default function Classic() {
                   <PersonaCard playerName={s.playerName} personality={speaker?.personality}>
                     <span style={{
                       fontWeight: 700,
-                      color: s.team === 'cat' ? '#2fb8ff' : s.team === 'dog' ? '#ff4757' : '#a855f7',
+                      color: s.team === 'cat' ? '#4c9eff' : s.team === 'dog' ? '#ff4757' : '#a855f7',
                       borderBottom: '1px dashed rgba(255,215,0,0.4)',
                     }}>
                       {s.playerName}
@@ -1111,6 +1167,10 @@ export default function Classic() {
           mode={isDual ? 'dual' : 'single'}
           companyMarket={market}
           gameWinner={companyWinner}
+          // v6.93 — 鬼魂票热度驱动赔率 / 断线禁押 / 干预回执退筹码
+          ghostVotes={ghostVotes}
+          connected={connected}
+          interveneAck={interveneAck}
         />
       )}
 
@@ -1143,6 +1203,31 @@ export default function Classic() {
 
       {/* End-of-game recap — appears on phase === 'game_over' with a winner */}
       <HighlightReel />
+
+      {/* v6.93 — 进局首屏骨架:lobby 阶段 + 还没收到任何玩家(首个 game:state 落地前
+          1-3s)盖一层「鼠人打卡入职中」,告别黑屏空地图的第一印象。state 一到自动淡出。 */}
+      <AnimatePresence>
+        {phase === 'lobby' && players.length === 0 && (
+          <motion.div key="lobby-wait"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{
+              position: 'absolute', inset: 0, zIndex: 40,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18,
+              background: 'rgba(5,5,16,0.92)', backdropFilter: 'blur(6px)',
+            }}>
+            <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+              style={{ fontSize: 56 }}>🐭</motion.div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.78)' }}>鼠人们正在打卡入职…</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[0, 1, 2].map((i) => (
+                <motion.span key={i} animate={{ opacity: [0.2, 1, 0.2] }}
+                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                  style={{ width: 8, height: 8, borderRadius: 999, background: '#4c9eff' }} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

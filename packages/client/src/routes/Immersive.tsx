@@ -71,7 +71,7 @@ const ROLE_VISUALS: Record<string, { emoji: string; label: string; color: string
 // Each row carries its AI-icon URL + an emoji fallback so the UI never
 // renders a broken image even mid-regeneration.
 const TEAM_CONFIG: Record<string, { label: string; emoji: string; icon: string; color: string; accent: string }> = {
-  cat:     { label: '打工人', emoji: '👨‍💻', icon: teamIcons.cat,     color: '#2fb8ff', accent: '47, 184, 255' },
+  cat:     { label: '打工人', emoji: '👨‍💻', icon: teamIcons.cat,     color: '#4c9eff', accent: '76, 158, 255' },
   dog:     { label: '资本家', emoji: '👔',   icon: teamIcons.dog,     color: '#ff4757', accent: '255, 71, 87' },
   neutral: { label: '摸鱼党', emoji: '😎',   icon: teamIcons.neutral, color: '#a855f7', accent: '168, 85, 247' },
 };
@@ -170,9 +170,17 @@ export default function Immersive() {
   const [companyWinner, setCompanyWinner] = useState<'a' | 'b' | null>(null);
   useEffect(() => { setCompanyWinner(null); }, [gameId]);
   const elimIdRef = useRef(0);
+  // v6.93 — 沉浸局对齐:干预道具服务端回执(被拒退筹码),断线禁押走 connected 门控。
+  const [interveneAck, setInterveneAck] = useState<{ itemId: string; accepted: boolean; reason?: string; tick: number } | null>(null);
+  const ackTickRef = useRef(0);
 
   // Register all socket event handlers — auto-cleaned on unmount.
   useSocketEvents({
+    // v6.93 — 服务端干预回执:喂给 BettingBar(被拒退筹码 + 真实中文原因 toast)。
+    'game:intervene_acked': (data: { itemId: string; accepted: boolean; reason?: string }) => {
+      ackTickRef.current += 1;
+      setInterveneAck({ itemId: data.itemId, accepted: data.accepted, reason: data.reason, tick: ackTickRef.current });
+    },
     'game:created': (data: { gameId: string }) => {
       setGameId(data.gameId);
       socket.emit('game:start', data.gameId);
@@ -798,6 +806,9 @@ export default function Immersive() {
           mode={isDual ? 'dual' : 'single'}
           companyMarket={market}
           gameWinner={companyWinner}
+          // v6.93 — 断线禁押 + 干预回执退筹码(沉浸局无 ghostVotes,heat 自然降级)
+          connected={connected}
+          interveneAck={interveneAck}
         />
       )}
 

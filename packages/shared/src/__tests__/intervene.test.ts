@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   INTERVENTION_ITEMS, interventionById, canBuyIntervention, buyIntervention,
-  interventionsForMode, emptyProgress,
+  interventionsForMode, emptyProgress, INTERVENE_REASON_CN,
 } from '../index';
 
 const rich = { ...emptyProgress(0), chips: 1000 };
@@ -63,5 +63,19 @@ describe('intervene — buy', () => {
     expect(c.ok).toBe(false);
     expect(c.reason).toBe('cap_reached');
     expect(b.progress.chips).toBe(1000 - 400);
+  });
+});
+
+describe('intervene — INTERVENE_REASON_CN(v6.93)', () => {
+  it('覆盖服务端 + 引擎会回带的全部 reason', () => {
+    // socketHandler 限流 + GameEngine.applyIntervention 的拒绝原因
+    for (const r of ['rate_limited', 'game_over', 'no_targets', 'invalid_target', 'shield_active', 'not_dual']) {
+      expect(typeof INTERVENE_REASON_CN[r]).toBe('string');
+      expect(INTERVENE_REASON_CN[r].length).toBeGreaterThan(0);
+    }
+  });
+  it('文案为中文(不是原始英文 reason)', () => {
+    expect(INTERVENE_REASON_CN.shield_active).not.toMatch(/[a-z_]{4,}/);
+    expect(INTERVENE_REASON_CN.not_dual).toContain('双公司');
   });
 });

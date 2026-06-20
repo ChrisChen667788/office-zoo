@@ -49,6 +49,22 @@ export function interventionById(id: string): InterventionItem | undefined {
   return INTERVENTION_ITEMS.find((i) => i.id === id);
 }
 
+/**
+ * v6.93 — `game:intervene_acked` 的 reason → 中文提示。服务端在「限流 / 引擎拒绝」时
+ * 回带 reason(rate_limited / shield_active / not_dual / no_targets / invalid_target /
+ * game_over);客户端 toast + event log 共用这张表,买道具失败时给出真实原因(并退筹码),
+ * 而不是只丢一句「买不了」。覆盖 socketHandler + GameEngine.applyIntervention 的全部 reason。
+ */
+export const INTERVENE_REASON_CN: Record<string, string> = {
+  rate_limited: '操作太频繁了 · 缓一下再来',
+  game_over: '本局已经结束了',
+  no_targets: '没有可作用的目标',
+  invalid_target: '选中的目标已经无效',
+  shield_active: '已有护盾在生效 · 等它失效再买',
+  not_dual: '猎头快递只在「双公司」局有效',
+  unknown_item: '这个道具不存在',
+};
+
 /** 每局每观众的购买台账(客户端按 gameId 持有,换局清零)。 */
 export type InterventionLedger = Partial<Record<InterventionId, number>>;
 

@@ -88,9 +88,9 @@ const WINNER_CONFIG: Record<string, WinnerConfig> = {
     emoji: '👨‍💻',
     icon: teamIcons.cat,
     label: '打工人胜利',
-    color: '#2fb8ff',
-    gradient: 'linear-gradient(135deg, #2fb8ff, #a855f7)',
-    gradientStops: ['#2fb8ff', '#a855f7'],
+    color: '#4c9eff', // v6.93 统一猫队蓝 colors.team.cat
+    gradient: 'linear-gradient(135deg, #4c9eff, #a855f7)',
+    gradientStops: ['#4c9eff', '#a855f7'],
     sub: '资本家出局,加班少了一点点',
     lottie: lottie.trophy,
     celebratory: true,
@@ -142,7 +142,7 @@ const WINNER_CONFIG: Record<string, WinnerConfig> = {
 };
 
 const TEAM_COLOR: Record<'cat' | 'dog' | 'neutral', string> = {
-  cat: '#2fb8ff',
+  cat: '#4c9eff', // v6.93 统一猫队蓝 colors.team.cat
   dog: '#ff4757',
   neutral: '#a855f7',
 };
