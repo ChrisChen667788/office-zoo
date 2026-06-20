@@ -7,6 +7,23 @@
 
 ---
 
+## v6.90 — 2026-06-14 · 健壮性:玩家去重 + 对局视图 ErrorBoundary,堵整端白屏
+
+真机跑双公司局时抓到:某次 `game:state` 发来含**重复 id** 的玩家列表(preview 的
+websocket 在反复重启/HMR 下不断断连重连,串了多局状态),BettingBar 回合盘 /
+KillFlashOverlay 的 `AnimatePresence` 因重复 React key **直接抛错 → 整个旁观端白屏卸载**
+(root 清空,无 error boundary 兜底)。两道修复,根因 + 兜底各一:
+
+- **根因:`gameStore.updateState` 按 id 去重玩家**(取首次出现)。一处兜住所有下游
+  重复-key 隐患(回合盘 / 地图 / 裁员闪屏 / 立绘),无论服务端发来什么都不再产生重复 key。
+- **兜底:`ErrorBoundary` 包住对局视图**(Classic / Immersive / Result 路由)。控制台
+  自己也提示「Consider adding an error boundary」—— 现在**任何**渲染崩溃都降级成
+  「🛠️ 这局出了点状况 · 回大厅 / 刷新重试」,而不是整端白屏。fallback 零依赖纯内联,
+  出错态下也能渲染。
+- 验证:真机复现崩溃 → 去重 + 边界 → 同路径不再白屏;client tsc 干净;app 健康挂载。
+- 注:重复状态的根因(单 socket 串多局)是手测连开多局 + preview ws 抖动所致,正常单局
+  稳定连接不触发;两道都是防御性硬化。
+
 ## v6.89 — 2026-06-14 · 双公司新玩法:商业抹黑(曝料)
 
 补上设计稿核心循环 step3 规划但一直没做的那一环。每司每回合(独立台账,~50%)可向

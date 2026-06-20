@@ -342,9 +342,16 @@ export const useGameStore = create<GameStore>((set) => ({
           }
         }
 
+        // v6.90 — 去重玩家(按 id 取首次出现)。防御:若服务端某次发来含重复 id 的
+        // 玩家列表(如同一 socket 串了两局的状态),重复的 React key 会让 BettingBar /
+        // KillFlashOverlay 的 AnimatePresence 直接抛错 → 整个旁观端白屏崩溃。这里兜住。
+        const seenPid = new Set<string>();
+        const uniquePlayers = (state.players as GamePlayer[]).filter((p) =>
+          seenPid.has(p.id) ? false : (seenPid.add(p.id), true));
+
         return {
           phase: state.phase,
-          players: state.players,
+          players: uniquePlayers,
           round: state.round,
           taskProgress: state.taskProgress,
           winner: state.winner,
