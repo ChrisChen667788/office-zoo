@@ -121,6 +121,10 @@ export default function Classic() {
   // v6.93 — 重连成功后短暂显示绿色「已恢复」条幅(2.5s)。
   const [justReconnected, setJustReconnected] = useState(false);
   const wasDisconnectedRef = useRef(false);
+  // v6.96(审计 G)— 讨论期旁观者「存疑」本地热度(playerId→点击次数),叠加进 BettingBar
+  // 回合盘赔率:你的判断实时改你看到的赔率,填满 4 分钟发言空窗。纯本地,每轮(round 变)清空。
+  const [suspicion, setSuspicion] = useState<Record<string, number>>({});
+  useEffect(() => { setSuspicion({}); }, [round]);
   // Elimination reveal: monotonic id + payload. Bumping id triggers the overlay.
   const [lastElim, setLastElim] = useState<EliminationEvent | null>(null);
   // v6.68 — 群众吐槽弹幕触发(被裁/出局时丢一个,飘过地图)
@@ -861,7 +865,10 @@ export default function Classic() {
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '6px 12px' }}>
             <AnimatePresence>
-              {eventLog.map((entry) => {
+              {/* v6.96 (审计 J) — speech 类条目下方 SPEECHES 区已有完整版(角色 chip +
+                  证据链),这里滤掉避免两栏讲同一件事; EVENT LOG 只留高信号事件
+                  (kill / vote / phase / ghost / 裁员 / 挖角 / 抹黑 / 系统)。 */}
+              {eventLog.filter((e) => e.type !== 'speech').map((entry) => {
                 const s = eventTypeStyles[entry.type] || eventTypeStyles.speech;
                 return (
                   <motion.div key={entry.id}
@@ -947,13 +954,34 @@ export default function Classic() {
               {currentSpeaker && (() => {
                 const speakingPlayer = players.find((p) => p.id === currentSpeaker);
                 if (!speakingPlayer) return null;
+                const sid = currentSpeaker;
+                const n = suspicion[sid] ?? 0;
                 return (
-                  <IdleBeat
-                    personality={speakingPlayer.personality}
-                    tint="#FFD700"
-                    size={16}
-                    showCaption={true}
-                  />
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <IdleBeat
+                      personality={speakingPlayer.personality}
+                      tint="#FFD700"
+                      size={16}
+                      showCaption={true}
+                    />
+                    {/* v6.96(审计 G)— 讨论期给当前发言鼠点「在演」:计入本轮舆论热度,
+                        实时压低 TA 的下注赔率。填发言空窗 + 和 v6.93 赔率联动。 */}
+                    {phase === 'discussion' && (
+                      <button
+                        onClick={() => setSuspicion((s) => ({ ...s, [sid]: (s[sid] ?? 0) + 1 }))}
+                        title="你觉得 TA 在演 —— 计入本轮舆论热度, 实时压低 TA 的下注赔率"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 3,
+                          padding: '2px 7px', borderRadius: 999, cursor: 'pointer',
+                          fontSize: 10, fontWeight: 800, lineHeight: 1,
+                          color: n > 0 ? '#fb923c' : 'rgba(255,255,255,0.6)',
+                          background: n > 0 ? 'rgba(251,146,60,0.16)' : 'rgba(255,255,255,0.05)',
+                          border: `1px solid ${n > 0 ? 'rgba(251,146,60,0.5)' : 'rgba(255,255,255,0.14)'}`,
+                        }}>
+                        🤥 在演{n > 0 ? ` ·${n}` : ''}
+                      </button>
+                    )}
+                  </span>
                 );
               })()}
             </div>
@@ -1171,6 +1199,8 @@ export default function Classic() {
           ghostVotes={ghostVotes}
           connected={connected}
           interveneAck={interveneAck}
+          // v6.96(审计 G)— 讨论期「在演」存疑本地热度,叠加进回合盘赔率
+          extraHeat={suspicion}
         />
       )}
 
