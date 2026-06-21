@@ -12,10 +12,12 @@ export type CompanyId = 'a' | 'b';
 
 /** 拍板①:每公司 4 鼠(共 8,各藏 1 个资本家内鬼)。 */
 export const DUAL_RATS_PER_COMPANY = 4;
-/** 市占率赢线。 */
-export const MARKET_WIN = 100;
-/** 每完成 1 个任务给本公司加的市占率。4 工/司 × ~半数完成/轮 ≈ +18/轮 → ~6 轮垄断。 */
-export const MARKET_STEP = 9;
+/** 市占率赢线。v6.97(审计 F7)100→80:配合 STEP↑ 让竞速在 3-6 轮内可达,
+ *  招牌「对撞条」不再长期死在 0:0(原本要 6-11 轮才到 100,基本被人数/内鬼条件抢先终结)。 */
+export const MARKET_WIN = 80;
+/** 每完成 1 个任务给本公司加的市占率。v6.97 9→14:每轮~1-2 任务 → +14~28/轮 →
+ *  ~3-6 轮垄断,对撞条随每轮任务真的动起来,市占竞速赛道才有意义。 */
+export const MARKET_STEP = 14;
 /** 拍板③:~15 分钟 → 回合数硬上限(到了按市占率领先者判胜)。 */
 export const MAX_DUAL_ROUNDS = 8;
 /** 拍板②:跳槽鼠保留原阵营 —— 被挖走的内鬼继续在新东家潜伏。 */
@@ -159,8 +161,11 @@ export function dualWinner(args: {
   const mw = marketWinner(args.market);
   if (mw) return { winner: mw, reason: 'monopoly' };
 
-  const aDead = args.aliveA <= 1;
-  const bDead = args.aliveB <= 1;
+  // v6.97(审计 F8)— 团灭判定从「≤1」收紧到「=0」:剩 1 人的公司仍在场继续打
+  // (旧逻辑剩 1 人就判负,比经典局「人数翻盘才结束」严苛得多,旁观者会困惑)。
+  // 彻底没人了才算团灭;市占率/内鬼/回合上限仍是更早的正常终局路径。
+  const aDead = args.aliveA === 0;
+  const bDead = args.aliveB === 0;
   if (aDead !== bDead) return { winner: aDead ? 'b' : 'a', reason: 'wipeout' };
   if (aDead && bDead) return { winner: marketLead(args.market), reason: 'wipeout' };
 

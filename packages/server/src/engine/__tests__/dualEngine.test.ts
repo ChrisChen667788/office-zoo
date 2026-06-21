@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { GameEngine } from '../GameEngine';
-import { Team, WinCondition, SMEAR_PRESSURE } from '@furball/shared';
+import { Team, WinCondition, SMEAR_PRESSURE, MARKET_STEP } from '@furball/shared';
 
 function dualEngine(): GameEngine {
   const e = new GameEngine({ playerCount: 8, mode: 'dual' });
@@ -121,13 +121,13 @@ describe('dual — checkDualWin 终局接通', () => {
     expect(e.state.winner).toBe(WinCondition.NONE);
   });
 
-  it('dualMarket 纯派生:塞完成任务 → 市占率 = 数量×9 封顶', () => {
+  it('dualMarket 纯派生:塞完成任务 → 市占率 = 数量×STEP 封顶', () => {
     const e = dualEngine();
     const a0 = e.state.players.find((p) => p.companyId === 'a')!;
     a0.tasks = Array.from({ length: 3 }, (_, i) => ({
       id: `t${i}`, type: 'short' as const, location: '开放工区', steps: 1, currentStep: 1, completed: true,
     }));
-    expect(inner(e).dualMarket()).toEqual({ a: 27, b: 0 });
+    expect(inner(e).dualMarket()).toEqual({ a: MARKET_STEP * 3, b: 0 });
   });
 
   it('🏆 垄断:市占 100 → COMPANY_A_WIN + game_over', () => {
@@ -145,11 +145,11 @@ describe('dual — checkDualWin 终局接通', () => {
     expect(over).toBeTruthy();
   });
 
-  it('💀 团灭:B 司只剩 1 人 → A 司赢', () => {
+  it('💀 团灭:B 司全灭 → A 司赢(v6.97 F8:=0 才团灭)', () => {
     const e = dualEngine();
     e.state.round = 2;
     const bSide = e.state.players.filter((p) => p.companyId === 'b');
-    for (const p of bSide.slice(1)) p.isAlive = false;
+    for (const p of bSide) p.isAlive = false;
     expect(inner(e).checkWin()).toBe(true);
     expect(e.state.winner).toBe(WinCondition.COMPANY_A_WIN);
   });

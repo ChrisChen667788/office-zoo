@@ -91,13 +91,16 @@ describe('dual — dualWinner 终局矩阵', () => {
     expect(dualWinner(base)).toEqual({ winner: null, reason: null });
   });
   it('🏆 垄断优先级最高', () => {
-    expect(dualWinner({ ...base, market: { a: 100, b: 99 }, aliveA: 1 }))
+    // a 越过赢线即垄断,优先于团灭(aliveA:0 本会触发 wipeout,但垄断先判)
+    expect(dualWinner({ ...base, market: { a: MARKET_WIN, b: MARKET_WIN - 30 }, aliveA: 0 }))
       .toEqual({ winner: 'a', reason: 'monopoly' });
   });
-  it('💀 团灭:活人 ≤1 的输', () => {
-    expect(dualWinner({ ...base, aliveA: 1 })).toEqual({ winner: 'b', reason: 'wipeout' });
+  it('💀 团灭:活人 = 0 才判负(v6.97 F8:剩 1 人仍打)', () => {
+    expect(dualWinner({ ...base, aliveA: 0 })).toEqual({ winner: 'b', reason: 'wipeout' });
+    // 剩 1 人不再算团灭,继续打
+    expect(dualWinner({ ...base, aliveA: 1 })).toEqual({ winner: null, reason: null });
     // 双团灭 → 比市占率(a 领先)
-    expect(dualWinner({ ...base, aliveA: 1, aliveB: 0 })).toEqual({ winner: 'a', reason: 'wipeout' });
+    expect(dualWinner({ ...base, aliveA: 0, aliveB: 0 })).toEqual({ winner: 'a', reason: 'wipeout' });
   });
   it('🐀 双内鬼皆裁 → 比市占率;打平 winner null', () => {
     expect(dualWinner({ ...base, insiderAliveA: false, insiderAliveB: false }))
