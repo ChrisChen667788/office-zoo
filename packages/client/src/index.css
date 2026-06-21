@@ -563,3 +563,25 @@ button {
     max-width: none !important;
   }
 }
+
+/* v6.96 (审计 H) — BettingBar 在窄屏从 270px 左下浮层(盖半张地图 + 压住 PhaseHint)
+ * 改成贴底全宽 sheet:圆角朝上、限高可滚,触控目标放大到 ≥44px。inline style 写死了
+ * position/width/left,所以这里必须 !important 覆盖。 */
+@media (max-width: 768px) {
+  .betting-bar {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 44vh !important;
+    overflow-y: auto !important;
+    border-radius: 14px 14px 0 0 !important;
+  }
+  /* 44px 触控目标只给「主操作」按钮(注额/候选/道具/公司盘);排除装饰性小图标
+   * (.bb-icon = 🏆/🛒),否则它们被撑高会把头部行整体胀大、挤压押注区。 */
+  .betting-bar button:not(.bb-icon) {
+    min-height: 44px;
+  }
+}

@@ -206,6 +206,9 @@ export default function Landing() {
   const [playerCount, setPlayerCount] = useState<number>(8);
   const [isCreating, setIsCreating] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  // v6.96(审计 K)— 首屏次级入口(占卜/周报/挑战)默认收进「更多玩法」折叠,
+  // 给模式卡让出首屏注意力,减少 hero 区可点元素堆叠。
+  const [moreOpen, setMoreOpen] = useState(false);
   // v6.37 P4 — chosen 公司主题包 id (null = default AI_NAMES roster).
   // Lazy-loaded from /api/company-pack/mine after the user gesture, so
   // anonymous landings don't pay the extra fetch.
@@ -599,11 +602,17 @@ export default function Landing() {
                   onRetake={() => navigate('/quiz')}
                   onShare={() => openShareForDaily(daily)}
                 />
-                {/* v5.0.0 — entry to the global "today's challenge"
-                    leaderboard. Sits right under the personalized
-                    daily card so users discover it without it
-                    competing for top-of-hero attention. */}
-                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                {/* v5.0.0 — 全网挑战/占卜/周报 次级入口。v6.96(审计 K)收进
+                    「✨ 更多玩法」折叠,默认收起,给模式卡让出首屏注意力。 */}
+                <div className="mt-3 flex flex-col items-center gap-2">
+                  <button
+                    onClick={() => setMoreOpen((v) => !v)}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-bold text-[12px] transition hover-sheen"
+                    style={{ color: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)' }}
+                    title="占卜 / 周报 / 全网挑战 等更多玩法"
+                  >✨ 更多玩法 {moreOpen ? '▴' : '▾'}</button>
+                  {moreOpen && (
+                  <div className="flex flex-wrap items-center justify-center gap-2">
                   <button
                     onClick={() => navigate('/fired/daily-challenge')}
                     className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-bold text-[12px] transition hover-sheen"
@@ -645,6 +654,8 @@ export default function Landing() {
                   >
                     <Icon src={navIcons.weekly} emoji="📊" size={16} alt="" /> 周报生成器 · v6.5 NEW ✨
                   </button>
+                  </div>
+                  )}
                 </div>
               </>
             ) : (

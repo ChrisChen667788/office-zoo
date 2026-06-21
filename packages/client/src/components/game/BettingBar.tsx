@@ -76,6 +76,8 @@ interface Props {
   connected?: boolean;
   /** 服务端干预回执(被拒就退筹码 + 给真实原因)。tick 单调自增触发处理。 */
   interveneAck?: { itemId: string; accepted: boolean; reason?: string; tick: number } | null;
+  /** v6.96 — 旁观者「存疑」本地热度(playerId→次数),与鬼魂票热度叠加进回合盘赔率。 */
+  extraHeat?: Record<string, number>;
 }
 
 const ACCENT = '#a78bfa';
@@ -83,7 +85,7 @@ const ACCENT = '#a78bfa';
 export default function BettingBar({
   gameId, phase, round, players, lastEliminated, voteResultTick, onIntervene,
   mode = 'single', companyMarket, gameWinner = null, companyLabels = { a: 'A 司', b: 'B 司' },
-  ghostVotes, connected = true, interveneAck = null,
+  ghostVotes, connected = true, interveneAck = null, extraHeat,
 }: Props) {
   const { pushPrediction } = useGameActions();
   const [prog, setProg] = useState<BettingProgress>(() => emptyProgress(0));
@@ -128,10 +130,11 @@ export default function BettingBar({
 
   const alive = players.filter((p) => p.isAlive);
   // v6.93 — 鬼魂票热度喂进盘口:被多票指认的人出局概率↑、赔率↓ → 押注从「瞎猜」变「读局」
+  // v6.96 — 再叠加旁观者讨论期「存疑」本地热度,你的判断实时改你看到的赔率
   const heat = tallyGhostHeat(ghostVotes);
   const market: BetMarket = roundVoteMarket(
     gameId, round,
-    alive.map((p) => ({ id: p.id, name: p.name, heat: heat[p.id] ?? 0 })),
+    alive.map((p) => ({ id: p.id, name: p.name, heat: (heat[p.id] ?? 0) + (extraHeat?.[p.id] ?? 0) })),
   );
   const canBet = phase !== 'game_over' && !open && alive.length >= 2 && connected;
 
@@ -264,15 +267,18 @@ export default function BettingBar({
 
   return (
     <>
-    <div style={card}>
+    {/* v6.96 — betting-bar class 让 index.css 在 ≤768px 把它从 270px 浮层
+        改成贴底全宽 sheet(不再盖半张地图)+ 放大触控目标到 ≥44px。 */}
+    <div className="betting-bar" style={card}>
       {/* 头:筹码 + 命中率 + 🏆 榜 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontWeight: 800 }}>🎰 押一把</span>
-          <button onClick={() => setShowLb(true)} title="全网战绩榜"
+          {/* bb-icon:排除在移动端 44px 触控目标规则之外(它们是装饰性小图标,撑高会胀头部) */}
+          <button className="bb-icon" onClick={() => setShowLb(true)} title="全网战绩榜"
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, opacity: 0.85 }}>🏆</button>
           {onIntervene && (
-            <button onClick={() => { setShopOpen((v) => !v); setPendingItem(null); }} title="干预商店 · 筹码能花了"
+            <button className="bb-icon" onClick={() => { setShopOpen((v) => !v); setPendingItem(null); }} title="干预商店 · 筹码能花了"
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, lineHeight: 1, padding: 0, opacity: 0.85 }}>🛒</button>
           )}
         </span>

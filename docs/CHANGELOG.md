@@ -7,6 +7,25 @@
 
 ---
 
+## v6.96 — 2026-06-20 · 优化审计 P1 收尾(讨论空窗 / 下注盘移动端 / 右栏去重 / 首屏精简)
+
+一轮推完审计剩余 P1。L(赛后战报卡)经核实**已由 v6.87 满足**(HighlightReel 早有「📋 复制战报图」+
+双司「🏢 公司战报」),本版不动;实际改 G/H/J/K 四条:
+
+- **G · 讨论空窗**(玩法 F1):讨论 4 分钟串行发言期旁观者无事可做。给**当前发言鼠**加「🤥 在演」
+  存疑按钮(仅 discussion 阶段),点击计入**本轮舆论热度**,叠加进 BettingBar 回合盘赔率 —— 你的判断
+  实时压低 TA 的赔率(与 v6.93 鬼魂票热度同源相加)。纯本地 `suspicion` state,每轮(round 变)清空。
+- **H · 下注盘移动端**(视觉 F-03 + UX F-02/F-08):BettingBar 在窄屏原是 270px 左下浮层,盖半张地图 +
+  压住 PhaseHint + 按钮 <44pt。加 `betting-bar` class,index.css `@media(max-width:768px)` 用 `!important`
+  把它改成**贴底全宽 sheet**(圆角朝上、限高 44vh 可滚)+ 触控目标 `min-height:44px`。
+- **J · 右栏去重**(视觉 F-01):EVENT LOG 与 SPEECHES 两栏讲同一件事。EVENT LOG 滤掉 `speech` 类
+  (`eventLog.filter(e => e.type !== 'speech')`),只留高信号事件(kill/vote/phase/ghost/裁员/挖角/抹黑/系统);
+  发言完整版(角色 chip + 证据链)只在下方 SPEECHES 区。
+- **K · 首屏精简**(视觉 F-02):Landing hero 次级入口太多。占卜/周报/全网挑战 3 个 chip 收进
+  「✨ 更多玩法」折叠(默认收起),给模式卡让出首屏注意力。
+- 验证:3 包 tsc 干净;**549 测试绿**;`vite build` 通过;preview 真机 **375px 确认 BettingBar 变贴底
+  全宽 sheet**(截图,不再盖地图);Landing/Classic tsc 干净。多 agent 对抗审查兜底。
+
 ## v6.95 — 2026-06-20 · 新手引导补全:把下注/干预/双公司搬上首登引导
 
 优化审计 P1 ——「新手引导缺一半」(玩法 F11 + UX F-04/F-15 三维交叉确认)。`RulesModal` 原本 3 步
