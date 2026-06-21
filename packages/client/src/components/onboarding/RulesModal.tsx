@@ -2,11 +2,13 @@
  * RulesModal — "How to Play" onboarding deck (v6.28 P5 refactor).
  *
  * Was a single ~250-LOC scroll modal (v6.7 era); felt like reading a
- * manual. Now 3-step swipe deck:
+ * manual. Now 4-step swipe deck:
  *
- *   Step 1 · 三种模式      — 经典 / 沉浸 / 截了么 的一句话定位
+ *   Step 1 · 四种模式      — 经典 / 沉浸 / 截了么 / 双公司 的一句话定位
  *   Step 2 · 三大阵营 + 回合 — 打工人 / 资本家 / 摸鱼党 + 简化 phase loop
- *   Step 3 · 新功能           — 鬼魂吐槽 / 战术 @ / ✨ AI 引用反馈环
+ *   Step 3 · 进阶玩法         — 鬼魂吐槽 / 战术 @ / ✨ AI 引用反馈环
+ *   Step 4 · 旁观者工具       — 🎰 下注盘 / 🛒 干预商店(v6.95 — 把 v6.74/83 的
+ *           下注·干预闭环 + v6.86 双公司搬上首登引导,之前新用户完全发现不到)
  *
  * Bottom row: progress dots + Back / Next / Skip / Start CTAs. Auto
  * shows on first visit (preserves localStorage 'office-zoo.seen-rules'
@@ -34,7 +36,7 @@ interface RulesModalProps {
   onClose: () => void;
 }
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 4;
 
 export default function RulesModal({ open, onClose }: RulesModalProps) {
   const [step, setStep] = useState(0);
@@ -104,7 +106,7 @@ export default function RulesModal({ open, onClose }: RulesModalProps) {
                 >跳过</button>
               </div>
               <p className="text-[10px] tracking-[0.22em] uppercase mt-1 text-white/35">
-                OFFICE ZOO · 三步入门
+                OFFICE ZOO · 四步入门
               </p>
             </div>
 
@@ -122,6 +124,7 @@ export default function RulesModal({ open, onClose }: RulesModalProps) {
                   {step === 0 && <Step1Modes />}
                   {step === 1 && <Step2Factions />}
                   {step === 2 && <Step3NewFeatures />}
+                  {step === 3 && <Step4Spectator />}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -182,10 +185,13 @@ function Step1Modes() {
         Step 1 · 选个模式
       </div>
       <div className="space-y-3">
-        <ModeRow icon="🏢" name="经典模式" accent="#2fb8ff"
+        <ModeRow icon="🏢" name="经典模式" accent="#4c9eff"
           desc="2.5D 办公室, 9 只 AI 鼠人搬砖 / 撕逼 / 投票. 像看综艺。" />
         <ModeRow icon="🎤" name="沉浸模式" accent="#a855f7"
           desc="全程 TTS 语音 + 围坐视角, 像茶水间偷听互撕。" />
+        {/* v6.95 — 双公司局之前只在 Landing 卡片露脸, 引导里完全没提, 新用户进局看不懂对撞条 */}
+        <ModeRow icon="⚔️" name="双公司对抗" accent="#ff8a3d"
+          desc="两家公司各 4 鼠同台, 各藏 1 内鬼. 比市占 / 团灭 / 挖角跳槽, 招牌「对撞条」看谁吞并谁。" />
         <ModeRow icon="⚖️" name="截了么" accent="#ef4444"
           desc="你 vs 黑心 HR, 四维评分, 看能不能保住工资。" />
       </div>
@@ -234,6 +240,27 @@ function Step3NewFeatures() {
           desc="你给 AI 发匿名前同事爆料 — 它真听到, 真引用, 你能在 Profile 看命中率。" />
         <FeatureRow icon="✨" title="AI 引用了"
           desc="AI 在 speech 里真用了你的爆料? 金色 ✨ 标 + 一键跳到那句话。" />
+      </div>
+    </div>
+  );
+}
+
+/* ── Step 4 — 旁观者工具 (v6.95) ───────────────────────────────────── */
+
+function Step4Spectator() {
+  return (
+    <div>
+      <div className="text-xs tracking-[0.2em] uppercase mb-3 text-white/45">
+        Step 4 · 你的旁观者工具
+      </div>
+      <div className="text-[11px] text-white/55 leading-relaxed mb-3">
+        你是旁观的 HR — 不下场, 但能 <b className="text-white/85">下注 / 干预 / 爆料</b>, 左右剧情走向。
+      </div>
+      <div className="space-y-3">
+        <FeatureRow icon="🎰" title="旁观者下注盘"
+          desc="每回合用筹码押「谁被投票开除」; 双公司局还能押「哪家公司笑到最后」. 赔率随场面实时动, 押中拿筹码。" />
+        <FeatureRow icon="🛒" title="干预商店 · 筹码改剧情"
+          desc="赢的筹码能花: 🛡护盾挡一刀 / 🔍内部邮件曝阵营线索 / 🎭聚光灯让某鼠加戏 / 📦猎头快递(双公司)逼跳槽。" />
       </div>
     </div>
   );
