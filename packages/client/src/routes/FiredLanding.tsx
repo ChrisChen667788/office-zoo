@@ -19,7 +19,7 @@ import {
   type PackSlot,
 } from '@furball/shared';
 import SfxToggle from '../components/game/SfxToggle';
-import { colors } from '../constants/design';
+import { colors, mihoyo } from '../constants/design';
 import { getUserId } from '../utils/userId';
 import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -288,7 +288,7 @@ export default function FiredLanding() {
   return (
     <div
       className="relative min-h-screen overflow-hidden noise"
-      style={{ background: colors.bg.base }}
+      style={{ background: mihoyo.mesh.heroDawn }}
     >
       {/* -- Aurora background — heat-tinted ------------------------------ */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">

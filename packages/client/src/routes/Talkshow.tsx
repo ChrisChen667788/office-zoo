@@ -17,6 +17,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { navIcons, Icon } from '../constants/icons';
+import { mihoyo } from '../constants/design'; // v6.99 — 段子页米哈游 mesh 背景
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -364,7 +365,7 @@ export default function Talkshow() {
   return (
     <div
       className="relative min-h-screen overflow-hidden"
-      style={{ background: 'linear-gradient(180deg,#0a0a1e,#1a0d2e 50%,#0d0a25)' }}
+      style={{ background: mihoyo.mesh.heroDawn }}
     >
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-6 md:px-10 py-5">

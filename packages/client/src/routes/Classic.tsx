@@ -34,6 +34,8 @@ import { playTtsFromUrl, stopTts, speakViaBrowserTTS, hasBrowserTTS } from '../u
 import { sfx, isSfxMuted } from '../utils/sfx';
 import { recordLeakSubmit, recordLeakQuoted } from '../utils/leakStats';
 import { phaseIcons, personalityIcons, glyphIcons, Icon } from '../constants/icons';
+// v6.98 — 米哈游化对局视图:gradient mesh 背景 + 元素色相位胶囊 + stigma chip。
+import { mihoyo, stigmaChipStyle, type MihoyoElement } from '../constants/design';
 
 // Vite proxies /avatars and /api to :3100 — use relative URLs to keep the
 // browser on the same origin (5173) and dodge cross-port image rendering quirks.
@@ -48,6 +50,19 @@ const PHASE_NAMES: Record<string, { label: string; emoji: string; icon: string }
   voting:      { label: '投票裁员', emoji: '🗳️', icon: phaseIcons.voting },
   vote_result: { label: '裁员结果', emoji: '⚖️', icon: phaseIcons.vote_result },
   game_over:   { label: '散伙饭',   emoji: '🏆', icon: phaseIcons.game_over },
+};
+
+// v6.98 — 每个相位映一个米哈游元素色,让顶栏相位胶囊随节奏变色(冷蓝待机 → 红色全员会
+// → 粉色撕逼 → 金色投票 → 红色裁员),把"phase 推进"做出游戏 UI 的元素感。
+const PHASE_ELEMENT: Record<string, MihoyoElement> = {
+  lobby:       'frost',
+  role_reveal: 'stigma',
+  free_roam:   'aurora',
+  meeting:     'inferno',
+  discussion:  'void',
+  voting:      'solar',
+  vote_result: 'inferno',
+  game_over:   'solar',
 };
 
 // v6.16 P2 — promoted to shared constants/personalityLabels.ts.
@@ -600,6 +615,8 @@ export default function Classic() {
   };
 
   const phaseInfo = PHASE_NAMES[phase] || { label: phase, emoji: '🎮', icon: '' };
+  // v6.98 — 当前相位的元素色(顶栏相位胶囊 + OKR 条用它上色)。
+  const phaseEl = mihoyo.element[PHASE_ELEMENT[phase] ?? 'frost'];
   const alivePlayers = players.filter((p) => p.isAlive);
   const deadPlayers = players.filter((p) => !p.isAlive);
   const alive = alivePlayers.length;
@@ -608,7 +625,8 @@ export default function Classic() {
     <div style={{
       position: 'relative',
       display: 'flex', flexDirection: 'column', height: '100vh',
-      background: '#050510',
+      // v6.98 — 米哈游 gradient mesh 取代纯黑,办公室不再坐在 SaaS 死黑底上。
+      background: mihoyo.mesh.heroDawn,
       color: 'rgba(255,255,255,0.92)', overflow: 'hidden',
     }}>
       {/* Ambient aurora — two subtle blobs so the map/panel don't sit on a flat color. */}
@@ -638,14 +656,8 @@ export default function Classic() {
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           {/* v6.4 — EventPill 替换旧 gradient text title, 跟其他路由统一 */}
           <EventPill stars={5} subtle>🏢 职场杀 · v6</EventPill>
-          <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.22em',
-            padding: '3px 10px', borderRadius: 999,
-            color: 'rgba(76,158,255,0.75)',
-            background: 'rgba(76,158,255,0.08)',
-            border: '1px solid rgba(76,158,255,0.2)',
-            fontVariantNumeric: 'tabular-nums',
-          }}>ROUND {round}</span>
+          {/* v6.98 — stigma caption chip(崩坏 3 「STIGMA · TYPE」风) */}
+          <span style={{ ...stigmaChipStyle('frost'), fontVariantNumeric: 'tabular-nums' }}>ROUND {round}</span>
           <span style={{
             fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 500,
             padding: '3px 10px', borderRadius: 999,
@@ -657,16 +669,21 @@ export default function Classic() {
           </span>
         </div>
 
-        <motion.div key={phase} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+        {/* v6.98 — 相位胶囊随节奏变元素色 + 弹簧入场(key=phase 每次切相位重触发) */}
+        <motion.div key={phase}
+          initial={{ opacity: 0, y: -8, scale: 0.94 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ type: 'spring', damping: 17, stiffness: 340 }}
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '6px 14px', borderRadius: 999,
-            background: 'linear-gradient(135deg, rgba(76,158,255,0.14) 0%, rgba(124,58,237,0.1) 100%)',
-            border: '1px solid rgba(76,158,255,0.28)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 16px rgba(76,158,255,0.14)',
+            background: phaseEl.halo,
+            border: `1px solid ${phaseEl.core}66`,
+            boxShadow: `0 4px 20px ${phaseEl.glow}, inset 0 1px 0 rgba(255,255,255,0.08)`,
           }}>
           <Icon src={phaseInfo.icon} emoji={phaseInfo.emoji} size={16} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.01em' }}>{phaseInfo.label}</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', letterSpacing: '-0.01em',
+            textShadow: `0 0 10px ${phaseEl.glow}` }}>{phaseInfo.label}</span>
         </motion.div>
 
         {/* Task progress */}
@@ -680,8 +697,9 @@ export default function Classic() {
             <motion.div animate={{ width: `${Math.min(taskProgress, 100)}%` }}
               style={{
                 height: '100%', borderRadius: 999,
-                background: 'linear-gradient(90deg, #4c9eff 0%, #7c3aed 100%)',
-                boxShadow: '0 0 10px rgba(76,158,255,0.45)',
+                // v6.98 — OKR=搬砖进度,黄绿→金渐变更"在干活"
+                background: `linear-gradient(90deg, ${mihoyo.element.aurora.core} 0%, ${mihoyo.element.solar.core} 100%)`,
+                boxShadow: `0 0 12px ${mihoyo.element.aurora.glow}`,
               }}
               transition={{ duration: 0.5 }} />
           </div>
@@ -852,13 +870,16 @@ export default function Classic() {
         {/* Right: Event panel — frosted glass (game-side class handles
             mobile responsiveness via index.css media query). */}
         <div className="game-side">
+          {/* v6.98 — 元素色 caption + 发光 ribbon 竖条(frost) */}
           <div style={{
             padding: '14px 16px',
-            borderBottom: '1px solid rgba(76,158,255,0.08)',
-            fontWeight: 700, fontSize: 11, letterSpacing: '0.24em',
-            color: 'rgba(255,255,255,0.5)',
+            borderBottom: `1px solid ${mihoyo.element.frost.core}1f`,
+            fontWeight: 800, fontSize: 11, letterSpacing: '0.24em',
+            color: mihoyo.element.frost.core,
             textTransform: 'uppercase',
+            display: 'flex', alignItems: 'center', gap: 8,
           }}>
+            <span style={{ width: 3, height: 12, borderRadius: 2, background: mihoyo.element.frost.core, boxShadow: `0 0 8px ${mihoyo.element.frost.glow}` }} />
             EVENT LOG
             {!connected && <span style={{ color: '#ef4444', marginLeft: 8, fontSize: 11 }}>Disconnected</span>}
           </div>
@@ -946,9 +967,13 @@ export default function Classic() {
               marginBottom: 6, minHeight: 22,
             }}>
               <div style={{
-                fontSize: 11, color: 'rgba(47,184,255,0.4)',
-                fontWeight: 700, letterSpacing: '0.1em',
-              }}>SPEECHES</div>
+                fontSize: 11, color: mihoyo.element.void.core,
+                fontWeight: 800, letterSpacing: '0.24em', textTransform: 'uppercase',
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+              }}>
+                <span style={{ width: 3, height: 11, borderRadius: 2, background: mihoyo.element.void.core, boxShadow: `0 0 8px ${mihoyo.element.void.glow}` }} />
+                SPEECHES
+              </div>
               {/* v6.8 P3 — show the currently-thinking AI's personality-aware
                    idle beat when LLM hasn't yet emitted a speech event. */}
               {currentSpeaker && (() => {

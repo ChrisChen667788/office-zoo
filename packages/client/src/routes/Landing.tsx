@@ -24,7 +24,7 @@ import { prefetchAllCharacterStats, prefetchWeeklyLeaders } from '../components/
 import DailyRatSpotlight from '../components/character/DailyRatSpotlight';
 import UgcHighlightsCarousel from '../components/character/UgcHighlightsCarousel';
 import { primeAudio } from '../utils/audioUnlock';
-import { colors } from '../constants/design';
+import { colors, mihoyo } from '../constants/design';
 import { lottie } from '../constants/lottie';
 import { useT, setLocale, LOCALE_OPTIONS, type Locale, type DictKey } from '../utils/i18n';
 import { getUserId } from '../utils/userId';
@@ -918,17 +918,18 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
   const featureCls = tall ? 'text-[12px] md:text-[13px]' : 'text-[11px]';
   return (
     <motion.div
-      className={`group relative overflow-hidden rounded-2xl text-left transition-all duration-300 ${padCls} ${minH} ${className}`}
+      className={`group relative overflow-hidden text-left transition-all duration-300 ${padCls} ${minH} ${className}`}
       style={{
+        // v6.98 — 崩坏 3 stigma 六边形切角卡。边框用 inset 环跟随六边形轮廓,
+        // 外发光用 drop-shadow(clip-path 会裁掉普通 box-shadow,inset 与 filter 不受影响)。
+        clipPath: mihoyo.shape.hexCard,
         background: active
-          ? `linear-gradient(155deg, ${spec.accent}1a 0%, ${spec.accent2}10 100%)`
-          : 'rgba(255,255,255,0.025)',
-        border: active
-          ? `1px solid ${spec.accent}66`
-          : '1px solid rgba(255,255,255,0.06)',
+          ? `linear-gradient(155deg, ${spec.accent}26 0%, ${spec.accent2}14 100%)`
+          : 'rgba(255,255,255,0.03)',
         boxShadow: active
-          ? `0 10px 36px ${spec.accent}28, inset 0 1px 0 rgba(255,255,255,0.06)`
-          : 'inset 0 1px 0 rgba(255,255,255,0.03)',
+          ? `inset 0 0 0 1.5px ${spec.accent}99, inset 0 1px 0 rgba(255,255,255,0.07)`
+          : 'inset 0 0 0 1px rgba(255,255,255,0.08)',
+        filter: active ? `drop-shadow(0 10px 28px ${spec.accent}44)` : 'none',
       }}
       whileHover={{ y: -3 }}
       // Animate must include opacity + y so the entry transition resolves —
