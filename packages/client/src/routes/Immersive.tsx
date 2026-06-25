@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
+// v6.98 — 米哈游化沉浸局(与经典局同模板:mesh 背景 + 元素色相位胶囊 + stigma chip)
+import { mihoyo, stigmaChipStyle, type MihoyoElement } from '../constants/design';
 import PersonaCard from '../components/character/PersonaCard';
 import IdleBeat from '../components/character/IdleBeat';
 import {
@@ -367,10 +369,16 @@ export default function Immersive() {
 
   const circleRadius = Math.min(280, typeof window !== 'undefined' ? window.innerWidth * 0.28 : 280);
   const phaseInfo = PHASE_LABELS[phase] || { label: phase, emoji: '🎮', icon: '' };
+  // v6.98 — 相位元素色(冷蓝待机 → 红全员会 → 粉撕逼 → 金投票),同经典局口径。
+  const PHASE_EL: Record<string, MihoyoElement> = {
+    lobby: 'frost', role_reveal: 'stigma', free_roam: 'aurora', meeting: 'inferno',
+    discussion: 'void', voting: 'solar', vote_result: 'inferno', game_over: 'solar',
+  };
+  const phaseEl = mihoyo.element[PHASE_EL[phase] ?? 'frost'];
 
   return (
     <div className="fixed inset-0 overflow-hidden noise"
-      style={{ background: '#050510' }}>
+      style={{ background: mihoyo.mesh.heroDawn }}>
 
       {/* Ambient aurora layers — restrained pair instead of pulsing orbs */}
       <div aria-hidden className="absolute inset-0 pointer-events-none">
@@ -471,21 +479,20 @@ export default function Immersive() {
             exit={{ opacity: 0, scale: 0.92 }} transition={{ duration: 0.4 }}
             className="flex flex-col items-center gap-2">
             {round > 0 && (
-              <span className="text-[10px] font-bold tracking-[0.3em] uppercase tabular-nums"
-                style={{ color: 'rgba(76,158,255,0.8)' }}>
+              <span className="tabular-nums" style={{ ...stigmaChipStyle('frost') }}>
                 ROUND {round}
               </span>
             )}
             <div className="flex items-center gap-2.5 px-5 py-2 rounded-full"
               style={{
-                background: 'linear-gradient(135deg, rgba(76,158,255,0.14) 0%, rgba(124,58,237,0.1) 100%)',
+                background: phaseEl.halo,
                 backdropFilter: 'blur(20px) saturate(140%)',
                 WebkitBackdropFilter: 'blur(20px) saturate(140%)',
-                border: '1px solid rgba(76,158,255,0.28)',
-                boxShadow: '0 4px 24px rgba(76,158,255,0.16), inset 0 1px 0 rgba(255,255,255,0.06)',
+                border: `1px solid ${phaseEl.core}66`,
+                boxShadow: `0 4px 24px ${phaseEl.glow}, inset 0 1px 0 rgba(255,255,255,0.08)`,
               }}>
               <Icon src={phaseInfo.icon} emoji={phaseInfo.emoji} size={22} alt={phaseInfo.label} />
-              <span className="text-base font-bold" style={{ color: 'rgba(255,255,255,0.9)' }}>
+              <span className="text-base font-bold" style={{ color: '#fff', textShadow: `0 0 10px ${phaseEl.glow}` }}>
                 {phaseInfo.label}
               </span>
             </div>

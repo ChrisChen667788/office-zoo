@@ -7,6 +7,31 @@
 
 ---
 
+## v6.98 — 2026-06-21 · Z 世代视觉升级(一):对局视图米哈游化 + Landing 六边形 + 补 archetype 立绘
+
+把现成但没铺满的 **V6.1 米哈游设计体系**(`design.ts` 的 `mihoyo` token)真正用起来,第一批落在
+停留时长最高的对局视图 + 第一印象的 Landing,并用实测可用的图链补齐空缺立绘。
+
+- **经典局 + 沉浸局对局视图(同模板)**:
+  - **Gradient mesh 背景**(`mihoyo.mesh.heroDawn`)取代纯黑死底,办公室不再坐在 SaaS 灰底上。
+  - **相位胶囊随节奏变元素色**:冷蓝待机(frost)→ 红全员会(inferno)→ 粉撕逼(void)→ 金投票
+    (solar)…+ 弹簧入场,把 phase 推进做出游戏 UI 的元素感。
+  - **ROUND** → 崩坏 3 stigma caption chip;**OKR 条** → 黄绿→金渐变发光;**EVENT LOG / SPEECHES**
+    头 → 元素色 + 发光 ribbon 竖条。复用现成 token,**零新资产、零 API**。
+- **Landing 模式卡六边形化**:崩坏 3 stigma `hexCard` 切角 clipPath + 元素发光(clip-path 会裁掉
+  普通 box-shadow,故外发光用 `drop-shadow`、边框用 inset 环跟随六边形轮廓)。
+- **段子 / 裁了么页 mesh 背景**:Talkshow + FiredLanding 根背景从暗渐变 / `colors.bg.base` 换成
+  `mihoyo.mesh.heroDawn`,与对局视图统一基调。
+- **archetype 立绘上线**:Profile 的 `useArchetypePortrait` 早已接好,缺的是资产 —— 本版生成 24 张后,
+  `/api/quiz/archetype-portrait/:id` 直接 `ready:true` 返图,Profile 班味卡的 hero 立绘真显出来(实测
+  端点 200 + image/jpeg)。
+- **补 archetype 二次元立绘**:`archetype-portraits/` 目录原本空白;新增 `scripts/regen-archetype-portraits.ts`
+  + npm 别名 `gen:archetype-portraits`,走 **doubao-seedream-4.5** 多供应商图链(青云兜底,**不依赖
+  卡住的 MiniMax 视频余额**)一次生成 **24 张职场 archetype 立绘**(slacker / sass-master / drama-queen
+  / iron-maiden / faang-cog / bj-drift…)。立绘 gitignored,部署时再生,本地 / preview 已就位。
+- 验证:3 包 tsc 干净;**549 测试绿**;`vite build` 通过;preview 真机确认经典/沉浸局 mesh 背景 +
+  元素相位胶囊渲染、Landing 5 张卡 hexCard 切角已应用、零 console error;**24/24 立绘生成成功**(236s)。
+
 ## v6.97 — 2026-06-20 · 优化审计 P2 数值平衡(双公司竞速 / 团灭阈值 / 抹黑压力)
 
 三处纯数值/逻辑平衡,全在 `shared/dual`,纯函数 + 单测锁:
