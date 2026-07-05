@@ -92,6 +92,15 @@ const PERSONA_ART: Record<string, {
     palette: 'muted gray + dusty teal + pale tan',
     bgColor: '#3a3f47',
   },
+
+  // ── v6.100 — 00后整顿职场 ─────────────────────────────────────────
+  lingling: {
+    character:
+      'a 21-year-old Gen-Z East Asian young person with a trendy two-tone dyed mullet (a streak of bold color), small ear cuffs and layered chain necklaces, oversized graphic streetwear hoodie, one wireless earbud in, totally unbothered defiant energy',
+    expression: 'cocky raised-eyebrow smirk with a slight head tilt, an unmistakable "and? so what?" attitude, completely unintimidated',
+    palette: 'electric lime + hot pink + cool graphite accents',
+    bgColor: '#16201a',
+  },
 };
 
 const IMAGE_API_KEY = process.env.QINGYUN_API_KEY || '';

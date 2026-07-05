@@ -77,7 +77,7 @@ interface ScriptFull extends ScriptSummary {
 // the user's quiz profile.
 type SortMode = 'default' | 'hot' | 'new' | 'monthly' | 'foryou';
 
-type Persona = 'shaonv' | 'yujie' | 'qingse' | 'jingying' | 'badao' | 'qingnian';
+type Persona = 'shaonv' | 'yujie' | 'qingse' | 'jingying' | 'badao' | 'qingnian' | 'lingling';
 type Tag =
   | 'overtime' | 'kpi' | 'pua' | 'age' | 'slacking'
   | 'jargon' | 'hr' | 'boss' | 'meta';
@@ -114,6 +114,7 @@ const PERSONA_LABELS: Record<string, {
   jingying: { emoji: '🧔',     imageUrl: '/talkshow-personas/jingying.png', videoUrl: '/talkshow-personas-video/jingying.mp4', label: '精英男',  gender: 'male'   },
   badao:    { emoji: '👨‍💼', imageUrl: '/talkshow-personas/badao.png',    videoUrl: '/talkshow-personas-video/badao.mp4',    label: '霸道男',  gender: 'male'   },
   qingnian: { emoji: '👤',     imageUrl: '/talkshow-personas/qingnian.png', videoUrl: '/talkshow-personas-video/qingnian.mp4', label: '青年音',  gender: 'male'   },
+  lingling: { emoji: '😎',     imageUrl: '/talkshow-personas/lingling.png', videoUrl: '/talkshow-personas-video/lingling.mp4', label: '整顿王',  gender: 'female' },
 };
 
 export default function Talkshow() {
@@ -917,6 +918,7 @@ const CREATE_PERSONAS: Array<{ key: Persona; emoji: string; imageUrl: string; la
   { key: 'jingying', emoji: '🧔',     imageUrl: '/talkshow-personas/jingying.png', label: '精英男' },
   { key: 'badao',    emoji: '👨‍💼', imageUrl: '/talkshow-personas/badao.png',    label: '霸道男' },
   { key: 'qingnian', emoji: '👤',     imageUrl: '/talkshow-personas/qingnian.png', label: '青年音' },
+  { key: 'lingling', emoji: '😎',     imageUrl: '/talkshow-personas/lingling.png', label: '整顿王' },
 ];
 
 const CREATE_SAMPLES = [

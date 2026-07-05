@@ -7,6 +7,19 @@
 
 ---
 
+## v6.100 — 2026-06-21 · 段子新 persona:00 后整顿职场「整顿王」
+
+班味单口原有 6 个 persona(少女/御姐/青涩/精英/霸道/青年),全是「忍着班味」的视角。本版加第 7 个
+**`lingling`「整顿王」(00 后整顿职场)** —— 21 岁零零后,怼天怼地不惯着老板,Z 世代最能共鸣的「反班味」声音。
+
+- **全链路接入**(新增 persona 要打穿的所有穷举表):`shared/data/talkshow.ts` 的 `TalkshowPersona` 联合类型;
+  服务端 `PERSONA_TO_ROLE_HINT`(→ `mimic_cat` 年轻女声)+ `/tts` `/generate` 两处 `z.enum`;`talkshowGenerator`
+  的 `PERSONA_HINTS`(LLM 写段子的人设)`talkshowAvatarGen` 的 `PERSONA_ART`(立绘画面设定);客户端本地
+  `Persona` 类型 + `PERSONA_LABELS` + `CREATE_PERSONAS`(创作页可选)。tsc 全程把关,无漏网穷举。
+- **立绘**:doubao-seedream 生成「整顿王」二次元立绘(两色挑染 mullet、街头穿搭、单耳机、"and? so what?" 不屑神情);
+  与现有 6 张一样**入库**(talkshow-personas 是 fork-friendly 小图)。视频版受 MiniMax 余额所限暂缺,播放器自动回退静态立绘。
+- 验证:3 包 tsc 干净;**549 测试绿**;`vite build` 通过;立绘生成成功。
+
 ## v6.99 — 2026-06-21 · Z 世代视觉升级(二):裁了么「黑心 HR 反派」立绘
 
 裁了么(谈判模式)的对手 HR 原本只有文字标签(菜鸟HR / 老油条HR / 魔鬼HR),没有形象 —— 反派

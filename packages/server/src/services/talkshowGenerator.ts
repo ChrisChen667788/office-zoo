@@ -31,6 +31,7 @@ const PERSONA_HINTS: Record<TalkshowPersona, string> = {
   jingying:  '30 多岁中层管理者男性,语气精明克制,善于揭露行业潜规则',
   badao:     '40 多岁创业老板,语气霸气但偶尔暴露韭菜本质,反差萌',
   qingnian:  '中性叙述者,语气平和但观察犀利,适合段子的旁观者视角',
+  lingling:  '00后整顿职场的零零后,21 岁,怼天怼地不惯着老板,语气直接、网感强、爱用梗,该顶就顶',
 };
 
 const TAG_HINTS: Record<TalkshowTag, string> = {
