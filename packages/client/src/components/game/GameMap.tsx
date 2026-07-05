@@ -83,11 +83,13 @@ interface RoomDef {
 const ROOMS: RoomDef[] = [
   { id: '开放工区', gridX: 2, gridY: 2, width: 3, height: 3, color: '#3a7bd5', label: '开放工区' },
   { id: '茶水间',   gridX: 0, gridY: 0, width: 2, height: 2, color: '#e67e22', label: '茶水间' },
-  { id: '会议室',   gridX: 4, gridY: 0, width: 2, height: 2, color: '#5e17ff', label: '会议室' },
+  // v6.101(审计 F13)— 会议室旧 '#5e17ff' 与品牌紫/中立玩家紫近似;改深紫回避角色色。
+  { id: '会议室',   gridX: 4, gridY: 0, width: 2, height: 2, color: '#2d1a5c', label: '会议室' },
   { id: 'HR办公室', gridX: 6, gridY: 1, width: 2, height: 2, color: '#e74c8a', label: 'HR办公室' },
   { id: '服务器机房', gridX: 0, gridY: 3, width: 2, height: 2, color: '#f39c12', label: '服务器机房' },
   { id: '监控室',   gridX: 6, gridY: 3, width: 2, height: 2, color: '#546e7a', label: '监控室' },
-  { id: '产品部',   gridX: 0, gridY: 5, width: 2, height: 2, color: '#2fb8ff', label: '产品部' },
+  // v6.101(审计 F13)— 产品部旧 '#2fb8ff' 与猫队光圈蓝同族,猫队站上去圈地混一片;改低饱和深蓝。
+  { id: '产品部',   gridX: 0, gridY: 5, width: 2, height: 2, color: '#1a4a7a', label: '产品部' },
   { id: '老板办公室', gridX: 4, gridY: 5, width: 3, height: 2, color: '#8d6e63', label: '老板办公室' },
   { id: '文印室',   gridX: 7, gridY: 5, width: 2, height: 2, color: '#78909c', label: '文印室' },
   { id: '电梯间',   gridX: 2, gridY: 0, width: 2, height: 1, color: '#7c3aed', label: '电梯间' },
@@ -112,8 +114,11 @@ const CORRIDORS: [string, string][] = [
 
 const TILE = 52;         // base tile size in pixels
 const WALL_H = 28;       // wall height in iso space
-const ORIGIN_X = 450;    // canvas centre offset X
-const ORIGIN_Y = 60;     // canvas centre offset Y
+// v6.101(审计 F12)— 内容实际横跨 x:135–855(TILE=52/30° 下 (x−y)∈[−7,9]),旧 ORIGIN_X=450
+// 让左边空 135px、右边只剩 45px,地图明显偏右;405 让两侧各留 ~90px 居中。ORIGIN_Y 60→80
+// 给顶行头顶的 emote 气泡(sy−50−yOffset)让出空间不再被裁,底部最深 ~496 仍在 550 内。
+const ORIGIN_X = 405;    // canvas centre offset X
+const ORIGIN_Y = 80;     // canvas centre offset Y
 
 function toIso(x: number, y: number): { sx: number; sy: number } {
   const angle = Math.PI / 6; // 30-degree
@@ -332,6 +337,9 @@ function drawPlayer(
   cx: number,
   cy: number,
   avatarImg?: HTMLImageElement | null,
+  // v6.101(审计 F11)— 🔥 热门提名从独立浮动 disc 改为内嵌名牌前缀:
+  // 原来 🔥(左上)+ 👻(右上)+ 名牌 三者在 36px 头像上互相贴脸。
+  isHot?: boolean,
 ) {
   // v0.6.3 — radius bumped 16 → 18 so faces are readable next to furniture,
   // and the team ring is now a hairline + soft outer glow rather than a
@@ -479,8 +487,9 @@ function drawPlayer(
     ctx.setLineDash([4, 3]);
     ctx.stroke();
     ctx.restore();
-    // 角标 disc + 字母
-    const bx = cx + radius - 2, by = cy + radius - 2;
+    // 角标 disc + 字母。v6.101(审计 F11)— 从右下移到左下:右上已有 👻 票 badge,
+    // 右侧两枚 badge 叠一起太挤;左下与右上对角分布,四向不打架。
+    const bx = cx - radius + 2, by = cy + radius - 2;
     ctx.beginPath();
     ctx.arc(bx, by, 7, 0, Math.PI * 2);
     ctx.fillStyle = ccol;
@@ -498,7 +507,9 @@ function drawPlayer(
   ctx.font = '600 9.5px ui-sans-serif, system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const nameWidth = ctx.measureText(player.name).width;
+  // v6.101(审计 F11)— 热门提名内嵌为名牌前缀「🔥 名字」,量宽用展示串,pill 自动加宽。
+  const display = isHot ? `🔥${player.name}` : player.name;
+  const nameWidth = ctx.measureText(display).width;
   const badgeW = nameWidth + 12;
   const badgeH = 15;
   const badgeX = cx - badgeW / 2;
@@ -509,12 +520,13 @@ function drawPlayer(
   ctx.beginPath();
   ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 7);
   ctx.fill();
-  ctx.strokeStyle = `${color}70`;
+  // 热门时 pill 描边转橙金,保留原来浮动 disc 的「在燃」信号。
+  ctx.strokeStyle = isHot ? 'rgba(255,165,0,0.9)' : `${color}70`;
   ctx.lineWidth = 1;
   ctx.stroke();
 
   ctx.fillStyle = '#f4f4ff';
-  ctx.fillText(player.name, cx, badgeY + badgeH / 2 + 0.5);
+  ctx.fillText(display, cx, badgeY + badgeH / 2 + 0.5);
 }
 
 /* ---------- Component ---------- */
@@ -1129,7 +1141,8 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
         ctx.scale(1.18, 1.18);
         ctx.translate(-sx, -sy);
       }
-      drawPlayer(ctx, p, sx, sy, avatarImg);
+      // v6.101(审计 F11)— 热门提名内嵌名牌(🔥 前缀 + 橙金描边),不再画独立浮动 disc。
+      drawPlayer(ctx, p, sx, sy, avatarImg, p.isAlive && hotNamesSetRef.current.has(p.name));
       if (speakerHere) ctx.restore();
 
       // Activity badge — small icon next to bottom-right of the avatar
@@ -1198,7 +1211,8 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
       // moment feels "of this room" — coffee machine → ☕, 老板办公室 → 😨,
       // free_roam idle → 📱/🥱. Bubble shows 4s every 10s per player.
       // Deterministic per (id, slot) so frames don't shimmer.
-      if (p.isAlive) {
+      // v6.101(审计 F11)— 正在发言的鼠不冒 idle 气泡:发言光圈 + 摸鱼 emoji 同框很分裂。
+      if (p.isAlive && p.id !== speakerRef.current) {
         let nearestKind: FurnitureKind | null = null;
         let nearestDistSq = PROX_PX * PROX_PX;
         for (const fp of furniturePlaced) {
@@ -1256,41 +1270,8 @@ export default function GameMap({ players, avatarUrls = {}, currentSpeakerId = n
         }
       }
 
-      // ── v6.36 P3 🔥 hot-nominated badge ────────────────────────────
-      //
-      // Mirror of the v6.22 ghost-vote dot, but on the top-LEFT of an
-      // alive avatar's name pill — fires when the player's name landed
-      // via cross-spectator hot-quote nominations (≥ 1 in 7d). Lets
-      // spectators see their hot-quote submissions actually surface
-      // in the game world. Pulses ~1.4Hz, orange/amber tint.
-      if (p.isAlive && hotNamesSetRef.current.has(p.name)) {
-        const hx = sx - 16;
-        const hy = sy - 16;
-        const r = 9;
-        // Pulse 1.0 → 1.18 → 1.0 over ~1.4s, phase-shifted from the
-        // ghost dot so both badges don't pulse in sync (visual rhythm).
-        const pulse = 1 + Math.sin(tSec * 4.5 + 1.7) * 0.09;
-        ctx.save();
-        ctx.shadowColor = 'rgba(255,165,0,0.85)';
-        ctx.shadowBlur = 12;
-        ctx.fillStyle = 'rgba(15,14,46,0.95)';
-        ctx.beginPath();
-        ctx.arc(hx, hy, r * pulse, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-        // Crisp orange rim
-        ctx.beginPath();
-        ctx.arc(hx, hy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255,165,0,0.95)';
-        ctx.lineWidth = 1.4;
-        ctx.stroke();
-        // 🔥 glyph centered
-        ctx.font = '11px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#fff';
-        ctx.fillText('🔥', hx, hy + 0.5);
-      }
+      // (v6.36 P3 的浮动 🔥 disc 已并入 drawPlayer 名牌 —— v6.101 审计 F11:
+      //  36px 头像四周最多同时挤 4 枚 badge,🔥 内嵌名牌后左上角让出来。)
 
       // ── v6.22 ghost-vote dot ──────────────────────────────────────
       //
