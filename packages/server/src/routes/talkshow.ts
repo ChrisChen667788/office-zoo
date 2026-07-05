@@ -87,6 +87,7 @@ const PERSONA_TO_ROLE_HINT: Record<TalkshowPersona, string> = {
   jingying: 'detective_cat', // → male-qn-jingying
   badao:    'killer_dog',    // → male-qn-badao
   qingnian: 'villager_cat',  // → male-qn-qingse (neutral young voice)
+  lingling: 'mimic_cat',     // v6.100 → 实习生 young female voice(00后整顿,网感强)
 };
 
 // ---------- /list ----------------------------------------------------------
@@ -197,7 +198,7 @@ const TtsRequestSchema = z.object({
   // before it lands in SEED_SCRIPTS.
   text: z.string().min(1).max(2000).optional(),
   persona: z.enum([
-    'shaonv', 'yujie', 'qingse', 'jingying', 'badao', 'qingnian',
+    'shaonv', 'yujie', 'qingse', 'jingying', 'badao', 'qingnian', 'lingling',
   ] as const).optional(),
 });
 
@@ -286,7 +287,7 @@ talkshowRoutes.get('/tts', async (c) => {
 const GenerateRequestSchema = z.object({
   topic:   z.string().min(4).max(200),
   persona: z.enum([
-    'shaonv', 'yujie', 'qingse', 'jingying', 'badao', 'qingnian',
+    'shaonv', 'yujie', 'qingse', 'jingying', 'badao', 'qingnian', 'lingling',
   ] as const),
   tag:     z.enum([
     'overtime', 'kpi', 'pua', 'age', 'slacking',
