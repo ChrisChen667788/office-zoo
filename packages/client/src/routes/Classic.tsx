@@ -35,35 +35,15 @@ import { sfx, isSfxMuted } from '../utils/sfx';
 import { recordLeakSubmit, recordLeakQuoted } from '../utils/leakStats';
 import { phaseIcons, personalityIcons, glyphIcons, Icon } from '../constants/icons';
 // v6.98 — 米哈游化对局视图:gradient mesh 背景 + 元素色相位胶囊 + stigma chip。
-import { mihoyo, stigmaChipStyle, type MihoyoElement } from '../constants/design';
+import { mihoyo, stigmaChipStyle } from '../constants/design';
+// v6.106(审计视觉 F-09)— 相位标签/元素色收编到共享模块,Classic/Immersive 不再各养一份。
+import { GAME_PHASES as PHASE_NAMES, PHASE_ELEMENT } from '../constants/gamePhases';
 
 // Vite proxies /avatars and /api to :3100 — use relative URLs to keep the
 // browser on the same origin (5173) and dodge cross-port image rendering quirks.
 const SERVER_URL = '';
 
-const PHASE_NAMES: Record<string, { label: string; emoji: string; icon: string }> = {
-  lobby:       { label: '待入职',   emoji: '⏳', icon: phaseIcons.lobby },
-  role_reveal: { label: '岗位分配', emoji: '📋', icon: phaseIcons.role_reveal },
-  free_roam:   { label: '日常搬砖', emoji: '💼', icon: phaseIcons.free_roam },
-  meeting:     { label: '紧急全员会', emoji: '🚨', icon: phaseIcons.meeting },
-  discussion:  { label: '职场撕逼', emoji: '🔥', icon: phaseIcons.discussion },
-  voting:      { label: '投票裁员', emoji: '🗳️', icon: phaseIcons.voting },
-  vote_result: { label: '裁员结果', emoji: '⚖️', icon: phaseIcons.vote_result },
-  game_over:   { label: '散伙饭',   emoji: '🏆', icon: phaseIcons.game_over },
-};
-
-// v6.98 — 每个相位映一个米哈游元素色,让顶栏相位胶囊随节奏变色(冷蓝待机 → 红色全员会
-// → 粉色撕逼 → 金色投票 → 红色裁员),把"phase 推进"做出游戏 UI 的元素感。
-const PHASE_ELEMENT: Record<string, MihoyoElement> = {
-  lobby:       'frost',
-  role_reveal: 'stigma',
-  free_roam:   'aurora',
-  meeting:     'inferno',
-  discussion:  'void',
-  voting:      'solar',
-  vote_result: 'inferno',
-  game_over:   'solar',
-};
+// (相位标签/元素色 → constants/gamePhases.ts,v6.106 收编)
 
 // v6.16 P2 — promoted to shared constants/personalityLabels.ts.
 // Local re-export kept as alias to minimize blast radius on call sites.
@@ -133,6 +113,17 @@ export default function Classic() {
   // 被拒就退筹码 + 给真实原因。tick 防同一回执重复处理。
   const [interveneAck, setInterveneAck] = useState<{ itemId: string; accepted: boolean; reason?: string; tick: number } | null>(null);
   const ackTickRef = useRef(0);
+  // v6.110(审计玩法 F6)— 「内部邮件」背景调查浮卡(4.5s 自动收),花 200 筹码的结果
+  // 不再只躺 event log 小字。id 单调自增驱动 AnimatePresence 重触发。
+  const [clueCard, setClueCard] = useState<{ targetName: string; label: string; id: number } | null>(null);
+  const clueIdRef = useRef(0);
+  // v6.111(审计玩法 F12)— 场上刚发生跨局恩怨 → 恩怨录按钮点红,打开即清。
+  const [grudgePulse, setGrudgePulse] = useState(false);
+  useEffect(() => {
+    if (!clueCard) return;
+    const t = setTimeout(() => setClueCard(null), 4500);
+    return () => clearTimeout(t);
+  }, [clueCard]);
   // v6.93 — 重连成功后短暂显示绿色「已恢复」条幅(2.5s)。
   const [justReconnected, setJustReconnected] = useState(false);
   const wasDisconnectedRef = useRef(false);
@@ -265,6 +256,19 @@ export default function Classic() {
   // unmount — the old code had 9 redundant `on`/`off` pairs prone to drift.
   useSocketEvents({
     'game:state': (state: any) => updateState(state),
+
+    // v6.111 — 跨局恩怨实时事件:event log 一行(橙红背刺风)+ 恩怨录按钮点红
+    'game:grudge_vote': (data: { voterName: string; foeName: string; taunt: string }) => {
+      pushEvent('defection', `🗡️ ${data.voterName} 翻旧账改投 ${data.foeName}:${data.taunt}`);
+      setGrudgePulse(true);
+    },
+
+    // v6.110 — 内部邮件专属动线:全房弹「背景调查」浮卡 + event log 一行
+    'game:intervene_clue': (data: { targetName: string; label: string }) => {
+      clueIdRef.current += 1;
+      setClueCard({ ...data, id: clueIdRef.current });
+      pushEvent('system', `🔍 内部邮件曝出:${data.targetName} 更像${data.label}的人(小道消息)`);
+    },
 
     // v6.93 — 服务端干预回执:同步给 BettingBar(被拒退筹码),并在 event log
     // 留一行真实原因(护盾占用/限流/非双公司局/无目标…),不再「买完石沉大海」。
@@ -599,6 +603,16 @@ export default function Classic() {
     return () => clearTimeout(t);
   }, [justReconnected]);
 
+  // v6.103(审计 UX F-11)— 对局进行中误关标签页/误刷新弹原生确认;lobby(还没开打)
+  // 和 game_over(已散场)不拦。SPA 内部导航(浏览器返回)不触发 beforeunload,
+  // 拦它要劫持 history,风险大于收益,先守住「关页丢局」这个最痛的。
+  useEffect(() => {
+    if (phase === 'game_over' || phase === 'lobby') return;
+    const handle = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handle);
+    return () => window.removeEventListener('beforeunload', handle);
+  }, [phase]);
+
   const eventTypeStyles: Record<string, { color: string; bg: string }> = {
     speech: { color: 'rgba(255,255,255,0.85)', bg: 'transparent' },
     vote:   { color: '#fbbf24', bg: 'rgba(251,191,36,0.05)' },
@@ -896,9 +910,11 @@ export default function Classic() {
                     initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
                     style={{
-                      padding: '6px 8px', marginBottom: 2, borderRadius: 8, fontSize: 12,
+                      // v6.108(审计视觉 F-14)— marginBottom 2→4 条目呼吸感;
+                      // 类型左边条透明度 30→55,高亮屏(手机)上也能分清事件类型。
+                      padding: '6px 8px', marginBottom: 4, borderRadius: 8, fontSize: 12,
                       lineHeight: 1.6, background: s.bg,
-                      borderLeft: `2px solid ${s.color}30`,
+                      borderLeft: `2px solid ${s.color}55`,
                     }}>
                     <span style={{ color: s.color, fontWeight: entry.type === 'kill' ? 700 : 400 }}>
                       {entry.text}
@@ -1201,6 +1217,34 @@ export default function Classic() {
         </div>
       </div>
 
+      {/* v6.110 — 「内部邮件」背景调查浮卡:顶部居中弹 4.5s,琥珀信封风 */}
+      <AnimatePresence>
+        {clueCard && (
+          <motion.div key={clueCard.id}
+            initial={{ opacity: 0, y: -24, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            onClick={() => setClueCard(null)}
+            style={{
+              position: 'fixed', top: 76, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 85, cursor: 'pointer', padding: '10px 18px', borderRadius: 12,
+              background: 'rgba(30,22,8,0.94)', backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,184,76,0.55)',
+              boxShadow: '0 0 30px rgba(255,184,76,0.3), 0 12px 40px rgba(0,0,0,0.5)',
+              maxWidth: 'min(480px, 92vw)', textAlign: 'center',
+            }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.24em', color: 'rgba(255,184,76,0.8)', textTransform: 'uppercase', marginBottom: 3 }}>
+              🔍 内部邮件 · 背景调查
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>
+              {clueCard.targetName} 更像<span style={{ color: '#ffb84c' }}>{clueCard.label}</span>的人
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>小道消息 · 别全信 · 点击关闭</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Floating phase-hint banner — auto-dismisses, informational only */}
       <PhaseHint phase={phase} />
 
@@ -1229,8 +1273,8 @@ export default function Classic() {
         />
       )}
 
-      {/* v6.75 — 🕸️ 跨局恩怨录入口(右下角) */}
-      <RelationNetworkButton />
+      {/* v6.75 — 🕸️ 跨局恩怨录入口(右下角);v6.111 恩怨触发时点红引导 */}
+      <RelationNetworkButton pulse={grudgePulse} onOpened={() => setGrudgePulse(false)} />
 
       {/* Dramatic elimination moment — fullscreen 3s overlay */}
       <EliminationReveal latest={lastElim} activeNames={players.map((p) => p.name)} />

@@ -335,6 +335,14 @@ export function cssVar(name: string): string {
 //   - Wuthering Waves UI — angular hexagonal cuts
 //
 // Full design spec: docs/V6.1_MIHOYO_DESIGN_VISION.md
+//
+// v6.115(审计视觉 F-06)· Surface → Token 映射表(哪个页面用哪套,别再混):
+//   ┌─ 对局链路(Landing / Classic / Immersive / Result / Talkshow / FiredLanding)
+//   │    → `mihoyo`(mesh 背景 + element 元素色 + stigma chip;v6.98 起铺开)
+//   │      基础中性件(文字灰阶/边框)仍用 `colors`,两者本就设计为叠用
+//   ├─ Quiz / 班味卡 / 分享卡  → `y2kColors`(高饱和 Y2K,分享场景要「炸」)
+//   ├─ B2B(/b2b /embed)      → `executiveColors`(金色商务,给甲方看的克制)
+//   └─ 其余次级路由            → `colors`(默认 navy+neon;迁 mihoyo 按需逐页来)
 // ──────────────────────────────────────────────────────────────────────────
 // Element palette extracted as a stand-alone const so callers in `mihoyo`
 // (notably `glow.cardHover`) can reference its `keyof typeof` without

@@ -95,6 +95,9 @@ export default function BettingBar({
   const [companyBet, setCompanyBet] = useState<Bet | null>(null);
   const companyResolvedRef = useRef<string>('');
   const [toast, setToast] = useState<{ text: string; win: boolean } | null>(null);
+  // v6.104(审计 UX F-14)— 本局结算流水(最近 5 条):toast 3.2s 飞走后仍可回看
+  // 每轮押了谁/中没中/赚赔多少。纯本地,换局清空。
+  const [history, setHistory] = useState<Array<{ round: number; label: string; won: boolean; delta: number }>>([]);
   const [showLb, setShowLb] = useState(false);
   // v6.83 — 干预商店:开关 / 每局限购台账 / 待选目标的道具
   const [shopOpen, setShopOpen] = useState(false);
@@ -114,11 +117,12 @@ export default function BettingBar({
     setProg(p); save(p);
   }, []);
 
-  // 新局:清掉残留注 + 结算锁 + 干预台账 + 公司盘口
+  // 新局:清掉残留注 + 结算锁 + 干预台账 + 公司盘口 + 结算流水
   useEffect(() => {
     setOpen(null); resolvedRef.current = '';
     setCompanyBet(null); companyResolvedRef.current = '';
     setLedger({}); setShopOpen(false); setPendingItem(null);
+    setHistory([]);
   }, [gameId]);
 
   const flashToast = useCallback((text: string, win: boolean) => {
@@ -214,6 +218,8 @@ export default function BettingBar({
     });
 
     flashToast(won ? `押中!+${payout} 筹码` : `没押中 −${open.stake}`, won);
+    // v6.104 — 记结算流水(最近 5 条,新的在前)
+    setHistory((h) => [{ round: open.round, label: open.optionLabel, won, delta: won ? payout : -open.stake }, ...h].slice(0, 5));
     if (won) sfx.playWin(); else sfx.playLose();
     setOpen(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -232,6 +238,8 @@ export default function BettingBar({
     save(np); setProg(np);
     reportScore(np);
     flashToast(won ? `🏢 公司盘押中!+${payout}` : `🏢 公司盘没中 −${companyBet.stake}`, won);
+    // v6.104 — 公司盘也入结算流水(round 0 显示为 🏢)
+    setHistory((h) => [{ round: 0, label: `🏢 ${companyBet.optionLabel}`, won, delta: won ? payout : -companyBet.stake }, ...h].slice(0, 5));
     if (won) sfx.playWin(); else sfx.playLose();
     setCompanyBet(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -425,12 +433,26 @@ export default function BettingBar({
             </div>
           </motion.div>
         ) : (
-          <motion.div key="wait" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            style={{ textAlign: 'center', padding: '8px 0', fontSize: 11,
+          <motion.div key="wait" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div style={{ textAlign: 'center', padding: '8px 0', fontSize: 11,
               opacity: !connected ? 0.85 : 0.55, color: !connected ? '#fb923c' : undefined }}>
-            {phase === 'game_over' ? '本局结束 · 下局再战'
-              : !connected ? '🔌 断线重连中 · 暂停下注'
-              : '等下一回合开盘…'}
+              {phase === 'game_over' ? '本局结束 · 下局再战'
+                : !connected ? '🔌 断线重连中 · 暂停下注'
+                : '等下一回合开盘…'}
+            </div>
+            {/* v6.104(审计 UX F-14)— 本局结算流水:toast 飞走后仍可回看 */}
+            {history.length > 0 && (
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {history.map((h, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, opacity: 0.75 }}>
+                    <span>{h.round > 0 ? `R${h.round} · ` : ''}{h.label}</span>
+                    <span style={{ fontWeight: 800, color: h.won ? '#22c55e' : '#ef4444' }}>
+                      {h.won ? `+${h.delta}` : h.delta}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

@@ -28,7 +28,7 @@
  * identity doesn't re-fire (matters under React StrictMode) but a new object
  * with a bumped id does.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CHARACTERS } from '@furball/shared';
 import { Icon, expressionIcon } from '../../constants/icons';
@@ -141,6 +141,10 @@ export default function EliminationReveal({
   // v6.72 — 立绘 AI 图加载状态。'failed' 才显示角落 😵/😭 贴纸(emoji 兜底没表情,
   // 用贴纸补);'loaded' 时 AI 图本身就有表情,贴纸冗余 → 隐藏去重。
   const [exprState, setExprState] = useState<'pending' | 'loaded' | 'failed'>('pending');
+  // v6.122(审查修复)— 入职帧两枚 timer 提到 ref:点击「跳过」时要能取消它们,
+  // 否则跳过主卡后 3.2s「新员工入职」帧照样弹出,与跳过语义相悖。
+  const hireShowTRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hireHideTRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!latest) return;
@@ -155,19 +159,28 @@ export default function EliminationReveal({
     // v6.70 — 立绘出场音效:卡在立绘 spring-in 的瞬间(~150ms),叠在主音上"啵"一下
     const revealT = setTimeout(() => sfx.playReveal(latest.type), 150);
     // v6.23 P4 — chained timers: main dismiss, then show new-hire frame,
-    // then hide it. All tracked at the effect level so the outer cleanup
-    // can clear all three on unmount / new event (StrictMode safe).
+    // then hide it. All tracked so the outer cleanup can clear ALL FOUR on
+    // unmount / new event (StrictMode safe;v6.122 修复:revealT 此前漏在 cleanup 外)。
     const dismissT = setTimeout(() => {
       setVisible(false);
     }, dismissAfter);
-    const showHireT = setTimeout(() => setNewHireVisible(true), dismissAfter + 200);
-    const hideHireT = setTimeout(() => setNewHireVisible(false), dismissAfter + 200 + 2200);
+    hireShowTRef.current = setTimeout(() => setNewHireVisible(true), dismissAfter + 200);
+    hireHideTRef.current = setTimeout(() => setNewHireVisible(false), dismissAfter + 200 + 2200);
     return () => {
+      clearTimeout(revealT);
       clearTimeout(dismissT);
-      clearTimeout(showHireT);
-      clearTimeout(hideHireT);
+      if (hireShowTRef.current) clearTimeout(hireShowTRef.current);
+      if (hireHideTRef.current) clearTimeout(hireHideTRef.current);
     };
   }, [latest?.id, latest?.type, dismissAfter]);
+
+  // v6.102/v6.122 — 点击跳过:收主卡 + 取消入职帧链(跳过就是全跳过)。
+  const skipReveal = () => {
+    if (hireShowTRef.current) clearTimeout(hireShowTRef.current);
+    if (hireHideTRef.current) clearTimeout(hireHideTRef.current);
+    setNewHireVisible(false);
+    setVisible(false);
+  };
 
   const cfg = latest ? TYPE_CONFIG[latest.type] : null;
   const teamColor = latest?.team ? TEAM_COLOR[latest.team] : undefined;
@@ -375,13 +388,16 @@ export default function EliminationReveal({
             }}
             transition={{ duration: 0.55, times: [0, 0.15, 0.3, 0.45, 0.6, 0.8, 1] }}
           >
-            {/* Centerpiece card */}
+            {/* Centerpiece card。v6.102(审计 UX F-07)— 3s 强制等待对老玩家太长:
+                卡片本身可点击提前收场(overlay 仍 pointer-events-none,底下地图/下注盘不受影响)。 */}
             <motion.div
               initial={{ scale: 0.7, y: 30 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: 'spring', damping: 18, stiffness: 220 }}
-              className="relative px-10 py-7 rounded-3xl text-center"
+              className="relative px-10 py-7 rounded-3xl text-center pointer-events-auto cursor-pointer"
+              onClick={skipReveal}
+              title="点击跳过"
               style={{
                 background: 'rgba(15, 14, 46, 0.94)',
                 backdropFilter: 'blur(30px)',
