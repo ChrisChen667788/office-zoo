@@ -35,35 +35,15 @@ import { sfx, isSfxMuted } from '../utils/sfx';
 import { recordLeakSubmit, recordLeakQuoted } from '../utils/leakStats';
 import { phaseIcons, personalityIcons, glyphIcons, Icon } from '../constants/icons';
 // v6.98 — 米哈游化对局视图:gradient mesh 背景 + 元素色相位胶囊 + stigma chip。
-import { mihoyo, stigmaChipStyle, type MihoyoElement } from '../constants/design';
+import { mihoyo, stigmaChipStyle } from '../constants/design';
+// v6.106(审计视觉 F-09)— 相位标签/元素色收编到共享模块,Classic/Immersive 不再各养一份。
+import { GAME_PHASES as PHASE_NAMES, PHASE_ELEMENT } from '../constants/gamePhases';
 
 // Vite proxies /avatars and /api to :3100 — use relative URLs to keep the
 // browser on the same origin (5173) and dodge cross-port image rendering quirks.
 const SERVER_URL = '';
 
-const PHASE_NAMES: Record<string, { label: string; emoji: string; icon: string }> = {
-  lobby:       { label: '待入职',   emoji: '⏳', icon: phaseIcons.lobby },
-  role_reveal: { label: '岗位分配', emoji: '📋', icon: phaseIcons.role_reveal },
-  free_roam:   { label: '日常搬砖', emoji: '💼', icon: phaseIcons.free_roam },
-  meeting:     { label: '紧急全员会', emoji: '🚨', icon: phaseIcons.meeting },
-  discussion:  { label: '职场撕逼', emoji: '🔥', icon: phaseIcons.discussion },
-  voting:      { label: '投票裁员', emoji: '🗳️', icon: phaseIcons.voting },
-  vote_result: { label: '裁员结果', emoji: '⚖️', icon: phaseIcons.vote_result },
-  game_over:   { label: '散伙饭',   emoji: '🏆', icon: phaseIcons.game_over },
-};
-
-// v6.98 — 每个相位映一个米哈游元素色,让顶栏相位胶囊随节奏变色(冷蓝待机 → 红色全员会
-// → 粉色撕逼 → 金色投票 → 红色裁员),把"phase 推进"做出游戏 UI 的元素感。
-const PHASE_ELEMENT: Record<string, MihoyoElement> = {
-  lobby:       'frost',
-  role_reveal: 'stigma',
-  free_roam:   'aurora',
-  meeting:     'inferno',
-  discussion:  'void',
-  voting:      'solar',
-  vote_result: 'inferno',
-  game_over:   'solar',
-};
+// (相位标签/元素色 → constants/gamePhases.ts,v6.106 收编)
 
 // v6.16 P2 — promoted to shared constants/personalityLabels.ts.
 // Local re-export kept as alias to minimize blast radius on call sites.
@@ -598,6 +578,16 @@ export default function Classic() {
     const t = setTimeout(() => setJustReconnected(false), 2500);
     return () => clearTimeout(t);
   }, [justReconnected]);
+
+  // v6.103(审计 UX F-11)— 对局进行中误关标签页/误刷新弹原生确认;lobby(还没开打)
+  // 和 game_over(已散场)不拦。SPA 内部导航(浏览器返回)不触发 beforeunload,
+  // 拦它要劫持 history,风险大于收益,先守住「关页丢局」这个最痛的。
+  useEffect(() => {
+    if (phase === 'game_over' || phase === 'lobby') return;
+    const handle = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handle);
+    return () => window.removeEventListener('beforeunload', handle);
+  }, [phase]);
 
   const eventTypeStyles: Record<string, { color: string; bg: string }> = {
     speech: { color: 'rgba(255,255,255,0.85)', bg: 'transparent' },

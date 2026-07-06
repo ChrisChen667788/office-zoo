@@ -1077,7 +1077,8 @@ function LocaleDropdown({ locale }: { locale: Locale }) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
+        // v6.105(审计 UX F-13)— 去掉 hidden sm:,手机用户也能切 zh/en/ja/ko(pill 很小不挤顶栏)
+        className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
         style={{
           color: 'rgba(255,255,255,0.78)',
           background: 'rgba(255,255,255,0.04)',

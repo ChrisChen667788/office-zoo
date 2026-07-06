@@ -4,7 +4,9 @@ import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
 // v6.98 — 米哈游化沉浸局(与经典局同模板:mesh 背景 + 元素色相位胶囊 + stigma chip)
-import { mihoyo, stigmaChipStyle, type MihoyoElement } from '../constants/design';
+import { mihoyo, stigmaChipStyle } from '../constants/design';
+// v6.106(审计视觉 F-09)— 相位标签/元素色收编到共享模块。
+import { GAME_PHASES, PHASE_ELEMENT } from '../constants/gamePhases';
 import PersonaCard from '../components/character/PersonaCard';
 import IdleBeat from '../components/character/IdleBeat';
 import {
@@ -78,16 +80,8 @@ const TEAM_CONFIG: Record<string, { label: string; emoji: string; icon: string; 
   neutral: { label: '摸鱼党', emoji: '😎',   icon: teamIcons.neutral, color: '#a855f7', accent: '168, 85, 247' },
 };
 
-const PHASE_LABELS: Record<string, { label: string; emoji: string; icon: string }> = {
-  lobby:       { label: '待入职',   emoji: '⏳', icon: phaseIcons.lobby },
-  role_reveal: { label: '岗位分配', emoji: '📋', icon: phaseIcons.role_reveal },
-  free_roam:   { label: '日常搬砖', emoji: '💼', icon: phaseIcons.free_roam },
-  meeting:     { label: '紧急全员会', emoji: '🚨', icon: phaseIcons.meeting },
-  discussion:  { label: '职场撕逼', emoji: '🔥', icon: phaseIcons.discussion },
-  voting:      { label: '投票裁员', emoji: '🗳️', icon: phaseIcons.voting },
-  vote_result: { label: '裁员结果', emoji: '⚖️', icon: phaseIcons.vote_result },
-  game_over:   { label: '散伙饭',   emoji: '🏆', icon: phaseIcons.game_over },
-};
+// (相位标签 → constants/gamePhases.ts,v6.106 收编;保留旧名做本地别名减小 diff)
+const PHASE_LABELS = GAME_PHASES;
 
 // v6.16 P2 — see Classic.tsx; promoted to shared constants module.
 import { PERSONALITY_LABELS } from '../constants/personalityLabels';
@@ -175,6 +169,14 @@ export default function Immersive() {
   // v6.93 — 沉浸局对齐:干预道具服务端回执(被拒退筹码),断线禁押走 connected 门控。
   const [interveneAck, setInterveneAck] = useState<{ itemId: string; accepted: boolean; reason?: string; tick: number } | null>(null);
   const ackTickRef = useRef(0);
+
+  // v6.103(审计 UX F-11)— 对局进行中误关页确认,与 Classic 同口径(lobby/game_over 不拦)。
+  useEffect(() => {
+    if (phase === 'game_over' || phase === 'lobby') return;
+    const handle = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handle);
+    return () => window.removeEventListener('beforeunload', handle);
+  }, [phase]);
 
   // Register all socket event handlers — auto-cleaned on unmount.
   useSocketEvents({
@@ -369,12 +371,8 @@ export default function Immersive() {
 
   const circleRadius = Math.min(280, typeof window !== 'undefined' ? window.innerWidth * 0.28 : 280);
   const phaseInfo = PHASE_LABELS[phase] || { label: phase, emoji: '🎮', icon: '' };
-  // v6.98 — 相位元素色(冷蓝待机 → 红全员会 → 粉撕逼 → 金投票),同经典局口径。
-  const PHASE_EL: Record<string, MihoyoElement> = {
-    lobby: 'frost', role_reveal: 'stigma', free_roam: 'aurora', meeting: 'inferno',
-    discussion: 'void', voting: 'solar', vote_result: 'inferno', game_over: 'solar',
-  };
-  const phaseEl = mihoyo.element[PHASE_EL[phase] ?? 'frost'];
+  // v6.98 — 相位元素色,v6.106 起与经典局共用 constants/gamePhases.PHASE_ELEMENT。
+  const phaseEl = mihoyo.element[PHASE_ELEMENT[phase] ?? 'frost'];
 
   return (
     <div className="fixed inset-0 overflow-hidden noise"

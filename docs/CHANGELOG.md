@@ -7,6 +7,33 @@
 
 ---
 
+## v6.106 — 2026-06-26 · 相位标签/元素色收编共享模块(审计视觉 F-09)
+
+Classic(`PHASE_NAMES`)与 Immersive(`PHASE_LABELS`)各养一份完全相同的相位表,v6.98 的
+相位→元素色映射也重复两份 —— 改一处漏一处迟早分叉。全部收编 **`constants/gamePhases.ts`**
+(`GAME_PHASES` + `PHASE_ELEMENT`),两端只 import。行为零变化,纯结构去重。
+
+## v6.105 — 2026-06-26 · 移动端语言切换恢复(审计 UX F-13)
+
+Landing 顶栏语言下拉原被 `hidden sm:` 在 <640px 藏掉,手机用户没法切 zh/en/ja/ko。
+去掉隐藏(pill 很小不挤顶栏),四语言入口全端可达。
+
+## v6.104 — 2026-06-26 · 下注盘结算流水(审计 UX F-14)
+
+派彩 toast 3.2s 飞走后无处回看。BettingBar 空闲态下方新增**本局结算流水**(最近 5 条,
+新的在前):`R3 · 王力宏 +140` / `🏢 A 司 −50`,绿涨红跌。纯本地,换局清空;公司盘也入流水。
+
+## v6.103 — 2026-06-26 · 对局中误关页确认(审计 UX F-11)
+
+对局进行中(非 lobby/game_over)注册 `beforeunload`,误关标签页/误刷新弹原生确认,
+Classic + Immersive 同口径。SPA 内部返回不拦(劫持 history 风险大于收益),先守住
+「关页丢局」最痛点。
+
+## v6.102 — 2026-06-26 · 裁员弹窗可点击跳过(审计 UX F-07)
+
+EliminationReveal 3s 强制等待对老玩家太长(前 1s 就看完结果了)。中央卡片加
+`pointer-events-auto` + 点击关闭(title「点击跳过」);overlay 保持穿透,底下地图/下注盘不受影响。
+
 ## v6.101 — 2026-06-26 · GameMap 等距地图三修(审计 F11-13)
 
 优化审计视觉维度最后三条,全在 GameMap canvas:

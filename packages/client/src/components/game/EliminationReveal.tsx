@@ -375,13 +375,16 @@ export default function EliminationReveal({
             }}
             transition={{ duration: 0.55, times: [0, 0.15, 0.3, 0.45, 0.6, 0.8, 1] }}
           >
-            {/* Centerpiece card */}
+            {/* Centerpiece card。v6.102(审计 UX F-07)— 3s 强制等待对老玩家太长:
+                卡片本身可点击提前收场(overlay 仍 pointer-events-none,底下地图/下注盘不受影响)。 */}
             <motion.div
               initial={{ scale: 0.7, y: 30 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: 'spring', damping: 18, stiffness: 220 }}
-              className="relative px-10 py-7 rounded-3xl text-center"
+              className="relative px-10 py-7 rounded-3xl text-center pointer-events-auto cursor-pointer"
+              onClick={() => setVisible(false)}
+              title="点击跳过"
               style={{
                 background: 'rgba(15, 14, 46, 0.94)',
                 backdropFilter: 'blur(30px)',
