@@ -66,6 +66,9 @@ interface ModeSpec {
   features: string[];
   accent: string; // used for active-state tint & bullet dots
   accent2: string; // secondary tint for inner glow
+  /** v6.120(审计玩法 F13)— 新手/进阶分级 chip:5 张卡视觉权重相同,新用户不知道
+   *  从哪开始;经典局标「新手推荐」、双公司标「进阶」,给出推荐路径。 */
+  tier?: { text: string; color: string };
 }
 
 const MODES: ModeSpec[] = [
@@ -78,6 +81,7 @@ const MODES: ModeSpec[] = [
     taglineKey: 'mode.classic.body',
     // v6.109(审计玩法 F3)— 各模式补真实时长预期,进局前知道要蹲多久
     features: ['AI 员工内卷', '分房间互怼', '⏱ 一局 15-25 分钟'],
+    tier: { text: '👶 新手推荐', color: '#22c55e' },
     accent: colors.brand.neon,
     accent2: colors.brand.violet,
   },
@@ -123,6 +127,7 @@ const MODES: ModeSpec[] = [
     titleKey:   'mode.dual.title',
     taglineKey: 'mode.dual.body',
     features: ['A 司 4 + B 司 4', '抢市场 / 防内鬼', '⏱ 一局约 20 分钟'],
+    tier: { text: '🎓 进阶 · 建议先玩经典局', color: '#ff8a3d' },
     accent: '#4c9eff',
     accent2: '#ff8a3d',
   },
@@ -990,6 +995,16 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
           style={{ color: active ? '#fff' : 'rgba(255,255,255,0.92)' }}
         >
           {title}
+          {/* v6.120(审计玩法 F13)— 新手/进阶分级 chip,给新用户推荐路径 */}
+          {spec.tier && (
+            <span style={{
+              marginLeft: 8, verticalAlign: 'middle', display: 'inline-block',
+              fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', lineHeight: 1,
+              padding: '3px 7px', borderRadius: 999,
+              color: spec.tier.color, background: `${spec.tier.color}1a`,
+              border: `1px solid ${spec.tier.color}55`,
+            }}>{spec.tier.text}</span>
+          )}
         </h3>
         <p className={`${taglineCls} text-white/55 ${tall ? 'mb-5' : 'mb-3'} leading-relaxed`}>{tagline}</p>
 
