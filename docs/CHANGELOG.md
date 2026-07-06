@@ -7,6 +7,24 @@
 
 ---
 
+## v6.122 — 2026-06-26 · 20 版批次对抗审查修复(9 确认项全清)
+
+4 维多 agent 审查(React 状态 / Socket 接线 / 数据内容 / UI 回归)核整个 v6.102–121 diff,
+13 条发现、9 条确认,全部修复:
+
+- **裁员卡「跳过」跳干净**(high):点击跳过原来只收主卡,3.2s 后「新员工入职」帧照样弹 ——
+  入职帧 timer 提到 ref,跳过时一并取消;顺手把 `revealT` 音效 timer 补进 cleanup(StrictMode 双放音)。
+- **心理战 chip 组限高**(high):v6.113 chip 组在 9 人局比原生 select 高得多,会把面板底部
+  「让他说」按钮挤出 overflow:hidden 不可点 —— 对话区自身 `maxHeight min(46vh,240px)` 可滚。
+- **沉浸局补齐 v6.110/111**(med):`game:intervene_clue` / `game:grudge_vote` 只接了 Classic,
+  沉浸局静默失效 —— 补状态 + 监听 + 内部邮件浮卡 + 恩怨录红点,与经典局对齐。
+- **移动端顶栏减负**(med):375px 顶栏右侧常驻 5 元素,locale 按钮移动端只显「🌐 ZH」语言码。
+- **时长 chip 改追加**(med):v6.109 的 ⏱ chip 顶掉了各模式第 3 条差异化卖点 —— 还原原卖点,
+  时长追加为第 4 条。
+- 文案/注释三小条(low):HighlightReel「再来一局」实际回大厅 → 改「返回大厅」;GameEngine
+  free_roam JSDoc 仍写 9s → 改 15s;PhaseTransitionOverlay 注释指向已迁移的 Classic PHASE_NAMES。
+- 其余 4 条经反驳核实为误报(history key、clueCard timer 竞态等)。
+
 ## v6.121 — 2026-06-26 · 迭代计划文档刷新(止住两份「v0.4 化石」)
 
 `ITERATION_PLAN.md` / `VERSION_PLAN.md` 停在「当前 v0.4.0」,与实际 v6.12x 相差 60+ 版,

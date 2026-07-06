@@ -779,7 +779,8 @@ export default function HighlightReel() {
                     boxShadow: `0 0 20px ${winCfg.color}55`,
                   }}
                 >
-                  再来一局 →
+                  {/* v6.122(审查修复)— 实际行为是回大厅(不自动开新局),文案对齐行为 */}
+                  返回大厅 →
                 </button>
               </div>
             </div>

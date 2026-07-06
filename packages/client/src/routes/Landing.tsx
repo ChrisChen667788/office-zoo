@@ -79,8 +79,8 @@ const MODES: ModeSpec[] = [
     badge: '01',
     titleKey:   'mode.classic.title',
     taglineKey: 'mode.classic.body',
-    // v6.109(审计玩法 F3)— 各模式补真实时长预期,进局前知道要蹲多久
-    features: ['AI 员工内卷', '分房间互怼', '⏱ 一局 15-25 分钟'],
+    // v6.109(审计玩法 F3)— 各模式补真实时长预期;v6.122 改追加第 4 条,不顶掉原卖点
+    features: ['AI 员工内卷', '分房间互怼', '暗线下黑手', '⏱ 一局 15-25 分钟'],
     tier: { text: '👶 新手推荐', color: '#22c55e' },
     accent: colors.brand.neon,
     accent2: colors.brand.violet,
@@ -92,7 +92,7 @@ const MODES: ModeSpec[] = [
     badge: '02',
     titleKey:   'mode.immersive.title',
     taglineKey: 'mode.immersive.body',
-    features: ['8 名鼠人开口', '人设全程在线', '⏱ 一局 15-25 分钟'],
+    features: ['8 名鼠人开口', '人设全程在线', '阴阳怪气合集', '⏱ 一局 15-25 分钟'],
     accent: '#a855f7',
     accent2: colors.brand.neon,
   },
@@ -103,7 +103,7 @@ const MODES: ModeSpec[] = [
     badge: '03',
     titleKey:   'mode.fired.title',
     taglineKey: 'mode.fired.body',
-    features: ['真法条撑腰', '四维打分', '⏱ 5-10 分钟/关'],
+    features: ['真法条撑腰', '四维打分', '多结局演完', '⏱ 5-10 分钟/关'],
     accent: colors.semantic.danger,
     accent2: colors.semantic.warn,
   },
@@ -114,7 +114,7 @@ const MODES: ModeSpec[] = [
     badge: '04',
     titleKey:   'mode.talkshow.title',
     taglineKey: 'mode.talkshow.body',
-    features: ['真人音色播报', '8 种人格切换', '⏱ 1-2 分钟/段'],
+    features: ['真人音色播报', '8 种人格切换', '段子库每周更新', '⏱ 1-2 分钟/段'],
     accent: '#ff5588',
     accent2: '#7c3aed',
   },
@@ -126,7 +126,7 @@ const MODES: ModeSpec[] = [
     badge: '05',
     titleKey:   'mode.dual.title',
     taglineKey: 'mode.dual.body',
-    features: ['A 司 4 + B 司 4', '抢市场 / 防内鬼', '⏱ 一局约 20 分钟'],
+    features: ['A 司 4 + B 司 4', '抢市场 / 防内鬼', '挖角带走身份', '⏱ 一局约 20 分钟'],
     tier: { text: '🎓 进阶 · 建议先玩经典局', color: '#ff8a3d' },
     accent: '#4c9eff',
     accent2: '#ff8a3d',
@@ -1094,8 +1094,9 @@ function LocaleDropdown({ locale }: { locale: Locale }) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        // v6.105(审计 UX F-13)— 去掉 hidden sm:,手机用户也能切 zh/en/ja/ko(pill 很小不挤顶栏)
-        className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
+        // v6.105(审计 UX F-13)— 去掉 hidden sm:,手机也能切语言;
+        // v6.122(审查修复)— 375px 顶栏右侧常驻元素多,移动端只显 🌐+语言码省宽度。
+        className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide px-2 sm:px-3 py-1.5 rounded-full transition"
         style={{
           color: 'rgba(255,255,255,0.78)',
           background: 'rgba(255,255,255,0.04)',
@@ -1104,7 +1105,8 @@ function LocaleDropdown({ locale }: { locale: Locale }) {
         aria-label="Switch language"
         aria-expanded={open}
       >
-        🌐 {active?.label ?? locale}
+        🌐 <span className="hidden sm:inline">{active?.label ?? locale}</span>
+        <span className="sm:hidden uppercase">{locale.slice(0, 2)}</span>
         <span className="text-[8px] opacity-65">▾</span>
       </button>
       <AnimatePresence>

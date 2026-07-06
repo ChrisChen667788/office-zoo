@@ -341,6 +341,10 @@ export default function GhostChatPanel({
                 background: 'rgba(176,134,255,0.08)',
                 display: 'flex', flexDirection: 'column', gap: 6,
                 fontSize: 11,
+                // v6.122(审查修复)— v6.113 chip 组比原生 select 高得多:9 人局 chips + 8 条
+                // 预设 ≈ 354px,会把面板(min(380px,60vh) overflow:hidden)底部的提交按钮挤出
+                // 不可点。对话区自身限高滚动,压力不外溢。
+                maxHeight: 'min(46vh, 240px)', overflowY: 'auto',
               }}>
                 <div style={{ color: '#B086FF', fontWeight: 800, letterSpacing: '0.06em' }}>
                   让 {latestGhost!.playerName} 鬼声 · 心理战 @

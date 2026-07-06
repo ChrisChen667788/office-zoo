@@ -694,7 +694,7 @@ export class GameEngine extends EventEmitter {
    * 1.5 s discrete steps.
    *
    * Loop = `FREE_ROAM_TICKS` ticks of `TICK_INTERVAL_MS` each (default
-   * 36 × 250 ms = 9 s, same total wall-clock as before).
+   * 60 × 250 ms = 15 s — v6.112 由 9 s 延长,让走位/摸鱼 micro-moment 能被看到).
    *
    * Per tick:
    *   1. For each alive player:
@@ -716,7 +716,7 @@ export class GameEngine extends EventEmitter {
     // 小人闪现;15 秒让走位/摸鱼 micro-moment 真能被看到,且下注窗口(free_roam 也开盘)更从容。
     // tick 是轻载荷(4Hz 位置包),多 6 秒无成本。
     const FREE_ROAM_TICKS = 60;            // 60 × 250 ms = 15 s
-    const COMMUTE_START_PROB = 0.06;       // per tick (~1.4%/sec aggregate over 9s)
+    const COMMUTE_START_PROB = 0.06;       // per tick(15s 窗口下起身概率更高,roam 更活)
     /** Commute speed in logical units / second. ROOM_RECTS coords go up to
      *  1000 × 700, so ~120 px/s gives a ~3-4 s cross-map walk — feels human. */
     const SPEED_PX_PER_SEC = 140;
