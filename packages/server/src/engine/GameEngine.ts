@@ -712,7 +712,10 @@ export class GameEngine extends EventEmitter {
    */
   private async runFreeRoam(): Promise<void> {
     const TICK_INTERVAL_MS = 250;          // 4 Hz, matches the v0.5 plan
-    const FREE_ROAM_TICKS = 36;            // 36 × 250 ms = 9 s
+    // v6.112(审计玩法 F2)— 36→60(9s→15s):9 秒里杀人/保护/技能全做完,旁观者只看到
+    // 小人闪现;15 秒让走位/摸鱼 micro-moment 真能被看到,且下注窗口(free_roam 也开盘)更从容。
+    // tick 是轻载荷(4Hz 位置包),多 6 秒无成本。
+    const FREE_ROAM_TICKS = 60;            // 60 × 250 ms = 15 s
     const COMMUTE_START_PROB = 0.06;       // per tick (~1.4%/sec aggregate over 9s)
     /** Commute speed in logical units / second. ROOM_RECTS coords go up to
      *  1000 × 700, so ~120 px/s gives a ~3-4 s cross-map walk — feels human. */

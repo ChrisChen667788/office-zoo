@@ -60,6 +60,8 @@ import { copyCompanyBattleCard, downloadCompanyBattleCard } from '../../utils/co
 import type { BattleCardInput } from '@furball/shared';
 import LottieAsset from '../LottieAsset';
 import { lottie } from '../../constants/lottie';
+// v6.114(审计 UX F-16)— 离场时明确通知 server 摘房,不再收上一局残留事件
+import { useSocket } from '../../hooks/useSocket';
 import { teamIcons, glyphIcons, Icon, expressionIcon } from '../../constants/icons';
 import ShareVideoButton from './ShareVideoButton';
 
@@ -223,7 +225,10 @@ export default function HighlightReel() {
     });
   }, [players]);
 
+  const { socket } = useSocket();
   const goLobby = () => {
+    // v6.114 — 先告诉 server 摘房(不再推本局残留事件),再清 store 回大厅。
+    socket.emit('game:leave');
     reset();
     navigate('/');
   };

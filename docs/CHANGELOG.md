@@ -7,6 +7,29 @@
 
 ---
 
+## v6.115 — 2026-06-26 · Result 页 mesh + 设计 token「Surface→Token」映射表(审计视觉 F-06)
+
+Result(回放/深链兜底页)背景接入 `mihoyo.mesh.heroDawn`,与对局链路统一;`design.ts` 头部
+新增映射表注释,明确 对局链路→mihoyo / Quiz 分享→y2kColors / B2B→executiveColors /
+其余→colors,四套 token 不再混用无据。
+
+## v6.114 — 2026-06-26 · 赛后离场明确摘房(审计 UX F-16)
+
+「再来一局」原来只 navigate('/'),socket 还留在房间里 —— lazy 路由切换慢一帧时,server 推来的
+上一局残留事件会把 HighlightReel 再弹一次。现在离场先 `game:leave`(server 端 `socket.leave`
++ 清 currentGameId),不再收残留事件。
+
+## v6.113 — 2026-06-26 · 战术 @ 原生 select 换自定义 chip 组(审计 UX F-10)
+
+GhostChatPanel 心理战对话框的两个原生 `<select>` 在 iOS Safari 不吃自定义样式(弹系统白底
+sheet),深色面板里非常出戏。@ 目标改**人名 chip 流**(点选/再点取消)、话术预设改**竖排可选行**,
+全端渲染一致;自定义 textarea 覆盖预设的逻辑不变(非空时预设组禁用置灰)。
+
+## v6.112 — 2026-06-26 · free_roam 9s→15s(审计玩法 F2)
+
+`FREE_ROAM_TICKS 36→60`。9 秒里杀人/保护/技能全部做完,旁观者只看到小人闪现;15 秒让走位、
+摸鱼 micro-moment、房间任务真能被看到,free_roam 期下注窗口也更从容。tick 是 4Hz 轻载荷,零成本。
+
 ## v6.111 — 2026-06-26 · 恩怨录红点引导(审计玩法 F12)
 
 跨局恩怨(上局被背刺、这局翻旧账改投)是最强留存钩子,但入口「🕸️ 恩怨录」按钮藏右下角,

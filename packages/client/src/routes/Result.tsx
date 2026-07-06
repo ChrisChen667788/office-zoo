@@ -11,7 +11,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { groupTimelineByRound, digestReplay, bondTier, type ReplayRecord, type ReplayPlayer, type RelationEdge } from '@furball/shared';
 import { usePlayers, useWinner, useRound, useGameActions } from '../stores/gameStore';
-import { colors } from '../constants/design';
+import { colors, mihoyo } from '../constants/design';
 import { lottie } from '../constants/lottie';
 import LottieAsset from '../components/LottieAsset';
 import PersonaCard from '../components/character/PersonaCard';
@@ -130,7 +130,7 @@ export default function Result() {
     .slice(0, 3);
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center p-8 noise" style={{ background: '#050510' }}>
+    <div className="relative min-h-screen flex flex-col items-center justify-center p-8 noise" style={{ background: mihoyo.mesh.heroDawn }}>
       {/* Aurora background — tinted by winner accent so the scene reads at a glance. */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="aurora" style={{

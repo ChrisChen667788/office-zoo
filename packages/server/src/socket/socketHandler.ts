@@ -244,6 +244,16 @@ export function setupSocketHandler(io: SocketServer) {
       }
     });
 
+    // v6.114(审计 UX F-16)— 客户端明确离开对局(赛后「再来一局」)。从房间摘掉
+    // 这个 socket,server 不再往它推上一局的残留事件(否则 lazy 路由切换慢一帧时,
+    // 旧 game:over 还会把 HighlightReel 再弹一次)。
+    socket.on('game:leave', () => {
+      if (!currentGameId) return;
+      socket.leave(currentGameId);
+      socketLog.debug({ sid: socket.id, gameId: currentGameId }, 'client left game room');
+      currentGameId = null;
+    });
+
     // v6.25 P1 — psy-war leak submission. Client (GhostChatPanel 战术 @)
     // emits `game:psy_war_leak` with a string; engine pushes it onto the
     // FIFO leakedHints buffer (cap 5). pushLeakedHint emits 'leak_acked'
