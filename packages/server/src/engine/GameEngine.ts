@@ -1840,6 +1840,9 @@ export class GameEngine extends EventEmitter {
         : (pick.team === Team.DOG ? Team.CAT : Team.DOG);
       const label = shownTeam === Team.DOG ? '资本家那边' : '打工人这边';
       this.addEvent('intervene', `🔍 观众买通了内部邮箱 — 背景调查显示 ${pick.name} 更像${label}的人(小道消息,别全信)`);
+      // v6.110(审计玩法 F6)— 花 200 筹码的结果不能只躺 event log 小字:
+      // 专属事件推客户端弹「内部邮件」卡,买完立刻有仪式感。
+      this.emit('intervene_clue', { targetName: pick.name, label });
       this.emitState();
       return { accepted: true };
     }
@@ -2135,6 +2138,9 @@ export class GameEngine extends EventEmitter {
       if (!foePlayerId || foePlayerId === basePickId) return basePickId;
       const foeName = nameById.get(foePlayerId) ?? '老冤家';
       this.addEvent('grudge_vote', `🗡️ ${voter.name} 翻旧账改投 ${foeName}:${r.taunt}`);
+      // v6.111(审计玩法 F12)— 跨局恩怨是最强留存钩子,但入口(恩怨录按钮)藏得深;
+      // 恩怨真发生时推实时事件,客户端给按钮点红,引导用户发现关系网。
+      this.emit('grudge_vote', { voterName: voter.name, foeName, taunt: r.taunt });
       return foePlayerId;
     } catch {
       return basePickId;

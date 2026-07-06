@@ -76,7 +76,8 @@ const MODES: ModeSpec[] = [
     badge: '01',
     titleKey:   'mode.classic.title',
     taglineKey: 'mode.classic.body',
-    features: ['AI 员工内卷', '分房间互怼', '暗线下黑手'],
+    // v6.109(审计玩法 F3)— 各模式补真实时长预期,进局前知道要蹲多久
+    features: ['AI 员工内卷', '分房间互怼', '⏱ 一局 15-25 分钟'],
     accent: colors.brand.neon,
     accent2: colors.brand.violet,
   },
@@ -87,7 +88,7 @@ const MODES: ModeSpec[] = [
     badge: '02',
     titleKey:   'mode.immersive.title',
     taglineKey: 'mode.immersive.body',
-    features: ['8 名鼠人开口', '人设全程在线', '阴阳怪气合集'],
+    features: ['8 名鼠人开口', '人设全程在线', '⏱ 一局 15-25 分钟'],
     accent: '#a855f7',
     accent2: colors.brand.neon,
   },
@@ -98,7 +99,7 @@ const MODES: ModeSpec[] = [
     badge: '03',
     titleKey:   'mode.fired.title',
     taglineKey: 'mode.fired.body',
-    features: ['真法条撑腰', '四维打分', '多结局演完'],
+    features: ['真法条撑腰', '四维打分', '⏱ 5-10 分钟/关'],
     accent: colors.semantic.danger,
     accent2: colors.semantic.warn,
   },
@@ -109,7 +110,7 @@ const MODES: ModeSpec[] = [
     badge: '04',
     titleKey:   'mode.talkshow.title',
     taglineKey: 'mode.talkshow.body',
-    features: ['真人音色播报', '8 种人格切换', '段子库每周更新'],
+    features: ['真人音色播报', '8 种人格切换', '⏱ 1-2 分钟/段'],
     accent: '#ff5588',
     accent2: '#7c3aed',
   },
@@ -121,7 +122,7 @@ const MODES: ModeSpec[] = [
     badge: '05',
     titleKey:   'mode.dual.title',
     taglineKey: 'mode.dual.body',
-    features: ['A 司 4 + B 司 4', '抢市场 / 防内鬼', '挖角带走身份'],
+    features: ['A 司 4 + B 司 4', '抢市场 / 防内鬼', '⏱ 一局约 20 分钟'],
     accent: '#4c9eff',
     accent2: '#ff8a3d',
   },
@@ -500,7 +501,8 @@ export default function Landing() {
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',
                   }}>
-                  v6.1 · NEW EVENT · AI 同事会记住你
+                  {/* v6.107(审计视觉 F-10)— 写死的「v6.1」早过期;改常青赛季文案,不再随版本腐烂 */}
+                  本赛季 · AI 同事会记住你
                 </span>
                 <span className="text-[9px] tracking-[0.18em] font-black px-1.5 py-0.5 rounded"
                   style={{

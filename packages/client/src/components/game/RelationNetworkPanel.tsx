@@ -9,17 +9,25 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { PERSONALITY_REGISTRY, topFeuds, type RelationKind } from '@furball/shared';
 
-/** 自带开关状态的入口按钮(右下角小药丸),丢进对局页就能用。 */
-export function RelationNetworkButton() {
+/** 自带开关状态的入口按钮(右下角小药丸),丢进对局页就能用。
+ *  v6.111(审计玩法 F12)— pulse=true 时点红:场上刚发生跨局恩怨(翻旧账改投),
+ *  红点 + 红边引导用户点进来看;打开即视为已读(onOpened 让父组件清 pulse)。 */
+export function RelationNetworkButton({ pulse = false, onOpened }: { pulse?: boolean; onOpened?: () => void } = {}) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button onClick={() => setOpen(true)} title="鼠人关系网 · 跨局恩怨录"
+      <button onClick={() => { setOpen(true); onOpened?.(); }} title="鼠人关系网 · 跨局恩怨录"
         style={{ position: 'fixed', right: 12, bottom: 12, zIndex: 71,
           padding: '8px 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-          color: '#fff', background: 'rgba(13,14,22,0.92)', border: '1px solid rgba(244,114,114,0.3)',
-          backdropFilter: 'blur(12px)', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+          color: '#fff', background: 'rgba(13,14,22,0.92)',
+          border: `1px solid ${pulse ? 'rgba(239,68,68,0.85)' : 'rgba(244,114,114,0.3)'}`,
+          backdropFilter: 'blur(12px)',
+          boxShadow: pulse ? '0 0 18px rgba(239,68,68,0.5), 0 10px 30px rgba(0,0,0,0.4)' : '0 10px 30px rgba(0,0,0,0.4)' }}>
         🕸️ 恩怨录
+        {pulse && (
+          <span style={{ position: 'absolute', top: -3, right: -3, width: 10, height: 10, borderRadius: 999,
+            background: '#ef4444', boxShadow: '0 0 8px rgba(239,68,68,0.9)' }} />
+        )}
       </button>
       {open && <RelationNetworkPanel onClose={() => setOpen(false)} />}
     </>

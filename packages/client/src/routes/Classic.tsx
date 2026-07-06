@@ -113,6 +113,17 @@ export default function Classic() {
   // 被拒就退筹码 + 给真实原因。tick 防同一回执重复处理。
   const [interveneAck, setInterveneAck] = useState<{ itemId: string; accepted: boolean; reason?: string; tick: number } | null>(null);
   const ackTickRef = useRef(0);
+  // v6.110(审计玩法 F6)— 「内部邮件」背景调查浮卡(4.5s 自动收),花 200 筹码的结果
+  // 不再只躺 event log 小字。id 单调自增驱动 AnimatePresence 重触发。
+  const [clueCard, setClueCard] = useState<{ targetName: string; label: string; id: number } | null>(null);
+  const clueIdRef = useRef(0);
+  // v6.111(审计玩法 F12)— 场上刚发生跨局恩怨 → 恩怨录按钮点红,打开即清。
+  const [grudgePulse, setGrudgePulse] = useState(false);
+  useEffect(() => {
+    if (!clueCard) return;
+    const t = setTimeout(() => setClueCard(null), 4500);
+    return () => clearTimeout(t);
+  }, [clueCard]);
   // v6.93 — 重连成功后短暂显示绿色「已恢复」条幅(2.5s)。
   const [justReconnected, setJustReconnected] = useState(false);
   const wasDisconnectedRef = useRef(false);
@@ -245,6 +256,19 @@ export default function Classic() {
   // unmount — the old code had 9 redundant `on`/`off` pairs prone to drift.
   useSocketEvents({
     'game:state': (state: any) => updateState(state),
+
+    // v6.111 — 跨局恩怨实时事件:event log 一行(橙红背刺风)+ 恩怨录按钮点红
+    'game:grudge_vote': (data: { voterName: string; foeName: string; taunt: string }) => {
+      pushEvent('defection', `🗡️ ${data.voterName} 翻旧账改投 ${data.foeName}:${data.taunt}`);
+      setGrudgePulse(true);
+    },
+
+    // v6.110 — 内部邮件专属动线:全房弹「背景调查」浮卡 + event log 一行
+    'game:intervene_clue': (data: { targetName: string; label: string }) => {
+      clueIdRef.current += 1;
+      setClueCard({ ...data, id: clueIdRef.current });
+      pushEvent('system', `🔍 内部邮件曝出:${data.targetName} 更像${data.label}的人(小道消息)`);
+    },
 
     // v6.93 — 服务端干预回执:同步给 BettingBar(被拒退筹码),并在 event log
     // 留一行真实原因(护盾占用/限流/非双公司局/无目标…),不再「买完石沉大海」。
@@ -886,9 +910,11 @@ export default function Classic() {
                     initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
                     style={{
-                      padding: '6px 8px', marginBottom: 2, borderRadius: 8, fontSize: 12,
+                      // v6.108(审计视觉 F-14)— marginBottom 2→4 条目呼吸感;
+                      // 类型左边条透明度 30→55,高亮屏(手机)上也能分清事件类型。
+                      padding: '6px 8px', marginBottom: 4, borderRadius: 8, fontSize: 12,
                       lineHeight: 1.6, background: s.bg,
-                      borderLeft: `2px solid ${s.color}30`,
+                      borderLeft: `2px solid ${s.color}55`,
                     }}>
                     <span style={{ color: s.color, fontWeight: entry.type === 'kill' ? 700 : 400 }}>
                       {entry.text}
@@ -1191,6 +1217,34 @@ export default function Classic() {
         </div>
       </div>
 
+      {/* v6.110 — 「内部邮件」背景调查浮卡:顶部居中弹 4.5s,琥珀信封风 */}
+      <AnimatePresence>
+        {clueCard && (
+          <motion.div key={clueCard.id}
+            initial={{ opacity: 0, y: -24, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            onClick={() => setClueCard(null)}
+            style={{
+              position: 'fixed', top: 76, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 85, cursor: 'pointer', padding: '10px 18px', borderRadius: 12,
+              background: 'rgba(30,22,8,0.94)', backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,184,76,0.55)',
+              boxShadow: '0 0 30px rgba(255,184,76,0.3), 0 12px 40px rgba(0,0,0,0.5)',
+              maxWidth: 'min(480px, 92vw)', textAlign: 'center',
+            }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.24em', color: 'rgba(255,184,76,0.8)', textTransform: 'uppercase', marginBottom: 3 }}>
+              🔍 内部邮件 · 背景调查
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>
+              {clueCard.targetName} 更像<span style={{ color: '#ffb84c' }}>{clueCard.label}</span>的人
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>小道消息 · 别全信 · 点击关闭</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Floating phase-hint banner — auto-dismisses, informational only */}
       <PhaseHint phase={phase} />
 
@@ -1219,8 +1273,8 @@ export default function Classic() {
         />
       )}
 
-      {/* v6.75 — 🕸️ 跨局恩怨录入口(右下角) */}
-      <RelationNetworkButton />
+      {/* v6.75 — 🕸️ 跨局恩怨录入口(右下角);v6.111 恩怨触发时点红引导 */}
+      <RelationNetworkButton pulse={grudgePulse} onOpened={() => setGrudgePulse(false)} />
 
       {/* Dramatic elimination moment — fullscreen 3s overlay */}
       <EliminationReveal latest={lastElim} activeNames={players.map((p) => p.name)} />

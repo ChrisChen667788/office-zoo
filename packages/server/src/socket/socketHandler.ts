@@ -627,6 +627,16 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
     io.to(gameId).emit('game:psy_war_acked', data);
   });
 
+  // v6.110 — 内部邮件(clue)专属动线:观众买完全房弹「背景调查」卡,不再只躺 event log
+  engine.on('intervene_clue', (data: { targetName: string; label: string }) => {
+    io.to(gameId).emit('game:intervene_clue', data);
+  });
+
+  // v6.111 — 跨局恩怨触发时实时广播,客户端给「恩怨录」按钮点红引导发现
+  engine.on('grudge_vote', (data: { voterName: string; foeName: string; taunt: string }) => {
+    io.to(gameId).emit('game:grudge_vote', data);
+  });
+
   // v6.86 — 双公司挖角/跳槽 live banner。挖角是双司局招牌时刻,实时播一条
   // (map 徽标随下一帧 game:state 翻面)。单公司局永不触发。
   engine.on('cross_action', (data: {
