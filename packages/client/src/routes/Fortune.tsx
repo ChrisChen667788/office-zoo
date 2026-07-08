@@ -26,6 +26,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { navIcons, Icon } from '../constants/icons';
+import { mihoyo } from '../constants/design'; // v6.148 — 接上为占卜页量身定制的 tarotMystic mesh
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getUserId } from '../utils/userId';
@@ -92,7 +93,7 @@ export default function Fortune() {
 
   return (
     <div className="relative min-h-screen overflow-hidden"
-      style={{ background: 'radial-gradient(circle at 30% 20%, #1a0d35 0%, #050510 70%)' }}>
+      style={{ background: mihoyo.mesh.tarotMystic }}>
       <header className="px-6 md:px-10 py-5 flex items-center justify-between">
         <button onClick={() => navigate('/')}
           className="text-xs text-white/55 hover:text-white/90 transition px-3 py-1.5 rounded"

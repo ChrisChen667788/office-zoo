@@ -7,6 +7,15 @@
 
 ---
 
+## v6.148–v6.150 — 2026-07-08 · 收尾打磨(专属 mesh / 懒加载 / 计划快照)
+
+- **v6.148 Fortune 接 tarotMystic mesh**:design.ts 里为占卜页量身定制的「玄学塔罗」渐变网
+  (v6.1 就写好)终于接上;Bar 早已用 barNight,Weekly 自有渐变保留。
+- **v6.149 立绘懒加载**:Talkshow 创作面板缩略图 + FiredChat HR 立绘加 `loading="lazy"`,
+  首屏带宽让给正文。
+- **v6.150 计划文档快照更新**:ITERATION_PLAN / VERSION_PLAN 的 Phase C 从「唯一未启动」改为
+  「场边嘉宾席 MVP 已落地,深水区=真人占鼠人席位 + 语音输入」,快照口径推进到 v6.150。
+
 ## v6.142–v6.147 — 2026-07-08 · 观众体验第三波(引导/成就/回放/图标补全)
 
 - **v6.142 PhaseHint 旁观者视角化**(审计 UX F-12):hint 从「给 AI 玩家的策略说明」改成
