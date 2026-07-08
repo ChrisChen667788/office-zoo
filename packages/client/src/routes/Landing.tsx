@@ -109,8 +109,9 @@ const MODES: ModeSpec[] = [
   },
   {
     key: 'talkshow',
-    icon: '',
-    iconFallback: '🎤',
+    // v6.146 — 接专属 AI 图标(舞台凳+麦克风);fallback 改 🎭 与沉浸局的 🎤 区分
+    icon: modeIcons.talkshow,
+    iconFallback: '🎭',
     badge: '04',
     titleKey:   'mode.talkshow.title',
     taglineKey: 'mode.talkshow.body',
@@ -119,10 +120,10 @@ const MODES: ModeSpec[] = [
     accent2: '#7c3aed',
   },
   {
-    // v6.86 — 双公司对抗。无专属 PNG,沿用 talkshow 的 emoji-fallback 写法。
+    // v6.146 — 接专属 AI 图标(双楼对峙);fallback 改 ⚔️ 不再与经典局 🏢 撞车
     key: 'dual',
-    icon: '',
-    iconFallback: '🏢',
+    icon: modeIcons.dual,
+    iconFallback: '⚔️',
     badge: '05',
     titleKey:   'mode.dual.title',
     taglineKey: 'mode.dual.body',

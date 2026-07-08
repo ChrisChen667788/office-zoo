@@ -275,6 +275,8 @@ export default function Classic() {
         setMyRole(data.roleId as HumanRoleId);
         setGuestOpen(false);
         pushEvent('system', `🎤 你已上桌:${HUMAN_ROLES.find((r) => r.id === data.roleId)?.label ?? data.roleId} —— 发言会真的进 AI 的耳朵`);
+        // v6.143 — 🎤 guest_first 成就
+        void import('../utils/achievements').then((m) => m.bumpProgress('guest_claimed', 1));
       } else {
         pushEvent('system', data.reason === 'role_taken' ? '这个角色刚被别人抢了' : data.reason === 'already_has_role' ? '你已经有角色了,先退下再换' : '上桌失败');
       }
@@ -579,6 +581,10 @@ export default function Classic() {
       else if (data.winner === 'company_b_win') setCompanyWinner('b');
       // v6.31 P2 — bump classic_finished progress for the achievement.
       void import('../utils/achievements').then((m) => m.bumpProgress('classic_finished', 1));
+      // v6.143 — 双公司局看完另计一枚(⚔️ dual_first_watch)。
+      if (data.winner === 'company_a_win' || data.winner === 'company_b_win') {
+        void import('../utils/achievements').then((m) => m.bumpProgress('dual_finished', 1));
+      }
     },
 
     'game:avatar_ready': (data: { role: string; url: string }) => {

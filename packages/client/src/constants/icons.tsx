@@ -23,6 +23,9 @@ export const modeIcons = {
   classic:   url('mode_classic'),
   immersive: url('mode_immersive'),
   fired:     url('mode_fired'),
+  // v6.146 — 双公司/段子专属图标(此前空串 fallback emoji,dual 的 🏢 与经典局撞车)
+  dual:      url('mode_dual'),
+  talkshow:  url('mode_talkshow'),
 } as const;
 
 // --- v6.60 deep-screen nav / section icons (二/三/四级界面入口) -----------

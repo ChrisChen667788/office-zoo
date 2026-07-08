@@ -53,6 +53,9 @@ export const ICON_DETAILS: Record<string, IconSpec> = {
   mode_classic:    { subject: 'a cute chibi office building at night with glowing neon windows', detail: 'one tiny silhouette of a worker at a window', accent: '#4c9eff', bgStyle: 'solid' },
   mode_immersive:  { subject: 'a glowing pink retro microphone on a spotlit stage', detail: 'soft vapor from a single spotlight', accent: '#a855f7', bgStyle: 'solid' },
   mode_fired:      { subject: 'a glowing golden scales of justice with a tiny red tie draped over one pan', detail: 'dramatic courtroom lighting', accent: '#ff3355', bgStyle: 'solid' },
+  // v6.146 — 双公司/段子两模式专属图标(dual 此前空串 fallback 🏢 与经典局撞车)
+  mode_dual:       { subject: 'two cute chibi office buildings facing off, one glowing blue one glowing orange, tiny lightning spark between them', detail: 'rivalry energy, night sky', accent: '#ff8a3d', bgStyle: 'solid' },
+  mode_talkshow:   { subject: 'a cute chibi standup-comedy stool with a glowing handheld microphone leaning on it', detail: 'single warm spotlight cone from above', accent: '#ff5588', bgStyle: 'solid' },
 
   // --- Personality traits (Immersive + Classic PERSONALITY_LABELS) ------
   personality_social_butterfly:   { subject: 'a sparkly pink butterfly with little heart antennae', accent: '#FF6B9D', bgStyle: 'solid' },

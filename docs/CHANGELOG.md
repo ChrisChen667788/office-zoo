@@ -7,6 +7,21 @@
 
 ---
 
+## v6.142–v6.147 — 2026-07-08 · 观众体验第三波(引导/成就/回放/图标补全)
+
+- **v6.142 PhaseHint 旁观者视角化**(审计 UX F-12):hint 从「给 AI 玩家的策略说明」改成
+  「你会看到什么、能做什么」—— free_roam 提示 🎰 已开盘、discussion 提示 🤥 在演 + 🎤 上桌。
+- **v6.143 新成就 3 枚**:🛒 第一次买干预 / ⚔️ 看完第一局双公司 / 🎤 第一次上桌(嘉宾席),
+  registry 12→15,collector 门槛 11→14,三个触发点接进 BettingBar / game_over / 认领回执。
+- **v6.144 小程序整顿王**:mp talkshow persona 表补 `lingling: 😎 整顿王`,与 H5 端 v6.100 对齐。
+- **v6.145 Result 回放页双司战报**:深链回放页补「🏢 公司战报」按钮(此前只有 HighlightReel 有),
+  数据全取自 replay record(winner/market/rounds/dualReason/players.companyId)。
+- **v6.146 双公司/段子专属 AI 图标**:`ICON_DETAILS` 补 `mode_dual`(双楼对峙)`mode_talkshow`
+  (舞台凳+麦),Landing 接上并把 fallback 改 ⚔️/🎭(dual 的 🏢 不再与经典局撞车);
+  2/2 生成成功(doubao 额度见底,链自动回落 minimax:image-01)。
+- **v6.147 回放时间线图标补全**:`EVENT_ICON` 补 v6.83+ 新事件(🛒干预/📨挖角/📰抹黑/🗡️恩怨/
+  🎤真人发言/⚔️双司开局),回放不再对新时代事件显示缺省样式。
+
 ## v6.136–v6.141 — 2026-07-07 · 裁了么 Phase E 第二批(4 场景)+ 目录回归网
 
 第二批劳动法速通课(法条口径齐全):

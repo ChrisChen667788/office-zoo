@@ -63,8 +63,9 @@ beforeEach(() => {
 });
 
 describe('achievements registry', () => {
-  it('has 12 achievements', () => {
-    expect(ACHIEVEMENTS).toHaveLength(12);
+  it('has 15 achievements', () => {
+    // v6.143 — +3(intervene_first / dual_first_watch / guest_first)
+    expect(ACHIEVEMENTS).toHaveLength(15);
   });
 
   it('every achievement has an id, emoji, label, desc', () => {
@@ -130,14 +131,15 @@ describe('check predicates + refreshAuto', () => {
     expect(isUnlocked('quote_first')).toBe(true);
   });
 
-  it('completionist locks until other 11 are unlocked', () => {
+  it('completionist locks until other 14 are unlocked', () => {
+    // v6.143 — 门槛随注册表扩到 14(总数 15,含 completionist 自身)
     expect(isUnlocked('completionist')).toBe(false);
-    // Unlock 10 — still false
-    for (let i = 0; i < 10; i++) tryUnlock(ACHIEVEMENTS[i].id);
+    // Unlock 13 — still false
+    for (let i = 0; i < 13; i++) tryUnlock(ACHIEVEMENTS[i].id);
     refreshAuto();
     expect(isUnlocked('completionist')).toBe(false);
-    // Unlock 11th — now completionist should auto-unlock
-    tryUnlock(ACHIEVEMENTS[10].id);
+    // Unlock 14th — now completionist should auto-unlock
+    tryUnlock(ACHIEVEMENTS[13].id);
     refreshAuto();
     expect(isUnlocked('completionist')).toBe(true);
   });
