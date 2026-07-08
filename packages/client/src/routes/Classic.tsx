@@ -13,7 +13,7 @@ import {
 import GameMap from '../components/game/GameMap';
 import GhostChatPanel from '../components/game/GhostChatPanel';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
-import { pickReaction, dualBar, INTERVENE_REASON_CN } from '@furball/shared';
+import { pickReaction, dualBar, INTERVENE_REASON_CN, HUMAN_ROLES, type HumanRoleId } from '@furball/shared';
 import { fetchReactionLine } from '../utils/reactionLine';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
@@ -64,7 +64,7 @@ function inferGenderFromRoleClassic(role?: string): 'male' | 'female' | undefine
 
 interface EventLogEntry {
   id: number;
-  type: 'speech' | 'vote' | 'kill' | 'phase' | 'system' | 'ghost' | 'reaction' | 'defection' | 'smear';
+  type: 'speech' | 'vote' | 'kill' | 'phase' | 'system' | 'ghost' | 'reaction' | 'defection' | 'smear' | 'human';
   text: string;
   timestamp: number;
 }
@@ -119,6 +119,11 @@ export default function Classic() {
   const clueIdRef = useRef(0);
   // v6.111(审计玩法 F12)— 场上刚发生跨局恩怨 → 恩怨录按钮点红,打开即清。
   const [grudgePulse, setGrudgePulse] = useState(false);
+  // v6.127 — Phase C 真人场边嘉宾:占用位图 / 我的角色 / 面板开合 / 输入框。
+  const [roleTaken, setRoleTaken] = useState<Record<string, boolean>>({});
+  const [myRole, setMyRole] = useState<HumanRoleId | null>(null);
+  const [guestOpen, setGuestOpen] = useState(false);
+  const [guestInput, setGuestInput] = useState('');
   useEffect(() => {
     if (!clueCard) return;
     const t = setTimeout(() => setClueCard(null), 4500);
@@ -261,6 +266,28 @@ export default function Classic() {
     'game:grudge_vote': (data: { voterName: string; foeName: string; taunt: string }) => {
       pushEvent('defection', `🗡️ ${data.voterName} 翻旧账改投 ${data.foeName}:${data.taunt}`);
       setGrudgePulse(true);
+    },
+
+    // ── v6.127 · Phase C 真人场边嘉宾 ─────────────────────────────────
+    'game:role_claims': (data: { taken: Record<string, boolean> }) => setRoleTaken(data.taken ?? {}),
+    'game:role_claim_result': (data: { ok: boolean; roleId: string; reason?: string }) => {
+      if (data.ok) {
+        setMyRole(data.roleId as HumanRoleId);
+        setGuestOpen(false);
+        pushEvent('system', `🎤 你已上桌:${HUMAN_ROLES.find((r) => r.id === data.roleId)?.label ?? data.roleId} —— 发言会真的进 AI 的耳朵`);
+      } else {
+        pushEvent('system', data.reason === 'role_taken' ? '这个角色刚被别人抢了' : data.reason === 'already_has_role' ? '你已经有角色了,先退下再换' : '上桌失败');
+      }
+    },
+    'game:human_speech': (data: { role: string; label: string; emoji: string; text: string }) => {
+      pushEvent('human', `🎤 ${data.emoji} ${data.label}:${data.text}`);
+    },
+    'game:human_speech_result': (data: { ok: boolean; reason?: string }) => {
+      if (!data.ok) {
+        pushEvent('system', data.reason === 'rate_limited' ? '🎤 说太快了,缓一分钟'
+          : data.reason === 'round_cap' ? '🎤 本轮该角色的发言次数用完了(下轮再来)'
+          : data.reason === 'no_role' ? '🎤 先上桌认领一个角色' : '🎤 发言没送出去');
+      }
     },
 
     // v6.110 — 内部邮件专属动线:全房弹「背景调查」浮卡 + event log 一行
@@ -626,6 +653,8 @@ export default function Classic() {
     defection: { color: '#ff8a3d', bg: 'rgba(255,138,61,0.08)' },
     // v6.89 — 商业抹黑曝料;v6.93 改橙系(orange-400)与投票黄拉开,造谣搅局的不安感
     smear: { color: '#fb923c', bg: 'rgba(251,146,60,0.08)' },
+    // v6.127 — 真人场边嘉宾发言,冷蓝 frost(区别于 AI 的一切颜色:真人是稀客)
+    human: { color: '#7fd4ff', bg: 'rgba(127,212,255,0.08)' },
   };
 
   const phaseInfo = PHASE_NAMES[phase] || { label: phase, emoji: '🎮', icon: '' };
@@ -681,6 +710,21 @@ export default function Classic() {
           }}>
             {alive}/{players.length} 在职
           </span>
+          {/* v6.129 — 邀请朋友同房旁观/上桌:复制房间链接(/classic/:gameId 本就可深链加入) */}
+          <button
+            onClick={() => {
+              navigator.clipboard?.writeText(window.location.href)
+                .then(() => pushEvent('system', '🔗 房间链接已复制 — 发给朋友一起看戏/上桌'))
+                .catch(() => pushEvent('system', `🔗 复制失败,手动分享地址:${window.location.href}`));
+            }}
+            title="复制房间链接,朋友打开即进同一局(可旁观、可上桌当嘉宾)"
+            style={{
+              fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, cursor: 'pointer',
+              color: 'rgba(127,212,255,0.85)', background: 'rgba(127,212,255,0.08)',
+              border: '1px solid rgba(127,212,255,0.3)',
+            }}>
+            🔗 邀请
+          </button>
         </div>
 
         {/* v6.98 — 相位胶囊随节奏变元素色 + 弹簧入场(key=phase 每次切相位重触发) */}
@@ -1244,6 +1288,75 @@ export default function Classic() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── v6.128 · Phase C 真人嘉宾席(底部居中,PhaseHint 上方)────────── */}
+      <div style={{ position: 'fixed', bottom: 64, left: '50%', transform: 'translateX(-50%)', zIndex: 72,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+        {myRole ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 999,
+            background: 'rgba(13,14,22,0.94)', border: '1px solid rgba(127,212,255,0.45)',
+            backdropFilter: 'blur(12px)', boxShadow: '0 0 20px rgba(127,212,255,0.2)' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#7fd4ff', whiteSpace: 'nowrap' }}>
+              {HUMAN_ROLES.find((r) => r.id === myRole)?.emoji} {HUMAN_ROLES.find((r) => r.id === myRole)?.label}
+            </span>
+            <input
+              value={guestInput}
+              onChange={(e) => setGuestInput(e.target.value.slice(0, 120))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && guestInput.trim()) {
+                  socket.emit('game:human_speech', { text: guestInput.trim() });
+                  setGuestInput('');
+                }
+              }}
+              placeholder="场边发言,AI 真的听得到…"
+              style={{ width: 'min(46vw, 300px)', padding: '5px 8px', borderRadius: 8, fontSize: 12,
+                background: 'rgba(255,255,255,0.06)', color: '#fff',
+                border: '1px solid rgba(255,255,255,0.12)', outline: 'none' }}
+            />
+            <button
+              onClick={() => { if (guestInput.trim()) { socket.emit('game:human_speech', { text: guestInput.trim() }); setGuestInput(''); } }}
+              style={{ padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 800,
+                color: '#0a0a1e', background: '#7fd4ff', border: 'none' }}>发言</button>
+            <button
+              onClick={() => { socket.emit('game:release_role'); setMyRole(null); }}
+              title="退下嘉宾席(保留旁观)"
+              style={{ padding: '5px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 11,
+                color: 'rgba(255,255,255,0.55)', background: 'none', border: '1px solid rgba(255,255,255,0.14)' }}>退下</button>
+          </div>
+        ) : guestOpen ? (
+          <div style={{ padding: 10, borderRadius: 12, background: 'rgba(13,14,22,0.94)',
+            border: '1px solid rgba(127,212,255,0.35)', backdropFilter: 'blur(12px)',
+            display: 'flex', flexDirection: 'column', gap: 5, width: 'min(320px, 90vw)' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', color: 'rgba(127,212,255,0.75)', textTransform: 'uppercase' }}>
+              🎤 上桌当嘉宾 · 发言真进 AI 耳朵
+            </div>
+            {HUMAN_ROLES.map((r) => (
+              <button key={r.id} disabled={!!roleTaken[r.id]}
+                onClick={() => socket.emit('game:claim_role', { roleId: r.id })}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8,
+                  cursor: roleTaken[r.id] ? 'not-allowed' : 'pointer', textAlign: 'left',
+                  opacity: roleTaken[r.id] ? 0.4 : 1, color: '#fff',
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(127,212,255,0.25)' }}>
+                <span style={{ fontSize: 16 }}>{r.emoji}</span>
+                <span style={{ flex: 1 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800 }}>{r.label}</span>
+                  <span style={{ display: 'block', fontSize: 10, opacity: 0.55 }}>{roleTaken[r.id] ? '已被占' : r.desc}</span>
+                </span>
+              </button>
+            ))}
+            <button onClick={() => setGuestOpen(false)}
+              style={{ padding: '4px 0', borderRadius: 8, cursor: 'pointer', fontSize: 11,
+                color: 'rgba(255,255,255,0.55)', background: 'none', border: '1px solid rgba(255,255,255,0.12)' }}>收起</button>
+          </div>
+        ) : (
+          <button onClick={() => setGuestOpen(true)}
+            style={{ padding: '6px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 800,
+              color: '#7fd4ff', background: 'rgba(13,14,22,0.92)', border: '1px solid rgba(127,212,255,0.4)',
+              backdropFilter: 'blur(12px)', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' }}>
+            🎤 上桌当嘉宾
+          </button>
+        )}
+      </div>
 
       {/* Floating phase-hint banner — auto-dismisses, informational only */}
       <PhaseHint phase={phase} />

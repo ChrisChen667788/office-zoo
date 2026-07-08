@@ -202,6 +202,13 @@ export default function Immersive() {
       setClueCard({ ...data, id: clueIdRef.current });
     },
     'game:grudge_vote': () => setGrudgePulse(true),
+
+    // v6.129 — 真人场边嘉宾发言:沉浸局以弹幕形式飘过(复用鬼魂弹幕轨道)。
+    'game:human_speech': (data: { label: string; emoji: string; text: string }) => {
+      const item: GhostCommentItem = { id: uid(), playerId: 'human', playerName: `${data.emoji} ${data.label}`, text: data.text, timestamp: Date.now() };
+      setActiveDanmaku((prev) => [...prev, item]);
+      setTimeout(() => setActiveDanmaku((prev) => prev.filter((d) => d.id !== item.id)), 7000);
+    },
     'game:created': (data: { gameId: string }) => {
       setGameId(data.gameId);
       socket.emit('game:start', data.gameId);
