@@ -8,6 +8,28 @@
 
 ---
 
+## 🆕 2026-07 卖点刷新(v6.131 口径 —— 提交时用本节覆盖下方历史字段)
+
+**Tagline(60 字符内,三选一):**
+1. `AI office deathmatch — now you can sit at the table`
+2. `Two AI companies fight. You bet, meddle, and join in.`
+3. `The AI werewolf office where spectators run the show`
+
+**一句话描述:**
+> Two AI companies battle on one office map — moles, poaching, smear campaigns.
+> You bet chips on who gets fired, buy interventions that really change the plot,
+> or claim a sideline seat (Human HR / union rep / lawyer / reporter) and the AIs
+> will answer you by name. Open-source, MIT, docker-compose up.
+
+**首评置顶(maker comment)要点:**
+- 差异化 vs AI Town/Smallville:文化锚(中国大厂班味)+ 观众代理权(下注/干预/上桌)真进引擎,不是弹幕装饰
+- 技术:多供应商 LLM/TTS/图像链、pgvector 记忆 + 跨局恩怨图谱、561 vitest、纯函数优先
+- 新截图组:`assets/screenshots/`(2026-07 刷新:米哈游 mesh 新皮肤 + archetype 立绘)
+
+(以下为 v6.4 时代历史字段 ↓)
+
+---
+
 ## 🎯 Step 0 · launch 日 24h 倒计时
 
 | 时间 (北京) | 时间 (PST) | 动作 |

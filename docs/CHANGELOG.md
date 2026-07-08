@@ -7,6 +7,19 @@
 
 ---
 
+## v6.132–v6.135 — 2026-07-07 · Phase G 国际化推进(EN 门面 + 模式卡四语言)
+
+- **v6.132 README.en 同步**:补「v6.86 → v6.131」英文亮点段(Company Clash / humans-at-the-table /
+  spectator economy / Gen-Z reskin / portraits / labor-law pack / audit sweeps),与中文版对齐。
+- **v6.133 Launch kit 刷新**:`LAUNCH_SUBMISSION_PACK` 顶部新增「2026-07 卖点刷新」paste-ready 区
+  (3 个新 tagline + 一句话描述 + maker comment 要点);`PRODUCTHUNT_LAUNCH_KIT` 头部指向新口径,
+  旧字段标注为历史。
+- **v6.134 模式卡 features/tier 四语言**:落实 v1.2.1 遗留的「v1.2.3 will localize」TODO ——
+  5 模式 × 4 features + 2 tier chip 共 22 个 dict key(zh/en/ja/ko 全填,TS 强制),`ModeSpec.features`
+  从硬编码 zh 切到 `DictKey[]`。en 真机验证:features/tier/title 全英文、零中文泄漏。
+- **v6.135 README.en Roadmap 补尾**:从 v6.54 补到 v6.131(牌局 roguelike / 演出层 / 双公司 /
+  视觉 pass / 审计清仓 / Phase C),下一步改标 Phase G EN prompt set + HN launch。
+
 ## v6.124–v6.131 — 2026-07-07 · Phase C「真人玩家加入」MVP:场边嘉宾席
 
 ITERATION_PLAN 七阶段**唯一整块缺口**开工。MVP 切法:真人不占鼠人席位(不投票/不被裁),
