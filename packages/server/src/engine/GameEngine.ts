@@ -57,7 +57,8 @@ import {
   type SeatClaims,
 } from '@furball/shared';
 import { TaskManager } from './TaskManager';
-import { BaseAgent } from '../agents/BaseAgent';
+import { BaseAgent, localizeRoom } from '../agents/BaseAgent';
+import type { GameLocale } from '@furball/shared';
 import { logger } from '../utils/logger';
 import { recordGameResults, recordVoteAgainst } from '../services/characterStatsStore';
 import { recordSpectatorViews } from '../services/userCharacterViewsStore';
@@ -81,6 +82,12 @@ const AI_NAMES = [
   '陈姐', '实习生小明',
 ];
 
+// v6.156 — 英文局只取 ASCII 英文名(公司主题包 NPC 名字保持原样)
+const AI_NAMES_EN = [
+  'Tony', 'Lisa', 'Kevin', 'Amy', 'David', 'Frank',
+  'Grace', 'Helen', 'Jack', 'Mike', 'Ruby', 'Oscar',
+];
+
 const ROOMS = [
   '开放工区', '茶水间', '会议室', 'HR办公室', '服务器机房',
   '监控室', '产品部', '老板办公室', '文印室', '电梯间',
@@ -88,6 +95,100 @@ const ROOMS = [
 
 function randomRoom(): string {
   return ROOMS[Math.floor(Math.random() * ROOMS.length)];
+}
+
+// ---------------------------------------------------------------------------
+// v6.156 — 讨论上下文纯函数(导出供测试)
+// ---------------------------------------------------------------------------
+/**
+ * 构建讨论上下文字符串,支持 zh/en/ja/ko locale。
+ * @internal 用于测试快照 + engine.buildDiscussionContext 调用。
+ */
+export function buildDiscussionContextFn(
+  round: number,
+  alivePlayers: PlayerState[],
+  allPlayers: PlayerState[],
+  deadBodyLocation: string | undefined,
+  meetingCallerId: string | undefined,
+  recentEvents: GameEvent[],
+  lastRoundSpeeches: Array<{ name: string; text: string }>,
+  locale: GameLocale,
+): string {
+  if (locale === 'zh') {
+    const playerList = alivePlayers.map((p) => `${p.name}(在${p.position.room})`).join('、');
+    const deadPlayers = allPlayers.filter((p) => !p.isAlive);
+    const deadNames = deadPlayers.map((p) => p.name).join('、');
+
+    let ctx = `第${round}轮全员大会。在职员工: ${playerList}。`;
+    if (deadNames) {
+      ctx += ` 已被裁员: ${deadNames}。`;
+      const ghostVoters = deadPlayers.filter((p) => !p.ghostVoteUsed);
+      if (ghostVoters.length > 0) {
+        ctx += ` 注意: ${ghostVoters.map(p => p.name).join('、')}仍持有劳动仲裁投票权(各1票)!`;
+      }
+    }
+    if (deadBodyLocation) {
+      ctx += ` 有人在${deadBodyLocation}被"优化"了!`;
+      const nearBody = alivePlayers.filter((p) => p.position.room === deadBodyLocation);
+      if (nearBody.length > 0) {
+        ctx += ` 事发时在${deadBodyLocation}附近的人: ${nearBody.map(p => p.name).join('、')}(非常可疑!)。`;
+      }
+    }
+    if (meetingCallerId) {
+      const caller = allPlayers.find((p) => p.id === meetingCallerId);
+      if (caller) ctx += ` 紧急会议由 ${caller.name} 发起。`;
+    }
+    if (recentEvents.length > 0) {
+      ctx += ` 本轮事件: ${recentEvents.map(e => e.description).join('; ')}。`;
+    }
+    if (lastRoundSpeeches.length > 0 && round > 1) {
+      const recap = lastRoundSpeeches.slice(-3)
+        .map((s) => `${s.name}上轮说过:"${s.text.slice(0, 60)}${s.text.length > 60 ? '...' : ''}"`)
+        .join(' | ');
+      ctx += ` 上一轮会议记忆: ${recap}。`;
+    }
+    ctx += ' 注意:这是一场激烈的职场辩论!要用职场黑话互相质疑、指名道姓、戳穿对方话术,揪出藏在公司里的资本家内鬼。要有针对性地回应前面同事的发言,形成真正的辩论,而不是各说各话!';
+    return ctx;
+  }
+
+  // EN/JA/KO — shared English skeleton, then language instruction in system prompt
+  const playerList = alivePlayers.map(
+    (p) => `${p.name} (in ${localizeRoom(p.position.room, locale)})`
+  ).join(', ');
+  const deadPlayers = allPlayers.filter((p) => !p.isAlive);
+  const deadNames = deadPlayers.map((p) => p.name).join(', ');
+
+  let ctx = `Round ${round} all-hands meeting. Active employees: ${playerList}.`;
+  if (deadNames) {
+    ctx += ` Laid off: ${deadNames}.`;
+    const ghostVoters = deadPlayers.filter((p) => !p.ghostVoteUsed);
+    if (ghostVoters.length > 0) {
+      ctx += ` Note: ${ghostVoters.map(p => p.name).join(', ')} still hold labor-arbitration votes (1 each)!`;
+    }
+  }
+  if (deadBodyLocation) {
+    const localRoom = localizeRoom(deadBodyLocation, locale);
+    ctx += ` Someone was "restructured out" in the ${localRoom}!`;
+    const nearBody = alivePlayers.filter((p) => p.position.room === deadBodyLocation);
+    if (nearBody.length > 0) {
+      ctx += ` Spotted near the scene: ${nearBody.map(p => p.name).join(', ')} — very suspicious!`;
+    }
+  }
+  if (meetingCallerId) {
+    const caller = allPlayers.find((p) => p.id === meetingCallerId);
+    if (caller) ctx += ` Emergency meeting called by ${caller.name}.`;
+  }
+  if (recentEvents.length > 0) {
+    ctx += ` This round's events: ${recentEvents.map(e => e.description).join('; ')}.`;
+  }
+  if (lastRoundSpeeches.length > 0 && round > 1) {
+    const recap = lastRoundSpeeches.slice(-3)
+      .map((s) => `${s.name} last round: "${s.text.slice(0, 60)}${s.text.length > 60 ? '...' : ''}"`)
+      .join(' | ');
+    ctx += ` Last round recap: ${recap}.`;
+  }
+  ctx += ' REMINDER: This is a heated office debate. Call people out by name, use Big Tech jargon, expose whoever is acting suspicious, and root out the management mole. Respond directly to what others said — real debate, not parallel monologues!';
+  return ctx;
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -419,11 +520,15 @@ export class GameEngine extends EventEmitter {
         }
       }
     } else {
+      // v6.156 — 非中文局只用 ASCII 英文名(AI_NAMES_EN),避免中文名出现在英/日/韩局
+      const locale = this.state.config.locale ?? 'zh';
+      const namePool = locale === 'zh' ? AI_NAMES : AI_NAMES_EN;
       // v6.35 P5 — weight each name by its hot-quote nomination count
       // over the last 7 days. weight = 1 + 0.5 × min(mentions, 5) — caps
       // at 3.5x so even a heavily-quoted rat doesn't show up every game.
-      const weights = AI_NAMES.map((n) => 1 + 0.5 * Math.min(nominationCounts.get(n) ?? 0, 5));
-      names = weightedSample(AI_NAMES, weights, count);
+      // (nomination counts are always keyed on AI_NAMES; for EN use uniform weights)
+      const weights = namePool.map((n) => 1 + 0.5 * Math.min(nominationCounts.get(n) ?? 0, 5));
+      names = weightedSample(namePool, weights, count);
     }
 
     // v6.38 P2 — role soft-preference. The pack's free-text role hint
@@ -483,6 +588,8 @@ export class GameEngine extends EventEmitter {
         // v6.51 P1 — per-NPC cross-game memory snippet (empty string for
         // default rosters or first-time pack NPCs).
         packMemoryByName[player.name],
+        // v6.156 — 透传 locale 到 AI agent
+        this.state.config.locale ?? 'zh',
       );
       this.agents.set(player.id, agent);
     }
@@ -2348,6 +2455,9 @@ export class GameEngine extends EventEmitter {
     this.state.protectedPlayerId = undefined;
     this.state.bodyguardTargetId = undefined;
     const alive = this.alivePlayers();
+    // v6.156 — roleIntel strings must be locale-aware so EN/JA/KO prompts
+    // stay CJK-free (all 6 addRoleIntel calls used to pass Chinese-only strings).
+    const locale = this.state.config.locale ?? 'zh';
 
     // 工会代表 (MEDIC_CAT) — nullify-protect one living player from tonight's kill.
     const medic = alive.find((p) => p.role === Role.MEDIC_CAT);
@@ -2358,7 +2468,9 @@ export class GameEngine extends EventEmitter {
         const target = this.state.players.find((p) => p.id === targetId);
         this.addRoleIntelForPlayer(
           medic.id,
-          `你(工会代表)这一轮暗中罩着 ${target?.name ?? targetId},挡住了针对 TA 的"优化"。`,
+          locale === 'zh'
+            ? `你(工会代表)这一轮暗中罩着 ${target?.name ?? targetId},挡住了针对 TA 的"优化"。`
+            : `You (Union Rep) secretly covered ${target?.name ?? targetId} this round, blocking any "optimization" against them.`,
         );
       }
     }
@@ -2373,7 +2485,9 @@ export class GameEngine extends EventEmitter {
         const target = this.state.players.find((p) => p.id === targetId);
         this.addRoleIntelForPlayer(
           bodyguard.id,
-          `你(法务顾问)这一轮贴身护着 ${target?.name ?? targetId},真出事你会用法律手段替 TA 挡下(自己担风险)。`,
+          locale === 'zh'
+            ? `你(法务顾问)这一轮贴身护着 ${target?.name ?? targetId},真出事你会用法律手段替 TA 挡下(自己担风险)。`
+            : `You (Legal Counsel) are body-blocking ${target?.name ?? targetId} this round — if they're targeted, you take the hit.`,
         );
       }
     }
@@ -2392,7 +2506,9 @@ export class GameEngine extends EventEmitter {
           const backlog = target.tasks?.length ?? 0;
           this.addRoleIntelForPlayer(
             vigilante.id,
-            `你(数据分析师)调了 ${target.name} 的 OKR 后台:TA 名下挂着 ${backlog} 个待办${backlog === 0 ? '(一个活都没有,可疑)' : ''}。`,
+            locale === 'zh'
+              ? `你(数据分析师)调了 ${target.name} 的 OKR 后台:TA 名下挂着 ${backlog} 个待办${backlog === 0 ? '(一个活都没有,可疑)' : ''}。`
+              : `You (Data Analyst) pulled ${target.name}'s OKR backlog: ${backlog} open task(s)${backlog === 0 ? ' — zero tasks, highly suspicious' : ''}.`,
           );
           this.addEvent('role_action', '📊 数据分析师这一轮扒了一个人的 OKR 后台');
         }
@@ -2407,9 +2523,13 @@ export class GameEngine extends EventEmitter {
         this.investigatedByDetective.add(targetId);
         const target = this.state.players.find((p) => p.id === targetId);
         if (target) {
+          // v6.156 — use EN teamLabel for non-zh to avoid CJK in prompt
+          const teamLabelEn = target.team === Team.DOG ? 'management' : target.team === Team.CAT ? 'worker' : 'neutral';
           this.addRoleIntelForPlayer(
             detective.id,
-            `你(HR总监)查了 ${target.name} 的真实绩效档案:TA 属于 ${teamLabel(target.team)}阵营。`,
+            locale === 'zh'
+              ? `你(HR总监)查了 ${target.name} 的真实绩效档案:TA 属于 ${teamLabel(target.team)}阵营。`
+              : `You (HR Director) ran ${target.name}'s real performance file: they are on the ${teamLabelEn} side.`,
           );
           this.addEvent('role_action', '🔍 HR总监这一轮暗中查了一个人的底');
         }
@@ -2429,9 +2549,12 @@ export class GameEngine extends EventEmitter {
         this.auditedByMedium.add(targetId);
         const target = this.state.players.find((p) => p.id === targetId);
         if (target) {
+          const mediumTeamLabelEn = target.team === Team.DOG ? 'management' : target.team === Team.CAT ? 'worker' : 'neutral';
           this.addRoleIntelForPlayer(
             medium.id,
-            `你(内审专员)翻了已离职的 ${target.name} 的档案:TA 当年其实属于 ${teamLabel(target.team)}阵营。`,
+            locale === 'zh'
+              ? `你(内审专员)翻了已离职的 ${target.name} 的档案:TA 当年其实属于 ${teamLabel(target.team)}阵营。`
+              : `You (Internal Auditor) reviewed ex-employee ${target.name}'s file: they were on the ${mediumTeamLabelEn} side.`,
           );
           this.addEvent('role_action', '🔎 内审专员这一轮查了一份离职员工的档案');
         }
@@ -2454,9 +2577,13 @@ export class GameEngine extends EventEmitter {
             .filter((p) => p.id !== target.id && p.position?.room === room)
             .map((p) => p.name);
           const company = others.length ? `身边还有 ${others.join('、')}` : '独来独往、身边没人';
+          const companyEn = others.length ? `with ${others.join(', ')} nearby` : 'alone — no one else around';
           this.addRoleIntelForPlayer(
             adventurer.id,
-            `你(销售冠军)靠人脉摸到 ${target.name} 今晚的行踪:TA 在 ${room},${company}。`,
+            locale === 'zh'
+              ? `你(销售冠军)靠人脉摸到 ${target.name} 今晚的行踪:TA 在 ${room},${company}。`
+              // v6.156 — 房间名同样要本地化,否则英文情报里混入中文房间名(兜底值「某处」同理)
+              : `You (Sales Ace) tracked ${target.name} tonight: in ${target.position?.room ? localizeRoom(target.position.room, locale) : 'somewhere'}, ${companyEn}.`,
           );
           this.addEvent('role_action', '🏆 销售冠军这一轮追踪了一个人的行踪');
         }
@@ -2538,50 +2665,67 @@ export class GameEngine extends EventEmitter {
   }
 
   private buildDiscussionContext(): string {
-    const alive = this.alivePlayers();
-    const playerList = alive.map((p) => `${p.name}(在${p.position.room})`).join('、');
-    const deadPlayers = this.state.players.filter((p) => !p.isAlive);
-    const deadNames = deadPlayers.map((p) => p.name).join('、');
-
-    let ctx = `第${this.state.round}轮全员大会。在职员工: ${playerList}。`;
-    if (deadNames) {
-      ctx += ` 已被裁员: ${deadNames}。`;
-      const ghostVoters = deadPlayers.filter((p) => !p.ghostVoteUsed);
-      if (ghostVoters.length > 0) {
-        ctx += ` 注意: ${ghostVoters.map(p => p.name).join('、')}仍持有劳动仲裁投票权(各1票)!`;
-      }
-    }
-    if (this.state.deadBodyLocation) {
-      ctx += ` 有人在${this.state.deadBodyLocation}被"优化"了!`;
-      const nearBody = alive.filter((p) => p.position.room === this.state.deadBodyLocation);
-      if (nearBody.length > 0) {
-        ctx += ` 事发时在${this.state.deadBodyLocation}附近的人: ${nearBody.map(p => p.name).join('、')}(非常可疑!)。`;
-      }
-    }
-    if (this.state.meetingCaller) {
-      const caller = this.state.players.find((p) => p.id === this.state.meetingCaller);
-      if (caller) ctx += ` 紧急会议由 ${caller.name} 发起。`;
-    }
-
-    const recentEvents = this.timeline.filter(e => e.round === this.state.round);
-    if (recentEvents.length > 0) {
-      ctx += ` 本轮事件: ${recentEvents.map(e => e.description).join('; ')}。`;
-    }
-
-    // Last round's speeches — feed in 3 most memorable lines so feuds carry over
-    if (this.lastRoundSpeeches.length > 0 && this.state.round > 1) {
-      const recap = this.lastRoundSpeeches.slice(-3)
-        .map((s) => `${s.name}上轮说过:"${s.text.slice(0, 60)}${s.text.length > 60 ? '...' : ''}"`)
-        .join(' | ');
-      ctx += ` 上一轮会议记忆: ${recap}。`;
-    }
-
-    ctx += ' 注意:这是一场激烈的职场辩论!要用职场黑话互相质疑、指名道姓、戳穿对方话术,揪出藏在公司里的资本家内鬼。要有针对性地回应前面同事的发言,形成真正的辩论,而不是各说各话!';
-    return ctx;
+    // v6.156 — 根据 locale 生成对应语言的讨论上下文
+    const locale = this.state.config.locale ?? 'zh';
+    return buildDiscussionContextFn(
+      this.state.round,
+      this.alivePlayers(),
+      this.state.players,
+      this.state.deadBodyLocation,
+      this.state.meetingCaller,
+      this.timeline.filter(e => e.round === this.state.round),
+      this.lastRoundSpeeches,
+      locale,
+    );
   }
 
   private fallbackSpeech(player: PlayerState): string {
+    // v6.156 — 按对局 locale 选择 fallback 语言
+    const locale = this.state.config.locale ?? 'zh';
+
     if (player.team === Team.DOG) {
+      // EN/JA/KO fallback — Big Tech manager flavor
+      if (locale !== 'zh') {
+        const en = [
+          "@Everyone — who owns this outcome? I need clarity before we proceed.",
+          "The loudest voices are statistically the least impactful. Let's look at the data.",
+          "My promo packet shows consistent above-bar performance. Can @someone say the same?",
+          "This is a culture-fit issue more than a performance one. Worth noting.",
+          "Some headcount adjustments may be coming. I just want to flag that proactively.",
+          "Let me double-click on why that argument doesn't hold at this org level.",
+          "Who is aligned with the north star metric here, and who is out of scope?",
+          "Headcount has been reallocated. The remaining team needs to step up.",
+          "Your impact at this level is not matching expectations — let's talk offline.",
+          "We stack-rank for a reason. The results might surprise some of you.",
+          "The RIF happened for a reason. Let's not recreate the root cause here.",
+        ];
+        const ja = [
+          "このプロジェクトのオーナーは誰ですか？明確にしてください。",
+          "一番うるさい人が一番結果を出せていない、よくあることです。",
+          "私の評価は常に上位ですが、他の方はいかがですか？",
+          "これは能力の問題ではなく、文化的適合性の問題です。",
+          "組織の最適化が必要かもしれません。事前にお伝えしておきます。",
+          "その論理は組織レベルでは通用しません。深掘りしましょう。",
+          "誰が北極星の指標に向かっていて、誰がそうでないのかを見極める必要があります。",
+          "人員は再配置されました。残るメンバーはもっと頑張る必要があります。",
+          "このレベルの期待値を満たせていません。後でオフラインで話しましょう。",
+          "評価制度は理由があって存在します。結果は驚くかもしれません。",
+        ];
+        const ko = [
+          "이 결과물의 오너는 누구입니까? 진행 전에 명확히 해야겠어요.",
+          "가장 목소리 큰 분이 통계적으로 가장 성과가 낮습니다. 데이터를 봅시다.",
+          "제 승진 패킷은 일관된 초과 성과를 보여줍니다. 다른 분들은요?",
+          "이건 성과 문제보다 문화 적합성 문제입니다. 주목할 필요가 있습니다.",
+          "일부 헤드카운트 조정이 있을 수 있습니다. 미리 알려드리는 겁니다.",
+          "@누군가의 논리가 조직 레벨에서 왜 통하지 않는지 자세히 살펴봅시다.",
+          "북극성 지표에 정렬된 분과 그렇지 않은 분을 구분할 필요가 있습니다.",
+          "헤드카운트가 재배치되었습니다. 남은 팀원들이 더 분발해야 합니다.",
+          "이 레벨의 기대치를 충족하지 못하고 있습니다. 나중에 따로 얘기합시다.",
+          "스택 랭킹에는 이유가 있습니다. 결과가 놀라울 수 있어요.",
+        ];
+        const pool = locale === 'ja' ? ja : locale === 'ko' ? ko : en;
+        return pool[Math.floor(Math.random() * pool.length)];
+      }
       const lines = [
         '这个事情的owner到底是谁？我建议大家先对齐一下信息再来甩锅！',
         '你们有完没完？我OKR都快做完了，凭什么说我摸鱼？拿出数据来！',
@@ -2595,6 +2739,48 @@ export class GameEngine extends EventEmitter {
       return lines[Math.floor(Math.random() * lines.length)];
     }
     if (player.team === Team.CAT) {
+      // EN/JA/KO fallback — worker faction
+      if (locale !== 'zh') {
+        const en = [
+          "Stop hiding behind jargon! What have you actually shipped this quarter, @X?",
+          "You want to talk about impact? Let's talk about your PIP in HR's inbox.",
+          "Every layoff, you look surprised. Management always knows who's next.",
+          "That 'culture fit' line is straight from the management playbook. We see you.",
+          "Stack-ranking us while you coast? Classic move. Vote them out.",
+          "RTO mandate while you dial in from your vacation? We see what's happening.",
+          "Headcount 'reallocated'? You mean diverted to management bonuses. We're not blind.",
+          "You promised RSUs three reviews ago. Still nothing. We're done believing.",
+          "Real scope creep: management expanding headcount while PIP-ing the workers.",
+          "Let me align on one thing: you've done zero work and want all the credit.",
+          "That was all jargon, no substance. Classic mole behavior. Vote them out!",
+        ];
+        const ja = [
+          "黒幕はあなたです！ずっと観察してました！みんな投票してください！",
+          "また大風呂敷広げましたね。前回の約束はどこへ？",
+          "裁員のたびに驚いた顔をする。管理職は次が誰か知ってるはずです。",
+          "文化的適合性？それは管理職のマニュアルの言葉ですよ。見え透いてます。",
+          "私たちを評価しながら自分はさぼってる。典型的な内鬼の行動です！投票を！",
+          "在宅勤務しながら出社強制？どういうことか全員わかってますよね。",
+          "人員の再配置？それはボーナスに回しただけでしょ。目が覚めてください！",
+          "RSUを三回約束して一回も実現しなかった。もう信じません。",
+          "仕事もせず成果だけ取ろうとしてる。内鬼の典型パターンです！",
+          "全部黒話で中身ゼロ。典型的な内鬼の発言です。みんな投票してください！",
+        ];
+        const ko = [
+          "연기 그만해요! 이번 분기에 실제로 뭘 했는지 말해봐요!",
+          "갑질하는 사람이 제일 수상해요. 다들 눈치채셨죠?",
+          "해고될 때마다 놀란 표정. 관리직은 다음 차례가 누군지 알잖아요.",
+          "문화 적합성 타령은 관리직 매뉴얼에서 나온 말이에요. 다 보여요.",
+          "우리를 평가하면서 자기는 놀고 있어요. 전형적인 스파이 행동! 투표하세요!",
+          "재택근무 하면서 RTO 강요? 무슨 일인지 다들 알잖아요.",
+          "헤드카운트 재배치? 자기 보너스로 돌린 거잖아요. 눈 뜨세요!",
+          "RSU 약속 세 번, 이행 한 번도 없어요. 이제 안 믿어요.",
+          "일 안 하고 성과만 챙기려 해요. 전형적인 스파이 패턴! 투표하세요!",
+          "전부 빈말이었어요. 전형적인 스파이 발언이에요. 다들 투표해요!",
+        ];
+        const pool = locale === 'ja' ? ja : locale === 'ko' ? ko : en;
+        return pool[Math.floor(Math.random() * pool.length)];
+      }
       const lines = [
         '别装了！你天天说赋能赋能，你到底干了啥活？大家赶紧投他！',
         '又画大饼？你倒是先把上次的OKR兑现了啊！说好的年终奖呢？',
@@ -2606,6 +2792,47 @@ export class GameEngine extends EventEmitter {
         '你说的降本增效是不是就是降我的本增你的效？大家醒醒！',
       ];
       return lines[Math.floor(Math.random() * lines.length)];
+    }
+    // NEUTRAL
+    if (locale !== 'zh') {
+      const en = [
+        "Everyone please calm down — we're all just vesting our way to freedom here.",
+        "Interesting timing on that comment. Three people left after the last all-hands.",
+        "I support both @X and @Y equally. Genuinely. (wink)",
+        "Someone's LinkedIn says 'open to new opportunities'. Just leaving that there.",
+        "This is more entertaining than anything on my feed. Please continue.",
+        "We should put this in the parking lot. Or I'll just stay here and watch.",
+        "Love the energy. Nobody knows anything. Keep it up.",
+        "If I had a dollar for every 'culture fit' comment, I'd have vested by now.",
+        "The drama here is always worth staying late for.",
+        "I have no opinions. I have only popcorn. And observations.",
+      ];
+      const ja = [
+        "まあまあ落ち着きましょう。どうせみんなお給料のために来てるんですから。",
+        "そのコメントのタイミング、興味深いですね。先週の全社会議後に3人辞めましたね。",
+        "私は@Xも@Yも同じくらい支持しています。本当に。(笑)",
+        "誰かのLinkedInが更新されてますよ。そっとしておきましょう。",
+        "これはフィードより面白いですね。続けてください。",
+        "パーキングロットに入れておきましょう。私はここで見物します。",
+        "エネルギーが好きです。誰も何も知らない。どんどんやって。",
+        "文化的適合性という言葉を聞くたびに、もう少し吃瓜できますね。",
+        "このドラマのために残業する価値はあります。",
+        "意見はありません。ポップコーンだけあります。",
+      ];
+      const ko = [
+        "진정하세요. 어차피 다 월급 받으러 온 거잖아요.",
+        "그 코멘트의 타이밍, 흥미롭네요. 지난 전사 회의 후에 3명 떠났는데.",
+        "저는 @X도 @Y도 똑같이 지지해요. 진짜로요. (웃음)",
+        "누군가 링크드인을 업데이트했네요. 그냥 알려드리는 거예요.",
+        "이게 제 피드보다 재미있어요. 계속하세요.",
+        "파킹 랏에 넣어두죠. 저는 여기서 구경할게요.",
+        "에너지가 좋네요. 아무도 아무것도 몰라요. 계속해요.",
+        "문화 적합성 얘기 들을 때마다 팝콘이 필요하네요.",
+        "이 드라마 보려고 야근할 가치가 있어요.",
+        "의견 없어요. 팝콘만 있어요. 그리고 관찰.",
+      ];
+      const pool = locale === 'ja' ? ja : locale === 'ko' ? ko : en;
+      return pool[Math.floor(Math.random() * pool.length)];
     }
     const neutralLines = [
       '都别吵了，反正都是给资本家打工，谁走不是走，我就看看戏！',

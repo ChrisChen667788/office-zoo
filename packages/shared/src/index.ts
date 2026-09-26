@@ -13,6 +13,10 @@ export * from './negotiation/shareCard';
 export * from './negotiation/leaderboard';
 export * from './negotiation/bridge';
 export * from './data/jargon';
+export * from './data/bigtech';
+// v6.157 — 日韩黑话包
+export * from './data/jargon-ja';
+export * from './data/jargon-ko';
 export * from './data/fired';
 export * from './data/talkshow';
 export * from './data/furniture';
@@ -32,3 +36,5 @@ export * from './dual/smear';
 export * from './human/roles';
 export * from './human/stt';
 export * from './human/seat';
+// v6.156 — locale utils
+export * from './utils/locale';

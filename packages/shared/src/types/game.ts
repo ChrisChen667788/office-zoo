@@ -231,6 +231,9 @@ export interface GameConfig {
   /** v6.85 P2 — 'dual' = 双公司对抗(4+4 各 1 内鬼,市占率竞速 + 跨司挖人,
    *  见 docs/DESIGN_DUAL_COMPANY.md)。缺省/'single' = 经典单公司,零影响。 */
   mode?: 'single' | 'dual';
+  /** v6.156 — 游戏语言:zh=中文(默认),en=英文大厂; v6.157 扩展 ja/ko。
+   *  客户端由 gameLocaleFromUiLocale(getLocale()) 自动填入,服务端默认 'zh'。 */
+  locale?: 'zh' | 'en' | 'ja' | 'ko';
 }
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {

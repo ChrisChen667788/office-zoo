@@ -42,6 +42,8 @@ const GameCreateSchema = z.object({
   // curated NPC names. Invalid / missing pack falls back silently to
   // default names so a broken share link doesn't block game start.
   companyPackId: z.string().regex(/^[0-9a-f]{12}$/).optional(),
+  // v6.156 — 游戏语言(客户端由 gameLocaleFromUiLocale 自动填入,缺省 zh)
+  locale: z.enum(['zh', 'en', 'ja', 'ko']).optional(),
 });
 
 // gameId shape is `game_<timestamp>` — just enforce a reasonable cap.
@@ -170,6 +172,8 @@ export function setupSocketHandler(io: SocketServer) {
         {
           playerCount: config.playerCount,
           companyPackId: config.companyPackId,
+          // v6.156 — 游戏语言(客户端传 locale,缺省 'zh')
+          ...(config.locale ? { locale: config.locale } : {}),
           // v6.85 P2 — 双公司对抗(payload 里早有 mode 字段,白名单只放 dual;
           // dual 强制 8 人,createPlayers 分配失败会自动退回单公司)
           ...(config.mode === 'dual' ? { mode: 'dual' as const, playerCount: 8 } : {}),
