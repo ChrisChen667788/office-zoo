@@ -49,6 +49,12 @@ import {
   HUMAN_SPEECH_PER_ROUND_CAP,
   HUMAN_SPEECH_MAX_LEN,
   type HumanRoleId,
+  // v6.153 — Phase C 真人席位
+  sanitizeSeatSpeech,
+  validateSeatVote,
+  HUMAN_SEAT_SPEECH_TIMEOUT_MS,
+  HUMAN_SEAT_VOTE_TIMEOUT_MS,
+  type SeatClaims,
 } from '@furball/shared';
 import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
@@ -328,6 +334,23 @@ export class GameEngine extends EventEmitter {
   private smearPressure: Record<string, number> = {};
   /** v6.83 — 观众「聚光灯」:这些鼠下次发言加戏(取走即消费)。 */
   private spotlightIds = new Set<string>();
+
+  // ── v6.153 — 真人席位 ──────────────────────────────────────────────────────
+  /** 席位台账(playerId → userId),在 engine 层只管 controller 字段与挂起等待;
+   *  userId 映射由 socketHandler 维护,engine 只关心 playerId 是否 human。 */
+  private seatHumanIds = new Set<string>(); // 当前 controller='human' 的 playerId 集合
+  /** 讨论阶段挂起的真人发言等待:playerId → resolve(text|null)。 */
+  private pendingSeatSpeeches = new Map<string, (text: string | null) => void>();
+  /** 投票阶段挂起的真人投票等待:playerId → resolve(targetId|null)。 */
+  private pendingSeatVotes = new Map<string, (targetId: string | null) => void>();
+  /** 本轮预提交发言(在讨论开始前真人提前发来的):playerId → text。 */
+  private precommittedSpeeches = new Map<string, string>();
+  /** v6.fix — 本轮已提交过发言的真人席位(每轮开始前清空,防止二次提交产生下轮预提交)。 */
+  private spokenThisRound = new Set<string>();
+  /** 允许在测试里调小的超时时长(毫秒)。默认取 shared 常量。 */
+  private _seatSpeechTimeoutMs: number = HUMAN_SEAT_SPEECH_TIMEOUT_MS;
+  private _seatVoteTimeoutMs: number = HUMAN_SEAT_VOTE_TIMEOUT_MS;
+
   /** Child logger bound to this engine's gameId — created lazily. */
   private _log?: ReturnType<typeof logger.child>;
   private get log() {
@@ -589,6 +612,10 @@ export class GameEngine extends EventEmitter {
       // Main loop
       while (this.running && this.state.winner === WinCondition.NONE) {
         this.state.round++;
+        // v6.fix — 每轮开始时清空上一轮的预提交与已发言记录(预提交在 FREE_ROAM 阶段设置,
+        // 必须在此处清,不能在 runDiscussion 里清,否则会在读取之前就清掉。)
+        this.precommittedSpeeches.clear();
+        this.spokenThisRound.clear();
 
         // FREE_ROAM
         await this.setPhase(GamePhase.FREE_ROAM);
@@ -683,6 +710,15 @@ export class GameEngine extends EventEmitter {
     // stack frame is kept alive by the pending Promise, leaking memory.
     this.discussionResolver?.();
     this.discussionResolver = undefined;
+
+    // v6.153 — 结束所有挂起的真人席位等待,避免悬挂 Promise。
+    for (const resolve of this.pendingSeatSpeeches.values()) resolve(null);
+    this.pendingSeatSpeeches.clear();
+    for (const resolve of this.pendingSeatVotes.values()) resolve(null);
+    this.pendingSeatVotes.clear();
+    this.precommittedSpeeches.clear();
+    this.spokenThisRound.clear();
+    this.seatHumanIds.clear();
 
     // Drop all EventEmitter listeners (socket handler, future subscribers).
     this.removeAllListeners();
@@ -1040,8 +1076,16 @@ export class GameEngine extends EventEmitter {
     const dead = this.deadPlayers();
     const context = this.buildDiscussionContext();
 
+    // v6.fix — precommittedSpeeches.clear() 已移到主循环 round++ 之后,
+    // 在这里清空会导致读取前就清掉 FREE_ROAM 阶段提交的预发言。
+
+    // v6.153 — 区分 AI 玩家和真人席位玩家
+    const humanSeatAlive = alive.filter((p) => p.controller === 'human');
+    const aiAlive = alive.filter((p) => p.controller !== 'human');
+
     // Speakers go in a randomized order so the "first speaker sets the tone" role rotates.
-    const speakingOrder = shuffle(alive);
+    // 真人席位玩家不参与 AI 两波生成
+    const speakingOrder = shuffle(aiAlive);
 
     // ------------------------------------------------------------------
     // 2-wave parallelization. The original implementation generated each
@@ -1059,13 +1103,46 @@ export class GameEngine extends EventEmitter {
     // back-and-forth to lose.
     // ------------------------------------------------------------------
     const WAVE_COUNT = speakingOrder.length <= 3 ? 1 : 2;
-    const waveSize = Math.ceil(speakingOrder.length / WAVE_COUNT);
+    const waveSize = speakingOrder.length > 0
+      ? Math.ceil(speakingOrder.length / WAVE_COUNT)
+      : 1;
     const waves: PlayerState[][] = [];
     for (let i = 0; i < speakingOrder.length; i += waveSize) {
       waves.push(speakingOrder.slice(i, i + waveSize));
     }
 
-    const speeches: Array<{ playerId: string; playerName: string; text: string; role: string; team: Team }> = [];
+    const speeches: Array<{
+      playerId: string; playerName: string; text: string;
+      role: string; team: Team; isHuman?: boolean;
+    }> = [];
+
+    // v6.153 — 为每个真人席位启动等待 Promise(与 AI 生成并行)
+    const humanSpeechPromises = humanSeatAlive.map((player) => {
+      // 先检查是否有预提交
+      const precommitted = this.precommittedSpeeches.get(player.id);
+      if (precommitted) {
+        this.precommittedSpeeches.delete(player.id);
+        return Promise.resolve({ player, text: precommitted, fromPrecommit: true });
+      }
+      // 发 seat_prompt 并开始计时
+      this.emit('seat_prompt', {
+        playerId: player.id,
+        kind: 'speech',
+        timeoutMs: this._seatSpeechTimeoutMs,
+        round: this.state.round,
+      });
+      const waitForHuman = new Promise<string | null>((resolve) => {
+        const timer = setTimeout(() => {
+          this.pendingSeatSpeeches.delete(player.id);
+          resolve(null);
+        }, this._seatSpeechTimeoutMs);
+        this.pendingSeatSpeeches.set(player.id, (text) => {
+          clearTimeout(timer);
+          resolve(text);
+        });
+      });
+      return waitForHuman.then((text) => ({ player, text, fromPrecommit: false }));
+    });
 
     for (const wave of waves) {
       // Snapshot priorSpeeches AT WAVE START so all speakers in this wave see
@@ -1121,6 +1198,58 @@ export class GameEngine extends EventEmitter {
           team: player.team,
         });
       }
+    }
+
+    // v6.153 — AI 两波全部完成后,再 await 真人的等待结果
+    const humanResults = await Promise.allSettled(humanSpeechPromises);
+    // 先处理按时提交的真人发言
+    const timedOutHumans: Array<{ player: PlayerState }> = [];
+    for (const r of humanResults) {
+      if (r.status !== 'fulfilled') continue;
+      const { player, text } = r.value;
+      if (text) {
+        // 真人按时提交:直接采用,排在 AI 之后,带 isHuman 标记
+        speeches.push({
+          playerId: player.id,
+          playerName: player.name,
+          text,
+          role: player.role,
+          team: player.team,
+          isHuman: true,
+        });
+      } else {
+        // 超时/释放:收集后并行代打(v6.fix — 原串行叠加延迟 N×LLM 耗时)
+        timedOutHumans.push({ player });
+      }
+    }
+    // v6.fix — 并行代打所有超时真人席位,避免 N 倍串行延迟
+    const priorSpeeches = speeches.map((s) => ({ name: s.playerName, text: s.text }));
+    const fallbackResults = await Promise.allSettled(
+      timedOutHumans.map(async ({ player }) => {
+        const agent = this.agents.get(player.id);
+        const fallbackText = agent
+          ? await agent.generateSpeech(context, priorSpeeches, {
+              gameId: this.state.id,
+              round: this.state.round,
+              leakedHints: this.leakedHints,
+              humanSpeeches: this.humanSpeeches,
+              spotlight: false,
+            }).catch(() => this.fallbackSpeech(player))
+          : this.fallbackSpeech(player);
+        return { player, fallbackText };
+      }),
+    );
+    for (const r of fallbackResults) {
+      if (r.status !== 'fulfilled') continue;
+      const { player, fallbackText } = r.value;
+      speeches.push({
+        playerId: player.id,
+        playerName: player.name,
+        text: fallbackText,
+        role: player.role,
+        team: player.team,
+      });
+      this.emit('seat_timeout', { playerId: player.id, kind: 'speech' });
     }
 
     // Remember this round's speeches so future rounds can reference them
@@ -1230,15 +1359,42 @@ export class GameEngine extends EventEmitter {
       await this.maybeCrossActions(relationGraph);
       this.maybeCrossSmear(); // v6.89 — 挖角之后放风抹黑(给被黑者加舆论票)
     }
-    /** 双公司时投票/旧账都只在本公司圈内;单公司 = 全员。 */
+    /** 双公司时投票/旧账都只在本公司圈内;单公司 = 全员。
+     *  v6.fix — 内部复用 getSeatCandidates 保证与 pushSeatVote 的校验逻辑完全一致。 */
     const candidatesFor = (p: PlayerState) =>
-      isDual && p.companyId
-        ? aliveCandidates.filter((c) =>
-            this.state.players.find((x) => x.id === c.id)?.companyId === p.companyId)
-        : aliveCandidates;
+      this.getSeatCandidates(p, alive).map((c) => ({ id: c.id, name: c.name }));
 
-    // All alive players vote simultaneously
-    const votePromises = alive.map(async (player) => {
+    // v6.153 — 区分真人席位和 AI,分别并行处理
+    const humanSeatVoters = alive.filter((p) => p.controller === 'human');
+    const aiVoters = alive.filter((p) => p.controller !== 'human');
+
+    // 为每个真人席位启动等待(与 AI 投票并行)
+    const humanVotePromises = humanSeatVoters.map((player) => {
+      const myCandidates = candidatesFor(player);
+      // v6.fix — 客户端期望 string[](playerId 列表);原来发送 {id,name}[] 导致 UI 无法渲染候选人
+      const myCandidateIds = this.getSeatCandidates(player, alive).map((c) => c.id);
+      this.emit('seat_prompt', {
+        playerId: player.id,
+        kind: 'vote',
+        candidates: myCandidateIds,
+        timeoutMs: this._seatVoteTimeoutMs,
+        round: this.state.round,
+      });
+      const waitForHuman = new Promise<string | null>((resolve) => {
+        const timer = setTimeout(() => {
+          this.pendingSeatVotes.delete(player.id);
+          resolve(null);
+        }, this._seatVoteTimeoutMs);
+        this.pendingSeatVotes.set(player.id, (targetId) => {
+          clearTimeout(timer);
+          resolve(targetId);
+        });
+      });
+      return waitForHuman.then((targetId) => ({ player, targetId }));
+    });
+
+    // All alive AI players vote simultaneously
+    const votePromises = aiVoters.map(async (player) => {
       const agent = this.agents.get(player.id);
       if (!agent) return;
 
@@ -1286,6 +1442,36 @@ export class GameEngine extends EventEmitter {
         // Ghost votes default to pass on failure (save for later)
       }
     });
+
+    // v6.153 — 处理真人席位投票结果(与 AI 投票并行等待)
+    const humanVoteSettled = await Promise.allSettled(humanVotePromises);
+    for (const r of humanVoteSettled) {
+      if (r.status !== 'fulfilled') continue;
+      const { player, targetId } = r.value;
+      if (targetId !== null) {
+        // pushSeatVote 已写入 state.votes,这里只需记录;不再经过 grudgeRedirect
+        // (真人投票是自由意志,不被 AI 仇恨链改票)
+      } else {
+        // 超时/释放:用 AI 代投
+        const agent = this.agents.get(player.id);
+        const myCandidates = candidatesFor(player);
+        const myCandidateArchs = myCandidates
+          .map((c) => archByPlayer.get(c.id))
+          .filter((a): a is string => !!a);
+        try {
+          const target = agent
+            ? await agent.generateVote(context, myCandidates)
+            : myCandidates.filter((c) => c.id !== player.id)[0]?.id ?? 'skip';
+          this.state.votes[player.id] = this.grudgeRedirect(
+            player, target, relationGraph, archByPlayer, playerByArch, nameById, myCandidateArchs,
+          );
+        } catch {
+          const others = myCandidates.filter((c) => c.id !== player.id);
+          this.state.votes[player.id] = others[Math.floor(Math.random() * others.length)]?.id ?? 'skip';
+        }
+        this.emit('seat_timeout', { playerId: player.id, kind: 'vote' });
+      }
+    }
 
     // Use allSettled: a single rejection from Promise.all short-circuits the
     // remaining voters, but their async writes to state.votes / state.ghostVotes
@@ -1800,6 +1986,8 @@ export class GameEngine extends EventEmitter {
         avatarKey: p.avatarKey,
         // v6.86 — 双公司所属(单公司 undefined)
         companyId: p.companyId,
+        // v6.152 — 真人席位控制者(缺省 ai)
+        controller: p.controller,
       })),
       round: this.state.round,
       taskProgress: this.state.taskProgress,
@@ -1854,6 +2042,149 @@ export class GameEngine extends EventEmitter {
     this.addEvent('human_speech', `🎤 ${role.emoji} ${role.label}:${text}`);
     this.emit('human_speech', { role: roleId, label: role.label, emoji: role.emoji, text });
     return { accepted: true };
+  }
+
+  // ── v6.153 — 真人席位接入 ─────────────────────────────────────────────────
+
+  /**
+   * 标记某玩家席位为真人控制。
+   * 条件:游戏未结束、玩家存在且存活。
+   * 成功后把 PlayerState.controller 设为 'human' 并广播状态。
+   */
+  /**
+   * v6.fix — 双公司模式:取该玩家可投的候选人 PlayerState 集合(本公司存活)。
+   * 单公司模式:全体存活玩家。
+   * 同时用于 runVoting 的 seat_prompt 候选人和 pushSeatVote 的校验集合,
+   * 保证两处逻辑一致,不独立重算。
+   */
+  private getSeatCandidates(voter: PlayerState, alivePlayers: PlayerState[]): PlayerState[] {
+    if (this.state.config.mode === 'dual' && voter.companyId) {
+      return alivePlayers.filter((c) => c.companyId === voter.companyId);
+    }
+    return alivePlayers;
+  }
+
+  setSeatHuman(playerId: string): { ok: boolean; reason?: string } {
+    if (this.state.phase === GamePhase.GAME_OVER || this.destroyed) {
+      return { ok: false, reason: 'game_over' };
+    }
+    const player = this.state.players.find((p) => p.id === playerId && p.isAlive);
+    if (!player) return { ok: false, reason: 'player_not_found' };
+    player.controller = 'human';
+    this.seatHumanIds.add(playerId);
+    this.emitState();
+    return { ok: true };
+  }
+
+  /**
+   * 释放席位:controller 回 'ai',并把该玩家所有挂起的等待立刻以 null 结束 → AI 接管。
+   */
+  releaseSeat(playerId: string): void {
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (player) player.controller = 'ai';
+    this.seatHumanIds.delete(playerId);
+    this.precommittedSpeeches.delete(playerId);
+    // 立刻以 null 解除挂起的等待(让 AI 代打)
+    const speechResolve = this.pendingSeatSpeeches.get(playerId);
+    if (speechResolve) {
+      this.pendingSeatSpeeches.delete(playerId);
+      speechResolve(null);
+    }
+    const voteResolve = this.pendingSeatVotes.get(playerId);
+    if (voteResolve) {
+      this.pendingSeatVotes.delete(playerId);
+      voteResolve(null);
+    }
+    this.emitState();
+  }
+
+  /**
+   * 真人席位提交发言。
+   * 条件:该玩家是 human 控制且存活;阶段在 FREE_ROAM/MEETING/DISCUSSION;
+   * 用 sanitizeSeatSpeech 清洗;若有挂起等待立刻 resolve,否则存为预提交。
+   */
+  pushSeatSpeech(
+    playerId: string,
+    raw: string,
+  ): { accepted: boolean; reason?: string } {
+    const player = this.state.players.find((p) => p.id === playerId && p.isAlive);
+    if (!player || player.controller !== 'human') {
+      return { accepted: false, reason: 'not_human_seat' };
+    }
+    const allowed = [GamePhase.FREE_ROAM, GamePhase.MEETING, GamePhase.DISCUSSION];
+    if (!(allowed as string[]).includes(this.state.phase)) {
+      return { accepted: false, reason: 'wrong_phase' };
+    }
+    const text = sanitizeSeatSpeech(raw);
+    if (!text) return { accepted: false, reason: 'empty' };
+    // v6.fix — 本轮已发过言:拒绝二次提交(resolve 后再提交会误存为下轮预提交)
+    if (this.spokenThisRound.has(playerId)) {
+      return { accepted: false, reason: 'already_spoken' };
+    }
+
+    const resolve = this.pendingSeatSpeeches.get(playerId);
+    if (resolve) {
+      // 本轮讨论正在等待此人发言:立刻交付
+      this.pendingSeatSpeeches.delete(playerId);
+      resolve(text);
+    } else {
+      // 预提交:本轮讨论开始时直接采用(每轮开始前已清空)
+      this.precommittedSpeeches.set(playerId, text);
+    }
+    this.spokenThisRound.add(playerId);
+    return { accepted: true };
+  }
+
+  /**
+   * 真人席位提交投票。
+   * 条件:阶段 VOTING、有挂起的投票等待;按该玩家的真实候选人集合校验;
+   * 弃票沿用引擎现有 'skip' 表示;合法则直接写入 state.votes(不经 grudgeRedirect)。
+   */
+  pushSeatVote(
+    playerId: string,
+    targetId: string,
+  ): { accepted: boolean; reason?: string } {
+    if (this.state.phase !== GamePhase.VOTING) {
+      return { accepted: false, reason: 'wrong_phase' };
+    }
+    const player = this.state.players.find((p) => p.id === playerId && p.isAlive);
+    if (!player || player.controller !== 'human') {
+      return { accepted: false, reason: 'not_human_seat' };
+    }
+    const resolve = this.pendingSeatVotes.get(playerId);
+    if (!resolve) {
+      return { accepted: false, reason: 'no_pending_vote' };
+    }
+    // v6.fix — 候选人集合复用 getSeatCandidates(与 runVoting 的 seat_prompt 保持一致)
+    const alive = this.alivePlayers();
+    const candidateIds = this.getSeatCandidates(player, alive).map((p) => p.id);
+    const validation = validateSeatVote(targetId, candidateIds, true);
+    if (!validation.ok) {
+      return { accepted: false, reason: validation.reason };
+    }
+    // 合法:写入 state.votes 并 resolve 等待(不经 grudgeRedirect)
+    this.state.votes[playerId] = validation.target!;
+    this.pendingSeatVotes.delete(playerId);
+    resolve(validation.target!);
+    return { accepted: true };
+  }
+
+  /** 测试用:调小超时时长避免等待。 */
+  _setSeatTimeoutsForTest(speechMs: number, voteMs: number): void {
+    this._seatSpeechTimeoutMs = speechMs;
+    this._seatVoteTimeoutMs = voteMs;
+  }
+
+  /**
+   * v6.153 — 给某玩家的 BaseAgent 追加角色情报。
+   * 若该玩家是真人席位控制,同时 emit 'seat_intel' 供 socket 私发给持有者。
+   */
+  private addRoleIntelForPlayer(playerId: string, text: string): void {
+    this.agents.get(playerId)?.addRoleIntel(text);
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (player?.controller === 'human') {
+      this.emit('seat_intel', { playerId, text });
+    }
   }
 
   /**
@@ -2025,7 +2356,8 @@ export class GameEngine extends EventEmitter {
       if (targetId) {
         this.state.protectedPlayerId = targetId;
         const target = this.state.players.find((p) => p.id === targetId);
-        this.agents.get(medic.id)?.addRoleIntel(
+        this.addRoleIntelForPlayer(
+          medic.id,
           `你(工会代表)这一轮暗中罩着 ${target?.name ?? targetId},挡住了针对 TA 的"优化"。`,
         );
       }
@@ -2039,7 +2371,8 @@ export class GameEngine extends EventEmitter {
       if (targetId) {
         this.state.bodyguardTargetId = targetId;
         const target = this.state.players.find((p) => p.id === targetId);
-        this.agents.get(bodyguard.id)?.addRoleIntel(
+        this.addRoleIntelForPlayer(
+          bodyguard.id,
           `你(法务顾问)这一轮贴身护着 ${target?.name ?? targetId},真出事你会用法律手段替 TA 挡下(自己担风险)。`,
         );
       }
@@ -2057,7 +2390,8 @@ export class GameEngine extends EventEmitter {
         const target = this.state.players.find((p) => p.id === targetId);
         if (target) {
           const backlog = target.tasks?.length ?? 0;
-          this.agents.get(vigilante.id)?.addRoleIntel(
+          this.addRoleIntelForPlayer(
+            vigilante.id,
             `你(数据分析师)调了 ${target.name} 的 OKR 后台:TA 名下挂着 ${backlog} 个待办${backlog === 0 ? '(一个活都没有,可疑)' : ''}。`,
           );
           this.addEvent('role_action', '📊 数据分析师这一轮扒了一个人的 OKR 后台');
@@ -2073,7 +2407,8 @@ export class GameEngine extends EventEmitter {
         this.investigatedByDetective.add(targetId);
         const target = this.state.players.find((p) => p.id === targetId);
         if (target) {
-          this.agents.get(detective.id)?.addRoleIntel(
+          this.addRoleIntelForPlayer(
+            detective.id,
             `你(HR总监)查了 ${target.name} 的真实绩效档案:TA 属于 ${teamLabel(target.team)}阵营。`,
           );
           this.addEvent('role_action', '🔍 HR总监这一轮暗中查了一个人的底');
@@ -2094,7 +2429,8 @@ export class GameEngine extends EventEmitter {
         this.auditedByMedium.add(targetId);
         const target = this.state.players.find((p) => p.id === targetId);
         if (target) {
-          this.agents.get(medium.id)?.addRoleIntel(
+          this.addRoleIntelForPlayer(
+            medium.id,
             `你(内审专员)翻了已离职的 ${target.name} 的档案:TA 当年其实属于 ${teamLabel(target.team)}阵营。`,
           );
           this.addEvent('role_action', '🔎 内审专员这一轮查了一份离职员工的档案');
@@ -2118,7 +2454,8 @@ export class GameEngine extends EventEmitter {
             .filter((p) => p.id !== target.id && p.position?.room === room)
             .map((p) => p.name);
           const company = others.length ? `身边还有 ${others.join('、')}` : '独来独往、身边没人';
-          this.agents.get(adventurer.id)?.addRoleIntel(
+          this.addRoleIntelForPlayer(
+            adventurer.id,
             `你(销售冠军)靠人脉摸到 ${target.name} 今晚的行踪:TA 在 ${room},${company}。`,
           );
           this.addEvent('role_action', '🏆 销售冠军这一轮追踪了一个人的行踪');

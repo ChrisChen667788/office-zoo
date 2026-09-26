@@ -78,6 +78,8 @@ export interface GamePlayer {
   /** v6.86 — 双公司模式所属公司('a'|'b');单公司 undefined。服务端已透传,
    *  此处补声明给 GameMap 双半区上色 + 公司外环用。 */
   companyId?: 'a' | 'b';
+  /** v6.152 — 席位控制者:'ai'(默认)| 'human'(真人占座中)。缺省视为 'ai'。 */
+  controller?: 'ai' | 'human';
 }
 
 interface SpeechItem {

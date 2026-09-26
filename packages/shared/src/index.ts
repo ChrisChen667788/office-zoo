@@ -30,3 +30,5 @@ export * from './dual/dual';
 export * from './dual/battleCard';
 export * from './dual/smear';
 export * from './human/roles';
+export * from './human/stt';
+export * from './human/seat';

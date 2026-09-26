@@ -35,6 +35,8 @@ export interface SerializedPlayer {
    *  Lets duplicate-role players (e.g. 普通员工 ×2) show distinct faces — the
    *  client resolves avatarUrls[avatarKey ?? role]. */
   avatarKey?: string;
+  /** v6.152 — 席位控制者:'ai'|'human';缺省视为 ai。 */
+  controller?: 'ai' | 'human';
 }
 
 /** Lightweight per-tick payload sent at ~1.5s cadence during free_roam.

@@ -180,6 +180,9 @@ export interface PlayerState {
   /** v6.55 #2 — per-player unique avatar key into the cached avatar pool, so
    *  duplicate-role players don't share a face. Assigned at createPlayers. */
   avatarKey?: string;
+  /** v6.152 — 席位控制者:'ai'(默认/缺省)| 'human'(真人占座中)。
+   *  缺省视为 'ai',向后兼容旧状态快照。序列化给客户端(getSerializedState 写入)。 */
+  controller?: 'ai' | 'human';
 }
 
 export interface TaskState {
