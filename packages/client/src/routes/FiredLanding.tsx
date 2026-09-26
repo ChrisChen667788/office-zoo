@@ -13,6 +13,7 @@ import { useFiredStore, type PersonalityId } from '../stores/firedStore';
 import { useFiredProgress, FIRED_LEVELS, totalStars } from '../stores/firedProgress';
 import {
   SCENARIOS as SHARED_SCENARIOS,
+  isScenarioInSeason,
   type FiredScenario,
   type FiredPack,
   type FiredPersonalityId,
@@ -115,6 +116,8 @@ export default function FiredLanding() {
    *  least one scenario carries that tag. */
   const [tribeOnly, setTribeOnly] = useState(false);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  /** v6.158 — 「季节限定(未到季)」区块是否展开。 */
+  const [offSeasonExpanded, setOffSeasonExpanded] = useState(false);
   const myId = useMemo(() => getUserId(), []);
   // v1.3.4 — fetched once on mount; powers the "适合你" pack sort +
   // future personalization features. null when user is anonymous.
@@ -232,9 +235,26 @@ export default function FiredLanding() {
    *  industry-only tribe filter; v2.4.0 widened it to OR-match on
    *  region as well (a 海外润人 should see overseas-tagged scenarios
    *  surface under "我的圈子" even though their archetype has no
-   *  industry tag). */
+   *  industry tag).
+   *  v6.158 — 季节限定拆分:主广场只展示当季或无季节限定的场景;
+   *  非当季的 seasonal 场景收进 offSeasonScenarios(可展开访问)。 */
   const visibleScenarios = useMemo(() => {
     let out = scenarios;
+    if (mineOnly)  out = out.filter((s) => s.createdBy === myId);
+    if (tribeOnly && (myArchetype?.industry || myArchetype?.region)) {
+      out = out.filter((s) =>
+        (myArchetype?.industry && s.industry === myArchetype.industry) ||
+        (myArchetype?.region   && s.region   === myArchetype.region),
+      );
+    }
+    // v6.158 — 过滤掉非当季的季节限定场景(它们进 offSeasonScenarios)
+    out = out.filter((s) => isScenarioInSeason(s));
+    return out;
+  }, [scenarios, mineOnly, tribeOnly, myArchetype, myId]);
+
+  /** v6.158 — 非当季的季节限定场景列表(经同样的 mine/tribe 筛选)。 */
+  const offSeasonScenarios = useMemo(() => {
+    let out = scenarios.filter((s) => s.seasonal && !isScenarioInSeason(s));
     if (mineOnly)  out = out.filter((s) => s.createdBy === myId);
     if (tribeOnly && (myArchetype?.industry || myArchetype?.region)) {
       out = out.filter((s) =>
@@ -685,6 +705,19 @@ export default function FiredLanding() {
                           {isLocked ? '👑 Premium · 升级解锁' : '👑 Premium'}
                         </div>
                       )}
+                      {/* v6.158 — 当季场景 label chip(seasonal 字段在主广场即为当季) */}
+                      {scenario.seasonal && (
+                        <div
+                          className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide"
+                          style={{
+                            color: '#34d399',
+                            background: 'rgba(52,211,153,0.12)',
+                            border: '1px solid rgba(52,211,153,0.45)',
+                          }}
+                        >
+                          🌟 {scenario.seasonal.label}
+                        </div>
+                      )}
                       {/* Locked overlay — soft veil + lock glyph centered.
                           Sits ABOVE content but BELOW the medal/Premium chips
                           so they remain readable. */}
@@ -847,6 +880,95 @@ export default function FiredLanding() {
                   );
                 })}
               </div>
+
+              {/* v6.158 — 季节限定(未到季)可展开区块 ─────────────────────── */}
+              {offSeasonScenarios.length > 0 && (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setOffSeasonExpanded((v) => !v)}
+                    className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-xl transition"
+                    style={{
+                      color: 'rgba(255,255,255,0.45)',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                    }}
+                  >
+                    <span className="text-sm">{offSeasonExpanded ? '▾' : '▸'}</span>
+                    <span className="text-[12px] tracking-wide">
+                      🕰 季节限定(未到季) · {offSeasonScenarios.length} 关
+                    </span>
+                    <span className="ml-auto text-[11px] opacity-60">仍可点进去游玩</span>
+                  </button>
+                  {offSeasonExpanded && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                      {offSeasonScenarios.map((scenario) => {
+                        const active = selectedScenario === scenario.id;
+                        const isLocked = scenario.premium && !premium;
+                        return (
+                          <motion.button
+                            key={scenario.id}
+                            onClick={() => {
+                              if (isLocked) { navigate('/premium'); return; }
+                              setSelectedScenario(scenario.id);
+                            }}
+                            whileHover={{ y: -2 }}
+                            whileTap={{ scale: 0.985 }}
+                            className="hover-sheen frost-card relative overflow-hidden rounded-2xl p-5 text-left transition min-h-[168px]"
+                            style={{
+                              background: active
+                                ? 'linear-gradient(155deg, rgba(255,51,85,0.14) 0%, rgba(255,138,76,0.08) 100%)'
+                                : 'rgba(255,255,255,0.020)',
+                              border: active
+                                ? '1px solid rgba(255,51,85,0.55)'
+                                : '1px solid rgba(255,255,255,0.05)',
+                              opacity: 0.72,
+                            }}
+                          >
+                            {/* 未到季 label chip */}
+                            {scenario.seasonal && (
+                              <div
+                                className="absolute top-2.5 left-2.5 z-20 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide"
+                                style={{
+                                  color: 'rgba(255,255,255,0.45)',
+                                  background: 'rgba(255,255,255,0.06)',
+                                  border: '1px solid rgba(255,255,255,0.12)',
+                                }}
+                              >
+                                🕰 {scenario.seasonal.label}
+                              </div>
+                            )}
+                            <div className="relative z-10 mt-4">
+                              <div className="flex items-start justify-between mb-3">
+                                <div
+                                  className="w-10 h-10 rounded-xl grid place-items-center text-xl"
+                                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
+                                >
+                                  {scenario.emoji}
+                                </div>
+                                <div className="flex gap-0.5 mt-1">
+                                  {Array.from({ length: 3 }, (_, i) => (
+                                    <span key={i} className="text-[11px]"
+                                      style={{ color: i < scenario.difficulty ? '#ffb84c' : 'rgba(255,255,255,0.18)' }}>★</span>
+                                  ))}
+                                </div>
+                              </div>
+                              <h3 className="text-sm font-bold mb-1 tracking-tight"
+                                style={{ color: active ? '#fff' : 'rgba(255,255,255,0.65)' }}>
+                                {scenario.title}
+                              </h3>
+                              <p className="text-[11px] leading-relaxed"
+                                style={{ color: 'rgba(255,255,255,0.32)' }}>
+                                {scenario.description}
+                              </p>
+                            </div>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </motion.section>
 
             {/* -- HR difficulty column (right) ---------------------------- */}

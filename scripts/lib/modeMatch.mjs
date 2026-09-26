@@ -24,10 +24,12 @@ export function matchesMode({ bodyText, hasCanvas }, { wantBadge, wantCanvas, fo
     && !forbidBadge.test(bodyText);
 }
 
-/** Canonical per-mode specs (badges from Classic.tsx / Immersive.tsx). */
+/** Canonical per-mode specs (badges from Classic.tsx / Immersive.tsx).
+ *  v6.159 — 两条含「v6」的正则加 i 标志:Chromium innerText 会把
+ *  Tailwind uppercase 的 badge 文字返回大写「V6」,无 i 时自校验失败。 */
 export const CLASSIC_MODE = {
-  wantBadge: /职场杀/, wantCanvas: true, forbidBadge: /沉浸 · v6/,
+  wantBadge: /职场杀/, wantCanvas: true, forbidBadge: /沉浸 · v6/i,
 };
 export const IMMERSIVE_MODE = {
-  wantBadge: /沉浸 · v6/, wantCanvas: false, forbidBadge: /职场杀/,
+  wantBadge: /沉浸 · v6/i, wantCanvas: false, forbidBadge: /职场杀/,
 };
