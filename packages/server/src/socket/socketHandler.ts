@@ -112,6 +112,16 @@ const seatClaims = new Map<string, SeatClaims>();
 function broadcastSeatClaims(io: SocketServer, gameId: string) {
   const claims = seatClaims.get(gameId) ?? {};
   io.to(gameId).emit('game:seat_claims', { taken: seatTakenMap(claims) });
+  // v6.160 — 占座/退座改的是 player.controller,而 game:state 平时只在 phase_change 时广播,
+  // 所以全房客户端的 👤 标记(发言流/死亡面板/投票候选)要等下一次换阶段才更新。
+  // engine.emitState() 发的 'state' 事件没有接到 socket 上,这里直接补一帧。
+  const engine = games.get(gameId);
+  if (engine) io.to(gameId).emit('game:state', engine.getSerializedState());
+}
+
+/** 测试钩子:拿到房间对应的 engine(只给 socket 集成测试用)。 */
+export function _getGameForTest(gameId: string): GameEngine | undefined {
+  return games.get(gameId);
 }
 
 function destroyGame(gameId: string, reason: string) {
@@ -404,8 +414,13 @@ export function setupSocketHandler(io: SocketServer) {
       });
 
       if (r.ok) {
+        // v6.160 — 引擎拒绝(终局/该玩家已出局)时不记台账、不发身份卡,如实回执失败。
+        const seat = engine.setSeatHuman(playerId);
+        if (!seat.ok) {
+          socket.emit('game:claim_seat_result', { ok: false, reason: seat.reason });
+          return;
+        }
         seatClaims.set(currentGameId, r.claims);
-        engine.setSeatHuman(playerId);
         broadcastSeatClaims(io, currentGameId);
         // 私发该连接:身份卡(身份/阵营/同伴按游戏规则)
         // MVP:teammates 留空 []。AI 狗阵营玩家同样通过 addRoleIntel 获取同伴信息,

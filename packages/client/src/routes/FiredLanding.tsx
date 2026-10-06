@@ -13,7 +13,6 @@ import { useFiredStore, type PersonalityId } from '../stores/firedStore';
 import { useFiredProgress, FIRED_LEVELS, totalStars } from '../stores/firedProgress';
 import {
   SCENARIOS as SHARED_SCENARIOS,
-  isScenarioInSeason,
   type FiredScenario,
   type FiredPack,
   type FiredPersonalityId,
@@ -28,6 +27,7 @@ import { isPremium, subscribeEntitlement } from '../utils/entitlement';
 import { findArchetype, type Archetype } from '@furball/shared';
 import EventPill from '../components/EventPill';
 import { navIcons, Icon } from '../constants/icons';
+import { filterFiredScenarios } from '../utils/firedScenarioFilters';
 import type { UserProfile } from '../utils/profileTypes';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
@@ -237,47 +237,17 @@ export default function FiredLanding() {
    *  surface under "我的圈子" even though their archetype has no
    *  industry tag).
    *  v6.158 — 季节限定拆分:主广场只展示当季或无季节限定的场景;
-   *  非当季的 seasonal 场景收进 offSeasonScenarios(可展开访问)。 */
-  const visibleScenarios = useMemo(() => {
-    let out = scenarios;
-    if (mineOnly)  out = out.filter((s) => s.createdBy === myId);
-    if (tribeOnly && (myArchetype?.industry || myArchetype?.region)) {
-      out = out.filter((s) =>
-        (myArchetype?.industry && s.industry === myArchetype.industry) ||
-        (myArchetype?.region   && s.region   === myArchetype.region),
-      );
-    }
-    // v6.158 — 过滤掉非当季的季节限定场景(它们进 offSeasonScenarios)
-    out = out.filter((s) => isScenarioInSeason(s));
-    return out;
-  }, [scenarios, mineOnly, tribeOnly, myArchetype, myId]);
-
-  /** v6.158 — 非当季的季节限定场景列表(经同样的 mine/tribe 筛选)。 */
-  const offSeasonScenarios = useMemo(() => {
-    let out = scenarios.filter((s) => s.seasonal && !isScenarioInSeason(s));
-    if (mineOnly)  out = out.filter((s) => s.createdBy === myId);
-    if (tribeOnly && (myArchetype?.industry || myArchetype?.region)) {
-      out = out.filter((s) =>
-        (myArchetype?.industry && s.industry === myArchetype.industry) ||
-        (myArchetype?.region   && s.region   === myArchetype.region),
-      );
-    }
-    return out;
-  }, [scenarios, mineOnly, tribeOnly, myArchetype, myId]);
-  const mineCountFired = useMemo(
-    () => scenarios.filter((s) => s.createdBy === myId).length,
-    [scenarios, myId],
+   *  非当季的 seasonal 场景收进 offSeasonScenarios(可展开访问)。
+   *  v6.160 — 主网格 / 未到季区块 / 两个芯片计数统一走 filterFiredScenarios,
+   *  芯片数字不再把未到季的场景算进去。 */
+  const firedFilter = useMemo(
+    () => filterFiredScenarios(scenarios, { mineOnly, tribeOnly, myId, tribe: myArchetype }),
+    [scenarios, mineOnly, tribeOnly, myArchetype, myId],
   );
-  /** v2.4.0 — count = union of industry-matches AND region-matches.
-   *  Used to decide whether to render the tribe filter chip at all
-   *  (don't show "0 results" filter). */
-  const tribeCountFired = useMemo(() => {
-    if (!myArchetype?.industry && !myArchetype?.region) return 0;
-    return scenarios.filter((s) =>
-      (myArchetype?.industry && s.industry === myArchetype.industry) ||
-      (myArchetype?.region   && s.region   === myArchetype.region),
-    ).length;
-  }, [scenarios, myArchetype]);
+  const visibleScenarios = firedFilter.visible;
+  const offSeasonScenarios = firedFilter.offSeason;
+  const mineCountFired = firedFilter.mineCount;
+  const tribeCountFired = firedFilter.tribeCount;
 
   const handleStart = () => {
     if (!selectedScenario) return;

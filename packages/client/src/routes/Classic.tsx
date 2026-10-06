@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useReducer } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
@@ -32,6 +32,8 @@ import EventPill from '../components/EventPill';
 import PersonaCard from '../components/character/PersonaCard';
 import IdleBeat from '../components/character/IdleBeat';
 import { uid } from '../utils/uid';
+// v6.160 — 席位提示框状态机(挡旧轮迟到 prompt + 终局清空)
+import { seatPromptReducer, initialSeatPromptState } from '../utils/seatPrompts';
 import { playTtsFromUrl, stopTts, speakViaBrowserTTS, hasBrowserTTS } from '../utils/audioUnlock';
 import { sfx, isSfxMuted } from '../utils/sfx';
 import { recordLeakSubmit, recordLeakQuoted } from '../utils/leakStats';
@@ -138,20 +140,21 @@ export default function Classic() {
   } | null>(null);
   // seatOpen: 席位选择面板开合
   const [seatOpen, setSeatOpen] = useState(false);
-  // seatSpeechPrompt: 正在等待发言的 seat_prompt 数据
-  const [seatSpeechPrompt, setSeatSpeechPrompt] = useState<{
-    playerId: string; kind: 'speech'; timeoutMs: number; round: number;
-    expiresAt: number; submitted: boolean;
-  } | null>(null);
-  // seatVotePrompt: 正在等待投票的 seat_prompt 数据
-  const [seatVotePrompt, setSeatVotePrompt] = useState<{
-    playerId: string; kind: 'vote'; candidates: string[]; timeoutMs: number; round: number;
-    expiresAt: number; submitted: boolean;
-  } | null>(null);
+  // v6.160 — 席位发言/投票提示框 + 超时提示收进一个 reducer(utils/seatPrompts.ts):
+  // 旧轮迟到的 seat_prompt 按回合号丢弃,game:over 时统一清空。
+  const [seatPrompts, dispatchSeatPrompt] = useReducer(seatPromptReducer, initialSeatPromptState);
+  const seatSpeechPrompt = seatPrompts.speech;
+  const seatVotePrompt = seatPrompts.vote;
+  const seatTimeoutMsg = seatPrompts.timeoutMsg;
   // seatSpeechInput: 席位发言输入框
   const [seatSpeechInput, setSeatSpeechInput] = useState('');
-  // seat_timeout 提示
-  const [seatTimeoutMsg, setSeatTimeoutMsg] = useState<string | null>(null);
+  // 换局清零回合记录;game:state 的回合号同步进来,低于当前回合的 prompt 一律丢弃。
+  useEffect(() => { dispatchSeatPrompt({ type: 'reset' }); }, [gameId]);
+  useEffect(() => {
+    if (typeof round === 'number') dispatchSeatPrompt({ type: 'sync_round', round });
+  }, [round]);
+  // 新一轮发言 prompt 被接受时清空输入框(被丢弃的旧 prompt 不会改动 round,也就不会清)。
+  useEffect(() => { setSeatSpeechInput(''); }, [seatSpeechPrompt?.round]);
   useEffect(() => {
     if (!clueCard) return;
     const t = setTimeout(() => setClueCard(null), 4500);
@@ -348,20 +351,12 @@ export default function Classic() {
 
     // seat_prompt:服务端提示真人发言或投票
     'game:seat_prompt': (data: { playerId: string; kind: string; timeoutMs: number; round: number; candidates?: string[] }) => {
-      const expiresAt = Date.now() + data.timeoutMs;
-      if (data.kind === 'speech') {
-        setSeatSpeechPrompt({ playerId: data.playerId, kind: 'speech', timeoutMs: data.timeoutMs, round: data.round, expiresAt, submitted: false });
-        setSeatSpeechInput('');
-      } else if (data.kind === 'vote') {
-        setSeatVotePrompt({ playerId: data.playerId, kind: 'vote', candidates: data.candidates ?? [], timeoutMs: data.timeoutMs, round: data.round, expiresAt, submitted: false });
-      }
+      dispatchSeatPrompt({ type: 'prompt', ...data, now: Date.now() });
     },
 
     // seat_timeout:超时由 AI 代打/投
     'game:seat_timeout': (data: { playerId: string; kind: string }) => {
-      setSeatTimeoutMsg(`⏰ 超时,第 ${data.kind === 'speech' ? '发言' : '投票'} 轮由 AI 代打`);
-      if (data.kind === 'speech') setSeatSpeechPrompt(null);
-      if (data.kind === 'vote') setSeatVotePrompt(null);
+      dispatchSeatPrompt({ type: 'timeout', kind: data.kind });
     },
 
     // seat_timeout_public:全房公告(无身份信息)
@@ -372,10 +367,10 @@ export default function Classic() {
     // seat_speech 回执
     'game:seat_speech_result': (data: { ok: boolean; reason?: string }) => {
       if (data.ok) {
-        setSeatSpeechPrompt((p) => p ? { ...p, submitted: true } : null);
+        dispatchSeatPrompt({ type: 'submitted', kind: 'speech' });
       } else {
         pushEvent('system', data.reason === 'wrong_phase' ? '🪑 当前不在发言阶段'
-          : data.reason === 'already_spoke' ? '🪑 本轮已发过言'
+          : data.reason === 'already_spoken' || data.reason === 'already_spoke' ? '🪑 本轮已发过言'
           : '🪑 发言没送出去');
       }
     },
@@ -383,7 +378,7 @@ export default function Classic() {
     // seat_vote 回执
     'game:seat_vote_result': (data: { ok: boolean; reason?: string }) => {
       if (data.ok) {
-        setSeatVotePrompt((p) => p ? { ...p, submitted: true } : null);
+        dispatchSeatPrompt({ type: 'submitted', kind: 'vote' });
       } else {
         pushEvent('system', data.reason === 'invalid_target' ? '🪑 无效投票目标'
           : data.reason === 'wrong_phase' ? '🪑 当前不在投票阶段'
@@ -680,6 +675,8 @@ export default function Classic() {
       const w = WIN_CN[data.winner] ?? data.winner;
       const tail = data.market ? `(市占 🅰${data.market.a}% : 🅱${data.market.b}%)` : '';
       pushEvent('system', `散伙饭! ${w} 获胜!${tail}`);
+      // v6.160 — 终局清空席位发言框/投票框/超时提示,否则散伙饭后输入框还挂在屏幕上。
+      dispatchSeatPrompt({ type: 'game_over' });
       // v6.87 — 把终局公司赢家落进 state,触发下注盘公司盘口一次性结算。
       if (data.winner === 'company_a_win') setCompanyWinner('a');
       else if (data.winner === 'company_b_win') setCompanyWinner('b');
@@ -1491,7 +1488,7 @@ export default function Classic() {
           <div style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700,
             background: 'rgba(255,165,0,0.18)', border: '1px solid rgba(255,165,0,0.5)',
             color: '#ffb84c', backdropFilter: 'blur(8px)' }}
-            onClick={() => setSeatTimeoutMsg(null)}>
+            onClick={() => dispatchSeatPrompt({ type: 'dismiss_timeout' })}>
             {seatTimeoutMsg} · 点击关闭
           </div>
         )}
@@ -1603,8 +1600,7 @@ export default function Classic() {
                 socket.emit('game:release_seat');
                 setMySeatPlayerId(null);
                 setMySeatInfo(null);
-                setSeatSpeechPrompt(null);
-                setSeatVotePrompt(null);
+                dispatchSeatPrompt({ type: 'clear' });
               }}
               style={{ marginTop: 6, width: '100%', padding: '4px 0', borderRadius: 6, cursor: 'pointer',
                 fontSize: 11, color: 'rgba(255,255,255,0.55)', background: 'none',
