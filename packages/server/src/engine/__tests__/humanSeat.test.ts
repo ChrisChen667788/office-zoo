@@ -112,8 +112,8 @@ describe('pushSeatSpeech', () => {
     expect(r.reason).toBe('empty');
   });
 
-  it('阶段 FREE_ROAM/MEETING/DISCUSSION 均接受', () => {
-    for (const phase of [GamePhase.FREE_ROAM, GamePhase.MEETING, GamePhase.DISCUSSION]) {
+  it('阶段 FREE_ROAM/MEETING 无挂起时接受(存为预提交)', () => {
+    for (const phase of [GamePhase.FREE_ROAM, GamePhase.MEETING]) {
       const e = newEngine();
       const pid = firstAliveId(e);
       e.setSeatHuman(pid);
@@ -123,11 +123,22 @@ describe('pushSeatSpeech', () => {
     }
   });
 
-  it('无挂起等待时存为预提交', () => {
+  it('v6.160 — DISCUSSION 阶段没有挂起的发言提示 → 拒绝(no_pending_speech),不再静默存成会被清掉的预提交', () => {
     const e = newEngine();
     const pid = firstAliveId(e);
     e.setSeatHuman(pid);
     inner(e).state.phase = GamePhase.DISCUSSION;
+    const r = e.pushSeatSpeech(pid, '讨论开始后才占座');
+    expect(r).toEqual({ accepted: false, reason: 'no_pending_speech' });
+    expect(inner(e).precommittedSpeeches.has(pid)).toBe(false);
+    expect(inner(e).spokenThisRound.has(pid)).toBe(false);
+  });
+
+  it('无挂起等待时存为预提交(自由活动阶段)', () => {
+    const e = newEngine();
+    const pid = firstAliveId(e);
+    e.setSeatHuman(pid);
+    inner(e).state.phase = GamePhase.FREE_ROAM;
 
     const r = e.pushSeatSpeech(pid, '预提交文本');
     expect(r.accepted).toBe(true);

@@ -6,7 +6,11 @@
  * 比点开后主网格里能看到的多。现在四处共用这里的规则:
  *  - visible:mine/tribe 筛选后、当季(或无季节限定)的场景 → 主网格
  *  - offSeason:同样筛选后、未到季的季节限定场景 → 「🕰 季节限定(未到季)」区块
- *  - mineCount / tribeCount:芯片数字,口径与点开该芯片后的主网格一致(只数当季)
+ *  - mineCount / tribeCount:芯片数字 = 在另一个芯片当前状态下点开它后主网格的条数
+ *    (只数当季;另一个芯片已激活时按交集算 —— v6.160 复核发现只数全量会比网格多)
+ *
+ * 计数可能因另一个芯片而变成 0:FiredLanding 渲染芯片时要用「计数 > 0 或自身已激活」,
+ * 否则已激活的芯片会被隐藏、用户关不掉。
  */
 import { isScenarioInSeason, type FiredScenario } from '@furball/shared';
 
@@ -55,10 +59,14 @@ export function filterFiredScenarios<T extends Filterable>(
   if (opts.tribeOnly && tribe) filtered = filtered.filter((s) => inTribe(s, tribe));
 
   const inSeason = scenarios.filter((s) => isScenarioInSeason(s, date));
+  const isMine = (s: T) => s.createdBy === opts.myId;
+  // 点开「我的创作」时,「我的圈子」若已激活仍然生效;反之亦然。
+  const mineBase = opts.tribeOnly && tribe ? inSeason.filter((s) => inTribe(s, tribe)) : inSeason;
+  const tribeBase = opts.mineOnly ? inSeason.filter(isMine) : inSeason;
   return {
     visible: filtered.filter((s) => isScenarioInSeason(s, date)),
     offSeason: filtered.filter((s) => !!s.seasonal && !isScenarioInSeason(s, date)),
-    mineCount: inSeason.filter((s) => s.createdBy === opts.myId).length,
-    tribeCount: tribe ? inSeason.filter((s) => inTribe(s, tribe)).length : 0,
+    mineCount: mineBase.filter(isMine).length,
+    tribeCount: tribe ? tribeBase.filter((s) => inTribe(s, tribe)).length : 0,
   };
 }

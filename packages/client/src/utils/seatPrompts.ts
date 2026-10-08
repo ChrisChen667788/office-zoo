@@ -62,7 +62,7 @@ export type SeatPromptAction =
   | { type: 'timeout'; kind: string }
   | { type: 'dismiss_timeout' }
   | { type: 'sync_round'; round: number }
-  /** 主动退座:提示框交还 AI。 */
+  /** 主动退座:提示框交还 AI(连同残留的超时提示)。 */
   | { type: 'clear' }
   | { type: 'game_over' }
   /** 换局:连同回合记录一起清零。 */
@@ -111,7 +111,7 @@ export function seatPromptReducer(state: SeatPromptState, action: SeatPromptActi
     case 'sync_round':
       return action.round > state.currentRound ? { ...state, currentRound: action.round } : state;
     case 'clear':
-      return { ...state, speech: null, vote: null };
+      return { ...state, speech: null, vote: null, timeoutMsg: null };
     case 'game_over':
       return { ...state, speech: null, vote: null, timeoutMsg: null };
     case 'reset':

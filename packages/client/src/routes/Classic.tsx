@@ -346,7 +346,11 @@ export default function Classic() {
       setSeatOpen(false);
       // v6.155 — seat_first 成就
       void import('../utils/achievements').then((m) => m.bumpProgress('seat_claimed', 1));
-      pushEvent('system', `🪑 你已占座:${data.name}(${ROLE_LABELS[data.role] ?? data.role}) — 讨论时系统会提示你发言`);
+      // v6.160 — 讨论/投票已开始后才占座:这一轮引擎已按 AI 安排好,如实告诉用户从下一轮接手。
+      const when = phase === 'discussion' ? '本轮讨论已开始,这轮由 AI 代打,下一轮起系统会提示你发言'
+        : phase === 'voting' ? '本轮投票已开始,这轮由 AI 代投,下一轮起由你来'
+        : '讨论时系统会提示你发言';
+      pushEvent('system', `🪑 你已占座:${data.name}(${ROLE_LABELS[data.role] ?? data.role}) — ${when}`);
     },
 
     // seat_prompt:服务端提示真人发言或投票
@@ -371,6 +375,7 @@ export default function Classic() {
       } else {
         pushEvent('system', data.reason === 'wrong_phase' ? '🪑 当前不在发言阶段'
           : data.reason === 'already_spoken' || data.reason === 'already_spoke' ? '🪑 本轮已发过言'
+          : data.reason === 'no_pending_speech' ? '🪑 本轮发言已由 AI 代打,下一轮再说'
           : '🪑 发言没送出去');
       }
     },
@@ -382,6 +387,7 @@ export default function Classic() {
       } else {
         pushEvent('system', data.reason === 'invalid_target' ? '🪑 无效投票目标'
           : data.reason === 'wrong_phase' ? '🪑 当前不在投票阶段'
+          : data.reason === 'no_pending_vote' ? '🪑 本轮投票已由 AI 代投,下一轮再说'
           : '🪑 投票没送出去');
       }
     },

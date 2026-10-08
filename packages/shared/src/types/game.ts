@@ -266,5 +266,7 @@ export interface GameEvent {
   phase: GamePhase;
   type: string;
   description: string;
+  /** v6.160 — 非中文局讨论上下文用的英文描述。缺省时若 description 含汉字,该事件不进外语 prompt。 */
+  descriptionEn?: string;
   timestamp: number;
 }

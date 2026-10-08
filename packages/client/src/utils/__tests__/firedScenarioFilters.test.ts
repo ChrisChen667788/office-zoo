@@ -66,6 +66,25 @@ describe('filterFiredScenarios', () => {
     expect(r.tribeCount).toBe(3);
   });
 
+  it('另一个芯片已激活时,芯片数字 = 点开后交集网格的条数', () => {
+    const extra: S[] = [
+      ...scenarios,
+      sc('mine-faang', { createdBy: 'me', industry: 'faang' }),
+    ];
+    // 已开「我的圈子」→「我的创作」的数字按 mine ∩ tribe 算
+    const tribeOn = filterFiredScenarios(extra, { ...base, tribeOnly: true });
+    const both = filterFiredScenarios(extra, { ...base, tribeOnly: true, mineOnly: true });
+    expect(both.visible.map((s) => s.id)).toEqual(['mine-faang']);
+    expect(tribeOn.mineCount).toBe(both.visible.length);
+    // 已开「我的创作」→「我的圈子」的数字同理
+    const mineOn = filterFiredScenarios(extra, { ...base, mineOnly: true });
+    expect(mineOn.tribeCount).toBe(both.visible.length);
+    // 两个都没开时仍是各自独立的数
+    const none = filterFiredScenarios(extra, base);
+    expect(none.mineCount).toBe(3);
+    expect(none.tribeCount).toBe(2);
+  });
+
   it('没有行业/地域标签时圈子计数为 0,tribeOnly 不生效', () => {
     const r = filterFiredScenarios(scenarios, { ...base, tribe: {}, tribeOnly: true });
     expect(r.tribeCount).toBe(0);

@@ -63,9 +63,10 @@ describe('终局 / 退座 / 换局', () => {
     expect(s.timeoutMsg).toBeNull();
   });
 
-  it('退座(clear)清空提示框但保留回合记录,旧 prompt 迟到不复活', () => {
-    const s = run(speech(2), { type: 'clear' }, speech(2));
+  it('退座(clear)清空提示框和超时提示,但保留回合记录,旧 prompt 迟到不复活', () => {
+    const s = run(speech(2), { type: 'timeout', kind: 'vote' }, { type: 'clear' }, speech(2));
     expect(s.speech).toBeNull();
+    expect(s.timeoutMsg).toBeNull();
   });
 
   it('换局(reset)后新一局的第 1 轮 prompt 能正常出现', () => {

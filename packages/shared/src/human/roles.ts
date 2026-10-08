@@ -25,13 +25,20 @@ export interface HumanRole {
   desc: string;
   /** 注入 AI prompt 时的署名头(让 AI 知道说话的是谁、什么立场)。 */
   promptTag: string;
+  /** v6.160 — 非中文局用的英文名与署名头(外语局 prompt 不能混进中文)。 */
+  labelEn: string;
+  promptTagEn: string;
 }
 
 export const HUMAN_ROLES: HumanRole[] = [
-  { id: 'hr',       label: '真人 HR',  emoji: '🧑‍💼', desc: '主持节奏,点名让谁解释',       promptTag: '真人HR(主持会议的人类)' },
-  { id: 'union',    label: '工会代表', emoji: '✊',    desc: '替打工人说话,给弱势鼠站台',   promptTag: '真人工会代表(帮员工说话的人类)' },
-  { id: 'lawyer',   label: '吃瓜律师', emoji: '⚖️',    desc: '场边法条提示,合规视角搅局',   promptTag: '真人律师(场边提供法律视角的人类)' },
-  { id: 'reporter', label: '媒体记者', emoji: '📰',    desc: '放大爆点,把事捅到朋友圈',     promptTag: '真人记者(场边追问爆点的人类)' },
+  { id: 'hr',       label: '真人 HR',  emoji: '🧑‍💼', desc: '主持节奏,点名让谁解释',       promptTag: '真人HR(主持会议的人类)',
+    labelEn: 'Human HR',      promptTagEn: 'Human HR (the real person chairing this meeting)' },
+  { id: 'union',    label: '工会代表', emoji: '✊',    desc: '替打工人说话,给弱势鼠站台',   promptTag: '真人工会代表(帮员工说话的人类)',
+    labelEn: 'Union rep',     promptTagEn: 'Human union rep (a real person speaking up for the staff)' },
+  { id: 'lawyer',   label: '吃瓜律师', emoji: '⚖️',    desc: '场边法条提示,合规视角搅局',   promptTag: '真人律师(场边提供法律视角的人类)',
+    labelEn: 'Gossip lawyer', promptTagEn: 'Human lawyer (a real person offering the legal angle from the sidelines)' },
+  { id: 'reporter', label: '媒体记者', emoji: '📰',    desc: '放大爆点,把事捅到朋友圈',     promptTag: '真人记者(场边追问爆点的人类)',
+    labelEn: 'Reporter',      promptTagEn: 'Human reporter (a real person digging for the scoop)' },
 ];
 
 export function humanRoleById(id: string): HumanRole | undefined {
@@ -81,8 +88,14 @@ export const HUMAN_SPEECH_PER_ROUND_CAP = 3;
 /** 单条发言长度上限(字符)。 */
 export const HUMAN_SPEECH_MAX_LEN = 120;
 
-/** 把一条真人发言格式化成注入 AI prompt 的行(带角色署名 + 立场)。纯函数。 */
-export function formatHumanSpeechForPrompt(roleId: HumanRoleId, text: string): string {
+/** 把一条真人发言格式化成注入 AI prompt 的行(带角色署名 + 立场)。纯函数。
+ *  v6.160 — 非中文局用英文署名(外语局 prompt 里不能混进中文署名)。 */
+export function formatHumanSpeechForPrompt(
+  roleId: HumanRoleId,
+  text: string,
+  locale: 'zh' | 'en' | 'ja' | 'ko' = 'zh',
+): string {
   const role = humanRoleById(roleId)!;
-  return `【${role.promptTag}】${text.trim().slice(0, HUMAN_SPEECH_MAX_LEN)}`;
+  const body = text.trim().slice(0, HUMAN_SPEECH_MAX_LEN);
+  return locale === 'zh' ? `【${role.promptTag}】${body}` : `[${role.promptTagEn}] ${body}`;
 }

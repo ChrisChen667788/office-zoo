@@ -120,6 +120,38 @@ describe('v6.160 — 席位变化立刻广播 game:state', () => {
     await aiState;
   });
 
+  it('投票进行中占座:广播的 game:state 不带票型(已投出的 AI 票不提前暴露)', async () => {
+    const { a, b, engine, playerId } = await setupRoom();
+    const st = (engine as unknown as { state: { phase: string; votes: Record<string, string> } }).state;
+    st.phase = GamePhase.VOTING;
+    st.votes = { someVoter: 'someTarget' };
+
+    const broadcast = waitFor<WireState & { votes: Record<string, string> }>(
+      b, 'game:state', (s) => controllerOf(s, playerId) === 'human');
+    a.emit('game:claim_seat', { playerId });
+    expect((await broadcast).votes).toEqual({});
+    expect(st.votes).toEqual({ someVoter: 'someTarget' }); // 引擎内的票没被动
+  });
+
+  it('投票进行中加入的观众拿到的状态也不带票型;非投票阶段照常带(对照组)', async () => {
+    const { engine } = await setupRoom();
+    const st = (engine as unknown as { state: { id: string; phase: string; votes: Record<string, string> } }).state;
+    const gameId = engine.getSerializedState().id;
+    st.votes = { someVoter: 'someTarget' };
+
+    st.phase = GamePhase.VOTING;
+    const c = await connect();
+    const mid = waitFor<{ votes: Record<string, string> }>(c, 'game:state');
+    c.emit('game:join', gameId);
+    expect((await mid).votes).toEqual({});
+
+    st.phase = GamePhase.VOTE_RESULT;
+    const d = await connect();
+    const after = waitFor<{ votes: Record<string, string> }>(d, 'game:state');
+    d.emit('game:join', gameId);
+    expect((await after).votes).toEqual({ someVoter: 'someTarget' });
+  });
+
   it('引擎拒绝占座(已终局)时回执失败、不发身份卡、席位不被占', async () => {
     const { a, b, engine, playerId } = await setupRoom();
     (engine as unknown as { state: { phase: string } }).state.phase = GamePhase.GAME_OVER;

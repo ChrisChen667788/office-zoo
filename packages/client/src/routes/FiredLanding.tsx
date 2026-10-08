@@ -582,7 +582,8 @@ export default function FiredLanding() {
                 <FiredChip active={sortMode === 'monthly' && !mineOnly}
                   onClick={() => { setSortMode('monthly'); setMineOnly(false); }}
                   color="#ffb84c">🏆 月度榜</FiredChip>
-                {mineCountFired > 0 && (
+                {/* v6.160 — 计数按交集算后可能为 0;已激活的芯片必须留着,否则用户关不掉 */}
+                {(mineCountFired > 0 || mineOnly) && (
                   <FiredChip active={mineOnly}
                     onClick={() => setMineOnly((v) => !v)}
                     color="#ffb84c">
@@ -595,7 +596,7 @@ export default function FiredLanding() {
                     at least one scenario matches it. Color picks
                     archetype.colors.start so the chip reads as
                     "tribe-personalized". */}
-                {tribeCountFired > 0 && (myArchetype?.industry || myArchetype?.region) && (
+                {(tribeCountFired > 0 || tribeOnly) && (myArchetype?.industry || myArchetype?.region) && (
                   <FiredChip active={tribeOnly}
                     onClick={() => setTribeOnly((v) => !v)}
                     color={myArchetype.colors.start}>

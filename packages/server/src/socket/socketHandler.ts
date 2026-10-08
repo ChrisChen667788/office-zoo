@@ -7,7 +7,7 @@ import {
 import { generateTTSAudio } from '../services/tts';
 import { extractEvidenceRefs } from '../services/evidenceParser';
 import { saveReplay } from '../services/replayStore';
-import type { DualEndReason } from '@furball/shared';
+import { GamePhase, type DualEndReason } from '@furball/shared';
 // v6.126 — Phase C 真人场边角色:认领纯引擎 + 类型
 import {
   claimRole, releaseUserRoles, roleOfUser, humanRoleById,
@@ -116,7 +116,18 @@ function broadcastSeatClaims(io: SocketServer, gameId: string) {
   // 所以全房客户端的 👤 标记(发言流/死亡面板/投票候选)要等下一次换阶段才更新。
   // engine.emitState() 发的 'state' 事件没有接到 socket 上,这里直接补一帧。
   const engine = games.get(gameId);
-  if (engine) io.to(gameId).emit('game:state', engine.getSerializedState());
+  if (engine) io.to(gameId).emit('game:state', publicStateSnapshot(engine));
+}
+
+/**
+ * v6.160 — 非引擎驱动的状态快照(占座/退座广播、观众中途加入)。投票进行中不带票型:
+ * 引擎自己只在换阶段时发 game:state(投票开始那一帧 votes 已清空),票型随 vote_result 公布;
+ * 若在投票途中发完整状态,已投出的 AI 票会提前暴露给全房或刚加入的观众。
+ * 引擎驱动的那几处(phase_change / kill / vote_result / game_over)时机本身安全,保持原样。
+ */
+export function publicStateSnapshot(engine: GameEngine) {
+  const state = engine.getSerializedState();
+  return state.phase === GamePhase.VOTING ? { ...state, votes: {} } : state;
 }
 
 /** 测试钩子:拿到房间对应的 engine(只给 socket 集成测试用)。 */
@@ -281,7 +292,7 @@ export function setupSocketHandler(io: SocketServer) {
 
       currentGameId = gameId;
       socket.join(gameId);
-      socket.emit('game:state', engine.getSerializedState());
+      socket.emit('game:state', publicStateSnapshot(engine));
 
       // Send any already-generated avatars
       const avatars = getAllCachedAvatars();
