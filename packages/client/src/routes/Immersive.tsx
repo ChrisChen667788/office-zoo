@@ -4,7 +4,9 @@ import { useSocket, useSocketEvents } from '../hooks/useSocket';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
 // v6.98 — 米哈游化沉浸局(与经典局同模板:mesh 背景 + 元素色相位胶囊 + stigma chip)
-import { mihoyo, stigmaChipStyle, type MihoyoElement } from '../constants/design';
+import { mihoyo, stigmaChipStyle } from '../constants/design';
+// v6.106(审计视觉 F-09)— 相位标签/元素色收编到共享模块。
+import { GAME_PHASES, PHASE_ELEMENT } from '../constants/gamePhases';
 import PersonaCard from '../components/character/PersonaCard';
 import IdleBeat from '../components/character/IdleBeat';
 import {
@@ -78,16 +80,8 @@ const TEAM_CONFIG: Record<string, { label: string; emoji: string; icon: string; 
   neutral: { label: '摸鱼党', emoji: '😎',   icon: teamIcons.neutral, color: '#a855f7', accent: '168, 85, 247' },
 };
 
-const PHASE_LABELS: Record<string, { label: string; emoji: string; icon: string }> = {
-  lobby:       { label: '待入职',   emoji: '⏳', icon: phaseIcons.lobby },
-  role_reveal: { label: '岗位分配', emoji: '📋', icon: phaseIcons.role_reveal },
-  free_roam:   { label: '日常搬砖', emoji: '💼', icon: phaseIcons.free_roam },
-  meeting:     { label: '紧急全员会', emoji: '🚨', icon: phaseIcons.meeting },
-  discussion:  { label: '职场撕逼', emoji: '🔥', icon: phaseIcons.discussion },
-  voting:      { label: '投票裁员', emoji: '🗳️', icon: phaseIcons.voting },
-  vote_result: { label: '裁员结果', emoji: '⚖️', icon: phaseIcons.vote_result },
-  game_over:   { label: '散伙饭',   emoji: '🏆', icon: phaseIcons.game_over },
-};
+// (相位标签 → constants/gamePhases.ts,v6.106 收编;保留旧名做本地别名减小 diff)
+const PHASE_LABELS = GAME_PHASES;
 
 // v6.16 P2 — see Classic.tsx; promoted to shared constants module.
 import { PERSONALITY_LABELS } from '../constants/personalityLabels';
@@ -176,6 +170,24 @@ export default function Immersive() {
   const [interveneAck, setInterveneAck] = useState<{ itemId: string; accepted: boolean; reason?: string; tick: number } | null>(null);
   const ackTickRef = useRef(0);
 
+  // v6.103(审计 UX F-11)— 对局进行中误关页确认,与 Classic 同口径(lobby/game_over 不拦)。
+  useEffect(() => {
+    if (phase === 'game_over' || phase === 'lobby') return;
+    const handle = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handle);
+    return () => window.removeEventListener('beforeunload', handle);
+  }, [phase]);
+
+  // v6.122(审查修复)— v6.110/111 只接了 Classic,沉浸局漏了:内部邮件浮卡 + 恩怨录红点。
+  const [clueCard, setClueCard] = useState<{ targetName: string; label: string; id: number } | null>(null);
+  const clueIdRef = useRef(0);
+  useEffect(() => {
+    if (!clueCard) return;
+    const t = setTimeout(() => setClueCard(null), 4500);
+    return () => clearTimeout(t);
+  }, [clueCard]);
+  const [grudgePulse, setGrudgePulse] = useState(false);
+
   // Register all socket event handlers — auto-cleaned on unmount.
   useSocketEvents({
     // v6.93 — 服务端干预回执:喂给 BettingBar(被拒退筹码 + 真实中文原因 toast)。
@@ -183,6 +195,13 @@ export default function Immersive() {
       ackTickRef.current += 1;
       setInterveneAck({ itemId: data.itemId, accepted: data.accepted, reason: data.reason, tick: ackTickRef.current });
     },
+
+    // v6.122 — 与 Classic 对齐:内部邮件浮卡 + 恩怨录红点(v6.110/111 沉浸局侧补齐)。
+    'game:intervene_clue': (data: { targetName: string; label: string }) => {
+      clueIdRef.current += 1;
+      setClueCard({ ...data, id: clueIdRef.current });
+    },
+    'game:grudge_vote': () => setGrudgePulse(true),
     'game:created': (data: { gameId: string }) => {
       setGameId(data.gameId);
       socket.emit('game:start', data.gameId);
@@ -369,12 +388,8 @@ export default function Immersive() {
 
   const circleRadius = Math.min(280, typeof window !== 'undefined' ? window.innerWidth * 0.28 : 280);
   const phaseInfo = PHASE_LABELS[phase] || { label: phase, emoji: '🎮', icon: '' };
-  // v6.98 — 相位元素色(冷蓝待机 → 红全员会 → 粉撕逼 → 金投票),同经典局口径。
-  const PHASE_EL: Record<string, MihoyoElement> = {
-    lobby: 'frost', role_reveal: 'stigma', free_roam: 'aurora', meeting: 'inferno',
-    discussion: 'void', voting: 'solar', vote_result: 'inferno', game_over: 'solar',
-  };
-  const phaseEl = mihoyo.element[PHASE_EL[phase] ?? 'frost'];
+  // v6.98 — 相位元素色,v6.106 起与经典局共用 constants/gamePhases.PHASE_ELEMENT。
+  const phaseEl = mihoyo.element[PHASE_ELEMENT[phase] ?? 'frost'];
 
   return (
     <div className="fixed inset-0 overflow-hidden noise"
@@ -819,8 +834,36 @@ export default function Immersive() {
         />
       )}
 
-      {/* v6.75 — 🕸️ 跨局恩怨录入口 */}
-      <RelationNetworkButton />
+      {/* v6.122 — 内部邮件浮卡(与 Classic 同款,琥珀信封风,4.5s 自动收) */}
+      <AnimatePresence>
+        {clueCard && (
+          <motion.div key={clueCard.id}
+            initial={{ opacity: 0, y: -24, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            onClick={() => setClueCard(null)}
+            style={{
+              position: 'fixed', top: 76, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 85, cursor: 'pointer', padding: '10px 18px', borderRadius: 12,
+              background: 'rgba(30,22,8,0.94)', backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,184,76,0.55)',
+              boxShadow: '0 0 30px rgba(255,184,76,0.3), 0 12px 40px rgba(0,0,0,0.5)',
+              maxWidth: 'min(480px, 92vw)', textAlign: 'center',
+            }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.24em', color: 'rgba(255,184,76,0.8)', textTransform: 'uppercase', marginBottom: 3 }}>
+              🔍 内部邮件 · 背景调查
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>
+              {clueCard.targetName} 更像<span style={{ color: '#ffb84c' }}>{clueCard.label}</span>的人
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>小道消息 · 别全信 · 点击关闭</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* v6.75 — 🕸️ 跨局恩怨录入口;v6.122 恩怨触发时点红(与 Classic 对齐) */}
+      <RelationNetworkButton pulse={grudgePulse} onOpened={() => setGrudgePulse(false)} />
 
       {/* Dramatic elimination moment — 3s fullscreen on every kill/vote-out */}
       {/* v6.68 — 沉浸局对齐:群众吐槽弹幕飘过全屏 */}

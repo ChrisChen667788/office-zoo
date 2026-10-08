@@ -694,7 +694,7 @@ export class GameEngine extends EventEmitter {
    * 1.5 s discrete steps.
    *
    * Loop = `FREE_ROAM_TICKS` ticks of `TICK_INTERVAL_MS` each (default
-   * 36 × 250 ms = 9 s, same total wall-clock as before).
+   * 60 × 250 ms = 15 s — v6.112 由 9 s 延长,让走位/摸鱼 micro-moment 能被看到).
    *
    * Per tick:
    *   1. For each alive player:
@@ -712,8 +712,11 @@ export class GameEngine extends EventEmitter {
    */
   private async runFreeRoam(): Promise<void> {
     const TICK_INTERVAL_MS = 250;          // 4 Hz, matches the v0.5 plan
-    const FREE_ROAM_TICKS = 36;            // 36 × 250 ms = 9 s
-    const COMMUTE_START_PROB = 0.06;       // per tick (~1.4%/sec aggregate over 9s)
+    // v6.112(审计玩法 F2)— 36→60(9s→15s):9 秒里杀人/保护/技能全做完,旁观者只看到
+    // 小人闪现;15 秒让走位/摸鱼 micro-moment 真能被看到,且下注窗口(free_roam 也开盘)更从容。
+    // tick 是轻载荷(4Hz 位置包),多 6 秒无成本。
+    const FREE_ROAM_TICKS = 60;            // 60 × 250 ms = 15 s
+    const COMMUTE_START_PROB = 0.06;       // per tick(15s 窗口下起身概率更高,roam 更活)
     /** Commute speed in logical units / second. ROOM_RECTS coords go up to
      *  1000 × 700, so ~120 px/s gives a ~3-4 s cross-map walk — feels human. */
     const SPEED_PX_PER_SEC = 140;
@@ -1840,6 +1843,9 @@ export class GameEngine extends EventEmitter {
         : (pick.team === Team.DOG ? Team.CAT : Team.DOG);
       const label = shownTeam === Team.DOG ? '资本家那边' : '打工人这边';
       this.addEvent('intervene', `🔍 观众买通了内部邮箱 — 背景调查显示 ${pick.name} 更像${label}的人(小道消息,别全信)`);
+      // v6.110(审计玩法 F6)— 花 200 筹码的结果不能只躺 event log 小字:
+      // 专属事件推客户端弹「内部邮件」卡,买完立刻有仪式感。
+      this.emit('intervene_clue', { targetName: pick.name, label });
       this.emitState();
       return { accepted: true };
     }
@@ -2135,6 +2141,9 @@ export class GameEngine extends EventEmitter {
       if (!foePlayerId || foePlayerId === basePickId) return basePickId;
       const foeName = nameById.get(foePlayerId) ?? '老冤家';
       this.addEvent('grudge_vote', `🗡️ ${voter.name} 翻旧账改投 ${foeName}:${r.taunt}`);
+      // v6.111(审计玩法 F12)— 跨局恩怨是最强留存钩子,但入口(恩怨录按钮)藏得深;
+      // 恩怨真发生时推实时事件,客户端给按钮点红,引导用户发现关系网。
+      this.emit('grudge_vote', { voterName: voter.name, foeName, taunt: r.taunt });
       return foePlayerId;
     } catch {
       return basePickId;

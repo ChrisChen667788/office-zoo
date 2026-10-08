@@ -26,9 +26,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePhase } from '../../stores/gameStore';
 import { sfx } from '../../utils/sfx';
 
-// Phase id → human label + emoji. Subset of Classic.tsx's PHASE_NAMES;
-// kept local so this component can be dropped into any route without
-// import-tangling. Add new phases here as the engine grows.
+// Phase id → human label + emoji. Subset of constants/gamePhases.ts GAME_PHASES
+// (v6.106 起的单一事实源);kept local so this component can be dropped into any
+// route without import-tangling. Add new phases here as the engine grows.
 const PHASE_DISPLAY: Record<string, { label: string; sub: string; emoji: string; tint: string }> = {
   lobby:        { label: '待入职',     sub: 'WAITING ROOM',   emoji: '⏳', tint: '#FFD700' },
   role_reveal:  { label: '岗位分配',   sub: 'ROLE REVEAL',    emoji: '📋', tint: '#FFA947' },

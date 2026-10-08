@@ -244,6 +244,16 @@ export function setupSocketHandler(io: SocketServer) {
       }
     });
 
+    // v6.114(审计 UX F-16)— 客户端明确离开对局(赛后「再来一局」)。从房间摘掉
+    // 这个 socket,server 不再往它推上一局的残留事件(否则 lazy 路由切换慢一帧时,
+    // 旧 game:over 还会把 HighlightReel 再弹一次)。
+    socket.on('game:leave', () => {
+      if (!currentGameId) return;
+      socket.leave(currentGameId);
+      socketLog.debug({ sid: socket.id, gameId: currentGameId }, 'client left game room');
+      currentGameId = null;
+    });
+
     // v6.25 P1 — psy-war leak submission. Client (GhostChatPanel 战术 @)
     // emits `game:psy_war_leak` with a string; engine pushes it onto the
     // FIFO leakedHints buffer (cap 5). pushLeakedHint emits 'leak_acked'
@@ -625,6 +635,16 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
   // psy-war bubble. Same payload shape as the engine's emit.
   engine.on('leak_acked', (data: { text: string; total: number }) => {
     io.to(gameId).emit('game:psy_war_acked', data);
+  });
+
+  // v6.110 — 内部邮件(clue)专属动线:观众买完全房弹「背景调查」卡,不再只躺 event log
+  engine.on('intervene_clue', (data: { targetName: string; label: string }) => {
+    io.to(gameId).emit('game:intervene_clue', data);
+  });
+
+  // v6.111 — 跨局恩怨触发时实时广播,客户端给「恩怨录」按钮点红引导发现
+  engine.on('grudge_vote', (data: { voterName: string; foeName: string; taunt: string }) => {
+    io.to(gameId).emit('game:grudge_vote', data);
   });
 
   // v6.86 — 双公司挖角/跳槽 live banner。挖角是双司局招牌时刻,实时播一条

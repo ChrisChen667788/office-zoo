@@ -341,41 +341,45 @@ export default function GhostChatPanel({
                 background: 'rgba(176,134,255,0.08)',
                 display: 'flex', flexDirection: 'column', gap: 6,
                 fontSize: 11,
+                // v6.122(审查修复)— v6.113 chip 组比原生 select 高得多:9 人局 chips + 8 条
+                // 预设 ≈ 354px,会把面板(min(380px,60vh) overflow:hidden)底部的提交按钮挤出
+                // 不可点。对话区自身限高滚动,压力不外溢。
+                maxHeight: 'min(46vh, 240px)', overflowY: 'auto',
               }}>
                 <div style={{ color: '#B086FF', fontWeight: 800, letterSpacing: '0.06em' }}>
                   让 {latestGhost!.playerName} 鬼声 · 心理战 @
                 </div>
-                <select
-                  value={psywarTarget}
-                  onChange={(e) => setPsywarTarget(e.target.value)}
-                  style={{
-                    padding: '4px 8px', borderRadius: 6,
-                    background: 'rgba(15,14,46,0.85)',
-                    color: '#f4f4ff', fontSize: 11,
-                    border: '1px solid rgba(176,134,255,0.4)',
-                  }}
-                >
-                  <option value="">@ 选个活人…</option>
+                {/* v6.113(审计 UX F-10)— 原生 <select> 在 iOS Safari 不吃自定义样式
+                    (系统 sheet + 白底),深色面板里非常出戏;换成自定义 chip 组,全端一致。 */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {alivePlayers.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <button key={p.id} onClick={() => setPsywarTarget(psywarTarget === p.id ? '' : p.id)}
+                      style={{
+                        padding: '3px 9px', borderRadius: 999, cursor: 'pointer', fontSize: 11,
+                        color: psywarTarget === p.id ? '#fff' : 'rgba(244,244,255,0.75)',
+                        background: psywarTarget === p.id ? 'rgba(176,134,255,0.35)' : 'rgba(15,14,46,0.85)',
+                        border: `1px solid ${psywarTarget === p.id ? 'rgba(176,134,255,0.9)' : 'rgba(176,134,255,0.3)'}`,
+                        fontWeight: psywarTarget === p.id ? 800 : 500,
+                      }}>
+                      @{p.name}
+                    </button>
                   ))}
-                </select>
-                <select
-                  value={psywarLineIdx}
-                  onChange={(e) => setPsywarLineIdx(Number(e.target.value))}
-                  disabled={psywarCustom.trim().length > 0}
-                  style={{
-                    padding: '4px 8px', borderRadius: 6,
-                    background: 'rgba(15,14,46,0.85)',
-                    color: '#f4f4ff', fontSize: 11,
-                    border: '1px solid rgba(176,134,255,0.4)',
-                    opacity: psywarCustom.trim().length > 0 ? 0.4 : 1,
-                  }}
-                >
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3,
+                  opacity: psywarCustom.trim().length > 0 ? 0.4 : 1,
+                  pointerEvents: psywarCustom.trim().length > 0 ? 'none' : 'auto' }}>
                   {PSYWAR_PRESETS.map((p, i) => (
-                    <option key={i} value={i}>{p.replace('{target}', '___')}</option>
+                    <button key={i} onClick={() => setPsywarLineIdx(i)}
+                      style={{
+                        padding: '4px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 11, textAlign: 'left',
+                        color: psywarLineIdx === i ? '#fff' : 'rgba(244,244,255,0.65)',
+                        background: psywarLineIdx === i ? 'rgba(176,134,255,0.28)' : 'rgba(15,14,46,0.85)',
+                        border: `1px solid ${psywarLineIdx === i ? 'rgba(176,134,255,0.85)' : 'rgba(176,134,255,0.25)'}`,
+                      }}>
+                      {p.replace('{target}', '___')}
+                    </button>
                   ))}
-                </select>
+                </div>
                 {/* v6.25 P6 — free-form override. When non-empty wins
                     over preset. `{target}` token expanded same way as
                     presets. Char limit visible, prevents abuse. */}
