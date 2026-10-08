@@ -41,7 +41,8 @@ export type TalkshowPersona =
   | 'qingse'      // 青涩 — earnest, junior
   | 'jingying'    // 精英 — sharp, manager
   | 'badao'       // 霸道 — boss, authoritative
-  | 'qingnian';   // 青年 — neutral, narrator
+  | 'qingnian'    // 青年 — neutral, narrator
+  | 'lingling';   // v6.100 零零后 — 00后整顿职场, 怼天怼地不惯着
 
 export interface TalkshowScript {
   id: string;
