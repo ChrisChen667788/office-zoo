@@ -7,6 +7,20 @@
 
 ---
 
+## v6.99 — 2026-06-21 · Z 世代视觉升级(二):裁了么「黑心 HR 反派」立绘
+
+裁了么(谈判模式)的对手 HR 原本只有文字标签(菜鸟HR / 老油条HR / 魔鬼HR),没有形象 —— 反派
+是这个玩法的灵魂,光有名字太单薄。本版给三档 HR 各画一张二次元反派立绘,谈判时一眼看清对手。
+
+- **`server/services/firedHrPortraitGen.ts`**(talkshowAvatarGen 姊妹文件):同一套「现代亚洲编辑插画」
+  二次元风 + 同一条多供应商图链(青云 doubao-seedream / flux / qwen / gpt-image → minimax 兜底),art
+  direction 是「职场反派肖像」—— 菜鸟(紧张心虚抱 PPT)/ 老油条(笑里藏话术的圆滑)/ 魔鬼(冷面笑里藏刀)。
+- **接入 FiredChat**:场景卡顶部加「对面 HR · BOSS」立绘 band,直接 `<img src="/fired-hr-portraits/<id>.png">`
+  (按当前 `personalityId` 选档),立绘未生成 / 404 时 onError 隐藏 → 露 emoji 兜底。
+- **脚本 + 别名** `npm run gen:fired-hr-portraits`(`scripts/regen-fired-hr-portraits.ts`)。立绘 gitignored,
+  部署时再生。
+- 验证:3 包 tsc 干净;549 测试绿;`vite build` 通过;HR 立绘生成成功;preview 真机 FiredChat 场景卡显立绘。
+
 ## v6.98 — 2026-06-21 · Z 世代视觉升级(一):对局视图米哈游化 + Landing 六边形 + 补 archetype 立绘
 
 把现成但没铺满的 **V6.1 米哈游设计体系**(`design.ts` 的 `mihoyo` token)真正用起来,第一批落在

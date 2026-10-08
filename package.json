@@ -20,7 +20,8 @@
     "icons:regen": "tsx packages/server/src/scripts/regen-icons.ts --force",
     "icons:cutout": "python3.12 scripts/cutout_icon_bg.py",
     "gen:talkshow-videos": "tsx scripts/regen-talkshow-personas-video.ts",
-    "gen:archetype-portraits": "tsx scripts/regen-archetype-portraits.ts"
+    "gen:archetype-portraits": "tsx scripts/regen-archetype-portraits.ts",
+    "gen:fired-hr-portraits": "tsx scripts/regen-fired-hr-portraits.ts"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

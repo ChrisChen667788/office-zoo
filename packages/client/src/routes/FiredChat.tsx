@@ -399,6 +399,25 @@ export default function FiredChat() {
             backdropFilter: 'blur(20px)',
           }}
         >
+          {/* v6.99 — HR 反派立绘:一眼看清你在跟哪档黑心 HR 谈(菜鸟/老油条/魔鬼)。
+              直接 <img>,立绘未生成/404 时 onError 隐藏 → 露出 emoji 兜底。 */}
+          <div className="flex items-center gap-3 mb-3 pb-3" style={{ borderBottom: '1px solid rgba(255,68,68,0.12)' }}>
+            <div className="relative w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0"
+              style={{ border: '1px solid rgba(255,68,68,0.4)', boxShadow: '0 0 18px rgba(255,68,68,0.28)' }}>
+              <span className="absolute inset-0 flex items-center justify-center text-2xl" aria-hidden>🧑‍💼</span>
+              <img
+                src={`/fired-hr-portraits/${personalityId}.png`}
+                alt={PERSONALITY_LABELS[personalityId]}
+                className="absolute inset-0 w-full h-full object-cover"
+                draggable={false}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+            <div>
+              <div className="text-[9px] tracking-[0.22em] uppercase" style={{ color: 'rgba(255,68,68,0.7)' }}>对面 HR · BOSS</div>
+              <div className="text-sm font-black" style={{ color: '#FF6B35' }}>{PERSONALITY_LABELS[personalityId]}</div>
+            </div>
+          </div>
           <div className="flex items-center gap-2 mb-2">
             <span className="text-2xl">{scenarioInfo.emoji}</span>
             <div>

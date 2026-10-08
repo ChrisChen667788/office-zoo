@@ -56,6 +56,8 @@ packages/server/public/icons/*.png
 # commit for fork-friendliness), these regenerate on demand via
 # GET /api/quiz/archetype-portrait/:id when a user lands on their card.
 packages/server/public/archetype-portraits/*.png
+# v6.99 — 裁了么 HR 反派立绘,同 archetype:gitignored,部署时再生(npm run gen:fired-hr-portraits)。
+packages/server/public/fired-hr-portraits/*.png
 
 # OS noise
 .Spotlight-V100
