@@ -22,7 +22,8 @@ import { RelationNetworkButton } from '../components/game/RelationNetworkPanel';
 import EliminationReveal, { type EliminationEvent } from '../components/game/EliminationReveal';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
 import { fetchReactionLine } from '../utils/reactionLine';
-import { pickReaction } from '@furball/shared';
+import { pickReaction, gameLocaleFromUiLocale } from '@furball/shared';
+import { getLocale } from '../utils/i18n';
 import { useNavigate } from 'react-router-dom';
 import KillFlashOverlay from '../components/game/KillFlashOverlay';
 import VoteEjectAnimation from '../components/game/VoteEjectAnimation';
@@ -387,7 +388,8 @@ export default function Immersive() {
     createdRef.current = true;
     reset();
     // v5.8.2 — userId enables per-spectator chunky-style AI memory.
-    socket.emit('game:create', { playerCount: 8, mode: 'immersive', userId: getUserId() });
+    // v6.156 — 透传 UI locale 到服务端
+    socket.emit('game:create', { playerCount: 8, mode: 'immersive', userId: getUserId(), locale: gameLocaleFromUiLocale(getLocale()) });
   }, [connected, socket, reset]);
 
   // Pause any playing TTS audio when leaving the route.

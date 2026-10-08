@@ -8,14 +8,14 @@
  * screenshots are deterministic.
  */
 
-/** @typedef {{ file: string, url: string, wait: number, note?: string }} Shot */
+/** @typedef {{ file: string, url: string, wait: number, note?: string, mustStay?: boolean }} Shot */
 
 /** @type {Shot[]} */
 export const SHOTS = [
   { file: '01-landing.png',         url: '/',                 wait: 800 },
   { file: '02-quiz.png',            url: '/quiz',             wait: 600 },
-  { file: '03-profile.png',         url: '/profile/me',       wait: 1200,
-    note: '需要先完成一次 quiz,否则跳回 /quiz。脚本会自动 POST 一次。' },
+  { file: '03-profile.png',         url: '/profile/me',       wait: 1200, mustStay: true,
+    note: '需要先完成一次 quiz,否则跳回 /quiz。脚本会自动 POST 一次;被重定向就不覆盖旧图并报错。' },
   { file: '04-fired-landing.png',   url: '/fired',            wait: 800 },
   { file: '05-squad-lobby.png',     url: '/squad/new',        wait: 600 },
   { file: '06-squad-history.png',   url: '/squad-history',    wait: 600 },

@@ -26,8 +26,9 @@ import UgcHighlightsCarousel from '../components/character/UgcHighlightsCarousel
 import { primeAudio } from '../utils/audioUnlock';
 import { colors, mihoyo } from '../constants/design';
 import { lottie } from '../constants/lottie';
-import { useT, setLocale, LOCALE_OPTIONS, type Locale, type DictKey } from '../utils/i18n';
+import { useT, setLocale, LOCALE_OPTIONS, getLocale, type Locale, type DictKey } from '../utils/i18n';
 import { getUserId } from '../utils/userId';
+import { gameLocaleFromUiLocale } from '@furball/shared';
 
 /** v1.4.0 — shape returned by /api/daily/me. Kept inline (small,
  *  no cross-package import) so we don't add another util module. */
@@ -326,6 +327,8 @@ export default function Landing() {
       playerCount: target === 'dual' ? 8 : playerCount,
       mode: target, userId: getUserId(),
       ...(packId ? { companyPackId: packId } : {}),
+      // v6.156 — 透传 UI locale 到服务端,由 server 决定 AI 说话语言
+      locale: gameLocaleFromUiLocale(getLocale()),
     });
   }, [isCreating, mode, playerCount, navigate, socket, companyPackId, companyPacks]);
 

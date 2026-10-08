@@ -46,11 +46,18 @@ async function seedProfile() {
   // Quiz answers tuned to produce a v2.0.0 region-tribe archetype so
   // the Profile screenshot shows the new region/industry chips +
   // evolution panel (after a couple of plays).
-  await fetch(SERVER + '/api/quiz/score', {
+  // v6.160 — 题库早已扩到 11 题,这里一直只交 10 个答案 → 400 被 catch 吞掉 →
+  // 没有 profile → /profile/me 跳回 /quiz,03-profile.png 拍的其实是测试题页。
+  // 现在交满 11 个,失败就打印出来(限流 429 仍可接受:说明之前已经种过)。
+  const r = await fetch(SERVER + '/api/quiz/score', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': DEMO_USER_ID },
-    body: JSON.stringify({ answers: [0, 3, 0, 3, 0, 3, 0, 0, 2, 2] }),
-  }).catch(() => { /* may rate-limit on re-run — that's fine */ });
+    body: JSON.stringify({ answers: [0, 3, 0, 3, 0, 3, 0, 0, 2, 2, 0] }),
+  }).catch((e) => ({ ok: false, status: e.message }));
+  if (!r.ok && r.status !== 429) {
+    const body = typeof r.text === 'function' ? await r.text().catch(() => '') : '';
+    console.warn(`  ⚠ quiz 种子失败 (${r.status}) ${body.slice(0, 200)}`);
+  }
 }
 
 async function main() {
@@ -74,20 +81,35 @@ async function main() {
   });
   // Pre-seed the localStorage userId so /profile/me + /squad-history
   // / daily-drama all key off our deterministic demo user.
+  // v6.160 — 同时预置「已看过新手引导」:v6.95 起首登会弹 RulesModal(z-[1000]),
+  // 不预置的话 01-landing 拍到的是被弹窗盖住的首页。capture_game_screens 早就这样做了。
   await context.addInitScript((uid) => {
     try { localStorage.setItem('office-zoo.user-id', uid); } catch { /* noop */ }
+    try { localStorage.setItem('office-zoo.seen-rules', '1'); } catch { /* noop */ }
   }, DEMO_USER_ID);
 
   const page = await context.newPage();
+  const failed = [];
   for (const shot of SHOTS) {
     process.stdout.write(`  → ${shot.file}  (${shot.url})  `);
     await page.goto(CLIENT + shot.url, { waitUntil: 'networkidle', timeout: 15_000 })
       .catch(() => { /* networkidle may never settle on socket-heavy pages */ });
     await page.waitForTimeout(shot.wait);
+    // v6.160 — 会被重定向的页面(如 profile 缺数据跳 /quiz)不再静默拍成别的页。
+    const landed = new URL(page.url()).pathname;
+    if (shot.mustStay && landed !== shot.url) {
+      console.log(`✕ 被重定向到 ${landed},未覆盖 ${shot.file}`);
+      failed.push(shot.file);
+      continue;
+    }
     await page.screenshot({ path: path.join(OUT, shot.file), fullPage: false });
     console.log('ok');
   }
   await browser.close();
+  if (failed.length) {
+    console.error(`\n✕ ${failed.length} 张未通过校验:${failed.join(', ')}`);
+    process.exit(1);
+  }
   console.log(`\n✓ ${SHOTS.length} screenshots → ${OUT}`);
 }
 

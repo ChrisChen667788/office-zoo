@@ -134,12 +134,12 @@ async function captureImmersive(browser) {
   // until a speech bubble appears (discussion phase) so the shot shows
   // real content, not the "正在组建公司…" lobby. Immersive is slower
   // than Classic (role_reveal → free_roam → discussion + TTS), so we
-  // give it up to ~40s, checking every 2s.
+  // give it up to ~60s, checking every 2s. (v6.159: raised from ~40s.)
   await page.goto(`${CLIENT}/immersive/new`, { waitUntil: 'networkidle' });
   await page.waitForURL(/\/immersive\/(?!new)/, { timeout: 15_000 }).catch(() => {});
 
   let ready = false;
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 30; i++) {
     await page.waitForTimeout(2000);
     const state = await page.evaluate(() => {
       const txt = document.body.innerText || '';

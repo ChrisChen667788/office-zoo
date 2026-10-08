@@ -180,6 +180,9 @@ export interface PlayerState {
   /** v6.55 #2 — per-player unique avatar key into the cached avatar pool, so
    *  duplicate-role players don't share a face. Assigned at createPlayers. */
   avatarKey?: string;
+  /** v6.152 — 席位控制者:'ai'(默认/缺省)| 'human'(真人占座中)。
+   *  缺省视为 'ai',向后兼容旧状态快照。序列化给客户端(getSerializedState 写入)。 */
+  controller?: 'ai' | 'human';
 }
 
 export interface TaskState {
@@ -228,6 +231,9 @@ export interface GameConfig {
   /** v6.85 P2 — 'dual' = 双公司对抗(4+4 各 1 内鬼,市占率竞速 + 跨司挖人,
    *  见 docs/DESIGN_DUAL_COMPANY.md)。缺省/'single' = 经典单公司,零影响。 */
   mode?: 'single' | 'dual';
+  /** v6.156 — 游戏语言:zh=中文(默认),en=英文大厂; v6.157 扩展 ja/ko。
+   *  客户端由 gameLocaleFromUiLocale(getLocale()) 自动填入,服务端默认 'zh'。 */
+  locale?: 'zh' | 'en' | 'ja' | 'ko';
 }
 
 export const DEFAULT_GAME_CONFIG: GameConfig = {
@@ -260,5 +266,7 @@ export interface GameEvent {
   phase: GamePhase;
   type: string;
   description: string;
+  /** v6.160 — 非中文局讨论上下文用的英文描述。缺省时若 description 含汉字,该事件不进外语 prompt。 */
+  descriptionEn?: string;
   timestamp: number;
 }

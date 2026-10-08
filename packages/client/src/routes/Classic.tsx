@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useReducer } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSocket, useSocketEvents } from '../hooks/useSocket';
@@ -14,6 +14,8 @@ import GameMap from '../components/game/GameMap';
 import GhostChatPanel from '../components/game/GhostChatPanel';
 import ReactionDanmaku, { type DanmakuTrigger } from '../components/game/ReactionDanmaku';
 import { pickReaction, dualBar, INTERVENE_REASON_CN, HUMAN_ROLES, type HumanRoleId } from '@furball/shared';
+// v6.151 — 麦克风按钮(语音输入)
+import MicButton from '../components/MicButton';
 import { fetchReactionLine } from '../utils/reactionLine';
 import PhaseHint from '../components/onboarding/PhaseHint';
 import RoleLegend from '../components/onboarding/RoleLegend';
@@ -30,6 +32,8 @@ import EventPill from '../components/EventPill';
 import PersonaCard from '../components/character/PersonaCard';
 import IdleBeat from '../components/character/IdleBeat';
 import { uid } from '../utils/uid';
+// v6.160 — 席位提示框状态机(挡旧轮迟到 prompt + 终局清空)
+import { seatPromptReducer, initialSeatPromptState } from '../utils/seatPrompts';
 import { playTtsFromUrl, stopTts, speakViaBrowserTTS, hasBrowserTTS } from '../utils/audioUnlock';
 import { sfx, isSfxMuted } from '../utils/sfx';
 import { recordLeakSubmit, recordLeakQuoted } from '../utils/leakStats';
@@ -124,6 +128,33 @@ export default function Classic() {
   const [myRole, setMyRole] = useState<HumanRoleId | null>(null);
   const [guestOpen, setGuestOpen] = useState(false);
   const [guestInput, setGuestInput] = useState('');
+
+  // v6.155 — 真人席位 UI 状态
+  // seatTaken: 已被占的席位位图(playerId → true),来自广播 game:seat_claims
+  const [seatTaken, setSeatTaken] = useState<Record<string, boolean>>({});
+  // mySeatPlayerId: 我当前占的席位 playerId(null=未占)
+  const [mySeatPlayerId, setMySeatPlayerId] = useState<string | null>(null);
+  // mySeatInfo: 占座成功后服务端私发的身份卡
+  const [mySeatInfo, setMySeatInfo] = useState<{
+    playerId: string; name: string; role: string; team: string; teammates: string[];
+  } | null>(null);
+  // seatOpen: 席位选择面板开合
+  const [seatOpen, setSeatOpen] = useState(false);
+  // v6.160 — 席位发言/投票提示框 + 超时提示收进一个 reducer(utils/seatPrompts.ts):
+  // 旧轮迟到的 seat_prompt 按回合号丢弃,game:over 时统一清空。
+  const [seatPrompts, dispatchSeatPrompt] = useReducer(seatPromptReducer, initialSeatPromptState);
+  const seatSpeechPrompt = seatPrompts.speech;
+  const seatVotePrompt = seatPrompts.vote;
+  const seatTimeoutMsg = seatPrompts.timeoutMsg;
+  // seatSpeechInput: 席位发言输入框
+  const [seatSpeechInput, setSeatSpeechInput] = useState('');
+  // 换局清零回合记录;game:state 的回合号同步进来,低于当前回合的 prompt 一律丢弃。
+  useEffect(() => { dispatchSeatPrompt({ type: 'reset' }); }, [gameId]);
+  useEffect(() => {
+    if (typeof round === 'number') dispatchSeatPrompt({ type: 'sync_round', round });
+  }, [round]);
+  // 新一轮发言 prompt 被接受时清空输入框(被丢弃的旧 prompt 不会改动 round,也就不会清)。
+  useEffect(() => { setSeatSpeechInput(''); }, [seatSpeechPrompt?.round]);
   useEffect(() => {
     if (!clueCard) return;
     const t = setTimeout(() => setClueCard(null), 4500);
@@ -290,6 +321,80 @@ export default function Classic() {
           : data.reason === 'round_cap' ? '🎤 本轮该角色的发言次数用完了(下轮再来)'
           : data.reason === 'no_role' ? '🎤 先上桌认领一个角色' : '🎤 发言没送出去');
       }
+    },
+
+    // ── v6.155 · Phase C 真人席位事件 ─────────────────────────────────
+    // 席位占用位图广播(绝不含 userId/角色)
+    'game:seat_claims': (data: { taken: Record<string, boolean> }) => setSeatTaken(data.taken ?? {}),
+
+    // 占座回执
+    'game:claim_seat_result': (data: { ok: boolean; reason?: string }) => {
+      if (!data.ok) {
+        const msg = data.reason === 'seats_full' ? '🪑 席位已满,换局再占'
+          : data.reason === 'seat_taken' ? '🪑 这个席位刚被别人抢了'
+          : data.reason === 'has_guest_role' ? '🪑 先退下嘉宾角色再占座'
+          : data.reason === 'dead_player' ? '🪑 该角色已离职,换一个'
+          : '🪑 占座失败';
+        pushEvent('system', msg);
+      }
+    },
+
+    // 占座成功后服务端私发身份卡
+    'game:seat_you': (data: { playerId: string; name: string; role: string; team: string; teammates: string[] }) => {
+      setMySeatPlayerId(data.playerId);
+      setMySeatInfo(data);
+      setSeatOpen(false);
+      // v6.155 — seat_first 成就
+      void import('../utils/achievements').then((m) => m.bumpProgress('seat_claimed', 1));
+      // v6.160 — 讨论/投票已开始后才占座:这一轮引擎已按 AI 安排好,如实告诉用户从下一轮接手。
+      const when = phase === 'discussion' ? '本轮讨论已开始,这轮由 AI 代打,下一轮起系统会提示你发言'
+        : phase === 'voting' ? '本轮投票已开始,这轮由 AI 代投,下一轮起由你来'
+        : '讨论时系统会提示你发言';
+      pushEvent('system', `🪑 你已占座:${data.name}(${ROLE_LABELS[data.role] ?? data.role}) — ${when}`);
+    },
+
+    // seat_prompt:服务端提示真人发言或投票
+    'game:seat_prompt': (data: { playerId: string; kind: string; timeoutMs: number; round: number; candidates?: string[] }) => {
+      dispatchSeatPrompt({ type: 'prompt', ...data, now: Date.now() });
+    },
+
+    // seat_timeout:超时由 AI 代打/投
+    'game:seat_timeout': (data: { playerId: string; kind: string }) => {
+      dispatchSeatPrompt({ type: 'timeout', kind: data.kind });
+    },
+
+    // seat_timeout_public:全房公告(无身份信息)
+    'game:seat_timeout_public': (data: { playerName: string; kind: string }) => {
+      pushEvent('system', `👤 ${data.playerName} 超时,本轮由 AI 代打`);
+    },
+
+    // seat_speech 回执
+    'game:seat_speech_result': (data: { ok: boolean; reason?: string }) => {
+      if (data.ok) {
+        dispatchSeatPrompt({ type: 'submitted', kind: 'speech' });
+      } else {
+        pushEvent('system', data.reason === 'wrong_phase' ? '🪑 当前不在发言阶段'
+          : data.reason === 'already_spoken' || data.reason === 'already_spoke' ? '🪑 本轮已发过言'
+          : data.reason === 'no_pending_speech' ? '🪑 本轮发言已由 AI 代打,下一轮再说'
+          : '🪑 发言没送出去');
+      }
+    },
+
+    // seat_vote 回执
+    'game:seat_vote_result': (data: { ok: boolean; reason?: string }) => {
+      if (data.ok) {
+        dispatchSeatPrompt({ type: 'submitted', kind: 'vote' });
+      } else {
+        pushEvent('system', data.reason === 'invalid_target' ? '🪑 无效投票目标'
+          : data.reason === 'wrong_phase' ? '🪑 当前不在投票阶段'
+          : data.reason === 'no_pending_vote' ? '🪑 本轮投票已由 AI 代投,下一轮再说'
+          : '🪑 投票没送出去');
+      }
+    },
+
+    // seat_intel:私发席位持有者的角色情报
+    'game:seat_intel': (data: { playerId: string; text: string }) => {
+      pushEvent('system', `🔐 席位情报:${data.text}`);
     },
 
     // v6.110 — 内部邮件专属动线:全房弹「背景调查」浮卡 + event log 一行
@@ -576,6 +681,8 @@ export default function Classic() {
       const w = WIN_CN[data.winner] ?? data.winner;
       const tail = data.market ? `(市占 🅰${data.market.a}% : 🅱${data.market.b}%)` : '';
       pushEvent('system', `散伙饭! ${w} 获胜!${tail}`);
+      // v6.160 — 终局清空席位发言框/投票框/超时提示,否则散伙饭后输入框还挂在屏幕上。
+      dispatchSeatPrompt({ type: 'game_over' });
       // v6.87 — 把终局公司赢家落进 state,触发下注盘公司盘口一次性结算。
       if (data.winner === 'company_a_win') setCompanyWinner('a');
       else if (data.winner === 'company_b_win') setCompanyWinner('b');
@@ -1018,6 +1125,10 @@ export default function Classic() {
                     0%, 100% { box-shadow: 0 0 8px #ff475788, 0 0 0 rgba(255,71,87,0); }
                     50%      { box-shadow: 0 0 18px #ff4757cc, 0 0 24px rgba(255,71,87,0.55); }
                   }
+                  @keyframes micPulse {
+                    0%, 100% { transform: scale(1); }
+                    50%      { transform: scale(1.12); }
+                  }
                 `}</style>
               </div>
             );
@@ -1107,7 +1218,8 @@ export default function Classic() {
                       color: s.team === 'cat' ? '#4c9eff' : s.team === 'dog' ? '#ff4757' : '#a855f7',
                       borderBottom: '1px dashed rgba(255,215,0,0.4)',
                     }}>
-                      {s.playerName}
+                      {/* v6.155 — 真人席位玩家加 👤 前缀 */}
+                      {speaker?.controller === 'human' ? '👤 ' : ''}{s.playerName}
                     </span>
                   </PersonaCard>
                   {pLabel && (
@@ -1225,7 +1337,8 @@ export default function Classic() {
                     boxShadow: p.ghostVoteUsed ? 'none' : '0 0 6px rgba(110,231,183,0.5)',
                     flexShrink: 0,
                   }} />
-                  <span style={{ fontWeight: 600 }}>{p.name}</span>
+                  {/* v6.155 — 真人席位加 👤 前缀 */}
+                  <span style={{ fontWeight: 600 }}>{p.controller === 'human' ? '👤 ' : ''}{p.name}</span>
                   {pLabel && (
                     <span style={{
                       display: 'inline-flex', alignItems: 'center',
@@ -1315,9 +1428,16 @@ export default function Classic() {
                 }
               }}
               placeholder="场边发言,AI 真的听得到…"
-              style={{ width: 'min(46vw, 300px)', padding: '5px 8px', borderRadius: 8, fontSize: 12,
+              style={{ width: 'min(40vw, 260px)', padding: '5px 8px', borderRadius: 8, fontSize: 12,
                 background: 'rgba(255,255,255,0.06)', color: '#fff',
                 border: '1px solid rgba(255,255,255,0.12)', outline: 'none' }}
+            />
+            {/* v6.151 — 语音输入按钮,追加识别结果到输入框 */}
+            <MicButton
+              value={guestInput}
+              onChange={(v) => setGuestInput(v.slice(0, 120))}
+              maxLen={120}
+              onMessage={(msg) => pushEvent('system', `🎙 ${msg}`)}
             />
             <button
               onClick={() => { if (guestInput.trim()) { socket.emit('game:human_speech', { text: guestInput.trim() }); setGuestInput(''); } }}
@@ -1360,6 +1480,194 @@ export default function Classic() {
               color: '#7fd4ff', background: 'rgba(13,14,22,0.92)', border: '1px solid rgba(127,212,255,0.4)',
               backdropFilter: 'blur(12px)', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' }}>
             🎤 上桌当嘉宾
+          </button>
+        )}
+      </div>
+
+      {/* ── v6.155 · 真人席位面板(底部居中,嘉宾席右侧,PhaseHint 上方)──── */}
+      {/* 沉浸局不做席位 UI(Phase C MVP 范围外) */}
+      <div style={{ position: 'fixed', bottom: 64, right: 16, zIndex: 72,
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+
+        {/* ── 席位倒计时提示:seat_timeout 后短暂显示 ── */}
+        {seatTimeoutMsg && (
+          <div style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+            background: 'rgba(255,165,0,0.18)', border: '1px solid rgba(255,165,0,0.5)',
+            color: '#ffb84c', backdropFilter: 'blur(8px)' }}
+            onClick={() => dispatchSeatPrompt({ type: 'dismiss_timeout' })}>
+            {seatTimeoutMsg} · 点击关闭
+          </div>
+        )}
+
+        {/* ── 投票提示框 ── */}
+        {seatVotePrompt && !seatVotePrompt.submitted && (
+          <div style={{ padding: 10, borderRadius: 12, background: 'rgba(13,14,22,0.96)',
+            border: '1px solid rgba(251,191,36,0.5)', backdropFilter: 'blur(12px)',
+            boxShadow: '0 0 20px rgba(251,191,36,0.15)', width: 'min(280px, 88vw)' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', color: 'rgba(251,191,36,0.8)', textTransform: 'uppercase', marginBottom: 6 }}>
+              🗳️ 投票 · 第 {seatVotePrompt.round} 轮
+            </div>
+            {/* v6.155 — 倒计时条(v6.fix: 用实际超时时长作分母) */}
+            <SeatCountdownBar expiresAt={seatVotePrompt.expiresAt} timeoutMs={seatVotePrompt.timeoutMs} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+              {seatVotePrompt.candidates.map((cId) => {
+                const p = players.find((x) => x.id === cId);
+                return (
+                  <button key={cId}
+                    onClick={() => { socket.emit('game:seat_vote', { targetId: cId }); }}
+                    style={{ padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
+                      background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)',
+                      color: '#fff', fontSize: 12, textAlign: 'left' }}>
+                    {p?.controller === 'human' ? '👤 ' : ''}{p?.name ?? cId}
+                  </button>
+                );
+              })}
+              {/* 弃票(如服务端 allowSkip)*/}
+              <button
+                onClick={() => { socket.emit('game:seat_vote', { targetId: 'skip' }); }}
+                style={{ padding: '5px 8px', borderRadius: 8, cursor: 'pointer',
+                  background: 'none', border: '1px solid rgba(255,255,255,0.14)',
+                  color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
+                弃票(不投)
+              </button>
+            </div>
+          </div>
+        )}
+        {seatVotePrompt?.submitted && (
+          <div style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+            background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.35)',
+            color: '#22c55e' }}>✅ 已投票</div>
+        )}
+
+        {/* ── 发言提示框 ── */}
+        {seatSpeechPrompt && !seatSpeechPrompt.submitted && (
+          <div style={{ padding: 10, borderRadius: 12, background: 'rgba(13,14,22,0.96)',
+            border: '1px solid rgba(127,212,255,0.5)', backdropFilter: 'blur(12px)',
+            boxShadow: '0 0 20px rgba(127,212,255,0.15)', width: 'min(320px, 90vw)' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', color: 'rgba(127,212,255,0.8)', textTransform: 'uppercase', marginBottom: 6 }}>
+              💬 发言 · 第 {seatSpeechPrompt.round} 轮
+            </div>
+            <SeatCountdownBar expiresAt={seatSpeechPrompt.expiresAt} timeoutMs={seatSpeechPrompt.timeoutMs} />
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
+              <input
+                value={seatSpeechInput}
+                onChange={(e) => setSeatSpeechInput(e.target.value.slice(0, 150))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && seatSpeechInput.trim()) {
+                    socket.emit('game:seat_speech', { text: seatSpeechInput.trim() });
+                  }
+                }}
+                placeholder="以鼠人身份发言…(最多 150 字)"
+                style={{ flex: 1, padding: '5px 8px', borderRadius: 8, fontSize: 12,
+                  background: 'rgba(255,255,255,0.06)', color: '#fff',
+                  border: '1px solid rgba(127,212,255,0.2)', outline: 'none' }}
+              />
+              {/* v6.155 — 席位发言也接麦克风 */}
+              <MicButton
+                value={seatSpeechInput}
+                onChange={(v) => setSeatSpeechInput(v.slice(0, 150))}
+                maxLen={150}
+                onMessage={(msg) => pushEvent('system', `🎙 ${msg}`)}
+              />
+              <button
+                onClick={() => { if (seatSpeechInput.trim()) { socket.emit('game:seat_speech', { text: seatSpeechInput.trim() }); } }}
+                style={{ padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 800,
+                  color: '#0a0a1e', background: '#7fd4ff', border: 'none', flexShrink: 0 }}>发言</button>
+            </div>
+          </div>
+        )}
+        {seatSpeechPrompt?.submitted && (
+          <div style={{ padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+            background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.35)',
+            color: '#22c55e' }}>✅ 已提交发言</div>
+        )}
+
+        {/* ── 我的席位身份卡(占座后显示) ── */}
+        {mySeatInfo && (
+          <div style={{ padding: '8px 10px', borderRadius: 10, background: 'rgba(13,14,22,0.94)',
+            border: '1px solid rgba(127,212,255,0.4)', backdropFilter: 'blur(12px)',
+            boxShadow: '0 0 16px rgba(127,212,255,0.1)', width: 'min(220px, 80vw)' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', color: 'rgba(127,212,255,0.75)', textTransform: 'uppercase', marginBottom: 4 }}>
+              🪑 我的席位身份
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#fff', marginBottom: 2 }}>
+              👤 {mySeatInfo.name}
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginBottom: 2 }}>
+              {ROLE_LABELS[mySeatInfo.role] ?? mySeatInfo.role} · {mySeatInfo.team === 'cat' ? '🐱 猫阵营' : mySeatInfo.team === 'dog' ? '🐶 狗阵营' : mySeatInfo.team}
+            </div>
+            {mySeatInfo.teammates.length > 0 && (
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+                同伴:{mySeatInfo.teammates.join('、')}
+              </div>
+            )}
+            <button
+              onClick={() => {
+                socket.emit('game:release_seat');
+                setMySeatPlayerId(null);
+                setMySeatInfo(null);
+                dispatchSeatPrompt({ type: 'clear' });
+              }}
+              style={{ marginTop: 6, width: '100%', padding: '4px 0', borderRadius: 6, cursor: 'pointer',
+                fontSize: 11, color: 'rgba(255,255,255,0.55)', background: 'none',
+                border: '1px solid rgba(255,255,255,0.14)' }}>
+              退座(交给 AI)
+            </button>
+          </div>
+        )}
+
+        {/* ── 席位选择面板 ── */}
+        {!mySeatPlayerId && !myRole && seatOpen && (
+          <div style={{ padding: 10, borderRadius: 12, background: 'rgba(13,14,22,0.96)',
+            border: '1px solid rgba(127,212,255,0.35)', backdropFilter: 'blur(12px)',
+            display: 'flex', flexDirection: 'column', gap: 5, width: 'min(300px, 88vw)' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.2em', color: 'rgba(127,212,255,0.75)', textTransform: 'uppercase' }}>
+              🪑 占座当鼠人
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginBottom: 2 }}>
+              讨论时系统提示发言,投票时亲手投,超时 AI 代打
+            </div>
+            {/* 存活玩家列表(已占置灰) */}
+            {alivePlayers.map((p) => {
+              const taken = !!seatTaken[p.id];
+              const isMine = p.id === mySeatPlayerId;
+              return (
+                <button key={p.id}
+                  disabled={taken || isMine}
+                  onClick={() => !taken && socket.emit('game:claim_seat', { playerId: p.id })}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 8,
+                    cursor: (taken || isMine) ? 'not-allowed' : 'pointer', textAlign: 'left',
+                    opacity: (taken || isMine) ? 0.4 : 1, color: '#fff',
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(127,212,255,0.22)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 800 }}>
+                    {taken ? '🔒' : '🪑'} {p.name}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginLeft: 'auto' }}>
+                    {taken ? '已占' : ''}
+                  </span>
+                </button>
+              );
+            })}
+            {alivePlayers.length === 0 && (
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>游戏尚未开始或所有人均已离职</div>
+            )}
+            {/* 剩余可占数 */}
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>
+              剩余可占:{Math.max(0, Math.min(3, Math.floor(players.length / 3)) - Object.keys(seatTaken).length)} 席
+            </div>
+            <button onClick={() => setSeatOpen(false)}
+              style={{ padding: '4px 0', borderRadius: 8, cursor: 'pointer', fontSize: 11,
+                color: 'rgba(255,255,255,0.55)', background: 'none', border: '1px solid rgba(255,255,255,0.12)' }}>收起</button>
+          </div>
+        )}
+
+        {/* ── 占座入口按钮(未占座且未当嘉宾时显示) ── */}
+        {!mySeatPlayerId && !myRole && !seatOpen && (
+          <button onClick={() => setSeatOpen(true)}
+            style={{ padding: '6px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 800,
+              color: '#a78bfa', background: 'rgba(13,14,22,0.92)', border: '1px solid rgba(167,139,250,0.4)',
+              backdropFilter: 'blur(12px)', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' }}>
+            🪑 占座当鼠人
           </button>
         )}
       </div>
@@ -1446,6 +1754,42 @@ export default function Classic() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * v6.155 — 席位操作倒计时进度条。
+ * 纯展示:读 expiresAt 与 Date.now() 的差值,每秒刷新。
+ */
+// v6.fix — timeoutMs 作为分母,保证发言(45s)和投票(30s)倒计时条均从 100% 开始
+function SeatCountdownBar({ expiresAt, timeoutMs }: { expiresAt: number; timeoutMs: number }) {
+  const [pct, setPct] = useState(() => {
+    const remaining = expiresAt - Date.now();
+    return Math.max(0, Math.min(100, (remaining / timeoutMs) * 100));
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const remaining = expiresAt - Date.now();
+      const next = Math.max(0, Math.min(100, (remaining / timeoutMs) * 100));
+      setPct(next);
+      if (next <= 0) clearInterval(id);
+    }, 500);
+    return () => clearInterval(id);
+  }, [expiresAt, timeoutMs]);
+
+  const isUrgent = pct < 25;
+  return (
+    <div style={{ height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+      <div style={{
+        height: '100%', borderRadius: 999,
+        width: `${pct}%`,
+        background: isUrgent
+          ? 'linear-gradient(90deg,#ff4757,#ff6b8a)'
+          : 'linear-gradient(90deg,#7fd4ff,#4c9eff)',
+        transition: 'width 0.5s linear, background 0.5s',
+      }} />
     </div>
   );
 }

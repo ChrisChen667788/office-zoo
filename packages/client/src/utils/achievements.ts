@@ -117,6 +117,13 @@ export const ACHIEVEMENTS: Achievement[] = [
     check: () => getProgress('guest_claimed') >= 1,
   },
 
+  // v6.155 — 真人席位:占座当鼠人
+  {
+    id: 'seat_first', emoji: '🪑', label: '第一次占座',
+    desc: '认领真人鼠人席位(占座当鼠人),参与一局正式游戏.',
+    check: () => getProgress('seat_claimed') >= 1,
+  },
+
   // Meta (2)
   {
     id: 'three_day_streak', emoji: '🔥', label: '连续 3 天回归',
@@ -125,9 +132,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: 'completionist', emoji: '🏆', label: '集邮党',
-    desc: '解锁其他 14 个 achievements.',
+    desc: '解锁其他 15 个 achievements.',
     // Self-referential — checked after every refreshAuto pass.
-    check: () => getUnlocked().size >= 14,
+    check: () => getUnlocked().size >= 15,
   },
 ];
 

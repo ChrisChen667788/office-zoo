@@ -7,11 +7,14 @@ import {
 import { generateTTSAudio } from '../services/tts';
 import { extractEvidenceRefs } from '../services/evidenceParser';
 import { saveReplay } from '../services/replayStore';
-import type { DualEndReason } from '@furball/shared';
+import { GamePhase, type DualEndReason } from '@furball/shared';
 // v6.126 — Phase C 真人场边角色:认领纯引擎 + 类型
 import {
   claimRole, releaseUserRoles, roleOfUser, humanRoleById,
   type RoleClaims, type HumanRoleId,
+  // v6.154 — Phase C 真人席位 socket 协议
+  claimSeat, releaseSeatsOfUser, seatOfUser, holderOfSeat, seatTakenMap,
+  type SeatClaims,
 } from '@furball/shared';
 import { generateAvatar, getAllCachedAvatars } from '../services/imageGen';
 import { logger, gameLogger } from '../utils/logger';
@@ -39,6 +42,8 @@ const GameCreateSchema = z.object({
   // curated NPC names. Invalid / missing pack falls back silently to
   // default names so a broken share link doesn't block game start.
   companyPackId: z.string().regex(/^[0-9a-f]{12}$/).optional(),
+  // v6.156 — 游戏语言(客户端由 gameLocaleFromUiLocale 自动填入,缺省 zh)
+  locale: z.enum(['zh', 'en', 'ja', 'ko']).optional(),
 });
 
 // gameId shape is `game_<timestamp>` — just enforce a reasonable cap.
@@ -99,6 +104,39 @@ function broadcastRoleClaims(io: SocketServer, gameId: string) {
   io.to(gameId).emit('game:role_claims', { taken });
 }
 
+// v6.154 — Phase C 真人席位台账(gameId → playerId→socketId)。
+// socket 层仅管 socketId 映射;controller 字段在 engine 内管理。
+const seatClaims = new Map<string, SeatClaims>();
+
+/** 广播某局当前的席位占用位图(绝不含 userId/角色,只含 playerId→true)。 */
+function broadcastSeatClaims(io: SocketServer, gameId: string) {
+  const claims = seatClaims.get(gameId) ?? {};
+  io.to(gameId).emit('game:seat_claims', { taken: seatTakenMap(claims) });
+  // v6.160 — 占座/退座改的是 player.controller,而 game:state 平时只在 phase_change 时广播,
+  // 所以全房客户端的 👤 标记(发言流/死亡面板/投票候选)要等下一次换阶段才更新。
+  // engine.emitState() 发的 'state' 事件没有接到 socket 上,这里直接补一帧。
+  const engine = games.get(gameId);
+  if (engine) io.to(gameId).emit('game:state', publicStateSnapshot(engine));
+}
+
+/**
+ * v6.160 — 非引擎驱动的状态快照(占座/退座广播、观众中途加入)。投票进行中不带票型:
+ * 引擎自己只在换阶段时发 game:state(投票开始那一帧 votes 已清空),票型随 vote_result 公布;
+ * 若在投票途中发完整状态,已投出的 AI 票会提前暴露给全房或刚加入的观众。
+ * 引擎驱动的那几处(phase_change / kill / vote_result / game_over)时机本身安全,保持原样。
+ * ghostVotes 故意保留:鬼魂票本来就随 game:ghost_vote_cast 实时公开给全房(v6.24 / v6.93 热度改赔率),
+ * 快照里抹掉反而会让客户端 updateState 把全房已显示的鬼魂票热度清零。
+ */
+export function publicStateSnapshot(engine: GameEngine) {
+  const state = engine.getSerializedState();
+  return state.phase === GamePhase.VOTING ? { ...state, votes: {} } : state;
+}
+
+/** 测试钩子:拿到房间对应的 engine(只给 socket 集成测试用)。 */
+export function _getGameForTest(gameId: string): GameEngine | undefined {
+  return games.get(gameId);
+}
+
 function destroyGame(gameId: string, reason: string) {
   const engine = games.get(gameId);
   if (engine) {
@@ -107,6 +145,7 @@ function destroyGame(gameId: string, reason: string) {
     games.delete(gameId);
   }
   humanClaims.delete(gameId); // v6.126 — 房间销毁连带清认领台账
+  seatClaims.delete(gameId);  // v6.154 — 同上,清席位台账
   const timer = pendingCleanups.get(gameId);
   if (timer) {
     clearTimeout(timer);
@@ -156,6 +195,8 @@ export function setupSocketHandler(io: SocketServer) {
         {
           playerCount: config.playerCount,
           companyPackId: config.companyPackId,
+          // v6.156 — 游戏语言(客户端传 locale,缺省 'zh')
+          ...(config.locale ? { locale: config.locale } : {}),
           // v6.85 P2 — 双公司对抗(payload 里早有 mode 字段,白名单只放 dual;
           // dual 强制 8 人,createPlayers 分配失败会自动退回单公司)
           ...(config.mode === 'dual' ? { mode: 'dual' as const, playerCount: 8 } : {}),
@@ -253,7 +294,7 @@ export function setupSocketHandler(io: SocketServer) {
 
       currentGameId = gameId;
       socket.join(gameId);
-      socket.emit('game:state', engine.getSerializedState());
+      socket.emit('game:state', publicStateSnapshot(engine));
 
       // Send any already-generated avatars
       const avatars = getAllCachedAvatars();
@@ -273,6 +314,18 @@ export function setupSocketHandler(io: SocketServer) {
         humanClaims.set(currentGameId, releaseUserRoles(claims, socket.id));
         broadcastRoleClaims(io, currentGameId);
       }
+      // v6.154 — 离场连带释放席位
+      {
+        const sc = seatClaims.get(currentGameId);
+        if (sc) {
+          const seat = seatOfUser(sc, socket.id);
+          if (seat) {
+            seatClaims.set(currentGameId, releaseSeatsOfUser(sc, socket.id));
+            games.get(currentGameId)?.releaseSeat(seat);
+            broadcastSeatClaims(io, currentGameId);
+          }
+        }
+      }
       socket.leave(currentGameId);
       socketLog.debug({ sid: socket.id, gameId: currentGameId }, 'client left game room');
       currentGameId = null;
@@ -285,6 +338,12 @@ export function setupSocketHandler(io: SocketServer) {
       const roleId = (raw as { roleId?: string })?.roleId ?? '';
       if (!humanRoleById(roleId)) {
         socket.emit('game:role_claim_result', { ok: false, roleId, reason: 'unknown_role' });
+        return;
+      }
+      // v6.154 — 嘉宾角色与鼠人席位互斥:占着座的不能认领嘉宾角色
+      const currentSeatClaims = seatClaims.get(currentGameId) ?? {};
+      if (seatOfUser(currentSeatClaims, socket.id)) {
+        socket.emit('game:role_claim_result', { ok: false, roleId, reason: 'has_seat' });
         return;
       }
       const claims = humanClaims.get(currentGameId) ?? {};
@@ -330,6 +389,119 @@ export function setupSocketHandler(io: SocketServer) {
       const r = engine.pushHumanSpeech(role, text);
       if (r.accepted) humanSpeechTimes.push(now);
       socket.emit('game:human_speech_result', { ok: r.accepted, reason: r.reason });
+    });
+
+    // ── v6.154 · Phase C 真人席位 ──────────────────────────────────────────────
+
+    // 席位发言限流:6 条/分钟/连接(复用嘉宾发言同一套思路)
+    const seatSpeechTimes: number[] = [];
+
+    socket.on('game:claim_seat', (raw: unknown) => {
+      if (!currentGameId || !games.has(currentGameId)) return;
+      const engine = games.get(currentGameId)!;
+      const playerId = (raw as { playerId?: string })?.playerId ?? '';
+      if (!playerId) {
+        socket.emit('game:claim_seat_result', { ok: false, reason: 'missing_player_id' });
+        return;
+      }
+
+      // 嘉宾角色与鼠人席位互斥:持有嘉宾角色的不能占座
+      const guestClaims = humanClaims.get(currentGameId) ?? {};
+      if (roleOfUser(guestClaims, socket.id)) {
+        socket.emit('game:claim_seat_result', { ok: false, reason: 'has_guest_role' });
+        return;
+      }
+
+      const state = engine.getState();
+      const player = state.players.find((p) => p.id === playerId);
+      if (!player) {
+        socket.emit('game:claim_seat_result', { ok: false, reason: 'unknown_player' });
+        return;
+      }
+
+      const claims = seatClaims.get(currentGameId) ?? {};
+      const r = claimSeat(claims, playerId, socket.id, {
+        playerIds: state.players.map((p) => p.id),
+        alivePlayerIds: state.players.filter((p) => p.isAlive).map((p) => p.id),
+        playerCount: state.players.length,
+      });
+
+      if (r.ok) {
+        // v6.160 — 引擎拒绝(终局/该玩家已出局)时不记台账、不发身份卡,如实回执失败。
+        const seat = engine.setSeatHuman(playerId);
+        if (!seat.ok) {
+          socket.emit('game:claim_seat_result', { ok: false, reason: seat.reason });
+          return;
+        }
+        seatClaims.set(currentGameId, r.claims);
+        broadcastSeatClaims(io, currentGameId);
+        // 私发该连接:身份卡(身份/阵营/同伴按游戏规则)
+        // MVP:teammates 留空 []。AI 狗阵营玩家同样通过 addRoleIntel 获取同伴信息,
+        // buildSystemPrompt 里 DOG 阵营也不向 AI 暴露同伴名单(保持双方信息对等,
+        // 避免真人因占座而获得 AI 狗不具备的额外同伴情报,影响公平性)。
+        // 未来按角色知情规则扩展时同步更新此处。
+        socket.emit('game:seat_you', {
+          playerId: player.id,
+          name: player.name,
+          role: player.role,
+          team: player.team,
+          teammates: [],
+        });
+      }
+      socket.emit('game:claim_seat_result', { ok: r.ok, reason: r.reason });
+      socketLog.debug({ sid: socket.id, gameId: currentGameId, playerId, ok: r.ok }, 'claim seat');
+    });
+
+    socket.on('game:release_seat', () => {
+      if (!currentGameId) return;
+      const engine = games.get(currentGameId);
+      const claims = seatClaims.get(currentGameId);
+      if (!claims) return;
+      const playerId = seatOfUser(claims, socket.id);
+      if (!playerId) return;
+      seatClaims.set(currentGameId, releaseSeatsOfUser(claims, socket.id));
+      engine?.releaseSeat(playerId);
+      broadcastSeatClaims(io, currentGameId);
+    });
+
+    socket.on('game:seat_speech', (raw: unknown) => {
+      if (!currentGameId) return;
+      const engine = games.get(currentGameId);
+      if (!engine) return;
+      const claims = seatClaims.get(currentGameId) ?? {};
+      const playerId = seatOfUser(claims, socket.id);
+      if (!playerId) {
+        socket.emit('game:seat_speech_result', { ok: false, reason: 'no_seat' });
+        return;
+      }
+      // 限流:6 条/分钟
+      const now = Date.now();
+      while (seatSpeechTimes.length > 0 && seatSpeechTimes[0] < now - 60_000) seatSpeechTimes.shift();
+      if (seatSpeechTimes.length >= 6) {
+        socket.emit('game:seat_speech_result', { ok: false, reason: 'rate_limited' });
+        return;
+      }
+      const text = typeof (raw as { text?: unknown })?.text === 'string'
+        ? (raw as { text: string }).text : '';
+      const r = engine.pushSeatSpeech(playerId, text);
+      if (r.accepted) seatSpeechTimes.push(now);
+      socket.emit('game:seat_speech_result', { ok: r.accepted, reason: r.reason });
+    });
+
+    socket.on('game:seat_vote', (raw: unknown) => {
+      if (!currentGameId) return;
+      const engine = games.get(currentGameId);
+      if (!engine) return;
+      const claims = seatClaims.get(currentGameId) ?? {};
+      const playerId = seatOfUser(claims, socket.id);
+      if (!playerId) {
+        socket.emit('game:seat_vote_result', { ok: false, reason: 'no_seat' });
+        return;
+      }
+      const targetId = typeof (raw as { targetId?: unknown })?.targetId === 'string'
+        ? (raw as { targetId: string }).targetId : '';
+      const r = engine.pushSeatVote(playerId, targetId);
+      socket.emit('game:seat_vote_result', { ok: r.accepted, reason: r.reason });
     });
 
     // v6.25 P1 — psy-war leak submission. Client (GhostChatPanel 战术 @)
@@ -425,6 +597,17 @@ export function setupSocketHandler(io: SocketServer) {
       if (claims && roleOfUser(claims, socket.id)) {
         humanClaims.set(gameId, releaseUserRoles(claims, socket.id));
         broadcastRoleClaims(io, gameId);
+      }
+
+      // v6.154 — 断线释放真人席位
+      const currentSeatClaims = seatClaims.get(gameId);
+      if (currentSeatClaims) {
+        const occupiedSeat = seatOfUser(currentSeatClaims, socket.id);
+        if (occupiedSeat) {
+          seatClaims.set(gameId, releaseSeatsOfUser(currentSeatClaims, socket.id));
+          games.get(gameId)?.releaseSeat(occupiedSeat);
+          broadcastSeatClaims(io, gameId);
+        }
       }
 
       // If there are still other clients in the room, nothing to do.
@@ -735,6 +918,47 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
   // v6.126 — 真人场边发言:全房实时广播(event log / 弹幕两端渲染)
   engine.on('human_speech', (data: { role: string; label: string; emoji: string; text: string }) => {
     io.to(gameId).emit('game:human_speech', data);
+  });
+
+  // v6.154 — 真人席位事件转发 ──────────────────────────────────────────────────
+
+  // seat_prompt:只发给该席位持有者的连接(私发)
+  engine.on('seat_prompt', (data: { playerId: string; kind: string; timeoutMs: number; round: number; candidates?: unknown }) => {
+    const claims = seatClaims.get(gameId) ?? {};
+    const holderSocketId = holderOfSeat(claims, data.playerId);
+    if (holderSocketId) {
+      io.to(holderSocketId).emit('game:seat_prompt', data);
+    }
+  });
+
+  // seat_intel:私发给席位持有者
+  engine.on('seat_intel', (data: { playerId: string; text: string }) => {
+    const claims = seatClaims.get(gameId) ?? {};
+    const holderSocketId = holderOfSeat(claims, data.playerId);
+    if (holderSocketId) {
+      io.to(holderSocketId).emit('game:seat_intel', data);
+    }
+  });
+
+  // seat_timeout:私发持有者 + 全房公告(不含身份信息)
+  engine.on('seat_timeout', (data: { playerId: string; kind: string }) => {
+    const claims = seatClaims.get(gameId) ?? {};
+    const holderSocketId = holderOfSeat(claims, data.playerId);
+    if (holderSocketId) {
+      io.to(holderSocketId).emit('game:seat_timeout', data);
+    }
+    // 全房公告:不暴露角色/身份,只说 AI 接管了某席位
+    const state = engine.getSerializedState();
+    const player = state.players.find((p) => p.id === data.playerId);
+    const name = player?.name ?? '某玩家';
+    // v6.fix — 原 payload 缺少 playerName 字段,Classic.tsx data.playerName 读取为 undefined;
+    // 补上 playerName 字段与 announcement 公告文本,两者均安全(无角色/身份信息)。
+    io.to(gameId).emit('game:seat_timeout_public', {
+      playerId: data.playerId,
+      playerName: name,
+      kind: data.kind,
+      announcement: `👤 ${name} 超时,本轮由 AI 代打`,
+    });
   });
 
   // v6.86 — 双公司挖角/跳槽 live banner。挖角是双司局招牌时刻,实时播一条

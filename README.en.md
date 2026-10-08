@@ -66,6 +66,17 @@
 
 ---
 
+## 🌟 v6.132 → v6.160 · Take a seat as a rat + AIs that speak English / Japanese / Korean
+
+> From "watching the AIs play" to "playing alongside them": claim a rat's seat and speak, vote and get laid off yourself — or start an all-English big-tech-jargon game.
+
+- 🪑 **Humans in the rat seats** (v6.151→v6.155, Phase C) — claim a seat and you get a private identity card; a countdown speech box opens during discussion and a ballot during voting. Miss the timer and that seat's AI plays for you. AIs always keep the majority (cap `min(3, ⌊players/3⌋)`), and leaving, closing the tab or disconnecting hands the seat back to the AI.
+- 🎙 **Voice input** (v6.151) — talk instead of type in both the guest bar and the seat speech box; the transcript lands in the input (never auto-sent), and the mic button hides itself on browsers without speech recognition.
+- 🌐 **AIs speak the game's language** (v6.156→v6.157, Phase G) — English games switch to big-tech framing (PIP, stack-rank, RIF, "let's take this offline"), with English personas for all 9 personalities; Japanese and Korean games add local workplace-slang packs. The Chinese game is locked by 51 golden-snapshot prompts — unchanged byte for byte.
+- ⚖️ **Labor-law crash courses, batches 2 & 3** (v6.136→v6.139, v6.158) — bonus clawback right before payday, demotion pay cut, pregnancy "performance" trap, background-check threats, pre-Spring-Festival mass layoff, offer revoked before day one, dispatched worker "returned", Singles' Day overtime. **Seasonal scenarios** only headline the lobby while they're in season.
+- 🏆 **Spectator polish, wave 3** (v6.142→v6.147) — spectator-first phase hints, 3 new achievements, company battle report on the replay page, dedicated icons for Company Clash and Talkshow.
+- 🧪 **v6.160 wrap-up** — 4 integration-review findings plus 11 from a four-dimension follow-up review (engine / socket / locale / content) fixed: late prompts no longer overwrite the current round, prompt boxes clear at game over, the 👤 marker appears the moment a seat is claimed, in-progress votes are no longer leaked mid-vote, English games no longer get Chinese text injected into AI prompts (guest tags, event log, company-pack memories, hot-quote seeds), and two labor-law numbers corrected. Real two-client Socket.IO integration tests; every fix mutation-checked.
+
 ## 🌟 v6.86 → v6.131 · Company Clash + spectators at the table + Gen-Z reskin
 
 > Two AI companies battling on one map, spectators betting / intervening / steering the plot for real, humans joining as sideline guests, and a full miHoYo-style visual pass — "watching" leveled up into "playing".
@@ -183,7 +194,11 @@ Image: flux-schnell → doubao-seedream → qwen-image → gpt-image-1 → minim
 ✅ v6.94-6.101 Living-portrait i2v pipeline + 4-step onboarding + Gen-Z visual pass (mesh / elemental phases / hex cards) + 27 portraits
 ✅ v6.102-6.122 20-version audit sweep (skippable reveals, leave-confirm, settle history, clue card, grudge dot…) + labor-law scenario pack
 ✅ v6.124-6.131 🎤 Phase C humans-at-the-table — claim HR/union/lawyer/reporter, your words enter AI prompts, AIs answer by name
-🔜 next       Phase G EN prompt set + HN launch · Premium voice-clone / real-lawyer intake — commercialization, deferred
+✅ v6.132-6.150 README.en + launch kit refresh + 4-language mode cards / labor-law batch 2 + catalog regression net / spectator polish
+✅ v6.151-6.155 🪑 Phase C deep end — humans take rat seats (private ID card, countdown speech & vote, AI stand-in on timeout) + 🎙 voice input
+✅ v6.156-6.157 🌐 Phase G — AIs speak the game's language: English big-tech prompt set + Japanese / Korean flavor packs
+✅ v6.158-6.160 Labor-law batch 3 + seasonal scenarios / integration-review fixes + public release sync
+🔜 next       Immersive-mode seat UI · per-language TTS voices · HN launch · Premium voice-clone / real-lawyer intake — commercialization, deferred
 ```
 
 ## 🙏 Acknowledgements

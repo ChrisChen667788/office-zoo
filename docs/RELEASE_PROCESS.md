@@ -25,7 +25,7 @@ assets/screenshots/<NN>-<feature>.png
 | 03 | `03-talkshow-player.png` | 段子播放中(头像+字幕) | ⏳ 待截 |
 | 04 | `04-classic-game.png` | 经典模式 9 个鼠人 + 房间 | ⏳ 待截 |
 | 05 | `05-immersive-game.png` | 沉浸模式圆桌 + 发言气泡 | ⏳ 待截 |
-| 06 | `06-fired-landing.png` | 裁了么 5 关闯关进度 | ⏳ 待截 |
+| 04 | `04-fired-landing.png` | 裁了么 5 关闯关进度 | ⏳ 待截 |
 | 07 | `07-fired-chat.png` | 裁了么 1v1 跟 HR 见招拆招 | ⏳ 待截 |
 | 08 | `08-share-video.png` | HighlightReel 战报 + 下载视频按钮 | ⏳ 待截 |
 
@@ -82,7 +82,7 @@ README 里的"截图"段落格式(已经在 `README.md` 里):
 | 班味单口段子库 | ![Talkshow](./assets/screenshots/02-talkshow-list.png) |
 | 经典模式 2.5D 写字楼 | ![Classic](./assets/screenshots/04-classic-game.png) |
 | 沉浸模式圆桌 | ![Immersive](./assets/screenshots/05-immersive-game.png) |
-| 裁了么闯关 | ![Fired](./assets/screenshots/06-fired-landing.png) |
+| 裁了么闯关 | ![Fired](./assets/screenshots/04-fired-landing.png) |
 ```
 
 ---

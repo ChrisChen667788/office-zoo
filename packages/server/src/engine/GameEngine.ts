@@ -49,9 +49,16 @@ import {
   HUMAN_SPEECH_PER_ROUND_CAP,
   HUMAN_SPEECH_MAX_LEN,
   type HumanRoleId,
+  // v6.153 — Phase C 真人席位
+  sanitizeSeatSpeech,
+  validateSeatVote,
+  HUMAN_SEAT_SPEECH_TIMEOUT_MS,
+  HUMAN_SEAT_VOTE_TIMEOUT_MS,
+  type SeatClaims,
 } from '@furball/shared';
 import { TaskManager } from './TaskManager';
-import { BaseAgent } from '../agents/BaseAgent';
+import { BaseAgent, localizeRoom } from '../agents/BaseAgent';
+import type { GameLocale } from '@furball/shared';
 import { logger } from '../utils/logger';
 import { recordGameResults, recordVoteAgainst } from '../services/characterStatsStore';
 import { recordSpectatorViews } from '../services/userCharacterViewsStore';
@@ -75,6 +82,12 @@ const AI_NAMES = [
   '陈姐', '实习生小明',
 ];
 
+// v6.156 — 英文局只取 ASCII 英文名(公司主题包 NPC 名字保持原样)
+const AI_NAMES_EN = [
+  'Tony', 'Lisa', 'Kevin', 'Amy', 'David', 'Frank',
+  'Grace', 'Helen', 'Jack', 'Mike', 'Ruby', 'Oscar',
+];
+
 const ROOMS = [
   '开放工区', '茶水间', '会议室', 'HR办公室', '服务器机房',
   '监控室', '产品部', '老板办公室', '文印室', '电梯间',
@@ -82,6 +95,106 @@ const ROOMS = [
 
 function randomRoom(): string {
   return ROOMS[Math.floor(Math.random() * ROOMS.length)];
+}
+
+// ---------------------------------------------------------------------------
+// v6.156 — 讨论上下文纯函数(导出供测试)
+// ---------------------------------------------------------------------------
+/**
+ * 构建讨论上下文字符串,支持 zh/en/ja/ko locale。
+ * @internal 用于测试快照 + engine.buildDiscussionContext 调用。
+ */
+const HAN_RE = /[\u3400-\u9fff\uf900-\ufaff]/;
+
+export function buildDiscussionContextFn(
+  round: number,
+  alivePlayers: PlayerState[],
+  allPlayers: PlayerState[],
+  deadBodyLocation: string | undefined,
+  meetingCallerId: string | undefined,
+  recentEvents: GameEvent[],
+  lastRoundSpeeches: Array<{ name: string; text: string }>,
+  locale: GameLocale,
+): string {
+  if (locale === 'zh') {
+    const playerList = alivePlayers.map((p) => `${p.name}(在${p.position.room})`).join('、');
+    const deadPlayers = allPlayers.filter((p) => !p.isAlive);
+    const deadNames = deadPlayers.map((p) => p.name).join('、');
+
+    let ctx = `第${round}轮全员大会。在职员工: ${playerList}。`;
+    if (deadNames) {
+      ctx += ` 已被裁员: ${deadNames}。`;
+      const ghostVoters = deadPlayers.filter((p) => !p.ghostVoteUsed);
+      if (ghostVoters.length > 0) {
+        ctx += ` 注意: ${ghostVoters.map(p => p.name).join('、')}仍持有劳动仲裁投票权(各1票)!`;
+      }
+    }
+    if (deadBodyLocation) {
+      ctx += ` 有人在${deadBodyLocation}被"优化"了!`;
+      const nearBody = alivePlayers.filter((p) => p.position.room === deadBodyLocation);
+      if (nearBody.length > 0) {
+        ctx += ` 事发时在${deadBodyLocation}附近的人: ${nearBody.map(p => p.name).join('、')}(非常可疑!)。`;
+      }
+    }
+    if (meetingCallerId) {
+      const caller = allPlayers.find((p) => p.id === meetingCallerId);
+      if (caller) ctx += ` 紧急会议由 ${caller.name} 发起。`;
+    }
+    if (recentEvents.length > 0) {
+      ctx += ` 本轮事件: ${recentEvents.map(e => e.description).join('; ')}。`;
+    }
+    if (lastRoundSpeeches.length > 0 && round > 1) {
+      const recap = lastRoundSpeeches.slice(-3)
+        .map((s) => `${s.name}上轮说过:"${s.text.slice(0, 60)}${s.text.length > 60 ? '...' : ''}"`)
+        .join(' | ');
+      ctx += ` 上一轮会议记忆: ${recap}。`;
+    }
+    ctx += ' 注意:这是一场激烈的职场辩论!要用职场黑话互相质疑、指名道姓、戳穿对方话术,揪出藏在公司里的资本家内鬼。要有针对性地回应前面同事的发言,形成真正的辩论,而不是各说各话!';
+    return ctx;
+  }
+
+  // EN/JA/KO — shared English skeleton, then language instruction in system prompt
+  const playerList = alivePlayers.map(
+    (p) => `${p.name} (in ${localizeRoom(p.position.room, locale)})`
+  ).join(', ');
+  const deadPlayers = allPlayers.filter((p) => !p.isAlive);
+  const deadNames = deadPlayers.map((p) => p.name).join(', ');
+
+  let ctx = `Round ${round} all-hands meeting. Active employees: ${playerList}.`;
+  if (deadNames) {
+    ctx += ` Laid off: ${deadNames}.`;
+    const ghostVoters = deadPlayers.filter((p) => !p.ghostVoteUsed);
+    if (ghostVoters.length > 0) {
+      ctx += ` Note: ${ghostVoters.map(p => p.name).join(', ')} still hold labor-arbitration votes (1 each)!`;
+    }
+  }
+  if (deadBodyLocation) {
+    const localRoom = localizeRoom(deadBodyLocation, locale);
+    ctx += ` Someone was "restructured out" in the ${localRoom}!`;
+    const nearBody = alivePlayers.filter((p) => p.position.room === deadBodyLocation);
+    if (nearBody.length > 0) {
+      ctx += ` Spotted near the scene: ${nearBody.map(p => p.name).join(', ')} — very suspicious!`;
+    }
+  }
+  if (meetingCallerId) {
+    const caller = allPlayers.find((p) => p.id === meetingCallerId);
+    if (caller) ctx += ` Emergency meeting called by ${caller.name}.`;
+  }
+  // v6.160 — 事件描述默认是中文;外语局只用英文描述,没有英文描述又含汉字的事件宁可不进 prompt。
+  const eventLines = recentEvents
+    .map((e) => e.descriptionEn ?? (HAN_RE.test(e.description) ? null : e.description))
+    .filter((d): d is string => !!d);
+  if (eventLines.length > 0) {
+    ctx += ` This round's events: ${eventLines.join('; ')}.`;
+  }
+  if (lastRoundSpeeches.length > 0 && round > 1) {
+    const recap = lastRoundSpeeches.slice(-3)
+      .map((s) => `${s.name} last round: "${s.text.slice(0, 60)}${s.text.length > 60 ? '...' : ''}"`)
+      .join(' | ');
+    ctx += ` Last round recap: ${recap}.`;
+  }
+  ctx += ' REMINDER: This is a heated office debate. Call people out by name, use Big Tech jargon, expose whoever is acting suspicious, and root out the management mole. Respond directly to what others said — real debate, not parallel monologues!';
+  return ctx;
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -328,6 +441,23 @@ export class GameEngine extends EventEmitter {
   private smearPressure: Record<string, number> = {};
   /** v6.83 — 观众「聚光灯」:这些鼠下次发言加戏(取走即消费)。 */
   private spotlightIds = new Set<string>();
+
+  // ── v6.153 — 真人席位 ──────────────────────────────────────────────────────
+  /** 席位台账(playerId → userId),在 engine 层只管 controller 字段与挂起等待;
+   *  userId 映射由 socketHandler 维护,engine 只关心 playerId 是否 human。 */
+  private seatHumanIds = new Set<string>(); // 当前 controller='human' 的 playerId 集合
+  /** 讨论阶段挂起的真人发言等待:playerId → resolve(text|null)。 */
+  private pendingSeatSpeeches = new Map<string, (text: string | null) => void>();
+  /** 投票阶段挂起的真人投票等待:playerId → resolve(targetId|null)。 */
+  private pendingSeatVotes = new Map<string, (targetId: string | null) => void>();
+  /** 本轮预提交发言(在讨论开始前真人提前发来的):playerId → text。 */
+  private precommittedSpeeches = new Map<string, string>();
+  /** v6.fix — 本轮已提交过发言的真人席位(每轮开始前清空,防止二次提交产生下轮预提交)。 */
+  private spokenThisRound = new Set<string>();
+  /** 允许在测试里调小的超时时长(毫秒)。默认取 shared 常量。 */
+  private _seatSpeechTimeoutMs: number = HUMAN_SEAT_SPEECH_TIMEOUT_MS;
+  private _seatVoteTimeoutMs: number = HUMAN_SEAT_VOTE_TIMEOUT_MS;
+
   /** Child logger bound to this engine's gameId — created lazily. */
   private _log?: ReturnType<typeof logger.child>;
   private get log() {
@@ -396,11 +526,15 @@ export class GameEngine extends EventEmitter {
         }
       }
     } else {
+      // v6.156 — 非中文局只用 ASCII 英文名(AI_NAMES_EN),避免中文名出现在英/日/韩局
+      const locale = this.state.config.locale ?? 'zh';
+      const namePool = locale === 'zh' ? AI_NAMES : AI_NAMES_EN;
       // v6.35 P5 — weight each name by its hot-quote nomination count
       // over the last 7 days. weight = 1 + 0.5 × min(mentions, 5) — caps
       // at 3.5x so even a heavily-quoted rat doesn't show up every game.
-      const weights = AI_NAMES.map((n) => 1 + 0.5 * Math.min(nominationCounts.get(n) ?? 0, 5));
-      names = weightedSample(AI_NAMES, weights, count);
+      // (nomination counts are always keyed on AI_NAMES; for EN use uniform weights)
+      const weights = namePool.map((n) => 1 + 0.5 * Math.min(nominationCounts.get(n) ?? 0, 5));
+      names = weightedSample(namePool, weights, count);
     }
 
     // v6.38 P2 — role soft-preference. The pack's free-text role hint
@@ -460,6 +594,8 @@ export class GameEngine extends EventEmitter {
         // v6.51 P1 — per-NPC cross-game memory snippet (empty string for
         // default rosters or first-time pack NPCs).
         packMemoryByName[player.name],
+        // v6.156 — 透传 locale 到 AI agent
+        this.state.config.locale ?? 'zh',
       );
       this.agents.set(player.id, agent);
     }
@@ -484,7 +620,8 @@ export class GameEngine extends EventEmitter {
       const assignment = assignDualCompanies(this.state.players.map((p) => p.id), dogs);
       if (assignment) {
         for (const p of this.state.players) p.companyId = assignment[p.id];
-        this.addEvent('dual_start', '🏢⚔️🏢 双公司对抗开局 — A 司 vs B 司,抢市场、防内鬼、互相挖人');
+        this.addEvent('dual_start', '🏢⚔️🏢 双公司对抗开局 — A 司 vs B 司,抢市场、防内鬼、互相挖人',
+          '🏢⚔️🏢 Company Clash begins — Company A vs Company B: grab market share, watch for moles, poach each other');
       } else {
         this.state.config.mode = 'single';
         this._log?.warn?.({ count: this.state.players.length, dogs: dogs.length }, 'dual assignment failed, fallback to single');
@@ -541,13 +678,8 @@ export class GameEngine extends EventEmitter {
           // v6.51 P1 — load this pack's game history once and pre-format a
           // per-NPC grudge snippet keyed by name. createPlayers looks it up
           // after the roster shuffle. Fail-open like everything pack-related.
-          const memories = await listPackMemories(this.state.config.companyPackId);
-          if (memories.length > 0) {
-            for (const n of pack.npcs) {
-              const snippet = formatPackMemoryForNpc(n.name, memories);
-              if (snippet) packMemoryByName[n.name] = snippet;
-            }
-          }
+          Object.assign(packMemoryByName, await this.loadPackMemorySnippets(
+            this.state.config.companyPackId, pack.npcs.map((n) => n.name)));
         }
       } catch { /* fail-open — pack is a bonus, not a gate */ }
     }
@@ -567,11 +699,7 @@ export class GameEngine extends EventEmitter {
     // still arrive live via socket and append on top — pool just gives
     // every game some baseline "voice from the audience" texture even
     // if no current spectator submits during this round.
-    try {
-      const { getRecentHotQuoteTexts } = await import('../routes/hotQuotes');
-      const seeds = (await getRecentHotQuoteTexts()).slice(0, 5);
-      for (const t of seeds) this.pushLeakedHint(t);
-    } catch { /* hot quotes optional — never block game start */ }
+    await this.seedHotQuoteHints();
     this.emitState();
 
     // ROLE_REVEAL
@@ -589,6 +717,10 @@ export class GameEngine extends EventEmitter {
       // Main loop
       while (this.running && this.state.winner === WinCondition.NONE) {
         this.state.round++;
+        // v6.fix — 每轮开始时清空上一轮的预提交与已发言记录(预提交在 FREE_ROAM 阶段设置,
+        // 必须在此处清,不能在 runDiscussion 里清,否则会在读取之前就清掉。)
+        this.precommittedSpeeches.clear();
+        this.spokenThisRound.clear();
 
         // FREE_ROAM
         await this.setPhase(GamePhase.FREE_ROAM);
@@ -683,6 +815,15 @@ export class GameEngine extends EventEmitter {
     // stack frame is kept alive by the pending Promise, leaking memory.
     this.discussionResolver?.();
     this.discussionResolver = undefined;
+
+    // v6.153 — 结束所有挂起的真人席位等待,避免悬挂 Promise。
+    for (const resolve of this.pendingSeatSpeeches.values()) resolve(null);
+    this.pendingSeatSpeeches.clear();
+    for (const resolve of this.pendingSeatVotes.values()) resolve(null);
+    this.pendingSeatVotes.clear();
+    this.precommittedSpeeches.clear();
+    this.spokenThisRound.clear();
+    this.seatHumanIds.clear();
 
     // Drop all EventEmitter listeners (socket handler, future subscribers).
     this.removeAllListeners();
@@ -971,9 +1112,11 @@ export class GameEngine extends EventEmitter {
         if (res.outcome === 'blocked') {
           if (res.by === 'shield') {
             this.interventionShieldId = null; // 挡一刀即消费
-            this.addEvent('intervene', `🛡 观众众筹的「裁员保护协议」生效 — ${victim.name} 这刀被合同条款弹开了`);
+            this.addEvent('intervene', `🛡 观众众筹的「裁员保护协议」生效 — ${victim.name} 这刀被合同条款弹开了`,
+              `🛡 The audience-funded "layoff protection agreement" kicked in — ${victim.name} dodged the cut on a contract clause`);
           } else {
-            this.addEvent('protect', `${victim.name} 本来要被"优化",被工会代表暗中保住了`);
+            this.addEvent('protect', `${victim.name} 本来要被"优化",被工会代表暗中保住了`,
+              `${victim.name} was about to be "restructured out", but the union rep quietly saved them`);
           }
           this.emitState();
           break;
@@ -986,9 +1129,11 @@ export class GameEngine extends EventEmitter {
         this.state.deadBodyLocation = downed.position.room;
 
         if (res.outcome === 'intercepted') {
-          this.addEvent('intercept', `${downed.name}(法务顾问)用法律手段替 ${victim.name} 挡了一刀,自己被"优化"了`);
+          this.addEvent('intercept', `${downed.name}(法务顾问)用法律手段替 ${victim.name} 挡了一刀,自己被"优化"了`,
+            `${downed.name} (Legal Counsel) took the hit for ${victim.name} and got "restructured out" instead`);
         } else {
-          this.addEvent('kill', `${dog.name} 在 ${downed.position.room} "优化"了 ${downed.name}`);
+          this.addEvent('kill', `${dog.name} 在 ${downed.position.room} "优化"了 ${downed.name}`,
+            `${dog.name} "restructured out" ${downed.name} in the ${this.roomEn(downed.position.room)}`);
         }
         this.emit('kill', {
           killerId: dog.id,
@@ -1023,7 +1168,8 @@ export class GameEngine extends EventEmitter {
       );
       if (discoverer) {
         this.state.meetingCaller = discoverer.id;
-        this.addEvent('body_found', `${discoverer.name} 在 ${this.state.deadBodyLocation} 发现有人被裁了!`);
+        this.addEvent('body_found', `${discoverer.name} 在 ${this.state.deadBodyLocation} 发现有人被裁了!`,
+          `${discoverer.name} found someone laid off in the ${this.roomEn(this.state.deadBodyLocation)}!`);
       }
     }
   }
@@ -1040,8 +1186,16 @@ export class GameEngine extends EventEmitter {
     const dead = this.deadPlayers();
     const context = this.buildDiscussionContext();
 
+    // v6.fix — precommittedSpeeches.clear() 已移到主循环 round++ 之后,
+    // 在这里清空会导致读取前就清掉 FREE_ROAM 阶段提交的预发言。
+
+    // v6.153 — 区分 AI 玩家和真人席位玩家
+    const humanSeatAlive = alive.filter((p) => p.controller === 'human');
+    const aiAlive = alive.filter((p) => p.controller !== 'human');
+
     // Speakers go in a randomized order so the "first speaker sets the tone" role rotates.
-    const speakingOrder = shuffle(alive);
+    // 真人席位玩家不参与 AI 两波生成
+    const speakingOrder = shuffle(aiAlive);
 
     // ------------------------------------------------------------------
     // 2-wave parallelization. The original implementation generated each
@@ -1059,13 +1213,49 @@ export class GameEngine extends EventEmitter {
     // back-and-forth to lose.
     // ------------------------------------------------------------------
     const WAVE_COUNT = speakingOrder.length <= 3 ? 1 : 2;
-    const waveSize = Math.ceil(speakingOrder.length / WAVE_COUNT);
+    const waveSize = speakingOrder.length > 0
+      ? Math.ceil(speakingOrder.length / WAVE_COUNT)
+      : 1;
     const waves: PlayerState[][] = [];
     for (let i = 0; i < speakingOrder.length; i += waveSize) {
       waves.push(speakingOrder.slice(i, i + waveSize));
     }
 
-    const speeches: Array<{ playerId: string; playerName: string; text: string; role: string; team: Team }> = [];
+    const speeches: Array<{
+      playerId: string; playerName: string; text: string;
+      role: string; team: Team; isHuman?: boolean;
+    }> = [];
+
+    // v6.153 — 为每个真人席位启动等待 Promise(与 AI 生成并行)
+    const humanSpeechPromises = humanSeatAlive.map((player) => {
+      // 先检查是否有预提交
+      const precommitted = this.precommittedSpeeches.get(player.id);
+      if (precommitted) {
+        this.precommittedSpeeches.delete(player.id);
+        return Promise.resolve({ player, text: precommitted, fromPrecommit: true });
+      }
+      // 发 seat_prompt 并开始计时
+      this.emit('seat_prompt', {
+        playerId: player.id,
+        kind: 'speech',
+        timeoutMs: this._seatSpeechTimeoutMs,
+        round: this.state.round,
+      });
+      const waitForHuman = new Promise<string | null>((resolve) => {
+        const timer = setTimeout(() => {
+          this.pendingSeatSpeeches.delete(player.id);
+          // v6.160 — 超时即由 AI 代打,这一席本轮算「已发言」:迟到的提交按 already_spoken 拒绝,
+          // 不再落进预提交表(之前会漏标,迟到包可能变成下一轮的预提交)。
+          this.spokenThisRound.add(player.id);
+          resolve(null);
+        }, this._seatSpeechTimeoutMs);
+        this.pendingSeatSpeeches.set(player.id, (text) => {
+          clearTimeout(timer);
+          resolve(text);
+        });
+      });
+      return waitForHuman.then((text) => ({ player, text, fromPrecommit: false }));
+    });
 
     for (const wave of waves) {
       // Snapshot priorSpeeches AT WAVE START so all speakers in this wave see
@@ -1123,6 +1313,58 @@ export class GameEngine extends EventEmitter {
       }
     }
 
+    // v6.153 — AI 两波全部完成后,再 await 真人的等待结果
+    const humanResults = await Promise.allSettled(humanSpeechPromises);
+    // 先处理按时提交的真人发言
+    const timedOutHumans: Array<{ player: PlayerState }> = [];
+    for (const r of humanResults) {
+      if (r.status !== 'fulfilled') continue;
+      const { player, text } = r.value;
+      if (text) {
+        // 真人按时提交:直接采用,排在 AI 之后,带 isHuman 标记
+        speeches.push({
+          playerId: player.id,
+          playerName: player.name,
+          text,
+          role: player.role,
+          team: player.team,
+          isHuman: true,
+        });
+      } else {
+        // 超时/释放:收集后并行代打(v6.fix — 原串行叠加延迟 N×LLM 耗时)
+        timedOutHumans.push({ player });
+      }
+    }
+    // v6.fix — 并行代打所有超时真人席位,避免 N 倍串行延迟
+    const priorSpeeches = speeches.map((s) => ({ name: s.playerName, text: s.text }));
+    const fallbackResults = await Promise.allSettled(
+      timedOutHumans.map(async ({ player }) => {
+        const agent = this.agents.get(player.id);
+        const fallbackText = agent
+          ? await agent.generateSpeech(context, priorSpeeches, {
+              gameId: this.state.id,
+              round: this.state.round,
+              leakedHints: this.leakedHints,
+              humanSpeeches: this.humanSpeeches,
+              spotlight: false,
+            }).catch(() => this.fallbackSpeech(player))
+          : this.fallbackSpeech(player);
+        return { player, fallbackText };
+      }),
+    );
+    for (const r of fallbackResults) {
+      if (r.status !== 'fulfilled') continue;
+      const { player, fallbackText } = r.value;
+      speeches.push({
+        playerId: player.id,
+        playerName: player.name,
+        text: fallbackText,
+        role: player.role,
+        team: player.team,
+      });
+      this.emit('seat_timeout', { playerId: player.id, kind: 'speech' });
+    }
+
     // Remember this round's speeches so future rounds can reference them
     this.lastRoundSpeeches = speeches.map((s) => ({ name: s.playerName, text: s.text }));
 
@@ -1168,6 +1410,10 @@ export class GameEngine extends EventEmitter {
     // Budget: 8 speeches × ~20s each + buffer ≈ 4 min. Anything beyond that is
     // pathological — force resolve so the game can advance to voting.
     const DISCUSSION_HARD_TIMEOUT_MS = 4 * 60 * 1000;
+
+    // v6.160 — 引擎在 AI 波次 await 期间被 destroy:监听已全部移除,discussionResolver 也已清过,
+    // 若继续往下走只能等 4 分钟硬超时才释放这条异步栈。直接返回。
+    if (this.destroyed) return;
 
     const waitForPlayback = new Promise<void>((resolve) => {
       this.discussionResolver = resolve;
@@ -1230,15 +1476,42 @@ export class GameEngine extends EventEmitter {
       await this.maybeCrossActions(relationGraph);
       this.maybeCrossSmear(); // v6.89 — 挖角之后放风抹黑(给被黑者加舆论票)
     }
-    /** 双公司时投票/旧账都只在本公司圈内;单公司 = 全员。 */
+    /** 双公司时投票/旧账都只在本公司圈内;单公司 = 全员。
+     *  v6.fix — 内部复用 getSeatCandidates 保证与 pushSeatVote 的校验逻辑完全一致。 */
     const candidatesFor = (p: PlayerState) =>
-      isDual && p.companyId
-        ? aliveCandidates.filter((c) =>
-            this.state.players.find((x) => x.id === c.id)?.companyId === p.companyId)
-        : aliveCandidates;
+      this.getSeatCandidates(p, alive).map((c) => ({ id: c.id, name: c.name }));
 
-    // All alive players vote simultaneously
-    const votePromises = alive.map(async (player) => {
+    // v6.153 — 区分真人席位和 AI,分别并行处理
+    const humanSeatVoters = alive.filter((p) => p.controller === 'human');
+    const aiVoters = alive.filter((p) => p.controller !== 'human');
+
+    // 为每个真人席位启动等待(与 AI 投票并行)
+    const humanVotePromises = humanSeatVoters.map((player) => {
+      const myCandidates = candidatesFor(player);
+      // v6.fix — 客户端期望 string[](playerId 列表);原来发送 {id,name}[] 导致 UI 无法渲染候选人
+      const myCandidateIds = this.getSeatCandidates(player, alive).map((c) => c.id);
+      this.emit('seat_prompt', {
+        playerId: player.id,
+        kind: 'vote',
+        candidates: myCandidateIds,
+        timeoutMs: this._seatVoteTimeoutMs,
+        round: this.state.round,
+      });
+      const waitForHuman = new Promise<string | null>((resolve) => {
+        const timer = setTimeout(() => {
+          this.pendingSeatVotes.delete(player.id);
+          resolve(null);
+        }, this._seatVoteTimeoutMs);
+        this.pendingSeatVotes.set(player.id, (targetId) => {
+          clearTimeout(timer);
+          resolve(targetId);
+        });
+      });
+      return waitForHuman.then((targetId) => ({ player, targetId }));
+    });
+
+    // All alive AI players vote simultaneously
+    const votePromises = aiVoters.map(async (player) => {
       const agent = this.agents.get(player.id);
       if (!agent) return;
 
@@ -1274,7 +1547,8 @@ export class GameEngine extends EventEmitter {
         if (target !== 'pass') {
           this.state.ghostVotes[ghost.id] = target;
           ghost.ghostVoteUsed = true;
-          this.addEvent('ghost_vote', `离职员工 ${ghost.name} 发起了劳动仲裁投票!`);
+          this.addEvent('ghost_vote', `离职员工 ${ghost.name} 发起了劳动仲裁投票!`,
+            `Ex-employee ${ghost.name} filed a labor-arbitration vote!`);
           // Real-time signal — single ghost just voted.
           this.emit('ghost_vote_cast', {
             ghostId: ghost.id,
@@ -1286,6 +1560,36 @@ export class GameEngine extends EventEmitter {
         // Ghost votes default to pass on failure (save for later)
       }
     });
+
+    // v6.153 — 处理真人席位投票结果(与 AI 投票并行等待)
+    const humanVoteSettled = await Promise.allSettled(humanVotePromises);
+    for (const r of humanVoteSettled) {
+      if (r.status !== 'fulfilled') continue;
+      const { player, targetId } = r.value;
+      if (targetId !== null) {
+        // pushSeatVote 已写入 state.votes,这里只需记录;不再经过 grudgeRedirect
+        // (真人投票是自由意志,不被 AI 仇恨链改票)
+      } else {
+        // 超时/释放:用 AI 代投
+        const agent = this.agents.get(player.id);
+        const myCandidates = candidatesFor(player);
+        const myCandidateArchs = myCandidates
+          .map((c) => archByPlayer.get(c.id))
+          .filter((a): a is string => !!a);
+        try {
+          const target = agent
+            ? await agent.generateVote(context, myCandidates)
+            : myCandidates.filter((c) => c.id !== player.id)[0]?.id ?? 'skip';
+          this.state.votes[player.id] = this.grudgeRedirect(
+            player, target, relationGraph, archByPlayer, playerByArch, nameById, myCandidateArchs,
+          );
+        } catch {
+          const others = myCandidates.filter((c) => c.id !== player.id);
+          this.state.votes[player.id] = others[Math.floor(Math.random() * others.length)]?.id ?? 'skip';
+        }
+        this.emit('seat_timeout', { playerId: player.id, kind: 'vote' });
+      }
+    }
 
     // Use allSettled: a single rejection from Promise.all short-circuits the
     // remaining voters, but their async writes to state.votes / state.ghostVotes
@@ -1690,10 +1994,12 @@ export class GameEngine extends EventEmitter {
         const tag = company === 'a' ? 'A 司' : 'B 司';
         if (resolvePoach(chance, Math.random())) {
           const defectMsg = `🤝 ${tag}挖角成功 — ${best.target.name} 拿着 offer 跳槽了(原同事连夜把 TA 移出群聊)`;
-          this.performDefection(best.target, company, defectMsg);
+          this.performDefection(best.target, company, defectMsg,
+            `🤝 ${company === 'a' ? 'Company A' : 'Company B'} poached ${best.target.name} — they took the offer and jumped ship (old teammates kicked them from the group chat overnight)`);
         } else {
           const failMsg = `📩 ${tag}给 ${best.target.name} 发了 offer,被原地已读不回(忠诚度拉满)`;
-          this.addEvent('poach_failed', failMsg);
+          this.addEvent('poach_failed', failMsg,
+            `📩 ${company === 'a' ? 'Company A' : 'Company B'} sent ${best.target.name} an offer — left on read (loyalty maxed out)`);
           this.emit('cross_action', {
             kind: 'poach_failed', text: failMsg, company,
             targetId: best.target.id, targetName: best.target.name,
@@ -1711,13 +2017,13 @@ export class GameEngine extends EventEmitter {
    * 拍板②内鬼带身份)→ 落 defection 事件 + 实时 cross_action banner → 老东家全员记
    * backstab 喂关系图(fire-and-forget)。调用前 target.companyId 仍是「老东家」。
    */
-  private performDefection(target: PlayerState, toCompany: CompanyId, text: string): void {
+  private performDefection(target: PlayerState, toCompany: CompanyId, text: string, textEn?: string): void {
     const from = target.companyId;
     const oldColleagues = this.state.players
       .filter((p) => p.companyId === from && p.id !== target.id && p.personality)
       .map((p) => p.personality);
     target.companyId = toCompany;
-    this.addEvent('defection', text);
+    this.addEvent('defection', text, textEn);
     this.emit('cross_action', {
       kind: 'defection', text, company: toCompany,
       targetId: target.id, targetName: target.name,
@@ -1761,7 +2067,8 @@ export class GameEngine extends EventEmitter {
         const tag = company === 'a' ? 'A 司' : 'B 司';
         this.smearPressure[target.id] = (this.smearPressure[target.id] ?? 0) + SMEAR_PRESSURE;
         const msg = `📰 ${tag}放风抹黑 —— 内部邮件指认对家 ${target.name} 是${label}(真假参半,但够搅浑对面投票了)`;
-        this.addEvent('smear', msg);
+        this.addEvent('smear', msg,
+          `📰 ${company === 'a' ? 'Company A' : 'Company B'} leaked a smear — an internal email claims rival ${target.name} is a ${shownTeam === Team.DOG ? 'management mole' : 'planted worker'} (half-true, but enough to muddy their vote)`);
         this.emit('cross_action', {
           kind: 'smear', text: msg, company,
           targetId: target.id, targetName: target.name,
@@ -1800,6 +2107,8 @@ export class GameEngine extends EventEmitter {
         avatarKey: p.avatarKey,
         // v6.86 — 双公司所属(单公司 undefined)
         companyId: p.companyId,
+        // v6.152 — 真人席位控制者(缺省 ai)
+        controller: p.controller,
       })),
       round: this.state.round,
       taskProgress: this.state.taskProgress,
@@ -1848,12 +2157,161 @@ export class GameEngine extends EventEmitter {
     if (used >= HUMAN_SPEECH_PER_ROUND_CAP) return { accepted: false, reason: 'round_cap' };
     this.humanSpeechRoundCount.set(key, used + 1);
 
-    this.humanSpeeches.push(formatHumanSpeechForPrompt(roleId, text));
+    this.humanSpeeches.push(formatHumanSpeechForPrompt(roleId, text, this.state.config.locale ?? 'zh'));
     if (this.humanSpeeches.length > 6) this.humanSpeeches.shift();
 
-    this.addEvent('human_speech', `🎤 ${role.emoji} ${role.label}:${text}`);
+    this.addEvent('human_speech', `🎤 ${role.emoji} ${role.label}:${text}`, `🎤 ${role.emoji} ${role.labelEn}: ${text}`);
     this.emit('human_speech', { role: roleId, label: role.label, emoji: role.emoji, text });
     return { accepted: true };
+  }
+
+  // ── v6.153 — 真人席位接入 ─────────────────────────────────────────────────
+
+  /**
+   * 标记某玩家席位为真人控制。
+   * 条件:游戏未结束、玩家存在且存活。
+   * 成功后把 PlayerState.controller 设为 'human' 并广播状态。
+   */
+  /**
+   * v6.fix — 双公司模式:取该玩家可投的候选人 PlayerState 集合(本公司存活)。
+   * 单公司模式:全体存活玩家。
+   * 同时用于 runVoting 的 seat_prompt 候选人和 pushSeatVote 的校验集合,
+   * 保证两处逻辑一致,不独立重算。
+   */
+  private getSeatCandidates(voter: PlayerState, alivePlayers: PlayerState[]): PlayerState[] {
+    if (this.state.config.mode === 'dual' && voter.companyId) {
+      return alivePlayers.filter((c) => c.companyId === voter.companyId);
+    }
+    return alivePlayers;
+  }
+
+  setSeatHuman(playerId: string): { ok: boolean; reason?: string } {
+    if (this.state.phase === GamePhase.GAME_OVER || this.destroyed) {
+      return { ok: false, reason: 'game_over' };
+    }
+    const player = this.state.players.find((p) => p.id === playerId && p.isAlive);
+    if (!player) return { ok: false, reason: 'player_not_found' };
+    player.controller = 'human';
+    this.seatHumanIds.add(playerId);
+    this.emitState();
+    return { ok: true };
+  }
+
+  /**
+   * 释放席位:controller 回 'ai',并把该玩家所有挂起的等待立刻以 null 结束 → AI 接管。
+   */
+  releaseSeat(playerId: string): void {
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (player) player.controller = 'ai';
+    this.seatHumanIds.delete(playerId);
+    this.precommittedSpeeches.delete(playerId);
+    // 立刻以 null 解除挂起的等待(让 AI 代打)
+    const speechResolve = this.pendingSeatSpeeches.get(playerId);
+    if (speechResolve) {
+      this.pendingSeatSpeeches.delete(playerId);
+      speechResolve(null);
+    }
+    const voteResolve = this.pendingSeatVotes.get(playerId);
+    if (voteResolve) {
+      this.pendingSeatVotes.delete(playerId);
+      voteResolve(null);
+    }
+    this.emitState();
+  }
+
+  /**
+   * 真人席位提交发言。
+   * 条件:该玩家是 human 控制且存活;阶段在 FREE_ROAM/MEETING/DISCUSSION;
+   * 用 sanitizeSeatSpeech 清洗;若有挂起等待立刻 resolve,否则存为预提交。
+   */
+  pushSeatSpeech(
+    playerId: string,
+    raw: string,
+  ): { accepted: boolean; reason?: string } {
+    const player = this.state.players.find((p) => p.id === playerId && p.isAlive);
+    if (!player || player.controller !== 'human') {
+      return { accepted: false, reason: 'not_human_seat' };
+    }
+    const allowed = [GamePhase.FREE_ROAM, GamePhase.MEETING, GamePhase.DISCUSSION];
+    if (!(allowed as string[]).includes(this.state.phase)) {
+      return { accepted: false, reason: 'wrong_phase' };
+    }
+    const text = sanitizeSeatSpeech(raw);
+    if (!text) return { accepted: false, reason: 'empty' };
+    // v6.fix — 本轮已发过言:拒绝二次提交(resolve 后再提交会误存为下轮预提交)
+    if (this.spokenThisRound.has(playerId)) {
+      return { accepted: false, reason: 'already_spoken' };
+    }
+
+    const resolve = this.pendingSeatSpeeches.get(playerId);
+    // v6.160 — 讨论阶段却没有等待中的发言提示:说明这一席是讨论开始后才占的,本轮已由 AI 代打。
+    // 之前会存成预提交,而预提交在下一轮开局就被清空 —— 用户的话被静默吞掉。改为明确拒绝
+    // (与 pushSeatVote 的 no_pending_vote 对称);自由活动/会议阶段的预提交不受影响。
+    if (!resolve && this.state.phase === GamePhase.DISCUSSION) {
+      return { accepted: false, reason: 'no_pending_speech' };
+    }
+    if (resolve) {
+      // 本轮讨论正在等待此人发言:立刻交付
+      this.pendingSeatSpeeches.delete(playerId);
+      resolve(text);
+    } else {
+      // 预提交:本轮讨论开始时直接采用(每轮开始前已清空)
+      this.precommittedSpeeches.set(playerId, text);
+    }
+    this.spokenThisRound.add(playerId);
+    return { accepted: true };
+  }
+
+  /**
+   * 真人席位提交投票。
+   * 条件:阶段 VOTING、有挂起的投票等待;按该玩家的真实候选人集合校验;
+   * 弃票沿用引擎现有 'skip' 表示;合法则直接写入 state.votes(不经 grudgeRedirect)。
+   */
+  pushSeatVote(
+    playerId: string,
+    targetId: string,
+  ): { accepted: boolean; reason?: string } {
+    if (this.state.phase !== GamePhase.VOTING) {
+      return { accepted: false, reason: 'wrong_phase' };
+    }
+    const player = this.state.players.find((p) => p.id === playerId && p.isAlive);
+    if (!player || player.controller !== 'human') {
+      return { accepted: false, reason: 'not_human_seat' };
+    }
+    const resolve = this.pendingSeatVotes.get(playerId);
+    if (!resolve) {
+      return { accepted: false, reason: 'no_pending_vote' };
+    }
+    // v6.fix — 候选人集合复用 getSeatCandidates(与 runVoting 的 seat_prompt 保持一致)
+    const alive = this.alivePlayers();
+    const candidateIds = this.getSeatCandidates(player, alive).map((p) => p.id);
+    const validation = validateSeatVote(targetId, candidateIds, true);
+    if (!validation.ok) {
+      return { accepted: false, reason: validation.reason };
+    }
+    // 合法:写入 state.votes 并 resolve 等待(不经 grudgeRedirect)
+    this.state.votes[playerId] = validation.target!;
+    this.pendingSeatVotes.delete(playerId);
+    resolve(validation.target!);
+    return { accepted: true };
+  }
+
+  /** 测试用:调小超时时长避免等待。 */
+  _setSeatTimeoutsForTest(speechMs: number, voteMs: number): void {
+    this._seatSpeechTimeoutMs = speechMs;
+    this._seatVoteTimeoutMs = voteMs;
+  }
+
+  /**
+   * v6.153 — 给某玩家的 BaseAgent 追加角色情报。
+   * 若该玩家是真人席位控制,同时 emit 'seat_intel' 供 socket 私发给持有者。
+   */
+  private addRoleIntelForPlayer(playerId: string, text: string): void {
+    this.agents.get(playerId)?.addRoleIntel(text);
+    const player = this.state.players.find((p) => p.id === playerId);
+    if (player?.controller === 'human') {
+      this.emit('seat_intel', { playerId, text });
+    }
   }
 
   /**
@@ -1878,7 +2336,8 @@ export class GameEngine extends EventEmitter {
         ? pick.team
         : (pick.team === Team.DOG ? Team.CAT : Team.DOG);
       const label = shownTeam === Team.DOG ? '资本家那边' : '打工人这边';
-      this.addEvent('intervene', `🔍 观众买通了内部邮箱 — 背景调查显示 ${pick.name} 更像${label}的人(小道消息,别全信)`);
+      this.addEvent('intervene', `🔍 观众买通了内部邮箱 — 背景调查显示 ${pick.name} 更像${label}的人(小道消息,别全信)`,
+        `🔍 The audience bribed their way into the internal mailbox — a background check says ${pick.name} looks like ${shownTeam === Team.DOG ? 'management' : 'one of the workers'} (rumor, don't fully trust it)`);
       // v6.110(审计玩法 F6)— 花 200 筹码的结果不能只躺 event log 小字:
       // 专属事件推客户端弹「内部邮件」卡,买完立刻有仪式感。
       this.emit('intervene_clue', { targetName: pick.name, label });
@@ -1892,7 +2351,8 @@ export class GameEngine extends EventEmitter {
     if (itemId === 'shield') {
       if (this.interventionShieldId) return { accepted: false, reason: 'shield_active' };
       this.interventionShieldId = target.id;
-      this.addEvent('intervene', `🛡 观众众筹了一份「裁员保护协议」罩住 ${target.name} — 本轮裁不动`);
+      this.addEvent('intervene', `🛡 观众众筹了一份「裁员保护协议」罩住 ${target.name} — 本轮裁不动`,
+        `🛡 The audience crowd-funded a "layoff protection agreement" for ${target.name} — they can't be cut this round`);
       this.emitState();
       return { accepted: true };
     }
@@ -1906,14 +2366,16 @@ export class GameEngine extends EventEmitter {
       }
       const toCompany: CompanyId = target.companyId === 'a' ? 'b' : 'a';
       const tag = toCompany === 'a' ? 'A 司' : 'B 司';
-      this.performDefection(target, toCompany, `📦 观众众筹的「猎头快递」砸到 ${target.name} 头上 — 当场打包跳槽去了 ${tag}(内鬼身份一起带走)`);
+      this.performDefection(target, toCompany, `📦 观众众筹的「猎头快递」砸到 ${target.name} 头上 — 当场打包跳槽去了 ${tag}(内鬼身份一起带走)`,
+        `📦 An audience-funded "headhunter parcel" landed on ${target.name} — they packed up and jumped to ${toCompany === 'a' ? 'Company A' : 'Company B'} on the spot (mole identity and all)`);
       this.emitState();
       return { accepted: true };
     }
 
     // spotlight
     this.spotlightIds.add(target.id);
-    this.addEvent('intervene', `🎭 观众给 ${target.name} 打了聚光灯 — 下轮发言加戏`);
+    this.addEvent('intervene', `🎭 观众给 ${target.name} 打了聚光灯 — 下轮发言加戏`,
+      `🎭 The audience put a spotlight on ${target.name} — expect extra drama in their next speech`);
     this.emitState();
     return { accepted: true };
   }
@@ -1986,7 +2448,7 @@ export class GameEngine extends EventEmitter {
 
   private async setPhase(phase: GamePhase): Promise<void> {
     this.state.phase = phase;
-    this.addEvent('phase_change', `阶段切换: ${phase}`);
+    this.addEvent('phase_change', `阶段切换: ${phase}`, `Phase change: ${phase}`);
     this.emit('phase_change', { phase, round: this.state.round });
     this.emitState();
   }
@@ -2017,6 +2479,9 @@ export class GameEngine extends EventEmitter {
     this.state.protectedPlayerId = undefined;
     this.state.bodyguardTargetId = undefined;
     const alive = this.alivePlayers();
+    // v6.156 — roleIntel strings must be locale-aware so EN/JA/KO prompts
+    // stay CJK-free (all 6 addRoleIntel calls used to pass Chinese-only strings).
+    const locale = this.state.config.locale ?? 'zh';
 
     // 工会代表 (MEDIC_CAT) — nullify-protect one living player from tonight's kill.
     const medic = alive.find((p) => p.role === Role.MEDIC_CAT);
@@ -2025,8 +2490,11 @@ export class GameEngine extends EventEmitter {
       if (targetId) {
         this.state.protectedPlayerId = targetId;
         const target = this.state.players.find((p) => p.id === targetId);
-        this.agents.get(medic.id)?.addRoleIntel(
-          `你(工会代表)这一轮暗中罩着 ${target?.name ?? targetId},挡住了针对 TA 的"优化"。`,
+        this.addRoleIntelForPlayer(
+          medic.id,
+          locale === 'zh'
+            ? `你(工会代表)这一轮暗中罩着 ${target?.name ?? targetId},挡住了针对 TA 的"优化"。`
+            : `You (Union Rep) secretly covered ${target?.name ?? targetId} this round, blocking any "optimization" against them.`,
         );
       }
     }
@@ -2039,8 +2507,11 @@ export class GameEngine extends EventEmitter {
       if (targetId) {
         this.state.bodyguardTargetId = targetId;
         const target = this.state.players.find((p) => p.id === targetId);
-        this.agents.get(bodyguard.id)?.addRoleIntel(
-          `你(法务顾问)这一轮贴身护着 ${target?.name ?? targetId},真出事你会用法律手段替 TA 挡下(自己担风险)。`,
+        this.addRoleIntelForPlayer(
+          bodyguard.id,
+          locale === 'zh'
+            ? `你(法务顾问)这一轮贴身护着 ${target?.name ?? targetId},真出事你会用法律手段替 TA 挡下(自己担风险)。`
+            : `You (Legal Counsel) are body-blocking ${target?.name ?? targetId} this round — if they're targeted, you take the hit.`,
         );
       }
     }
@@ -2057,10 +2528,14 @@ export class GameEngine extends EventEmitter {
         const target = this.state.players.find((p) => p.id === targetId);
         if (target) {
           const backlog = target.tasks?.length ?? 0;
-          this.agents.get(vigilante.id)?.addRoleIntel(
-            `你(数据分析师)调了 ${target.name} 的 OKR 后台:TA 名下挂着 ${backlog} 个待办${backlog === 0 ? '(一个活都没有,可疑)' : ''}。`,
+          this.addRoleIntelForPlayer(
+            vigilante.id,
+            locale === 'zh'
+              ? `你(数据分析师)调了 ${target.name} 的 OKR 后台:TA 名下挂着 ${backlog} 个待办${backlog === 0 ? '(一个活都没有,可疑)' : ''}。`
+              : `You (Data Analyst) pulled ${target.name}'s OKR backlog: ${backlog} open task(s)${backlog === 0 ? ' — zero tasks, highly suspicious' : ''}.`,
           );
-          this.addEvent('role_action', '📊 数据分析师这一轮扒了一个人的 OKR 后台');
+          this.addEvent('role_action', '📊 数据分析师这一轮扒了一个人的 OKR 后台',
+            "📊 The Data Analyst dug into someone's OKR backlog this round");
         }
       }
     }
@@ -2073,10 +2548,16 @@ export class GameEngine extends EventEmitter {
         this.investigatedByDetective.add(targetId);
         const target = this.state.players.find((p) => p.id === targetId);
         if (target) {
-          this.agents.get(detective.id)?.addRoleIntel(
-            `你(HR总监)查了 ${target.name} 的真实绩效档案:TA 属于 ${teamLabel(target.team)}阵营。`,
+          // v6.156 — use EN teamLabel for non-zh to avoid CJK in prompt
+          const teamLabelEn = target.team === Team.DOG ? 'management' : target.team === Team.CAT ? 'worker' : 'neutral';
+          this.addRoleIntelForPlayer(
+            detective.id,
+            locale === 'zh'
+              ? `你(HR总监)查了 ${target.name} 的真实绩效档案:TA 属于 ${teamLabel(target.team)}阵营。`
+              : `You (HR Director) ran ${target.name}'s real performance file: they are on the ${teamLabelEn} side.`,
           );
-          this.addEvent('role_action', '🔍 HR总监这一轮暗中查了一个人的底');
+          this.addEvent('role_action', '🔍 HR总监这一轮暗中查了一个人的底',
+            '🔍 The HR Director quietly ran a background check on someone this round');
         }
       }
     }
@@ -2094,10 +2575,15 @@ export class GameEngine extends EventEmitter {
         this.auditedByMedium.add(targetId);
         const target = this.state.players.find((p) => p.id === targetId);
         if (target) {
-          this.agents.get(medium.id)?.addRoleIntel(
-            `你(内审专员)翻了已离职的 ${target.name} 的档案:TA 当年其实属于 ${teamLabel(target.team)}阵营。`,
+          const mediumTeamLabelEn = target.team === Team.DOG ? 'management' : target.team === Team.CAT ? 'worker' : 'neutral';
+          this.addRoleIntelForPlayer(
+            medium.id,
+            locale === 'zh'
+              ? `你(内审专员)翻了已离职的 ${target.name} 的档案:TA 当年其实属于 ${teamLabel(target.team)}阵营。`
+              : `You (Internal Auditor) reviewed ex-employee ${target.name}'s file: they were on the ${mediumTeamLabelEn} side.`,
           );
-          this.addEvent('role_action', '🔎 内审专员这一轮查了一份离职员工的档案');
+          this.addEvent('role_action', '🔎 内审专员这一轮查了一份离职员工的档案',
+            "🔎 The Internal Auditor pulled an ex-employee's file this round");
         }
       }
     }
@@ -2118,23 +2604,68 @@ export class GameEngine extends EventEmitter {
             .filter((p) => p.id !== target.id && p.position?.room === room)
             .map((p) => p.name);
           const company = others.length ? `身边还有 ${others.join('、')}` : '独来独往、身边没人';
-          this.agents.get(adventurer.id)?.addRoleIntel(
-            `你(销售冠军)靠人脉摸到 ${target.name} 今晚的行踪:TA 在 ${room},${company}。`,
+          const companyEn = others.length ? `with ${others.join(', ')} nearby` : 'alone — no one else around';
+          this.addRoleIntelForPlayer(
+            adventurer.id,
+            locale === 'zh'
+              ? `你(销售冠军)靠人脉摸到 ${target.name} 今晚的行踪:TA 在 ${room},${company}。`
+              // v6.156 — 房间名同样要本地化,否则英文情报里混入中文房间名(兜底值「某处」同理)
+              : `You (Sales Ace) tracked ${target.name} tonight: in ${target.position?.room ? localizeRoom(target.position.room, locale) : 'somewhere'}, ${companyEn}.`,
           );
-          this.addEvent('role_action', '🏆 销售冠军这一轮追踪了一个人的行踪');
+          this.addEvent('role_action', '🏆 销售冠军这一轮追踪了一个人的行踪',
+            '🏆 The Sales Ace tailed someone this round');
         }
       }
     }
   }
 
-  private addEvent(type: string, description: string): void {
+  /** descriptionEn:非中文局讨论上下文用(见 buildDiscussionContextFn);中文局与回放只看 description。 */
+  private addEvent(type: string, description: string, descriptionEn?: string): void {
     this.timeline.push({
       round: this.state.round,
       phase: this.state.phase,
       type,
       description,
+      ...(descriptionEn ? { descriptionEn } : {}),
       timestamp: Date.now(),
     });
+  }
+
+  /**
+   * v6.51 P1 — 公司主题包的跨局记忆片段(按 NPC 名),createPlayers 洗牌后按名查。
+   * v6.160 — 片段是中文(formatPackMemoryForNpc),外语局不注入,与 v6.156
+   * 「跨局记忆在非中文局不注入」同一口径。
+   */
+  private async loadPackMemorySnippets(packId: string, npcNames: string[]): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    if ((this.state.config.locale ?? 'zh') !== 'zh') return out;
+    const memories = await listPackMemories(packId);
+    if (memories.length === 0) return out;
+    for (const name of npcNames) {
+      const snippet = formatPackMemoryForNpc(name, memories);
+      if (snippet) out[name] = snippet;
+    }
+    return out;
+  }
+
+  /**
+   * v6.33 P4 — 用金句池最近 5 条预置观众爆料,让每局都有点「观众的声音」;
+   * 局内实时提交的 PSYWAR 爆料照常叠加。
+   * v6.160 — 金句池是中文观众投稿,外语局不预置(否则中文爆料进英文 prompt)。
+   */
+  private async seedHotQuoteHints(): Promise<void> {
+    if ((this.state.config.locale ?? 'zh') !== 'zh') return;
+    try {
+      const { getRecentHotQuoteTexts } = await import('../routes/hotQuotes');
+      const seeds = (await getRecentHotQuoteTexts()).slice(0, 5);
+      for (const t of seeds) this.pushLeakedHint(t);
+    } catch { /* hot quotes optional — never block game start */ }
+  }
+
+  /** v6.160 — 事件英文描述里的房间名(外语局按局内语言本地化,中文局不会用到)。 */
+  private roomEn(room: string): string {
+    const locale = this.state.config.locale ?? 'zh';
+    return localizeRoom(room, locale === 'zh' ? 'en' : locale);
   }
 
   /** v6.75 ① — 读跨局关系图,任何失败(没 store / IO 错)都退回空图,绝不阻断投票。 */
@@ -2201,50 +2732,67 @@ export class GameEngine extends EventEmitter {
   }
 
   private buildDiscussionContext(): string {
-    const alive = this.alivePlayers();
-    const playerList = alive.map((p) => `${p.name}(在${p.position.room})`).join('、');
-    const deadPlayers = this.state.players.filter((p) => !p.isAlive);
-    const deadNames = deadPlayers.map((p) => p.name).join('、');
-
-    let ctx = `第${this.state.round}轮全员大会。在职员工: ${playerList}。`;
-    if (deadNames) {
-      ctx += ` 已被裁员: ${deadNames}。`;
-      const ghostVoters = deadPlayers.filter((p) => !p.ghostVoteUsed);
-      if (ghostVoters.length > 0) {
-        ctx += ` 注意: ${ghostVoters.map(p => p.name).join('、')}仍持有劳动仲裁投票权(各1票)!`;
-      }
-    }
-    if (this.state.deadBodyLocation) {
-      ctx += ` 有人在${this.state.deadBodyLocation}被"优化"了!`;
-      const nearBody = alive.filter((p) => p.position.room === this.state.deadBodyLocation);
-      if (nearBody.length > 0) {
-        ctx += ` 事发时在${this.state.deadBodyLocation}附近的人: ${nearBody.map(p => p.name).join('、')}(非常可疑!)。`;
-      }
-    }
-    if (this.state.meetingCaller) {
-      const caller = this.state.players.find((p) => p.id === this.state.meetingCaller);
-      if (caller) ctx += ` 紧急会议由 ${caller.name} 发起。`;
-    }
-
-    const recentEvents = this.timeline.filter(e => e.round === this.state.round);
-    if (recentEvents.length > 0) {
-      ctx += ` 本轮事件: ${recentEvents.map(e => e.description).join('; ')}。`;
-    }
-
-    // Last round's speeches — feed in 3 most memorable lines so feuds carry over
-    if (this.lastRoundSpeeches.length > 0 && this.state.round > 1) {
-      const recap = this.lastRoundSpeeches.slice(-3)
-        .map((s) => `${s.name}上轮说过:"${s.text.slice(0, 60)}${s.text.length > 60 ? '...' : ''}"`)
-        .join(' | ');
-      ctx += ` 上一轮会议记忆: ${recap}。`;
-    }
-
-    ctx += ' 注意:这是一场激烈的职场辩论!要用职场黑话互相质疑、指名道姓、戳穿对方话术,揪出藏在公司里的资本家内鬼。要有针对性地回应前面同事的发言,形成真正的辩论,而不是各说各话!';
-    return ctx;
+    // v6.156 — 根据 locale 生成对应语言的讨论上下文
+    const locale = this.state.config.locale ?? 'zh';
+    return buildDiscussionContextFn(
+      this.state.round,
+      this.alivePlayers(),
+      this.state.players,
+      this.state.deadBodyLocation,
+      this.state.meetingCaller,
+      this.timeline.filter(e => e.round === this.state.round),
+      this.lastRoundSpeeches,
+      locale,
+    );
   }
 
   private fallbackSpeech(player: PlayerState): string {
+    // v6.156 — 按对局 locale 选择 fallback 语言
+    const locale = this.state.config.locale ?? 'zh';
+
     if (player.team === Team.DOG) {
+      // EN/JA/KO fallback — Big Tech manager flavor
+      if (locale !== 'zh') {
+        const en = [
+          "@Everyone — who owns this outcome? I need clarity before we proceed.",
+          "The loudest voices are statistically the least impactful. Let's look at the data.",
+          "My promo packet shows consistent above-bar performance. Can @someone say the same?",
+          "This is a culture-fit issue more than a performance one. Worth noting.",
+          "Some headcount adjustments may be coming. I just want to flag that proactively.",
+          "Let me double-click on why that argument doesn't hold at this org level.",
+          "Who is aligned with the north star metric here, and who is out of scope?",
+          "Headcount has been reallocated. The remaining team needs to step up.",
+          "Your impact at this level is not matching expectations — let's talk offline.",
+          "We stack-rank for a reason. The results might surprise some of you.",
+          "The RIF happened for a reason. Let's not recreate the root cause here.",
+        ];
+        const ja = [
+          "このプロジェクトのオーナーは誰ですか？明確にしてください。",
+          "一番うるさい人が一番結果を出せていない、よくあることです。",
+          "私の評価は常に上位ですが、他の方はいかがですか？",
+          "これは能力の問題ではなく、文化的適合性の問題です。",
+          "組織の最適化が必要かもしれません。事前にお伝えしておきます。",
+          "その論理は組織レベルでは通用しません。深掘りしましょう。",
+          "誰が北極星の指標に向かっていて、誰がそうでないのかを見極める必要があります。",
+          "人員は再配置されました。残るメンバーはもっと頑張る必要があります。",
+          "このレベルの期待値を満たせていません。後でオフラインで話しましょう。",
+          "評価制度は理由があって存在します。結果は驚くかもしれません。",
+        ];
+        const ko = [
+          "이 결과물의 오너는 누구입니까? 진행 전에 명확히 해야겠어요.",
+          "가장 목소리 큰 분이 통계적으로 가장 성과가 낮습니다. 데이터를 봅시다.",
+          "제 승진 패킷은 일관된 초과 성과를 보여줍니다. 다른 분들은요?",
+          "이건 성과 문제보다 문화 적합성 문제입니다. 주목할 필요가 있습니다.",
+          "일부 헤드카운트 조정이 있을 수 있습니다. 미리 알려드리는 겁니다.",
+          "@누군가의 논리가 조직 레벨에서 왜 통하지 않는지 자세히 살펴봅시다.",
+          "북극성 지표에 정렬된 분과 그렇지 않은 분을 구분할 필요가 있습니다.",
+          "헤드카운트가 재배치되었습니다. 남은 팀원들이 더 분발해야 합니다.",
+          "이 레벨의 기대치를 충족하지 못하고 있습니다. 나중에 따로 얘기합시다.",
+          "스택 랭킹에는 이유가 있습니다. 결과가 놀라울 수 있어요.",
+        ];
+        const pool = locale === 'ja' ? ja : locale === 'ko' ? ko : en;
+        return pool[Math.floor(Math.random() * pool.length)];
+      }
       const lines = [
         '这个事情的owner到底是谁？我建议大家先对齐一下信息再来甩锅！',
         '你们有完没完？我OKR都快做完了，凭什么说我摸鱼？拿出数据来！',
@@ -2258,6 +2806,48 @@ export class GameEngine extends EventEmitter {
       return lines[Math.floor(Math.random() * lines.length)];
     }
     if (player.team === Team.CAT) {
+      // EN/JA/KO fallback — worker faction
+      if (locale !== 'zh') {
+        const en = [
+          "Stop hiding behind jargon! What have you actually shipped this quarter, @X?",
+          "You want to talk about impact? Let's talk about your PIP in HR's inbox.",
+          "Every layoff, you look surprised. Management always knows who's next.",
+          "That 'culture fit' line is straight from the management playbook. We see you.",
+          "Stack-ranking us while you coast? Classic move. Vote them out.",
+          "RTO mandate while you dial in from your vacation? We see what's happening.",
+          "Headcount 'reallocated'? You mean diverted to management bonuses. We're not blind.",
+          "You promised RSUs three reviews ago. Still nothing. We're done believing.",
+          "Real scope creep: management expanding headcount while PIP-ing the workers.",
+          "Let me align on one thing: you've done zero work and want all the credit.",
+          "That was all jargon, no substance. Classic mole behavior. Vote them out!",
+        ];
+        const ja = [
+          "黒幕はあなたです！ずっと観察してました！みんな投票してください！",
+          "また大風呂敷広げましたね。前回の約束はどこへ？",
+          "裁員のたびに驚いた顔をする。管理職は次が誰か知ってるはずです。",
+          "文化的適合性？それは管理職のマニュアルの言葉ですよ。見え透いてます。",
+          "私たちを評価しながら自分はさぼってる。典型的な内鬼の行動です！投票を！",
+          "在宅勤務しながら出社強制？どういうことか全員わかってますよね。",
+          "人員の再配置？それはボーナスに回しただけでしょ。目が覚めてください！",
+          "RSUを三回約束して一回も実現しなかった。もう信じません。",
+          "仕事もせず成果だけ取ろうとしてる。内鬼の典型パターンです！",
+          "全部黒話で中身ゼロ。典型的な内鬼の発言です。みんな投票してください！",
+        ];
+        const ko = [
+          "연기 그만해요! 이번 분기에 실제로 뭘 했는지 말해봐요!",
+          "갑질하는 사람이 제일 수상해요. 다들 눈치채셨죠?",
+          "해고될 때마다 놀란 표정. 관리직은 다음 차례가 누군지 알잖아요.",
+          "문화 적합성 타령은 관리직 매뉴얼에서 나온 말이에요. 다 보여요.",
+          "우리를 평가하면서 자기는 놀고 있어요. 전형적인 스파이 행동! 투표하세요!",
+          "재택근무 하면서 RTO 강요? 무슨 일인지 다들 알잖아요.",
+          "헤드카운트 재배치? 자기 보너스로 돌린 거잖아요. 눈 뜨세요!",
+          "RSU 약속 세 번, 이행 한 번도 없어요. 이제 안 믿어요.",
+          "일 안 하고 성과만 챙기려 해요. 전형적인 스파이 패턴! 투표하세요!",
+          "전부 빈말이었어요. 전형적인 스파이 발언이에요. 다들 투표해요!",
+        ];
+        const pool = locale === 'ja' ? ja : locale === 'ko' ? ko : en;
+        return pool[Math.floor(Math.random() * pool.length)];
+      }
       const lines = [
         '别装了！你天天说赋能赋能，你到底干了啥活？大家赶紧投他！',
         '又画大饼？你倒是先把上次的OKR兑现了啊！说好的年终奖呢？',
@@ -2269,6 +2859,47 @@ export class GameEngine extends EventEmitter {
         '你说的降本增效是不是就是降我的本增你的效？大家醒醒！',
       ];
       return lines[Math.floor(Math.random() * lines.length)];
+    }
+    // NEUTRAL
+    if (locale !== 'zh') {
+      const en = [
+        "Everyone please calm down — we're all just vesting our way to freedom here.",
+        "Interesting timing on that comment. Three people left after the last all-hands.",
+        "I support both @X and @Y equally. Genuinely. (wink)",
+        "Someone's LinkedIn says 'open to new opportunities'. Just leaving that there.",
+        "This is more entertaining than anything on my feed. Please continue.",
+        "We should put this in the parking lot. Or I'll just stay here and watch.",
+        "Love the energy. Nobody knows anything. Keep it up.",
+        "If I had a dollar for every 'culture fit' comment, I'd have vested by now.",
+        "The drama here is always worth staying late for.",
+        "I have no opinions. I have only popcorn. And observations.",
+      ];
+      const ja = [
+        "まあまあ落ち着きましょう。どうせみんなお給料のために来てるんですから。",
+        "そのコメントのタイミング、興味深いですね。先週の全社会議後に3人辞めましたね。",
+        "私は@Xも@Yも同じくらい支持しています。本当に。(笑)",
+        "誰かのLinkedInが更新されてますよ。そっとしておきましょう。",
+        "これはフィードより面白いですね。続けてください。",
+        "パーキングロットに入れておきましょう。私はここで見物します。",
+        "エネルギーが好きです。誰も何も知らない。どんどんやって。",
+        "文化的適合性という言葉を聞くたびに、もう少し吃瓜できますね。",
+        "このドラマのために残業する価値はあります。",
+        "意見はありません。ポップコーンだけあります。",
+      ];
+      const ko = [
+        "진정하세요. 어차피 다 월급 받으러 온 거잖아요.",
+        "그 코멘트의 타이밍, 흥미롭네요. 지난 전사 회의 후에 3명 떠났는데.",
+        "저는 @X도 @Y도 똑같이 지지해요. 진짜로요. (웃음)",
+        "누군가 링크드인을 업데이트했네요. 그냥 알려드리는 거예요.",
+        "이게 제 피드보다 재미있어요. 계속하세요.",
+        "파킹 랏에 넣어두죠. 저는 여기서 구경할게요.",
+        "에너지가 좋네요. 아무도 아무것도 몰라요. 계속해요.",
+        "문화 적합성 얘기 들을 때마다 팝콘이 필요하네요.",
+        "이 드라마 보려고 야근할 가치가 있어요.",
+        "의견 없어요. 팝콘만 있어요. 그리고 관찰.",
+      ];
+      const pool = locale === 'ja' ? ja : locale === 'ko' ? ko : en;
+      return pool[Math.floor(Math.random() * pool.length)];
     }
     const neutralLines = [
       '都别吵了，反正都是给资本家打工，谁走不是走，我就看看戏！',
