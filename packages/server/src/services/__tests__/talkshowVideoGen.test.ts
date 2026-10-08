@@ -11,8 +11,9 @@ import {
 } from '../talkshowVideoGen';
 
 describe('talkshowVideoGen — buildVideoPrompt', () => {
-  it('6 个 persona 都有专属 prompt,且都带循环/锁定机位/无水印约束', () => {
-    expect(TALKSHOW_PERSONA_VIDEO_IDS).toEqual(['shaonv', 'yujie', 'qingse', 'jingying', 'badao', 'qingnian']);
+  it('7 个 persona 都有专属 prompt,且都带循环/锁定机位/无水印约束', () => {
+    // v6.123 — lingling(整顿王)入列,余额到位后一次生成 7 段
+    expect(TALKSHOW_PERSONA_VIDEO_IDS).toEqual(['shaonv', 'yujie', 'qingse', 'jingying', 'badao', 'qingnian', 'lingling']);
     for (const id of TALKSHOW_PERSONA_VIDEO_IDS) {
       const p = buildVideoPrompt(id);
       expect(p.length).toBeGreaterThan(20);

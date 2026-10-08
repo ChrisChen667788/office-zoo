@@ -7,6 +7,21 @@
 
 ---
 
+## v6.123 — 2026-07-06 · 对外大版本同步(GitHub / ModelScope 门面刷新 v6.86→v6.122)
+
+按「大版本同步必带功能说明 + 截图」约定,把 v6.9x→v6.12x 这一大波推到对外门面:
+
+- **README**:新增「🌟 v6.86 → v6.122 升级 · 双公司商战 + 观众真上桌 + Z 世代换皮」亮点段
+  (双公司对抗 / 观众经济闭环 / 米哈游化 / 27 张立绘 / Phase E 场景 / 三轮审计全清);
+  Roadmap 补齐 v6.85–v6.122 全部条目(原 v6.85 还挂着 🚧)。
+- **ModelScope 文案**(`PROMO_MODELSCOPE.md`):新增「🆕 v6.12x 双公司商战 Hook(当前主推)」——
+  Hook 3 行 + 三句话讲清楚,旧 v6.5/v6.1 Hook 降为历史可复用。
+- **截图刷新**:`gen:screenshots` 重采 9/10 张(landing/profile 带 archetype 立绘/classic 对局
+  米哈游皮肤/talkshow mesh…);沉浸局截图探针连续两次未过自校验(「无沉浸 badge」),旧图保留,
+  探针待修(记档)。
+- **顺手**:`talkshowVideoGen` 的 PERSONA_EMOTION 补上 lingling(整顿王)—— MiniMax 余额到位后
+  一次能生成全部 7 段活立绘(本轮重试仍 `1008 insufficient balance`,继续卡充值)。
+
 ## v6.122 — 2026-06-26 · 20 版批次对抗审查修复(9 确认项全清)
 
 4 维多 agent 审查(React 状态 / Socket 接线 / 数据内容 / UI 回归)核整个 v6.102–121 diff,
