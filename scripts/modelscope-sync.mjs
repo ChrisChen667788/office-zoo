@@ -11,9 +11,11 @@
  *
  * 首次运行会先建库(MIT 许可、公开);库已存在则跳过。
  *
- * 令牌只从环境变量 MODELSCOPE_API_TOKEN 读,不写盘、不打印;请在你自己的终端里运行:
- *   MODELSCOPE_API_TOKEN=<你的令牌> npm run ms:sync
+ * 令牌不写盘、不打印。推荐直接运行,脚本会在终端里提示粘贴(输入不回显,不进 shell 历史):
+ *   npm run ms:sync
  *   npm run ms:sync -- --card-only      # 只重刷模型卡
+ * 也可以用环境变量 MODELSCOPE_API_TOKEN 传入(CI 等非交互场景)。
+ * ⚠️ 别把令牌写进 Claude Code 对话里的 `!` 命令:命令原文会进对话记录。
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -74,11 +76,41 @@ function exportTracked(dest) {
   return files;
 }
 
+/**
+ * 没有环境变量时在终端里隐藏输入令牌:不回显、不进 shell 历史、也不会出现在命令原文里。
+ * 非交互环境(没有 TTY)直接返回空串,交给 tokenProblem 报「缺令牌」。
+ */
+function promptHiddenToken() {
+  const { stdin, stdout } = process;
+  if (!stdin.isTTY) return Promise.resolve('');
+  return new Promise((resolve) => {
+    stdout.write('[ms-sync] 粘贴 ModelScope 访问令牌后回车(输入不回显):');
+    stdin.setRawMode(true);
+    stdin.setEncoding('utf8');
+    stdin.resume();
+    let buf = '';
+    const cleanup = () => { stdin.off('data', onData); stdin.setRawMode(false); stdin.pause(); stdout.write('\n'); };
+    function onData(chunk) {
+      // 终端若开着 bracketed paste,粘贴内容会被 ESC[200~ … ESC[201~ 包住
+      for (const ch of chunk.replace(/\x1b\[20[01]~/g, '')) {
+        if (ch === '\r' || ch === '\n') { cleanup(); resolve(buf); return; }
+        if (ch === '\u0003') { cleanup(); process.exit(130); }        // Ctrl-C
+        if (ch === '\u007f' || ch === '\b') { buf = buf.slice(0, -1); continue; }
+        buf += ch;
+      }
+    }
+    stdin.on('data', onData);
+  });
+}
+
 async function main() {
   const cardOnly = process.argv.includes('--card-only');
-  const bad = tokenProblem(process.env.MODELSCOPE_API_TOKEN);
+  let token = process.env.MODELSCOPE_API_TOKEN;
+  if (!token) token = await promptHiddenToken();
+  const bad = tokenProblem(token);
   if (bad) { console.error(`[ms-sync] ${bad}`); process.exit(2); }
-  process.env.MODELSCOPE_API_TOKEN = process.env.MODELSCOPE_API_TOKEN.trim();
+  // 交给子进程(modelscope CLI / SDK)只走环境变量
+  process.env.MODELSCOPE_API_TOKEN = token.trim();
 
   // 模型卡必须先是最新的(README 改了没重跑生成脚本就别传)
   sh('node', ['scripts/gen-modelscope-intro.mjs', '--check']);
