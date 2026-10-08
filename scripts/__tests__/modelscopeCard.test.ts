@@ -53,8 +53,10 @@ describe('toModelScopeCard', () => {
 
 describe('tokenProblem / redact', () => {
   it('缺失、占位文字、√、中间空白都拦下,且提示里不含令牌', () => {
-    expect(tokenProblem('')).toMatch(/缺 MODELSCOPE_API_TOKEN/);
+    expect(tokenProblem('')).toMatch(/缺 ModelScope 令牌/);
     expect(tokenProblem('你的令牌')).toMatch(/占位文字/);
+    const cmd = 'cd ~/Downloads/furball-arena && git checkout main && MODELSCOPE_API_TOKEN=换成你的令牌 npm run ms:sync';
+    expect(tokenProblem(cmd)).toMatch(/粘贴的是命令\(共 96 个字符\),不是令牌/);
     expect(tokenProblem('√ms-abc')).toMatch(/⌥V/);
     const msg = tokenProblem('ms-abc def') ?? '';
     expect(msg).toMatch(/空白/);

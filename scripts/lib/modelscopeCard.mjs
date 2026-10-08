@@ -11,6 +11,8 @@
 export const MS_REPO = 'haozi667788/office-zoo';
 export const MS_RESOLVE = `https://modelscope.cn/models/${MS_REPO}/resolve/master`;
 export const GH_BASE = 'https://github.com/ChrisChen667788/office-zoo';
+/** ModelScope 个人中心的访问令牌页。 */
+export const TOKEN_PAGE = 'https://modelscope.cn/my/myaccesstoken';
 
 export const CARD_HEADER =
   '<!-- 由 scripts/gen-modelscope-intro.mjs 从 README.md 自动生成:assets 图片 → ModelScope 自托管地址,'
@@ -52,7 +54,11 @@ export function cardLooksClobbered(markdown) {
  */
 export function tokenProblem(raw) {
   const t = String(raw ?? '').trim();
-  if (!t) return '缺 MODELSCOPE_API_TOKEN(只从环境变量读,不写盘)';
+  if (!t) return '缺 ModelScope 令牌:在终端里直接运行 npm run ms:sync 会提示粘贴(不回显);非交互环境用环境变量 MODELSCOPE_API_TOKEN';
+  // 曾经有人把整条同步命令粘进了令牌提示 —— 说清楚要粘的是什么
+  if (/MODELSCOPE_API_TOKEN|npm run|ms:sync|git checkout|&&/.test(t)) {
+    return `粘贴的是命令(共 ${t.length} 个字符),不是令牌。令牌在 ${TOKEN_PAGE} 复制,是一串以 ms- 开头的字符`;
+  }
   for (let i = 0; i < t.length; i++) {
     const code = t.charCodeAt(i);
     if (code >= 0x21 && code <= 0x7e) continue;
