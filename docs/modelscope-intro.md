@@ -1,14 +1,16 @@
+<!-- 由 scripts/gen-modelscope-intro.mjs 从 README.md 自动生成:assets 图片 → ModelScope 自托管地址,其余相对链接 → GitHub 绝对地址,正文逐字不变。勿手改,改 README.md 后重跑 npm run gen:modelscope-intro。 -->
+
 <div align="center">
 
 <!-- v6.24 P4 — logo-readme-banner.png is the v2 lockup: bigger wordmark
      (Arial Black gold→amber gradient + drop shadow) + clean bilingual
      tagline stack (CN top / EN bottom). Prior -lockup-final.png stays
      in assets/brand/ as archive — see BRAND_GUIDE.md history. -->
-<img src="assets/brand/logo-readme-banner.png" alt="OFFICE ZOO · 班味剧场 · 0 点的写字楼 · Midnight Workplace Soap Opera" width="100%" />
+<img src="https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/brand/logo-readme-banner.png" alt="OFFICE ZOO · 班味剧场 · 0 点的写字楼 · Midnight Workplace Soap Opera" width="100%" />
 
 ### 0 点的写字楼,AI 鼠人替你拥抱变化,你回家躺平。
 
-[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ChrisChen667788/office-zoo/blob/main/LICENSE)
 [![React 18 + Vite 6](https://img.shields.io/badge/stack-React%2018%20%2B%20Vite%206-61dafb.svg)](https://vitejs.dev/)
 [![Hono + Socket.IO](https://img.shields.io/badge/backend-Hono%20%2B%20Socket.IO-orange.svg)](https://hono.dev/)
 [![Minimax speech-2.8-hd](https://img.shields.io/badge/voice-Minimax%202.8--hd-ff5588.svg)](https://www.minimaxi.com/)
@@ -16,7 +18,7 @@
 **一家公司被裁了,9 名 AI 员工还在加班。**
 **你是那只盯着 KPI 屏的 HR — 选个模式,把这一天笑着过完。**
 
-**简体中文** · [English](README.en.md) · [📱 微信小程序](packages/miniprogram/)
+**简体中文** · [English](https://github.com/ChrisChen667788/office-zoo/blob/main/README.en.md) · [📱 微信小程序](https://github.com/ChrisChen667788/office-zoo/tree/main/packages/miniprogram/)
 
 </div>
 
@@ -43,12 +45,12 @@
 | **没人能讲** | 深夜酒馆 1v1 跟某只 AI 鼠人喝酒吐槽, lo-fi BGM |
 | **想笑着学劳动法** | 截了么 5 关闯关, 每关绑《劳动合同法》一条 |
 | **想把同事搬进游戏** | 公司主题包: 自定义"我们公司 12 个 NPC", 同事点链接开同一局 |
-| **想看大模型在演什么** | 全程透明 prompt 设计, 40+ 轮迭代日志在 [CHANGELOG.md](docs/CHANGELOG.md) |
+| **想看大模型在演什么** | 全程透明 prompt 设计, 40+ 轮迭代日志在 [CHANGELOG.md](https://github.com/ChrisChen667788/office-zoo/blob/main/docs/CHANGELOG.md) |
 
 <p align="center">
-  <img src="assets/launch-demo/hero-combined.gif" alt="30s hero · 米哈游风故事 (0-15s) + 真实游戏 (15-30s)" width="720" />
+  <img src="https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/launch-demo/hero-combined.gif" alt="30s hero · 米哈游风故事 (0-15s) + 真实游戏 (15-30s)" width="720" />
   <br/>
-  <em>v6.2 · 米哈游风故事板 + 真实游戏画面合成 30s · <a href="assets/launch-demo/demo-memory.gif">纯故事板版</a> · <a href="assets/launch-demo/game-highlight.gif">纯真实游戏版</a> · <a href="docs/V6_MEMORY_TECH_BLOG.md">技术博客</a></em>
+  <em>v6.2 · 米哈游风故事板 + 真实游戏画面合成 30s · <a href="https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/launch-demo/demo-memory.gif">纯故事板版</a> · <a href="https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/launch-demo/game-highlight.gif">纯真实游戏版</a> · <a href="https://github.com/ChrisChen667788/office-zoo/blob/main/docs/V6_MEMORY_TECH_BLOG.md">技术博客</a></em>
 </p>
 
 ---
@@ -75,19 +77,19 @@
 **系统架构** · 观众端 → 服务器 → 引擎 → 智能体 → 大模型,Socket.IO 实时广播回客户端
 
 <p align="center">
-  <img src="assets/diagrams/architecture.svg" alt="OFFICE ZOO 系统架构 — 观众端/Hono 服务器/GameEngine/BaseAgent/大模型/本地 JSON,数据沿虚线流动" width="100%" />
+  <img src="https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/diagrams/architecture.svg" alt="OFFICE ZOO 系统架构 — 观众端/Hono 服务器/GameEngine/BaseAgent/大模型/本地 JSON,数据沿虚线流动" width="100%" />
 </p>
 
 **PSYWAR 心理战闭环** · 观众战术 @ → AI 听到 → AI 引用 → 班味指数 +6(时序图)
 
 <p align="center">
-  <img src="assets/diagrams/sequence-psywar.svg" alt="PSYWAR 心理战时序 — game:psy_war_leak → pushLeakedHint → generateSpeech → detectLeakQuote → leak_quoted" width="100%" />
+  <img src="https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/diagrams/sequence-psywar.svg" alt="PSYWAR 心理战时序 — game:psy_war_leak → pushLeakedHint → generateSpeech → detectLeakQuote → leak_quoted" width="100%" />
 </p>
 
 **公司主题包数据闭环** · 建包 → 持久化 → 分享 → 同事开局 → 名单覆盖 → 班味打卡 → 排行榜 → 本公司 Top
 
 <p align="center">
-  <img src="assets/diagrams/dataflow-companypack.svg" alt="公司主题包数据流 — 闭环:观众 → 游戏世界 → 观众" width="100%" />
+  <img src="https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/diagrams/dataflow-companypack.svg" alt="公司主题包数据流 — 闭环:观众 → 游戏世界 → 观众" width="100%" />
 </p>
 
 ---
@@ -185,21 +187,21 @@
 
 ## 📸 截图
 
-> 每次发版会同步真机截图到 `assets/screenshots/`,见 [`docs/RELEASE_PROCESS.md`](./docs/RELEASE_PROCESS.md) 流程。
+> 每次发版会同步真机截图到 `assets/screenshots/`,见 [`docs/RELEASE_PROCESS.md`](https://github.com/ChrisChen667788/office-zoo/blob/main/docs/RELEASE_PROCESS.md) 流程。
 
-![首页 4 模式](./assets/screenshots/01-landing.png)
+![首页 4 模式](https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/screenshots/01-landing.png)
 
 | 🏢 经典模式 · 2.5D 写字楼 | 🎬 沉浸模式 · 真人语音圆桌 |
 |:---:|:---:|
-| ![经典模式](./assets/screenshots/04-classic-game.png) | ![沉浸模式](./assets/screenshots/05-immersive-game.png) |
+| ![经典模式](https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/screenshots/04-classic-game.png) | ![沉浸模式](https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/screenshots/05-immersive-game.png) |
 | **🪑 真人占鼠人席位 · 倒计时发言框(v6.155)** | **🌐 英文局 · AI 说大厂黑话(v6.156)** |
-| ![真人占座](./assets/screenshots/09-seat-claim.png) | ![英文局](./assets/screenshots/10-english-game.png) |
+| ![真人占座](https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/screenshots/09-seat-claim.png) | ![英文局](https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/screenshots/10-english-game.png) |
 | **⚖️ 裁了么 · 5 关闯关** | **🌟 裁了么 · 季节限定场景(v6.158)** |
-| ![裁了么](./assets/screenshots/04-fired-landing.png) | ![季节限定](./assets/screenshots/11-fired-seasonal.png) |
+| ![裁了么](https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/screenshots/04-fired-landing.png) | ![季节限定](https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/screenshots/11-fired-seasonal.png) |
 | **🎤 班味单口 · 段子库** | **🪪 你是哪种打工人 · 班味卡** |
-| ![班味单口](./assets/screenshots/07-talkshow.png) | ![班味卡](./assets/screenshots/03-profile.png) |
+| ![班味单口](https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/screenshots/07-talkshow.png) | ![班味卡](https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/screenshots/03-profile.png) |
 | **🎁 班味年终 Wrapped 海报** | |
-| ![年终回顾](./assets/screenshots/banwei-wrapped-card.png) | |
+| ![年终回顾](https://modelscope.cn/models/haozi667788/office-zoo/resolve/master/assets/screenshots/banwei-wrapped-card.png) | |
 
 > 截图由 `npm run gen:screenshots`(静态路由 + 活的游戏局,Playwright 真机抓取)刷新,需先 `npm run dev` 起本地服务;
 > 本机 3100/3101 被占用时可用 `FURBALL_API_PORT=3200 PORT=3200 WS_PORT=3201 npm run dev`,截图时加 `SERVER_URL=http://localhost:3200`。
@@ -286,7 +288,7 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 
 ## Roadmap
 
-> 完整版见 [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — 含所有版本的"why / what / verified"原文。
+> 完整版见 [`docs/CHANGELOG.md`](https://github.com/ChrisChen667788/office-zoo/blob/main/docs/CHANGELOG.md) — 含所有版本的"why / what / verified"原文。
 
 **已上线(2025-12 → 2026-05):**
 - ✅ **v0.6-v0.9** 2.5D 写字楼 + tick 循环 + 8 种 activity / talkshow + Web Speech 兜底 / UGC + HR 记忆 + 闯关包 + PvP 房间
@@ -383,7 +385,7 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 ### git hooks(可选)
 
 仓库带一个**不拦截**的 pre-push 钩子:push 前用 `git-cliff` 列出
-还没写进 [`docs/CHANGELOG.md`](docs/CHANGELOG.md) 的提交,提醒你补一句版本日志
+还没写进 [`docs/CHANGELOG.md`](https://github.com/ChrisChen667788/office-zoo/blob/main/docs/CHANGELOG.md) 的提交,提醒你补一句版本日志
 (只 nag,push 照常进行)。一键安装:
 
 ```bash
