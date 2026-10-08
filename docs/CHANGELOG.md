@@ -7,6 +7,82 @@
 
 ---
 
+## v6.148–v6.150 — 2026-07-08 · 收尾打磨(专属 mesh / 懒加载 / 计划快照)
+
+- **v6.148 Fortune 接 tarotMystic mesh**:design.ts 里为占卜页量身定制的「玄学塔罗」渐变网
+  (v6.1 就写好)终于接上;Bar 早已用 barNight,Weekly 自有渐变保留。
+- **v6.149 立绘懒加载**:Talkshow 创作面板缩略图 + FiredChat HR 立绘加 `loading="lazy"`,
+  首屏带宽让给正文。
+- **v6.150 计划文档快照更新**:ITERATION_PLAN / VERSION_PLAN 的 Phase C 从「唯一未启动」改为
+  「场边嘉宾席 MVP 已落地,深水区=真人占鼠人席位 + 语音输入」,快照口径推进到 v6.150。
+
+## v6.142–v6.147 — 2026-07-08 · 观众体验第三波(引导/成就/回放/图标补全)
+
+- **v6.142 PhaseHint 旁观者视角化**(审计 UX F-12):hint 从「给 AI 玩家的策略说明」改成
+  「你会看到什么、能做什么」—— free_roam 提示 🎰 已开盘、discussion 提示 🤥 在演 + 🎤 上桌。
+- **v6.143 新成就 3 枚**:🛒 第一次买干预 / ⚔️ 看完第一局双公司 / 🎤 第一次上桌(嘉宾席),
+  registry 12→15,collector 门槛 11→14,三个触发点接进 BettingBar / game_over / 认领回执。
+- **v6.144 小程序整顿王**:mp talkshow persona 表补 `lingling: 😎 整顿王`,与 H5 端 v6.100 对齐。
+- **v6.145 Result 回放页双司战报**:深链回放页补「🏢 公司战报」按钮(此前只有 HighlightReel 有),
+  数据全取自 replay record(winner/market/rounds/dualReason/players.companyId)。
+- **v6.146 双公司/段子专属 AI 图标**:`ICON_DETAILS` 补 `mode_dual`(双楼对峙)`mode_talkshow`
+  (舞台凳+麦),Landing 接上并把 fallback 改 ⚔️/🎭(dual 的 🏢 不再与经典局撞车);
+  2/2 生成成功(doubao 额度见底,链自动回落 minimax:image-01)。
+- **v6.147 回放时间线图标补全**:`EVENT_ICON` 补 v6.83+ 新事件(🛒干预/📨挖角/📰抹黑/🗡️恩怨/
+  🎤真人发言/⚔️双司开局),回放不再对新时代事件显示缺省样式。
+
+## v6.136–v6.141 — 2026-07-07 · 裁了么 Phase E 第二批(4 场景)+ 目录回归网
+
+第二批劳动法速通课(法条口径齐全):
+
+- **v6.136 `year-end-bonus-clawback` · 年终奖发放前一周被裁**(难度 2):考核周期干满、
+  公司单方解除导致「发放日不在职」→「在职条款」不能免除支付义务;卡点日期本身即恶意佐证。
+- **v6.137 `demotion-pay-cut` · 调岗降薪「优化」你**(难度 2):变更合同需协商一致(35 条);
+  单方大幅降薪 → 书面不同意 + 38 条被迫解除主张 N;合法调岗四边界。
+- **v6.138 `pregnancy-perf-trap` · 孕期被「绩效不达标」**(难度 3):三期红线(42 条)堵死
+  40/41 条路径;救济二选一 —— 继续履行 或 2N(48/87 条);怀孕后绩效跳水的时间相关性即歧视佐证。
+  (与既有通用 `pregnancy-fire` 是不同角度:这条专打「拿绩效 D 绕红线」变体。)
+- **v6.139 `background-check-threat` ·「不签就搞坏你的背调」**(难度 3):离职证明只能写客观内容
+  (50 条 + 实施条例 24 条)/ 捏造背调答复 = 名誉侵权(民法典 1024)/ 胁迫所签协议可撤销(民法典 150)。
+- **v6.140-141 目录回归网**:`firedCatalog.test` 锁 id 唯一 + 字段完备 + 数值合法 + HR 三档 sanity ——
+  **上岗第一天就抓到一条真撞车**(新孕期场景与既有 `pregnancy-fire` 同 id,已改名),证明这张网值得。
+
+## v6.132–v6.135 — 2026-07-07 · Phase G 国际化推进(EN 门面 + 模式卡四语言)
+
+- **v6.132 README.en 同步**:补「v6.86 → v6.131」英文亮点段(Company Clash / humans-at-the-table /
+  spectator economy / Gen-Z reskin / portraits / labor-law pack / audit sweeps),与中文版对齐。
+- **v6.133 Launch kit 刷新**:`LAUNCH_SUBMISSION_PACK` 顶部新增「2026-07 卖点刷新」paste-ready 区
+  (3 个新 tagline + 一句话描述 + maker comment 要点);`PRODUCTHUNT_LAUNCH_KIT` 头部指向新口径,
+  旧字段标注为历史。
+- **v6.134 模式卡 features/tier 四语言**:落实 v1.2.1 遗留的「v1.2.3 will localize」TODO ——
+  5 模式 × 4 features + 2 tier chip 共 22 个 dict key(zh/en/ja/ko 全填,TS 强制),`ModeSpec.features`
+  从硬编码 zh 切到 `DictKey[]`。en 真机验证:features/tier/title 全英文、零中文泄漏。
+- **v6.135 README.en Roadmap 补尾**:从 v6.54 补到 v6.131(牌局 roguelike / 演出层 / 双公司 /
+  视觉 pass / 审计清仓 / Phase C),下一步改标 Phase G EN prompt set + HN launch。
+
+## v6.124–v6.131 — 2026-07-07 · Phase C「真人玩家加入」MVP:场边嘉宾席
+
+ITERATION_PLAN 七阶段**唯一整块缺口**开工。MVP 切法:真人不占鼠人席位(不投票/不被裁),
+以**场边影响者**上桌 —— 与规划的四个角色天然吻合(全是评论/干预型):
+🧑‍💼 真人HR(主持点名)/ ✊ 工会代表(替打工人说话)/ ⚖️ 吃瓜律师(法条搅局)/ 📰 媒体记者(放大爆点)。
+
+- **v6.124 纯共享层**:`shared/human/roles.ts` — 角色表 / 认领台账纯函数(一角一人 + 一人一角,
+  幂等重认领)/ 释放 / prompt 署名格式化 / 每轮每角色 3 条 + 单条 120 字上限(+8 测试)。
+- **v6.125 engine 注入链**:`pushHumanSpeech` 走 PSYWAR 爆料同款链 —— 格式化进滑窗(cap 6)→
+  `generateSpeech(opts.humanSpeeches)` → BaseAgent 新增**场边真人嘉宾块**:「真人在场是大事,
+  至少呼应一条;真人HR点名你,必须正面回应」。AI 真的听得到、会接招。
+- **v6.126 socket 协议**:`game:claim_role / release_role / human_speech` 三事件 + 占用位图广播
+  (`game:role_claims`,不暴露 socketId)+ 限流(6 条/分/连接,engine 每轮 cap 再兜一道)+
+  断线/离场/房间销毁三路释放,角色位不被幽灵连接占死。
+- **v6.127-128 Classic UI**:底部居中「🎤 上桌当嘉宾」→ 四角色认领面板(已占置灰)→ 发言条
+  (输入 + Enter/按钮发送 + 退下);真人发言全房 event log 冷蓝 frost 行(真人是稀客,独占一色);
+  被拒原因(角色被抢/说太快/本轮次数用完)都有人话反馈。
+- **v6.129 邀请同房**:顶栏「🔗 邀请」复制房间链接(/classic/:gameId 本就深链可加入),朋友打开
+  即同房 —— 可旁观、可认领剩余角色;沉浸局真人发言以弹幕飘过(复用鬼魂弹幕轨道)。
+- **v6.130 engine 级测试**:接收/署名/滑窗挤出/每轮每角色 cap/事件发射(+4 测试)。
+- **v6.131 引导**:RulesModal Step4 增「上桌当嘉宾」一行。
+- 验证:3 包 tsc 干净;**561 测试绿**(+12);`vite build` 通过。
+
 ## v6.123 — 2026-07-06 · 对外大版本同步(GitHub / ModelScope 门面刷新 v6.86→v6.122)
 
 按「大版本同步必带功能说明 + 截图」约定,把 v6.9x→v6.12x 这一大波推到对外门面:

@@ -63,12 +63,12 @@ interface ModeSpec {
    *  will localize them when we expand the dict). */
   titleKey: DictKey;
   taglineKey: DictKey;
-  features: string[];
+  /** v6.134 — features 从硬编码 zh 切到 dict key(落实 v1.2.1 的 localize TODO)。 */
+  features: DictKey[];
   accent: string; // used for active-state tint & bullet dots
   accent2: string; // secondary tint for inner glow
-  /** v6.120(审计玩法 F13)— 新手/进阶分级 chip:5 张卡视觉权重相同,新用户不知道
-   *  从哪开始;经典局标「新手推荐」、双公司标「进阶」,给出推荐路径。 */
-  tier?: { text: string; color: string };
+  /** v6.120(审计玩法 F13)— 新手/进阶分级 chip;v6.134 文案走 dict。 */
+  tier?: { textKey: DictKey; color: string };
 }
 
 const MODES: ModeSpec[] = [
@@ -79,9 +79,9 @@ const MODES: ModeSpec[] = [
     badge: '01',
     titleKey:   'mode.classic.title',
     taglineKey: 'mode.classic.body',
-    // v6.109(审计玩法 F3)— 各模式补真实时长预期;v6.122 改追加第 4 条,不顶掉原卖点
-    features: ['AI 员工内卷', '分房间互怼', '暗线下黑手', '⏱ 一局 15-25 分钟'],
-    tier: { text: '👶 新手推荐', color: '#22c55e' },
+    // v6.109/v6.122 时长第 4 条;v6.134 全部走 dict(四语言)
+    features: ['mode.classic.f1', 'mode.classic.f2', 'mode.classic.f3', 'mode.classic.f4'],
+    tier: { textKey: 'mode.classic.tier', color: '#22c55e' },
     accent: colors.brand.neon,
     accent2: colors.brand.violet,
   },
@@ -92,7 +92,7 @@ const MODES: ModeSpec[] = [
     badge: '02',
     titleKey:   'mode.immersive.title',
     taglineKey: 'mode.immersive.body',
-    features: ['8 名鼠人开口', '人设全程在线', '阴阳怪气合集', '⏱ 一局 15-25 分钟'],
+    features: ['mode.immersive.f1', 'mode.immersive.f2', 'mode.immersive.f3', 'mode.immersive.f4'],
     accent: '#a855f7',
     accent2: colors.brand.neon,
   },
@@ -103,31 +103,32 @@ const MODES: ModeSpec[] = [
     badge: '03',
     titleKey:   'mode.fired.title',
     taglineKey: 'mode.fired.body',
-    features: ['真法条撑腰', '四维打分', '多结局演完', '⏱ 5-10 分钟/关'],
+    features: ['mode.fired.f1', 'mode.fired.f2', 'mode.fired.f3', 'mode.fired.f4'],
     accent: colors.semantic.danger,
     accent2: colors.semantic.warn,
   },
   {
     key: 'talkshow',
-    icon: '',
-    iconFallback: '🎤',
+    // v6.146 — 接专属 AI 图标(舞台凳+麦克风);fallback 改 🎭 与沉浸局的 🎤 区分
+    icon: modeIcons.talkshow,
+    iconFallback: '🎭',
     badge: '04',
     titleKey:   'mode.talkshow.title',
     taglineKey: 'mode.talkshow.body',
-    features: ['真人音色播报', '8 种人格切换', '段子库每周更新', '⏱ 1-2 分钟/段'],
+    features: ['mode.talkshow.f1', 'mode.talkshow.f2', 'mode.talkshow.f3', 'mode.talkshow.f4'],
     accent: '#ff5588',
     accent2: '#7c3aed',
   },
   {
-    // v6.86 — 双公司对抗。无专属 PNG,沿用 talkshow 的 emoji-fallback 写法。
+    // v6.146 — 接专属 AI 图标(双楼对峙);fallback 改 ⚔️ 不再与经典局 🏢 撞车
     key: 'dual',
-    icon: '',
-    iconFallback: '🏢',
+    icon: modeIcons.dual,
+    iconFallback: '⚔️',
     badge: '05',
     titleKey:   'mode.dual.title',
     taglineKey: 'mode.dual.body',
-    features: ['A 司 4 + B 司 4', '抢市场 / 防内鬼', '挖角带走身份', '⏱ 一局约 20 分钟'],
-    tier: { text: '🎓 进阶 · 建议先玩经典局', color: '#ff8a3d' },
+    features: ['mode.dual.f1', 'mode.dual.f2', 'mode.dual.f3', 'mode.dual.f4'],
+    tier: { textKey: 'mode.dual.tier', color: '#ff8a3d' },
     accent: '#4c9eff',
     accent2: '#ff8a3d',
   },
@@ -995,7 +996,7 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
           style={{ color: active ? '#fff' : 'rgba(255,255,255,0.92)' }}
         >
           {title}
-          {/* v6.120(审计玩法 F13)— 新手/进阶分级 chip,给新用户推荐路径 */}
+          {/* v6.120(审计玩法 F13)— 新手/进阶分级 chip;v6.134 文案走 dict */}
           {spec.tier && (
             <span style={{
               marginLeft: 8, verticalAlign: 'middle', display: 'inline-block',
@@ -1003,7 +1004,7 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
               padding: '3px 7px', borderRadius: 999,
               color: spec.tier.color, background: `${spec.tier.color}1a`,
               border: `1px solid ${spec.tier.color}55`,
-            }}>{spec.tier.text}</span>
+            }}>{tt(spec.tier.textKey)}</span>
           )}
         </h3>
         <p className={`${taglineCls} text-white/55 ${tall ? 'mb-5' : 'mb-3'} leading-relaxed`}>{tagline}</p>
@@ -1022,7 +1023,7 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
                   boxShadow: active ? `0 0 6px ${spec.accent}` : 'none',
                 }}
               />
-              {f}
+              {tt(f)}
             </li>
           ))}
         </ul>

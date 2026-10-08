@@ -98,6 +98,31 @@ const DICT = {
     'ko-KR': 'A사 vs B사 · 4+4 시장 쟁탈 · 서로 빼가기',
   },
 
+  // v6.134 — 模式卡 features chips(落实 v1.2.1 遗留的「v1.2.3 will localize」TODO)
+  'mode.classic.f1':  { 'zh-CN': 'AI 员工内卷',        'en-US': 'AI staff grind wars',        'ja-JP': 'AI社員の内巻き',       'ko-KR': 'AI 직원들의 경쟁' },
+  'mode.classic.f2':  { 'zh-CN': '分房间互怼',          'en-US': 'Room-by-room roasting',      'ja-JP': '部屋ごとの罵り合い',    'ko-KR': '방마다 설전' },
+  'mode.classic.f3':  { 'zh-CN': '暗线下黑手',          'en-US': 'Killers strike in the dark', 'ja-JP': '闇で動く黒幕',          'ko-KR': '어둠 속의 흑막' },
+  'mode.classic.f4':  { 'zh-CN': '⏱ 一局 15-25 分钟',  'en-US': '⏱ 15-25 min per game',      'ja-JP': '⏱ 1局15〜25分',        'ko-KR': '⏱ 한 판 15-25분' },
+  'mode.immersive.f1':{ 'zh-CN': '8 名鼠人开口',        'en-US': '8 rats fully voiced',        'ja-JP': '8匹がフルボイス',       'ko-KR': '8마리 풀보이스' },
+  'mode.immersive.f2':{ 'zh-CN': '人设全程在线',        'en-US': 'Personas never break',       'ja-JP': 'キャラ崩壊なし',        'ko-KR': '캐릭터 유지' },
+  'mode.immersive.f3':{ 'zh-CN': '阴阳怪气合集',        'en-US': 'Peak passive-aggression',    'ja-JP': '嫌味の総集編',          'ko-KR': '뼈있는 말 모음' },
+  'mode.immersive.f4':{ 'zh-CN': '⏱ 一局 15-25 分钟',  'en-US': '⏱ 15-25 min per game',      'ja-JP': '⏱ 1局15〜25分',        'ko-KR': '⏱ 한 판 15-25분' },
+  'mode.fired.f1':    { 'zh-CN': '真法条撑腰',          'en-US': 'Real labor law',             'ja-JP': '実際の労働法',          'ko-KR': '실제 노동법' },
+  'mode.fired.f2':    { 'zh-CN': '四维打分',            'en-US': '4-axis scoring',             'ja-JP': '4軸採点',               'ko-KR': '4축 평가' },
+  'mode.fired.f3':    { 'zh-CN': '多结局演完',          'en-US': 'Multiple endings',           'ja-JP': 'マルチエンディング',    'ko-KR': '멀티 엔딩' },
+  'mode.fired.f4':    { 'zh-CN': '⏱ 5-10 分钟/关',     'en-US': '⏱ 5-10 min per stage',      'ja-JP': '⏱ 1面5〜10分',         'ko-KR': '⏱ 스테이지당 5-10분' },
+  'mode.talkshow.f1': { 'zh-CN': '真人音色播报',        'en-US': 'Lifelike TTS voices',        'ja-JP': 'リアル音声',            'ko-KR': '실감나는 음성' },
+  'mode.talkshow.f2': { 'zh-CN': '8 种人格切换',        'en-US': '8 switchable personas',      'ja-JP': '8つのペルソナ',         'ko-KR': '8가지 페르소나' },
+  'mode.talkshow.f3': { 'zh-CN': '段子库每周更新',      'en-US': 'Weekly new bits',            'ja-JP': 'ネタ毎週更新',          'ko-KR': '매주 새 개그' },
+  'mode.talkshow.f4': { 'zh-CN': '⏱ 1-2 分钟/段',      'en-US': '⏱ 1-2 min per bit',         'ja-JP': '⏱ 1本1〜2分',          'ko-KR': '⏱ 편당 1-2분' },
+  'mode.dual.f1':     { 'zh-CN': 'A 司 4 + B 司 4',     'en-US': '4v4 rival companies',        'ja-JP': '4対4の2社対決',         'ko-KR': '4대4 두 회사' },
+  'mode.dual.f2':     { 'zh-CN': '抢市场 / 防内鬼',     'en-US': 'Race share, hunt moles',     'ja-JP': 'シェア争い&スパイ捜し', 'ko-KR': '시장 쟁탈+스파이 색출' },
+  'mode.dual.f3':     { 'zh-CN': '挖角带走身份',        'en-US': 'Poaching keeps secrets',     'ja-JP': '引き抜きは正体ごと',    'ko-KR': '스카웃은 정체째로' },
+  'mode.dual.f4':     { 'zh-CN': '⏱ 一局约 20 分钟',   'en-US': '⏱ ~20 min per game',        'ja-JP': '⏱ 1局約20分',          'ko-KR': '⏱ 한 판 약 20분' },
+  // v6.134 — tier 分级 chip
+  'mode.classic.tier':{ 'zh-CN': '👶 新手推荐',         'en-US': '👶 Start here',              'ja-JP': '👶 初心者向け',          'ko-KR': '👶 입문 추천' },
+  'mode.dual.tier':   { 'zh-CN': '🎓 进阶 · 建议先玩经典局', 'en-US': '🎓 Advanced — try Classic first', 'ja-JP': '🎓 上級 · まず経典から', 'ko-KR': '🎓 고급 · 클래식 먼저' },
+
   // Premium page — chrome
   'premium.title':       { 'zh-CN': 'Premium · 班味 Pro',  'en-US': 'Premium · Office Zoo Pro', 'ja-JP': 'Premium · Office Zoo Pro', 'ko-KR': 'Premium · Office Zoo Pro' },
   'premium.subtitle':    {

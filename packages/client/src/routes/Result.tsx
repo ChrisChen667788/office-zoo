@@ -9,7 +9,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { groupTimelineByRound, digestReplay, bondTier, type ReplayRecord, type ReplayPlayer, type RelationEdge } from '@furball/shared';
+import { groupTimelineByRound, digestReplay, bondTier, type ReplayRecord, type ReplayPlayer, type RelationEdge, type BattleCardInput } from '@furball/shared';
+// v6.145 — 回放深链页也能出双司战报卡(此前只有 HighlightReel 有)
+import { copyCompanyBattleCard, downloadCompanyBattleCard } from '../utils/companyBattleCard';
 import { usePlayers, useWinner, useRound, useGameActions } from '../stores/gameStore';
 import { colors, mihoyo } from '../constants/design';
 import { lottie } from '../constants/lottie';
@@ -54,10 +56,14 @@ const DUAL_REASON_CN: Record<string, string> = {
 };
 
 // v6.54 — timeline event-type → icon for the 🎬 replay log.
+// v6.147 — 补 v6.83+ 引入的新事件类型(干预/挖角/抹黑/恩怨/真人发言/双司开局),
+// 回放时间线不再对新时代事件显示缺省样式。
 const EVENT_ICON: Record<string, string> = {
   kill: '🔪', vote_out: '🗳️', vote_skip: '🤷', protect: '🛡️',
   intercept: '⚖️', role_action: '🔍', body_found: '🚨',
   ghost_vote: '👻', game_over: '🏆', leak_acked: '📣',
+  intervene: '🛒', defection: '📨', poach_failed: '🙅', smear: '📰',
+  grudge_vote: '🗡️', human_speech: '🎤', dual_start: '⚔️',
 };
 
 export default function Result() {
@@ -73,6 +79,8 @@ export default function Result() {
   // timeline the store never kept. The live store is the instant fallback.
   const [replay, setReplay] = useState<ReplayRecord | null>(null);
   const [copied, setCopied] = useState(false);
+  // v6.145 — 双司战报卡状态('idle'|'busy'|'done'|'error')
+  const [battleMsg, setBattleMsg] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
   const [relEdges, setRelEdges] = useState<RelationEdge[]>([]);
   useEffect(() => {
     if (!gameId) return;
@@ -340,6 +348,43 @@ export default function Result() {
           style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)' }}
         >
           {copied ? '✓ 回放链接已复制' : '🔗 复制回放链接'}
+        </motion.button>
+      )}
+
+      {/* v6.145 — 双司回放深链页也能出「公司战报」卡(数据全在 replay record 里) */}
+      {replay?.mode === 'dual' && replay.market
+        && (replay.winner === 'company_a_win' || replay.winner === 'company_b_win') && (
+        <motion.button
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55 }}
+          whileTap={{ scale: 0.97 }}
+          disabled={battleMsg === 'busy'}
+          onClick={async () => {
+            setBattleMsg('busy');
+            const input: BattleCardInput = {
+              winner: replay.winner === 'company_a_win' ? 'a' : 'b',
+              market: replay.market!,
+              round: replay.rounds,
+              dualReason: replay.dualReason,
+              players: (replay.players ?? [])
+                .filter((p): p is ReplayPlayer & { companyId: 'a' | 'b' } => p.companyId === 'a' || p.companyId === 'b')
+                .map((p) => ({ companyId: p.companyId, name: p.name, isAlive: p.isAlive, roleLabel: p.role })),
+              date: new Date().toISOString().slice(0, 10),
+            };
+            try {
+              const copiedOk = await copyCompanyBattleCard(input);
+              if (!copiedOk) await downloadCompanyBattleCard(input);
+              setBattleMsg('done');
+            } catch {
+              try { await downloadCompanyBattleCard(input); setBattleMsg('done'); }
+              catch { setBattleMsg('error'); }
+            }
+          }}
+          className="relative z-10 mb-3 ml-2 px-5 py-2 rounded-xl text-xs font-semibold tracking-wide text-white/85"
+          style={{ background: 'rgba(255,138,61,0.1)', border: '1px solid rgba(255,138,61,0.4)' }}
+        >
+          {battleMsg === 'busy' ? '生成中…' : battleMsg === 'done' ? '✅ 战报已出' : battleMsg === 'error' ? '失败,再试' : '🏢 公司战报'}
         </motion.button>
       )}
 

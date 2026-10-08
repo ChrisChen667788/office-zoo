@@ -8,6 +8,11 @@ import { generateTTSAudio } from '../services/tts';
 import { extractEvidenceRefs } from '../services/evidenceParser';
 import { saveReplay } from '../services/replayStore';
 import type { DualEndReason } from '@furball/shared';
+// v6.126 — Phase C 真人场边角色:认领纯引擎 + 类型
+import {
+  claimRole, releaseUserRoles, roleOfUser, humanRoleById,
+  type RoleClaims, type HumanRoleId,
+} from '@furball/shared';
 import { generateAvatar, getAllCachedAvatars } from '../services/imageGen';
 import { logger, gameLogger } from '../utils/logger';
 import { validateEvent } from '../utils/validate';
@@ -82,6 +87,18 @@ const pendingCleanups = new Map<string, ReturnType<typeof setTimeout>>();
  * Destroy + unregister a game. Idempotent. Cancels any pending grace-period
  * cleanup as well.
  */
+// v6.126 — Phase C:每局的真人角色认领台账(gameId → roleId→socketId)。
+// 挂 socketHandler 模块级(非 engine 状态):它是连接层概念,随房间生灭。
+const humanClaims = new Map<string, RoleClaims>();
+
+/** 广播某局当前的角色占用位图(不暴露 socketId,只报 taken)。 */
+function broadcastRoleClaims(io: SocketServer, gameId: string) {
+  const claims = humanClaims.get(gameId) ?? {};
+  const taken: Record<string, boolean> = {};
+  for (const k of Object.keys(claims)) taken[k] = true;
+  io.to(gameId).emit('game:role_claims', { taken });
+}
+
 function destroyGame(gameId: string, reason: string) {
   const engine = games.get(gameId);
   if (engine) {
@@ -89,6 +106,7 @@ function destroyGame(gameId: string, reason: string) {
     engine.destroy();
     games.delete(gameId);
   }
+  humanClaims.delete(gameId); // v6.126 — 房间销毁连带清认领台账
   const timer = pendingCleanups.get(gameId);
   if (timer) {
     clearTimeout(timer);
@@ -249,9 +267,69 @@ export function setupSocketHandler(io: SocketServer) {
     // 旧 game:over 还会把 HighlightReel 再弹一次)。
     socket.on('game:leave', () => {
       if (!currentGameId) return;
+      // v6.126 — 离场连带释放真人角色
+      const claims = humanClaims.get(currentGameId);
+      if (claims && roleOfUser(claims, socket.id)) {
+        humanClaims.set(currentGameId, releaseUserRoles(claims, socket.id));
+        broadcastRoleClaims(io, currentGameId);
+      }
       socket.leave(currentGameId);
       socketLog.debug({ sid: socket.id, gameId: currentGameId }, 'client left game room');
       currentGameId = null;
+    });
+
+    // ── v6.126 · Phase C 真人场边角色 ────────────────────────────────────
+    // 认领:一角一人、一人一角(shared 纯引擎校验);结果私发,占用位图全房广播。
+    socket.on('game:claim_role', (raw: unknown) => {
+      if (!currentGameId || !games.has(currentGameId)) return;
+      const roleId = (raw as { roleId?: string })?.roleId ?? '';
+      if (!humanRoleById(roleId)) {
+        socket.emit('game:role_claim_result', { ok: false, roleId, reason: 'unknown_role' });
+        return;
+      }
+      const claims = humanClaims.get(currentGameId) ?? {};
+      const r = claimRole(claims, roleId as HumanRoleId, socket.id);
+      if (r.ok) {
+        humanClaims.set(currentGameId, r.claims);
+        broadcastRoleClaims(io, currentGameId);
+      }
+      socket.emit('game:role_claim_result', { ok: r.ok, roleId, reason: r.reason });
+      socketLog.debug({ sid: socket.id, gameId: currentGameId, roleId, ok: r.ok }, 'claim role');
+    });
+
+    // 退下嘉宾席(保留旁观)。
+    socket.on('game:release_role', () => {
+      if (!currentGameId) return;
+      const claims = humanClaims.get(currentGameId);
+      if (!claims) return;
+      if (roleOfUser(claims, socket.id)) {
+        humanClaims.set(currentGameId, releaseUserRoles(claims, socket.id));
+        broadcastRoleClaims(io, currentGameId);
+      }
+    });
+
+    // 场边发言:须已认领角色;限流(6 条/分钟/连接);engine 每轮每角色再兜一道 cap。
+    const humanSpeechTimes: number[] = [];
+    socket.on('game:human_speech', (raw: unknown) => {
+      if (!currentGameId) return;
+      const engine = games.get(currentGameId);
+      if (!engine) return;
+      const claims = humanClaims.get(currentGameId) ?? {};
+      const role = roleOfUser(claims, socket.id);
+      if (!role) {
+        socket.emit('game:human_speech_result', { ok: false, reason: 'no_role' });
+        return;
+      }
+      const now = Date.now();
+      while (humanSpeechTimes.length > 0 && humanSpeechTimes[0] < now - 60_000) humanSpeechTimes.shift();
+      if (humanSpeechTimes.length >= 6) {
+        socket.emit('game:human_speech_result', { ok: false, reason: 'rate_limited' });
+        return;
+      }
+      const text = typeof (raw as { text?: unknown })?.text === 'string' ? (raw as { text: string }).text : '';
+      const r = engine.pushHumanSpeech(role, text);
+      if (r.accepted) humanSpeechTimes.push(now);
+      socket.emit('game:human_speech_result', { ok: r.accepted, reason: r.reason });
     });
 
     // v6.25 P1 — psy-war leak submission. Client (GhostChatPanel 战术 @)
@@ -341,6 +419,13 @@ export function setupSocketHandler(io: SocketServer) {
       const gameId = currentGameId;
       currentGameId = null;
       const glog = gameLogger(gameId);
+
+      // v6.126 — 断线释放真人角色,角色位不被幽灵连接占死
+      const claims = humanClaims.get(gameId);
+      if (claims && roleOfUser(claims, socket.id)) {
+        humanClaims.set(gameId, releaseUserRoles(claims, socket.id));
+        broadcastRoleClaims(io, gameId);
+      }
 
       // If there are still other clients in the room, nothing to do.
       // socket.io removes the socket from its rooms BEFORE this handler fires,
@@ -645,6 +730,11 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
   // v6.111 — 跨局恩怨触发时实时广播,客户端给「恩怨录」按钮点红引导发现
   engine.on('grudge_vote', (data: { voterName: string; foeName: string; taunt: string }) => {
     io.to(gameId).emit('game:grudge_vote', data);
+  });
+
+  // v6.126 — 真人场边发言:全房实时广播(event log / 弹幕两端渲染)
+  engine.on('human_speech', (data: { role: string; label: string; emoji: string; text: string }) => {
+    io.to(gameId).emit('game:human_speech', data);
   });
 
   // v6.86 — 双公司挖角/跳槽 live banner。挖角是双司局招牌时刻,实时播一条

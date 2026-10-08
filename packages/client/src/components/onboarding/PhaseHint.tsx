@@ -19,16 +19,18 @@ const PHASE_HINTS: Record<string, { icon: string; title: string; hint: string; c
     hint: '公司正在组建员工队伍,请稍候……',
     color: '#a855f7',
   },
+  // v6.142(审计 UX F-12)— hint 改旁观者视角:告诉「你」会看到什么、能做什么,
+  // 而不是写给 AI 玩家看的策略说明。
   role_reveal: {
     icon: '📋',
     title: '岗位分配',
-    hint: '每位员工拿到自己的工位和身份,暗中盘算本回合策略。',
-    color: '#2fb8ff',
+    hint: '旁观视角:AI 鼠人正在领身份牌,片刻后开始搬砖 —— 你可以先开一注。',
+    color: '#4c9eff',
   },
   free_roam: {
     icon: '💼',
     title: '日常搬砖',
-    hint: '打工人做 KPI 任务冲进度条,资本家伺机偷偷"优化"掉落单员工。',
+    hint: '看小人走位做任务,资本家伺机下黑手 —— 左下 🎰 已开盘,现在就能押「谁被开除」。',
     color: '#4FC3F7',
   },
   meeting: {
@@ -40,7 +42,7 @@ const PHASE_HINTS: Record<string, { icon: string; title: string; hint: string; c
   discussion: {
     icon: '🔥',
     title: '职场撕逼',
-    hint: 'AI 员工按座次发言甩锅,暗藏线索的发言会影响随后投票。',
+    hint: '发言藏线索:觉得谁在演就点 🤥「在演」压 TA 赔率;🎤 上桌当嘉宾,你的话 AI 真的听得到。',
     color: '#fb923c',
   },
   voting: {

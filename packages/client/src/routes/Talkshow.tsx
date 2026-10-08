@@ -1106,6 +1106,7 @@ function CreateBitModal({
                 <img
                   src={p.imageUrl}
                   alt={p.label}
+                  loading="lazy" // v6.149 — 创作面板折叠在下方,缩略图懒加载省首屏带宽
                   className="absolute inset-0 w-full h-full object-cover"
                   draggable={false}
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}

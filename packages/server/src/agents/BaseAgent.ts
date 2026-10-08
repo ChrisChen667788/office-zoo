@@ -187,6 +187,9 @@ export class BaseAgent {
        *  anonymous leaks from fired ex-coworkers. The AI may believe,
        *  doubt, or ignore — personality decides the reaction. */
       leakedHints?: string[];
+      /** v6.125 — Phase C 真人场边发言(已格式化带角色署名,如「【真人HR】…」)。
+       *  真人在场是稀缺事件,AI 必须正面接招:回应/反驳/接梗都行,不能装没听见。 */
+      humanSpeeches?: string[];
       /** v6.83 — 观众筹码买的「聚光灯」:true = 这轮该鼠加戏(多讲 + 上情绪)。
        *  Engine 取走即消费,一次性。 */
       spotlight?: boolean;
@@ -286,10 +289,20 @@ export class BaseAgent {
       ? '\n\n【🎭 你被观众打了聚光灯】这轮你是全场主角:比平时多讲 1-2 句(总字数可放宽到 150 字),情绪拉满,上细节上比喻,该阴阳就狠狠阴阳——给观众一段值回票价的表演。'
       : '';
 
+    // v6.125 — Phase C 真人场边嘉宾发言。与匿名爆料不同:真人是有身份的在场者
+    // (真人HR/工会/律师/记者),AI 必须正面接招 —— 回应、反驳、接梗、或阴阳,
+    // 但不能无视;真人 HR 点名谁,谁就得给个说法。
+    const humans = (opts?.humanSpeeches ?? []).slice(-6);
+    const humanBlock = humans.length > 0
+      ? `\n\n【🎤 场边真人嘉宾发言(他们真的在看着这场会)】\n${humans
+          .map((h) => `- ${h}`)
+          .join('\n')}\n真人在场是大事:至少呼应其中一条(赞同/怼回去/借力打力都行);如果真人HR点名要求某人解释,而那个人是你,必须正面回应。`
+      : '';
+
     const res = await callLLMWithTimeout('SPEECH', {
       model: openai()(model()),
       system: this.systemPrompt,
-      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${relationBlock}${snippetBlock}${leakedBlock}${spotlightBlock}${this.roleIntelBlock()}${priorBlock}
+      prompt: `你是${this.playerName}。当前职场状况: ${context}${memoryBlock}${relationBlock}${snippetBlock}${leakedBlock}${humanBlock}${spotlightBlock}${this.roleIntelBlock()}${priorBlock}
 
 请发表你的看法(2-4 句话,每句都要有戏,总字数 60-120 字)。硬性要求:
 

@@ -100,6 +100,23 @@ export const ACHIEVEMENTS: Achievement[] = [
     check: () => getProgress('profile_visited') >= 1,
   },
 
+  // v6.143 — 观众经济 + 双公司 + 真人嘉宾三条新钩子
+  {
+    id: 'intervene_first', emoji: '🛒', label: '第一次买干预',
+    desc: '在干预商店花筹码真的改了一次剧情(护盾/邮件/聚光灯/猎头).',
+    check: () => getProgress('intervene_bought') >= 1,
+  },
+  {
+    id: 'dual_first_watch', emoji: '⚔️', label: '看完第一局双公司',
+    desc: '完整看完一局「双公司对抗」— 谁吞并了谁?',
+    check: () => getProgress('dual_finished') >= 1,
+  },
+  {
+    id: 'guest_first', emoji: '🎤', label: '第一次上桌',
+    desc: '认领真人嘉宾角色(HR/工会/律师/记者)坐上场边席.',
+    check: () => getProgress('guest_claimed') >= 1,
+  },
+
   // Meta (2)
   {
     id: 'three_day_streak', emoji: '🔥', label: '连续 3 天回归',
@@ -108,9 +125,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: 'completionist', emoji: '🏆', label: '集邮党',
-    desc: '解锁其他 11 个 achievements.',
+    desc: '解锁其他 14 个 achievements.',
     // Self-referential — checked after every refreshAuto pass.
-    check: () => getUnlocked().size >= 11,
+    check: () => getUnlocked().size >= 14,
   },
 ];
 

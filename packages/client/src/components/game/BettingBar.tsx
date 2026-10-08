@@ -192,6 +192,8 @@ export default function BettingBar({
     onIntervene?.(itemId, targetId);
     const item = INTERVENTION_ITEMS.find((i) => i.id === itemId)!;
     flashToast(`${item.emoji} ${item.label}已下单 — 看戏`, true);
+    // v6.143 — 🛒 intervene_first 成就(首次真金白银改剧情)
+    void import('../../utils/achievements').then((m) => m.bumpProgress('intervene_bought', 1));
     sfx.playBadge();
     setPendingItem(null);
     setShopOpen(false);

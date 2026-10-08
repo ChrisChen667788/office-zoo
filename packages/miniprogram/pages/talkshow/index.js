@@ -10,6 +10,7 @@ const app = getApp();
 const PERSONA_CN = {
   shaonv: '🎀 少女', yujie: '👠 御姐', qingse: '🌱 青涩',
   jingying: '💼 精英', badao: '🕶️ 霸总', qingnian: '🧢 青年',
+  lingling: '😎 整顿王', // v6.144 — 与 H5 端 v6.100 对齐(00 后整顿职场)
 };
 const TAG_CN = {
   overtime: '🌙 加班', kpi: '📈 KPI', pua: '🎭 PUA', age: '🎂 35岁',

@@ -408,6 +408,7 @@ export default function FiredChat() {
               <img
                 src={`/fired-hr-portraits/${personalityId}.png`}
                 alt={PERSONALITY_LABELS[personalityId]}
+                loading="lazy" // v6.149 — 侧栏立绘懒加载,聊天首屏优先
                 className="absolute inset-0 w-full h-full object-cover"
                 draggable={false}
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}

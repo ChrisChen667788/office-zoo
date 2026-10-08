@@ -43,6 +43,12 @@ import {
   smearTruthful,
   pickSmearTarget,
   SMEAR_PRESSURE,
+  // v6.125 — Phase C 真人场边角色
+  humanRoleById,
+  formatHumanSpeechForPrompt,
+  HUMAN_SPEECH_PER_ROUND_CAP,
+  HUMAN_SPEECH_MAX_LEN,
+  type HumanRoleId,
 } from '@furball/shared';
 import { TaskManager } from './TaskManager';
 import { BaseAgent } from '../agents/BaseAgent';
@@ -305,6 +311,11 @@ export class GameEngine extends EventEmitter {
    *  "anonymous ex-coworker tips" the AI can quote/discredit/ignore.
    *  Cleared each round (`pushLeakedHint` keeps a sliding window). */
   private leakedHints: string[] = [];
+
+  /** v6.125 — Phase C 真人场边发言(已格式化带角色署名)。滑窗 cap 6,走 PSYWAR
+   *  同款注入链进 AI 讨论 prompt;每轮每角色限 HUMAN_SPEECH_PER_ROUND_CAP 条防刷屏。 */
+  private humanSpeeches: string[] = [];
+  private humanSpeechRoundCount = new Map<string, number>(); // `${round}:${role}` → count
 
   /** v6.83 — 观众筹码买的「裁员保护协议」:罩住的 playerId,挡一刀即消费。 */
   private interventionShieldId: string | null = null;
@@ -1082,6 +1093,8 @@ export class GameEngine extends EventEmitter {
               // speech prompt. AI may believe / discredit / ignore based
               // on personality. Capped to 5 in BaseAgent itself.
               leakedHints: this.leakedHints,
+              // v6.125 — 真人场边发言(带角色署名),AI 需正面接招不能装没听见
+              humanSpeeches: this.humanSpeeches,
               // v6.83 — 观众聚光灯:取走即消费(delete 返回 true = 本次加戏)。
               spotlight: this.spotlightIds.delete(player.id),
             });
@@ -1817,6 +1830,29 @@ export class GameEngine extends EventEmitter {
     this.leakedHints.push(text);
     if (this.leakedHints.length > 5) this.leakedHints.shift();
     this.emit('leak_acked', { text, total: this.leakedHints.length });
+    return { accepted: true };
+  }
+
+  /**
+   * v6.125 — Phase C 真人场边发言。socket handler 校验认领 + 限流后调进来。
+   * 走 PSYWAR 同款链:格式化(带角色署名)进滑窗缓冲 → 下一波讨论 prompt 注入,
+   * AI 真的听得到并可能点名回应。每轮每角色限 HUMAN_SPEECH_PER_ROUND_CAP 条。
+   */
+  pushHumanSpeech(roleId: HumanRoleId, rawText: string): { accepted: boolean; reason?: string } {
+    const role = humanRoleById(roleId);
+    if (!role) return { accepted: false, reason: 'unknown_role' };
+    const text = (rawText ?? '').trim().slice(0, HUMAN_SPEECH_MAX_LEN);
+    if (text.length === 0) return { accepted: false, reason: 'empty' };
+    const key = `${this.state.round}:${roleId}`;
+    const used = this.humanSpeechRoundCount.get(key) ?? 0;
+    if (used >= HUMAN_SPEECH_PER_ROUND_CAP) return { accepted: false, reason: 'round_cap' };
+    this.humanSpeechRoundCount.set(key, used + 1);
+
+    this.humanSpeeches.push(formatHumanSpeechForPrompt(roleId, text));
+    if (this.humanSpeeches.length > 6) this.humanSpeeches.shift();
+
+    this.addEvent('human_speech', `🎤 ${role.emoji} ${role.label}:${text}`);
+    this.emit('human_speech', { role: roleId, label: role.label, emoji: role.emoji, text });
     return { accepted: true };
   }
 

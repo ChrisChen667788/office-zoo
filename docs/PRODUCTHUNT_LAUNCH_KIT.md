@@ -4,6 +4,11 @@
 >
 > v6.0.0 (2026-05-22) — Phase B 记忆层完整落地后第一次正式 launch。
 > Asset 在 `assets/launch/`,demo GIF / MP4 在 `assets/launch-demo/`。
+>
+> **📌 2026-07 更新(v6.131 口径):** 主打卖点已换代 —— ⚔️ 双公司商战 + 🎰 观众下注/干预经济 +
+> 🎤 真人场边嘉宾(AI 点名回应)+ 🎨 米哈游化视觉 + 27 张二次元立绘。paste-ready 新文案见
+> [`LAUNCH_SUBMISSION_PACK.md`](./LAUNCH_SUBMISSION_PACK.md) 顶部「2026-07 卖点刷新」;
+> 本文其余(资产规格/时间表/FAQ 模板)仍有效,文案字段以新口径覆盖。
 
 ---
 

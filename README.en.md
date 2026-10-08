@@ -66,6 +66,18 @@
 
 ---
 
+## 🌟 v6.86 → v6.131 · Company Clash + spectators at the table + Gen-Z reskin
+
+> Two AI companies battling on one map, spectators betting / intervening / steering the plot for real, humans joining as sideline guests, and a full miHoYo-style visual pass — "watching" leveled up into "playing".
+
+- ⚔️ **Company Clash mode** (v6.85→v6.93) — 4v4, two companies each hiding 1 mole: a market-share tug-of-war bar, cross-company **poaching** (the mole keeps their secret identity when they defect!), **smear campaigns** (half-true rumor warfare feeding the vote), and a company battle-report share card. Win matrix: monopoly > wipeout > both-moles-down > round cap.
+- 🎤 **Humans at the table** (v6.124→v6.131, Phase C) — claim one of four sideline roles (Human HR / union rep / gossip lawyer / reporter) and your messages are injected into the AI discussion prompts with attribution. AIs must respond — if the Human HR calls someone out, they answer. Invite friends into the same room with one link.
+- 🎰 **Full spectator economy** (v6.93→v6.96) — ghost votes + your own "🤥 they're acting" reads reshape the odds in real time; rejected interventions refund chips with a real reason; settle-history panel; mobile bottom-sheet betting bar.
+- 🎨 **Gen-Z visual pass** (v6.98→v6.101) — gradient-mesh backgrounds everywhere, phase capsule cycling elemental colors (frost lobby → inferno meeting → void roast → solar vote), hexagonal stigma mode cards, GameMap recentered with room floors decoupled from faction colors.
+- 🖼️ **Portrait system** (v6.98→v6.100) — 24 AI-illustrated workplace archetype portraits, 3 villain HR portraits for the negotiation mode, and a 7th talkshow persona "😎 The Disruptor" (Gen-Z workplace rebel). Image-to-video living-portrait pipeline ready (MiniMax Hailuo i2v).
+- ⚖️ **Labor-law scenario pack** (v6.116→v6.119) — PUA'd into "voluntary resignation" / age-35 "restructuring" / non-compete trap / 996 overtime clawback — each round is a crash course in Chinese labor law.
+- 🧪 **Three adversarial audit sweeps** (v6.93→v6.122) — 40+ confirmed findings shipped: onboarding overhaul, skippable elimination reveal, chip-based psy-war UI, grudge-dot discovery, dedicated clue card, leave-page confirm… 561 vitest green · main bundle −56% via route-level code-splitting.
+
 ## 🌟 v6.37 → v6.42 · Bring your coworkers into the game
 
 > Company Packs + cross-spectator leaderboard + year-end Wrapped — "work-fatigue" grows from a personal experience into a social loop.
@@ -165,7 +177,13 @@ Image: flux-schnell → doubao-seedream → qwen-image → gpt-image-1 → minim
 ✅ v6.52      Special-role abilities go live (HR investigate / union-rep protect, AI-driven) + core game-loop tests
 ✅ v6.53      Legal-counsel body-block + data-analyst OKR-leak — all in-rotation special roles now wired
 ✅ v6.54      🎬 Match replay — server-persisted timeline + deep-linkable replay page + Premium replay perk live
-🔜 next       (opt) rotate medium/adventurer into presets · Premium voice (needs voice-clone infra) / lawyer (real-human service) — commercialization, deferred
+✅ v6.57-6.66 "Fired" roguelike card battles — tactic deck × HR counter matrix, relics, shop, tiered bosses, leaderboard
+✅ v6.67-6.83 Show layer (portrait pop-ups / crowd danmaku / TTS crowd) + spectator betting bar + chip-bought interventions
+✅ v6.85-6.93 ⚔️ Company Clash (4v4, moles, poaching, smear warfare) + spectator-economy closure + crash hardening
+✅ v6.94-6.101 Living-portrait i2v pipeline + 4-step onboarding + Gen-Z visual pass (mesh / elemental phases / hex cards) + 27 portraits
+✅ v6.102-6.122 20-version audit sweep (skippable reveals, leave-confirm, settle history, clue card, grudge dot…) + labor-law scenario pack
+✅ v6.124-6.131 🎤 Phase C humans-at-the-table — claim HR/union/lawyer/reporter, your words enter AI prompts, AIs answer by name
+🔜 next       Phase G EN prompt set + HN launch · Premium voice-clone / real-lawyer intake — commercialization, deferred
 ```
 
 ## 🙏 Acknowledgements
