@@ -133,6 +133,17 @@ describe('v6.160 — 席位变化立刻广播 game:state', () => {
     expect(st.votes).toEqual({ someVoter: 'someTarget' }); // 引擎内的票没被动
   });
 
+  it('投票进行中的快照保留鬼魂票:它本来就随 ghost_vote_cast 实时公开,抹掉会清零全房热度', async () => {
+    const { a, b, engine, playerId } = await setupRoom();
+    const st = (engine as unknown as { state: { phase: string; ghostVotes: Record<string, string> } }).state;
+    st.phase = GamePhase.VOTING;
+    st.ghostVotes = { ghost1: 'target1' };
+    const broadcast = waitFor<WireState & { ghostVotes: Record<string, string> }>(
+      b, 'game:state', (s) => controllerOf(s, playerId) === 'human');
+    a.emit('game:claim_seat', { playerId });
+    expect((await broadcast).ghostVotes).toEqual({ ghost1: 'target1' });
+  });
+
   it('投票进行中加入的观众拿到的状态也不带票型;非投票阶段照常带(对照组)', async () => {
     const { engine } = await setupRoom();
     const st = (engine as unknown as { state: { id: string; phase: string; votes: Record<string, string> } }).state;

@@ -124,6 +124,8 @@ function broadcastSeatClaims(io: SocketServer, gameId: string) {
  * 引擎自己只在换阶段时发 game:state(投票开始那一帧 votes 已清空),票型随 vote_result 公布;
  * 若在投票途中发完整状态,已投出的 AI 票会提前暴露给全房或刚加入的观众。
  * 引擎驱动的那几处(phase_change / kill / vote_result / game_over)时机本身安全,保持原样。
+ * ghostVotes 故意保留:鬼魂票本来就随 game:ghost_vote_cast 实时公开给全房(v6.24 / v6.93 热度改赔率),
+ * 快照里抹掉反而会让客户端 updateState 把全房已显示的鬼魂票热度清零。
  */
 export function publicStateSnapshot(engine: GameEngine) {
   const state = engine.getSerializedState();
