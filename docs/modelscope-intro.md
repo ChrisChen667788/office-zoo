@@ -358,6 +358,7 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 - ✅ **v6.160** 集成审查 + 四维补审收尾(15 项修复:席位时序 / 投票票型不提前暴露 / 外语局 prompt 去中文 / 法条数字)+ 对外大版本同步 + ModelScope 模型卡与同步脚本
 
 **下一步(开放讨论):**
+- 📋 **v6.161 起的开发计划见 [`docs/PRODUCT_REVIEW_2026-10.md`](https://github.com/ChrisChen667788/office-zoo/blob/main/docs/PRODUCT_REVIEW_2026-10.md)**:先上线可在线游玩的托管版本,补齐安全、AI 生成内容标识与埋点,再谈新玩法;下面的余项按该计划的阶段门槛排期
 - [x] ~~赔偿结算分享卡~~ —— v6.65 已上(战绩图 boss / 赔偿档 / 遗物 / 回合数,一键分享)
 - [x] ~~牌局打磨:抽牌/手牌上限 · 遗物多选 + 商店 · 赔偿阶梯结算分享卡~~ —— v6.63→v6.65 全部落地
 - [ ] Phase C 余项:沉浸局席位 UI、地图画布上的 👤 标记、真人席位接管夜间行动与鬼魂票

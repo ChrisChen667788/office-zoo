@@ -198,7 +198,7 @@ Image: flux-schnell → doubao-seedream → qwen-image → gpt-image-1 → minim
 ✅ v6.151-6.155 🪑 Phase C deep end — humans take rat seats (private ID card, countdown speech & vote, AI stand-in on timeout) + 🎙 voice input
 ✅ v6.156-6.157 🌐 Phase G — AIs speak the game's language: English big-tech prompt set + Japanese / Korean flavor packs
 ✅ v6.158-6.160 Labor-law batch 3 + seasonal scenarios / integration-review fixes + public release sync
-🔜 next       Immersive-mode seat UI · per-language TTS voices · HN launch · Premium voice-clone / real-lawyer intake — commercialization, deferred
+🔜 next       Hosted playable demo first — safety, AI-content labeling and analytics before any new mode (plan: docs/PRODUCT_REVIEW_2026-10.md, Chinese)
 ```
 
 ## 🙏 Acknowledgements
