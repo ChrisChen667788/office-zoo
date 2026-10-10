@@ -50,7 +50,7 @@ describe('GET /api/config', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('cache-control')).toBe('no-store');
     const j = await res.json() as Record<string, unknown>;
-    expect(Object.keys(j).sort()).toEqual(['analytics', 'profile']);
+    expect(Object.keys(j).sort()).toEqual(['analytics', 'features', 'profile']);
     expect(j.profile).toBe('hosted');
   });
 });

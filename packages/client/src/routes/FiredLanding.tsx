@@ -29,6 +29,7 @@ import EventPill from '../components/EventPill';
 import { navIcons, Icon } from '../constants/icons';
 import { filterFiredScenarios } from '../utils/firedScenarioFilters';
 import type { UserProfile } from '../utils/profileTypes';
+import { useFeatures } from '../utils/runtimeConfig';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
  *  same fields plus a `source` flag distinguishing seed catalogue from
@@ -87,6 +88,7 @@ const PERSONALITIES: Personality[] = [
 export default function FiredLanding() {
   const navigate = useNavigate();
   const { setScenario, setPersonality, reset } = useFiredStore();
+  const features = useFeatures();
   const { unlockedLevels, stars, lastClearedLevel } = useFiredProgress();
 
   const [entryMode, setEntryMode] = useState<EntryMode>('chapters');
@@ -619,7 +621,7 @@ export default function FiredLanding() {
                     : null;
                   // v1.0.0 — Premium-locked card. Click routes to paywall
                   // instead of selecting the scenario.
-                  const isLocked = scenario.premium && !premium;
+                  const isLocked = scenario.premium && !premium && features.payments; // v6.168:不收款就没有付费墙
                   return (
                     <motion.button
                       key={scenario.id}
@@ -661,7 +663,7 @@ export default function FiredLanding() {
                       )}
                       {/* v1.0.0 Premium 标签 — locked 状态下大且清晰; 已订阅时
                           只在卡角放一个小 👑 表明这是 Premium 内容。 */}
-                      {scenario.premium && (
+                      {scenario.premium && features.payments && (
                         <div
                           className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide"
                           style={{
@@ -875,7 +877,7 @@ export default function FiredLanding() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                       {offSeasonScenarios.map((scenario) => {
                         const active = selectedScenario === scenario.id;
-                        const isLocked = scenario.premium && !premium;
+                        const isLocked = scenario.premium && !premium && features.payments; // v6.168:不收款就没有付费墙
                         return (
                           <motion.button
                             key={scenario.id}

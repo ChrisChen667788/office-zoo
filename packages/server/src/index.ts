@@ -49,6 +49,7 @@ import { ASSET_FAMILIES, runtimeAssetDir } from './utils/assetDirs';
 import { serveAssetFile } from './utils/staticAssets';
 import { clientDistDir, serveClient } from './utils/clientStatic';
 import { isHosted } from './utils/deployProfile';
+import { hostedFeatureGate } from './utils/hostedFeatures';
 import type { Server as HttpServer } from 'http';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
@@ -62,6 +63,8 @@ const app = new Hono();
 // text/plain POST 的执行);放行的跨域来源(ALLOWED_ORIGINS / 本机开发端口)才回 CORS 头。
 app.use('*', originGuardMiddleware);
 app.use('*', corsForAllowedOrigins());
+// v6.168 — 托管版关闭收款 / B2B / 邮箱订阅接口(owner 决策,见 utils/hostedFeatures)。
+app.use('*', hostedFeatureGate);
 app.use('*', requestIdMiddleware);
 
 // API routes

@@ -46,6 +46,7 @@ interface DailyDrama {
 import { modeIcons, navIcons, Icon } from '../constants/icons';
 import { trackEvent } from '../utils/analytics';
 import { FIRED_AUTOSTART_PATH } from '../utils/firedAutostart';
+import { useFeatures } from '../utils/runtimeConfig';
 
 // v6.28 P4 — 9 added once ROLE_PRESETS[9] (v6.27 P1) landed. The
 // 6→8→9→10 ladder gives users a "1-step-up from default" option;
@@ -142,6 +143,7 @@ export default function Landing() {
   const navigate = useNavigate();
   // v1.2.0 — i18n. `t()` for translations, `locale` re-renders on toggle.
   const { t, locale } = useT();
+  const features = useFeatures();
 
   // v1.4.0 — daily drama. Server returns personalized "today's drama"
   // when the user has a quiz profile; null otherwise (we keep the legacy
@@ -428,8 +430,8 @@ export default function Landing() {
           >
             🎭 攒局
           </button>
-          {/* v1.1.0 — B 端 SaaS 入口 (律所/HR培训采购) */}
-          <button
+          {/* v1.1.0 — B 端 SaaS 入口 (律所/HR培训采购)。v6.168:托管版冻结,不显示 */}
+          {features.b2b && <button
             onClick={() => navigate('/b2b')}
             className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
             style={{
@@ -440,10 +442,11 @@ export default function Landing() {
             title="Law firm white-label / HR training sandbox"
           >
             {t('header.b2b')}
-          </button>
+          </button>}
           {/* v1.0.0 — Premium chip in header. Tasteful amber gradient
-              that doesn't shout. Routes to /premium paywall page. */}
-          <button
+              that doesn't shout. Routes to /premium paywall page.
+              v6.168:托管版不做收款(owner 决策),不显示 */}
+          {features.payments && <button
             onClick={() => navigate('/premium')}
             className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide px-3 py-1.5 rounded-full transition relative overflow-hidden hover-sheen"
             style={{
@@ -455,7 +458,7 @@ export default function Landing() {
             title="解锁 海外大厂剧本 + 律师入口 + voice clone + 无限回放"
           >
             👑 Premium
-          </button>
+          </button>}
           <button
             onClick={() => setRulesOpen(true)}
             className="text-xs tracking-wider text-white/55 hover:text-white/90 transition px-3 py-2"

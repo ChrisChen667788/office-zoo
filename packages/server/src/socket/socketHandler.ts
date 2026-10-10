@@ -7,7 +7,7 @@ import {
 import { generateTTSAudio } from '../services/tts';
 import { extractEvidenceRefs } from '../services/evidenceParser';
 import { saveReplay } from '../services/replayStore';
-import { GamePhase, type DualEndReason } from '@furball/shared';
+import { GamePhase, compactReplaySpeeches, REPLAY_MAX_SPEECHES, type DualEndReason, type ReplaySpeech } from '@furball/shared';
 // v6.126 — Phase C 真人场边角色:认领纯引擎 + 类型
 import {
   claimRole, releaseUserRoles, roleOfUser, humanRoleById,
@@ -701,9 +701,19 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
 
   // Speech queue for sequential playback
   let speechQueue: SpeechQueueItem[] = [];
+  // v6.168 — 回放记录发言(在引擎吐出一轮发言时就记,不依赖房间里有没有人在看)。
+  const replaySpeeches: ReplaySpeech[] = [];
 
   engine.on('discussion_speeches', (speeches: SpeechQueueItem[]) => {
     speechLog.info({ count: speeches.length }, 'speech batch received');
+    for (const sp of speeches) {
+      const player = engine.state.players.find((p) => p.id === sp.playerId);
+      replaySpeeches.push({
+        round: engine.state.round, playerId: sp.playerId, playerName: sp.playerName, text: sp.text,
+        role: sp.role, team: sp.team, byHuman: player?.controller === 'human',
+      });
+    }
+    if (replaySpeeches.length > REPLAY_MAX_SPEECHES * 2) replaySpeeches.splice(0, replaySpeeches.length - REPLAY_MAX_SPEECHES);
     speechQueue = [...speeches];
     // processSpeechQueue now has its own try/finally guaranteeing resolveDiscussion,
     // but we still attach a catch here so an unexpected sync throw during
@@ -1004,6 +1014,7 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
         companyId: p.companyId,
       })),
       timeline: engine.getTimeline(),
+      speeches: compactReplaySpeeches(replaySpeeches),
       // v6.88 — 双公司终局快照:模式 + 市占率(来自 finalState)+ 终局缘由(来自 game_over 载荷)。
       ...(finalState.mode === 'dual'
         ? {

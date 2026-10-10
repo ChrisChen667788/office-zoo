@@ -6,6 +6,7 @@ import CharacterFocusModal from './components/character/CharacterFocusModal';
 import AchievementUnlockToast from './components/AchievementUnlockToast';
 import { markDayVisited, refreshAuto } from './utils/achievements';
 import AiNoticeBar from './components/AiNoticeBar';
+import FeatureGate from './components/FeatureGate';
 
 // v6.92 — 路由级代码分包:除首屏 Landing 外全部 React.lazy。原来所有路由静态 import
 // 进同一个 ~1.3MB 主 chunk,首屏全量下载(含只在分享/动画用到的 html2canvas / lottie)。
@@ -95,10 +96,10 @@ export default function App() {
       <Route path="/weekly/me" element={<WeeklyMe />} />
       <Route path="/weekly" element={<Weekly />} />
       {/* v1.0.0 — Premium paywall + demo checkout. */}
-      <Route path="/premium" element={<Premium />} />
+      <Route path="/premium" element={<FeatureGate flag="payments"><Premium /></FeatureGate>} />
       {/* v1.1.0 — B2B white-label builder + iframe embed target. */}
-      <Route path="/b2b" element={<B2bBuilder />} />
-      <Route path="/embed/:configId" element={<B2bEmbed />} />
+      <Route path="/b2b" element={<FeatureGate flag="b2b"><B2bBuilder /></FeatureGate>} />
+      <Route path="/embed/:configId" element={<FeatureGate flag="b2b"><B2bEmbed /></FeatureGate>} />
       {/* v1.3.0 — "你是哪种打工人?" personality quiz + shareable profile card. */}
       <Route path="/quiz" element={<Quiz />} />
       <Route path="/profile/me" element={<Profile />} />

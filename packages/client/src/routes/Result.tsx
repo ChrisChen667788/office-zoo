@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { groupTimelineByRound, digestReplay, bondTier, type ReplayRecord, type ReplayPlayer, type RelationEdge, type BattleCardInput } from '@furball/shared';
+import { groupReplayByRound, digestReplay, bondTier, type ReplayRecord, type ReplayPlayer, type RelationEdge, type BattleCardInput } from '@furball/shared';
 // v6.145 — 回放深链页也能出双司战报卡(此前只有 HighlightReel 有)
 import { copyCompanyBattleCard, downloadCompanyBattleCard } from '../utils/companyBattleCard';
 import { usePlayers, useWinner, useRound, useGameActions } from '../stores/gameStore';
@@ -29,6 +29,7 @@ const TEAM_LABELS: Record<string, { label: string; emoji: string; color: string 
 // majority value; the slight magenta tilt in Result intentionally
 // dropped for brand consistency.
 import { PERSONALITY_LABELS_LITE as PERSONALITY_LABELS } from '../constants/personalityLabels';
+import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
 
 type WinLabel = {
   title: string;
@@ -106,7 +107,9 @@ export default function Result() {
   const winner = replay?.winner ?? liveWinner;
   const round = replay?.rounds ?? liveRound;
   const timeline = replay?.timeline ?? [];
-  const rounds = groupTimelineByRound(timeline);
+  // v6.168 — 回放带上 AI 发言(老回放没有,只按事件分组)
+  const replaySpeeches = replay?.speeches ?? [];
+  const rounds = groupReplayByRound(timeline, replaySpeeches);
 
   const shareReplay = () => {
     if (!gameId) return;
@@ -302,6 +305,23 @@ export default function Result() {
         </motion.div>
       )}
 
+      {/* v6.168 — 示例对局横幅:随仓库发布的真实对局,不调用模型 */}
+      {replay?.sample && (
+        <div
+          className="relative z-10 w-full max-w-2xl mb-6 rounded-2xl px-4 py-3 text-[12px] leading-relaxed text-white/80"
+          style={{ background: 'rgba(255,215,0,0.08)', border: '1px solid rgba(255,215,0,0.35)' }}
+          data-sample-banner
+        >
+          🎬 这是一局<strong>示例对局</strong>:开发者用真实模型跑出、已去掉真人输入的内容。发言均为 AI 生成,
+          看这一局不调用任何模型、不需要 key。
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="ml-1 underline underline-offset-2 text-amber-200 hover:text-amber-100"
+          >自己开一局 →</button>
+        </div>
+      )}
+
       {/* v6.54 — 🎬 full event-timeline replay (from the persisted record). */}
       {rounds.length > 0 && (
         <motion.div
@@ -311,7 +331,8 @@ export default function Result() {
           className="relative z-10 w-full max-w-2xl mb-8"
         >
           <h2 className="text-white/70 text-sm font-bold tracking-wide mb-3 text-center">
-            📜 完整回放 · {timeline.length} 个事件
+            📜 完整回放 · {timeline.length} 个事件{replaySpeeches.length > 0 && ` · ${replaySpeeches.length} 条发言`}
+            {replaySpeeches.length > 0 && <AiGeneratedBadge className="ml-2" />}
           </h2>
           <div className="space-y-4">
             {rounds.map((g) => (
@@ -328,6 +349,17 @@ export default function Result() {
                     >
                       <span className="flex-shrink-0">{EVENT_ICON[e.type] ?? '▪️'}</span>
                       <span className="flex-1">{e.description}</span>
+                    </div>
+                  ))}
+                  {g.speeches.map((sp, i) => (
+                    <div
+                      key={`s${i}`}
+                      className="flex items-start gap-2 text-[12px] rounded-lg px-3 py-2"
+                      style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.18)' }}
+                      data-replay-speech
+                    >
+                      <span className="flex-shrink-0 font-bold text-white/85">{sp.playerName}</span>
+                      <span className="flex-1 text-white/75 leading-relaxed">{sp.text}</span>
                     </div>
                   ))}
                 </div>

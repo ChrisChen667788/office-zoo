@@ -24,7 +24,8 @@
     "gen:fired-hr-portraits": "tsx scripts/regen-fired-hr-portraits.ts",
     "gen:modelscope-intro": "node scripts/gen-modelscope-intro.mjs",
     "ms:sync": "node scripts/modelscope-sync.mjs",
-    "start": "npm -w @furball/server run start"
+    "start": "npm -w @furball/server run start",
+    "sample:promote": "tsx scripts/promote-sample-replay.ts"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

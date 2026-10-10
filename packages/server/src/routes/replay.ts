@@ -3,12 +3,14 @@
  *
  *   GET /api/replay            → recent replays (digest preview only, no
  *                                full timeline — keeps the list payload small)
- *   GET /api/replay/:gameId    → one full ReplayRecord (roster + timeline)
+ *   GET /api/replay/samples    → v6.168 随仓库发布的示例对局列表
+ *   GET /api/replay/:gameId    → one full ReplayRecord (roster + timeline);sample-* 读示例对局
  *
  * Write side is the socketHandler game_over hook (saveReplay). Read-only here.
  */
 import { Hono } from 'hono';
 import { getReplay, listRecentReplays } from '../services/replayStore';
+import { getSampleReplay, listSampleReplays } from '../services/sampleReplays';
 import { digestReplay } from '@furball/shared';
 
 export const replayRoutes = new Hono();
@@ -29,8 +31,27 @@ replayRoutes.get('/', async (c) => {
   });
 });
 
+// v6.168 — 随仓库发布的示例对局(没配 key 也能看的完整 AI 对局)。注册在 /:gameId 之前。
+replayRoutes.get('/samples', (c) => {
+  return c.json({
+    samples: listSampleReplays().map((r) => ({
+      gameId: r.gameId,
+      endedAt: r.endedAt,
+      winner: r.winner,
+      rounds: r.rounds,
+      playerCount: r.players.length,
+      speechCount: r.speeches?.length ?? 0,
+      mode: r.mode ?? 'single',
+      digest: digestReplay(r.timeline),
+    })),
+  });
+});
+
 replayRoutes.get('/:gameId', async (c) => {
-  const rec = await getReplay(c.req.param('gameId'));
+  const id = c.req.param('gameId');
+  const sample = getSampleReplay(id);
+  if (sample) return c.json(sample);
+  const rec = await getReplay(id);
   if (!rec) return c.json({ error: 'replay_not_found' }, 404);
   return c.json(rec);
 });

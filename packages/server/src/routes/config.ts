@@ -7,6 +7,7 @@
  */
 import { Hono } from 'hono';
 import { deployProfile } from '../utils/deployProfile';
+import { featureFlags } from '../utils/hostedFeatures';
 
 export interface PublicAnalyticsConfig {
   umami: { scriptUrl: string; websiteId: string } | null;
@@ -36,5 +37,7 @@ configRoutes.get('/', (c) => {
   return c.json({
     profile: deployProfile(),
     analytics: analyticsConfig(),
+    // v6.168 — 托管版功能收口(收款 / B2B / 邮箱订阅),前端据此隐藏入口
+    features: featureFlags(),
   });
 });
