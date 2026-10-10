@@ -41,6 +41,7 @@ import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { EmptyState }   from '../components/ui/EmptyState';
 import { WaveformBars } from '../components/ui/WaveformBars';
 import RoastBooth from '../components/character/RoastBooth';
+import TalkshowVideoButton from '../components/talkshow/TalkshowVideoButton';
 
 interface ScriptSummary {
   id: string;
@@ -1210,6 +1211,8 @@ function PlayerView({
   // invariant the cleanup can't flip.
   const fetchedRef = useRef<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  /** v6.169 — 服务器配音的原始 Blob,导出短视频时混进音轨;浏览器朗读兜底时保持 null。 */
+  const audioBlobRef = useRef<Blob | null>(null);
   /** End-of-audio timer for the server MP3 path — we don't have a direct
    *  'ended' hook on the shared element so we approximate using durationSec.
    *  Cleared on unmount / replay so we don't fire stale flips. */
@@ -1265,6 +1268,7 @@ function PlayerView({
     // earlier `cancelled` closure flag is gone; staleness check now
     // uses fetchedRef.current vs. script.id at each await boundary.
     setAudioState('fetching');
+    audioBlobRef.current = null;
     const myScriptId = script.id; // pin for staleness comparison below
     (async () => {
       try {
@@ -1285,6 +1289,7 @@ function PlayerView({
         if (fetchedRef.current !== myScriptId) return;
         const url = URL.createObjectURL(blob);
         blobUrlRef.current = url;
+        audioBlobRef.current = blob;
         // Try autoplay first (works when the shared audio element was
         // unlocked by primeAudio() during the earlier click).
         const ok = await playTtsFromUrl(url);
@@ -1712,6 +1717,22 @@ function PlayerView({
         <div className="text-center text-amber-400 mb-4 text-sm">
           ⚠️ 音色和系统音都不可用 · 纯文字模式
         </div>
+      )}
+      {/* v6.169 — 线 B:播完(或只能纯文字)后可导出短视频,画面全程带 AI 生成标识。 */}
+      {(audioState === 'done' || audioState === 'failed') && (
+        <TalkshowVideoButton
+          input={{
+            title: script.title,
+            text: script.text,
+            tagLabel: tagCfg.label,
+            tagColor: tagCfg.color,
+            personaLabel: personaCfg.label,
+            personaEmoji: personaCfg.emoji,
+            personaImageUrl: 'imageUrl' in personaCfg ? personaCfg.imageUrl : undefined,
+            fallbackDurationSec: script.durationSec,
+          }}
+          getAudioBlob={() => audioBlobRef.current}
+        />
       )}
 
       {/* Subtitle bubble — reveal-as-you-listen during ANY active playback

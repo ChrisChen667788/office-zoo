@@ -24,6 +24,8 @@
  */
 
 import type { Highlight } from '../services/highlightPicker';
+import { AI_VIDEO_END_LABEL, drawAiWatermark } from './aiLabel';
+import { startFrameTicker } from './frameTicker';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -138,18 +140,18 @@ export async function exportShareVideo(opts: ExportOptions): Promise<ExportResul
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
-  // 4. Frame loop. Drive on `requestAnimationFrame` for smooth pacing rather
-  // than setInterval — RAF tracks display refresh and the recorder samples
-  // captureStream at exactly VIDEO_FPS regardless.
+  // 4. Frame loop. v6.169: driven by a Worker ticker (see frameTicker) — rAF
+  // stops in background tabs and froze the recording; the recorder still
+  // samples captureStream at VIDEO_FPS.
   const startTime = performance.now();
   let lastProgress = -1;
 
   const frame = () => {
     const elapsedMs = performance.now() - startTime;
     const elapsedSec = elapsedMs / 1000;
-    if (elapsedSec >= VIDEO_DURATION_SEC) return;
+    if (elapsedSec >= VIDEO_DURATION_SEC) { stopTicker(); return; }
 
-    drawScene(ctx, elapsedSec, opts, avatarImgs, dims);
+    drawShareVideoFrame(ctx, elapsedSec, opts, avatarImgs, dims);
 
     // Fire progress at 1-second granularity to avoid spamming React renders.
     const wholeSec = Math.floor(elapsedSec);
@@ -157,16 +159,17 @@ export async function exportShareVideo(opts: ExportOptions): Promise<ExportResul
       lastProgress = wholeSec;
       opts.onProgress?.(elapsedSec / VIDEO_DURATION_SEC);
     }
-    requestAnimationFrame(frame);
   };
 
   recorder.start();
-  requestAnimationFrame(frame);
+  // v6.169 — Worker 驱动出帧(原 rAF 在后台标签页会停,录出冻结画面)。
+  const stopTicker = startFrameTicker(VIDEO_FPS, frame);
 
   // 5. Wait the full duration, then stop + assemble.
   await new Promise<void>((resolve) => {
     setTimeout(resolve, VIDEO_DURATION_SEC * 1000 + 100);
   });
+  stopTicker();
   recorder.stop();
 
   // Drain the final ondataavailable + onstop.
@@ -232,10 +235,25 @@ async function preloadAvatars(
 // Scene renderer
 // ---------------------------------------------------------------------------
 
+/**
+ * v6.169 — 每一帧最后都画「AI 生成」水印:导出的文件被转发出去后,标识要跟着文件走
+ * (《人工智能生成合成内容标识办法》)。导出给测试用假 ctx 逐帧断言。
+ */
+export function drawShareVideoFrame(
+  ctx: CanvasRenderingContext2D,
+  t: number,
+  opts: Pick<ExportOptions, 'highlights' | 'winner'>,
+  avatars: Map<string, HTMLImageElement>,
+  dims: { w: number; h: number },
+) {
+  drawScene(ctx, t, opts, avatars, dims);
+  drawAiWatermark(ctx, dims);
+}
+
 function drawScene(
   ctx: CanvasRenderingContext2D,
   t: number,
-  opts: ExportOptions,
+  opts: Pick<ExportOptions, 'highlights' | 'winner'>,
   avatars: Map<string, HTMLImageElement>,
   dims: { w: number; h: number },
 ) {
@@ -532,6 +550,9 @@ function drawOutro(ctx: CanvasRenderingContext2D, p: number, dims: { w: number; 
   ctx.font = '40px -apple-system, "PingFang SC", sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.fillText('班味剧场 · MIT 开源', dims.w / 2, dims.h * 0.82);
+  ctx.font = 'bold 48px -apple-system, "PingFang SC", sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillText(AI_VIDEO_END_LABEL, dims.w / 2, dims.h * 0.9);
 
   ctx.restore();
 }
