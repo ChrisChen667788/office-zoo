@@ -28,12 +28,21 @@ import { io, Socket } from 'socket.io-client';
 /* Config                                                                */
 /* --------------------------------------------------------------------- */
 
-// In dev, Vite proxies /socket.io to localhost:3101.
-// In prod or direct access, connect to :3101 directly.
-const SOCKET_URL =
-  typeof window !== 'undefined' && window.location.port === '5173'
-    ? window.location.origin
-    : 'http://localhost:3101';
+// v6.166 — 生产构建连同源(服务器单端口同时提供页面、API 与 Socket.IO);开发时 vite
+// 在 5173 上代理 /socket.io。旧写法在生产里写死 http://localhost:3101,托管后必然连不上。
+// 仅本机直开 3100 页面调试时才回退 3101;VITE_SOCKET_URL 可显式覆盖(前后端分开部署时)。
+export function resolveSocketUrl(loc: { origin: string; port: string } | undefined, isDev: boolean, override?: string): string {
+  if (override) return override;
+  if (!loc) return 'http://localhost:3101';
+  if (isDev && loc.port !== '5173') return 'http://localhost:3101';
+  return loc.origin;
+}
+
+const SOCKET_URL = resolveSocketUrl(
+  typeof window !== 'undefined' ? window.location : undefined,
+  !!(import.meta as { env?: { DEV?: boolean } }).env?.DEV,
+  (import.meta as { env?: { VITE_SOCKET_URL?: string } }).env?.VITE_SOCKET_URL,
+);
 
 const DEV = typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV;
 

@@ -23,7 +23,8 @@
     "gen:archetype-portraits": "tsx scripts/regen-archetype-portraits.ts",
     "gen:fired-hr-portraits": "tsx scripts/regen-fired-hr-portraits.ts",
     "gen:modelscope-intro": "node scripts/gen-modelscope-intro.mjs",
-    "ms:sync": "node scripts/modelscope-sync.mjs"
+    "ms:sync": "node scripts/modelscope-sync.mjs",
+    "start": "npm -w @furball/server run start"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

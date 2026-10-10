@@ -22,7 +22,9 @@
  * IG-portrait client share card — those are user-share artefacts;
  * this is unfurl preview.
  */
-import { chromium, Browser } from 'playwright';
+// v6.166 — 只导入类型;运行时按需动态加载。生产镜像不装 playwright / 浏览器内核,静态导入会让
+// 服务器启动即崩,现在渲染不了就让路由回退到静态品牌图。
+import type { Browser } from 'playwright';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,9 +41,16 @@ const OG_HEIGHT = 630;
 
 let browserPromise: Promise<Browser> | null = null;
 async function getBrowser(): Promise<Browser> {
-  if (!browserPromise) browserPromise = chromium.launch({ headless: true });
+  if (!browserPromise) {
+    browserPromise = import('playwright')
+      .then(({ chromium }) => chromium.launch({ headless: true }))
+      .catch((err) => { browserPromise = null; throw err; });
+  }
   return browserPromise;
 }
+
+/** 渲染不可用(没装 playwright / 没有浏览器内核)时的标记,路由据此回退到静态图。 */
+export const OG_UNAVAILABLE = 'unavailable' as const;
 
 /** Build a stable cache-key string from character + stats so a stats
  *  change naturally invalidates. Empty / no stats → use 'rookie'. */
@@ -59,7 +68,7 @@ function cacheKey(name: string, lastGameId?: string): string {
  * Returns null when the character isn't in the roster (caller should
  * 404).
  */
-export async function getCharacterOgCard(name: string): Promise<Buffer | null> {
+export async function getCharacterOgCard(name: string): Promise<Buffer | null | typeof OG_UNAVAILABLE> {
   const character = findCharacter(name);
   if (!character) return null;
   const stats = await getCharacterStats(name).catch(() => null);
@@ -78,7 +87,13 @@ export async function getCharacterOgCard(name: string): Promise<Buffer | null> {
   }
 
   // Render fresh.
-  const buf = await renderOgPng(character, stats);
+  let buf: Buffer;
+  try {
+    buf = await renderOgPng(character, stats);
+  } catch (err) {
+    console.warn('[ogCardRenderer] render unavailable:', (err as Error)?.message?.slice(0, 200));
+    return OG_UNAVAILABLE;
+  }
   // Save to disk (best-effort; don't block on it).
   try {
     await fs.mkdir(CACHE_DIR, { recursive: true });

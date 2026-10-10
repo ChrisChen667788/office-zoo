@@ -47,6 +47,9 @@ import { configRoutes } from './routes/config';
 import { llmStatsSnapshot } from './utils/llmStats';
 import { ASSET_FAMILIES, runtimeAssetDir } from './utils/assetDirs';
 import { serveAssetFile } from './utils/staticAssets';
+import { clientDistDir, serveClient } from './utils/clientStatic';
+import { isHosted } from './utils/deployProfile';
+import type { Server as HttpServer } from 'http';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -176,12 +179,23 @@ app.get('/api/health', (c) => {
   });
 });
 
+// v6.166 — 生产 / 托管:服务器直接托管前端构建产物(同源同端口,见 utils/clientStatic)。
+// 必须注册在所有 API 路由之后:只接住前面都没匹配上的 GET。
+const clientDist = clientDistDir();
+if (clientDist) {
+  app.get('*', (c) => serveClient(clientDist, c.req.path) ?? c.json({ error: 'not found' }, 404));
+  logger.info({ clientDist }, 'serving built client');
+}
+
 const port = parseInt(process.env.PORT || '3100');
 const wsPort = parseInt(process.env.WS_PORT || '3101');
+// v6.166 — 单端口模式:Socket.IO 挂在同一个 HTTP 服务上(托管平台通常只给一个端口)。
+// hosted 默认开启;本机开发保持 3100 + 3101 双端口(vite 分别代理)。SINGLE_PORT=1/0 可强制。
+const singlePort = process.env.SINGLE_PORT ? process.env.SINGLE_PORT === '1' : isHosted();
 
 // HTTP server
-serve({ fetch: app.fetch, port }, () => {
-  logger.info({ port }, 'HTTP server listening');
+const mainServer = serve({ fetch: app.fetch, port }, () => {
+  logger.info({ port, singlePort }, 'HTTP server listening');
 });
 
 // v6.33 P5 — load persisted spectator counters + arm 60s flush timer.
@@ -195,8 +209,8 @@ setInterval(() => {
   sweepOgCache(7).then((r) => logger.info(r, 'og cache hourly sweep'));
 }, 60 * 60 * 1000);
 
-// WebSocket server on separate port
-const httpServer = createServer();
+// WebSocket server — separate port in local dev, same server in single-port mode.
+const httpServer: HttpServer = singlePort ? (mainServer as HttpServer) : createServer();
 const io = new SocketServer(httpServer, {
   // v6.162 — 握手按与 HTTP 相同的 Origin 规则放行(见 utils/originGuard)。
   ...socketOriginOptions(),
@@ -213,9 +227,11 @@ setupFiredRoomHandler(io);
 // v1.4.1 — squad mode (2-4 friends, LLM director writes 5-act sitcom)
 setupSquadHandler(io);
 
-httpServer.listen(wsPort, () => {
-  logger.info({ wsPort }, 'WebSocket server listening');
-});
+if (!singlePort) {
+  httpServer.listen(wsPort, () => {
+    logger.info({ wsPort }, 'WebSocket server listening');
+  });
+}
 
 // Unhandled rejections / uncaught exceptions — log and don't silently die.
 process.on('unhandledRejection', (reason) => {
