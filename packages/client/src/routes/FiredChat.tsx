@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFiredStore, type FiredMessage, type FiredScores } from '../stores/firedStore';
 import { SCENARIOS as SHARED_SCENARIOS } from '@furball/shared';
@@ -8,6 +8,7 @@ import { getUserId } from '../utils/userId';
 import { trackEvent } from '../utils/analytics';
 import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
 import { useT } from '../utils/i18n';
+import { autostartLevel, isAutostart } from '../utils/firedAutostart';
 
 const PERSONALITY_LABELS: Record<string, string> = {
   rookie: '菜鸟HR',
@@ -146,7 +147,11 @@ export default function FiredChat() {
     updateScores,
     setOutcome,
     setIsOver,
+    setScenario,
+    setPersonality,
+    reset: resetFired,
   } = useFiredStore();
+  const location = useLocation();
 
   const [inputText, setInputText] = useState('');
   const [keyMomentFlash, setKeyMomentFlash] = useState<string | null>(null);
@@ -169,12 +174,26 @@ export default function FiredChat() {
     [messages],
   );
 
+  // v6.169 — 首页「5 分钟速通」:?autostart=true 直接装上第一关并开聊(跳过选关)。
+  // 必须排在下面的「没选场景就回列表」之前,且那条判断要放过 autostart。
+  const autostart = isAutostart(location.search);
+  useEffect(() => {
+    if (!autostart) return;
+    const level = autostartLevel();
+    resetFired();
+    setScenario(level.scenarioId);
+    setPersonality(level.personalityId);
+    try { sessionStorage.setItem('office-zoo.active-level', String(level.level)); } catch { /* noop */ }
+    // 去掉查询参数:刷新页面不会再次重置进行中的对话。
+    navigate('/fired/chat', { replace: true });
+  }, [autostart, navigate, resetFired, setScenario, setPersonality]);
+
   // Redirect if no scenario selected
   useEffect(() => {
-    if (!scenarioId) {
+    if (!scenarioId && !autostart) {
       navigate('/fired');
     }
-  }, [scenarioId, navigate]);
+  }, [scenarioId, autostart, navigate]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -189,14 +208,17 @@ export default function FiredChat() {
   }, []);
 
   // Initial HR greeting (guard against StrictMode double-fire)
+  // v6.169 — autostart 那一帧先不发(场景马上会被换成第一关);依赖里加上 messages.length,
+  // 这样 autostart 清掉旧对话后、场景 id 没变的情况下也会补发开场白。
   useEffect(() => {
+    if (autostart) return;
     if (scenarioId && messages.length === 0 && !greetingSent.current) {
       greetingSent.current = true;
       trackEvent('game_start', { mode: 'fired', scenario: scenarioId });
       handleInitialGreeting();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenarioId]);
+  }, [scenarioId, messages.length, autostart]);
 
   const handleInitialGreeting = async () => {
     setLoading(true);

@@ -45,6 +45,7 @@ interface DailyDrama {
 }
 import { modeIcons, navIcons, Icon } from '../constants/icons';
 import { trackEvent } from '../utils/analytics';
+import { FIRED_AUTOSTART_PATH } from '../utils/firedAutostart';
 
 // v6.28 P4 — 9 added once ROLE_PRESETS[9] (v6.27 P1) landed. The
 // 6→8→9→10 ladder gives users a "1-step-up from default" option;
@@ -74,11 +75,23 @@ interface ModeSpec {
 }
 
 const MODES: ModeSpec[] = [
+  // v6.169 — 裁了么置顶:参与感最强、一局 5 分钟、天然适合首访;其余顺延。
+  {
+    key: 'fired',
+    icon: modeIcons.fired,
+    iconFallback: '⚖️',
+    badge: '01',
+    titleKey:   'mode.fired.title',
+    taglineKey: 'mode.fired.body',
+    features: ['mode.fired.f1', 'mode.fired.f2', 'mode.fired.f3', 'mode.fired.f4'],
+    accent: colors.semantic.danger,
+    accent2: colors.semantic.warn,
+  },
   {
     key: 'classic',
     icon: modeIcons.classic,
     iconFallback: '🏢',
-    badge: '01',
+    badge: '02',
     titleKey:   'mode.classic.title',
     taglineKey: 'mode.classic.body',
     // v6.109/v6.122 时长第 4 条;v6.134 全部走 dict(四语言)
@@ -91,23 +104,12 @@ const MODES: ModeSpec[] = [
     key: 'immersive',
     icon: modeIcons.immersive,
     iconFallback: '🎤',
-    badge: '02',
+    badge: '03',
     titleKey:   'mode.immersive.title',
     taglineKey: 'mode.immersive.body',
     features: ['mode.immersive.f1', 'mode.immersive.f2', 'mode.immersive.f3', 'mode.immersive.f4'],
     accent: '#a855f7',
     accent2: colors.brand.neon,
-  },
-  {
-    key: 'fired',
-    icon: modeIcons.fired,
-    iconFallback: '⚖️',
-    badge: '03',
-    titleKey:   'mode.fired.title',
-    taglineKey: 'mode.fired.body',
-    features: ['mode.fired.f1', 'mode.fired.f2', 'mode.fired.f3', 'mode.fired.f4'],
-    accent: colors.semantic.danger,
-    accent2: colors.semantic.warn,
   },
   {
     key: 'talkshow',
@@ -211,7 +213,8 @@ export default function Landing() {
     });
     setShareOpen(true);
   }, []);
-  const [mode, setMode] = useState<GameMode>('classic');
+  // v6.169 — 默认选中裁了么(与第一张卡一致)
+  const [mode, setMode] = useState<GameMode>('fired');
   const [playerCount, setPlayerCount] = useState<number>(8);
   const [isCreating, setIsCreating] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -560,6 +563,23 @@ export default function Landing() {
               一家被裁掉的公司,9 名 AI 鼠人 24h 互卷。
               你不是玩家,是那只盯着 KPI 屏的 HR —— 选个模式,看戏。
             </p>
+
+            {/* v6.169 — 「5 分钟速通」:跳过模式选择与选关,直达裁了么第一关(?autostart=true)。 */}
+            <div className="mb-5 flex flex-col items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => { primeAudio(); navigate(FIRED_AUTOSTART_PATH); }}
+                className="px-6 py-3 rounded-2xl text-sm md:text-base font-black tracking-wide text-white transition hover:scale-[1.03]"
+                style={{
+                  background: 'linear-gradient(135deg, #ff4757 0%, #ff8a3d 100%)',
+                  boxShadow: '0 10px 28px rgba(255,71,87,0.38), inset 0 1px 0 rgba(255,255,255,0.25)',
+                }}
+                data-testid="quickstart-fired"
+              >
+                {t('landing.quickstart')}
+              </button>
+              <span className="text-[11px] text-white/50">{t('landing.quickstartSub')}</span>
+            </div>
 
             {/* v6.14 P1 — daily featured rat spotlight. Same character
                 surfaces for ALL users on a given day = shared
@@ -1047,6 +1067,7 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
           onEnter();
         }}
         disabled={disabled || busy}
+        data-mode-enter={spec.key}
         whileHover={{ x: 2 }}
         whileTap={{ scale: 0.97 }}
         className={`relative z-20 inline-flex items-center gap-1.5 rounded-xl font-bold tracking-wide disabled:opacity-50 disabled:cursor-not-allowed ${

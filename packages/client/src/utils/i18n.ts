@@ -58,6 +58,10 @@ const DICT = {
     'ko-KR': 'AI 대화는 연습용이며 법률 자문이 아닙니다. 구체적인 문제는 변호사나 노동위원회에 문의하세요',
   },
 
+  // v6.169 — 首页「5 分钟速通」直达裁了么第一关
+  'landing.quickstart':    { 'zh-CN': '⚡ 5 分钟速通 · 裁了么第一关', 'en-US': '⚡ 5-min quick start · You\'re Fired Lv.1', 'ja-JP': '⚡ 5分で速攻 · 解雇通告 第1ステージ', 'ko-KR': '⚡ 5분 속공 · 해고당함 1단계' },
+  'landing.quickstartSub': { 'zh-CN': '和 AI HR 谈赔偿,边玩边学劳动法', 'en-US': 'Negotiate severance with an AI HR — learn labor law as you play', 'ja-JP': 'AI人事と退職金を交渉、遊びながら労働法を学ぶ', 'ko-KR': 'AI 인사담당자와 퇴직금 협상, 놀면서 노동법 배우기' },
+
   // Brand + header
   'brand.wordmark':      { 'zh-CN': 'OFFICE ZOO',         'en-US': 'OFFICE ZOO',          'ja-JP': 'OFFICE ZOO',          'ko-KR': 'OFFICE ZOO' },
   'brand.tagline':       { 'zh-CN': 'AI 鼠人 24h 营业',   'en-US': 'AI rats clocking in 24/7', 'ja-JP': 'AIネズミ社員 24時間営業', 'ko-KR': 'AI 직원 24시간 영업' },
