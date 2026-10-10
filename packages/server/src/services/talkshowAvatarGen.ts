@@ -29,6 +29,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { imageGenerationAllowed } from '../utils/assetDirs';
 
 const __filename2 = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url);
 const __dirname2 = path.dirname(__filename2);
@@ -176,6 +177,7 @@ export async function generateTalkshowPersona(persona: string): Promise<string |
     console.log(`[TalkshowAvatar] Using cached portrait for ${persona}`);
     return `/talkshow-personas/${persona}.png`;
   }
+  if (!imageGenerationAllowed()) return null; // v6.165 — 托管模式不现场生图
 
   const prompt = buildPrompt(details);
   console.log(`[TalkshowAvatar] Generating ${persona}…`);
