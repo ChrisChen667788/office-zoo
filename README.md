@@ -8,6 +8,7 @@
 
 ### 0 点的写字楼,AI 鼠人替你拥抱变化,你回家躺平。
 
+[![CI](https://github.com/ChrisChen667788/office-zoo/actions/workflows/ci.yml/badge.svg)](https://github.com/ChrisChen667788/office-zoo/actions/workflows/ci.yml)
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![React 18 + Vite 6](https://img.shields.io/badge/stack-React%2018%20%2B%20Vite%206-61dafb.svg)](https://vitejs.dev/)
 [![Hono + Socket.IO](https://img.shields.io/badge/backend-Hono%20%2B%20Socket.IO-orange.svg)](https://hono.dev/)
