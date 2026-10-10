@@ -6,6 +6,8 @@ import { useFiredProgress, getLevel } from '../stores/firedProgress';
 import { getUserId } from '../utils/userId';
 import DailyShareCardModal from '../components/DailyShareCardModal';
 import type { DailyShareCardData } from '../utils/dailyShareCard';
+import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
+import { useT } from '../utils/i18n';
 
 /** v1.5.0 — shape returned by /api/daily/me. Duplicated from Landing
  *  (kept small + local) so we don't add a shared types module. */
@@ -193,6 +195,7 @@ function RadarChart({ scores }: { scores: FiredScores }) {
 /* ------------------------------------------------------------------ */
 
 export default function FiredResult() {
+  const { t } = useT();
   const navigate = useNavigate();
   const { scenarioId, outcome, currentScores, messages, reset } = useFiredStore();
   const awardLevel = useFiredProgress((s) => s.awardLevel);
@@ -797,6 +800,10 @@ export default function FiredResult() {
             <p className="text-[13px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }}>
               📚 {activeLevelInfo.def.legalLesson}
             </p>
+            {/* v6.164 — 知识卡免责。 */}
+            <p className="mt-2 text-[10px] leading-snug" style={{ color: 'rgba(255,255,255,0.4)' }} data-ai-label="legal">
+              {t('ai.legalDisclaimer')}
+            </p>
           </motion.div>
         )}
 
@@ -809,7 +816,7 @@ export default function FiredResult() {
             transition={{ delay: 0.8, duration: 0.6 }}
           >
             <p className="text-[10px] uppercase tracking-[0.25em] mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>
-              律师点评
+              律师点评 <AiGeneratedBadge className="ml-1" />
             </p>
             <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>
               {outcome.summary}

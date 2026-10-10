@@ -40,6 +40,7 @@ import {
   stopTts,
 } from '../utils/audioUnlock';
 import { trackEvent } from '../utils/analytics';
+import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
 
 export default function Squad() {
   const navigate = useNavigate();
@@ -564,6 +565,8 @@ function Playing({ room, myId, amHost, onAdvance }: {
 
       <h2 className="y2k-display text-2xl md:text-3xl font-black text-white">
         {act.title}
+        {/* v6.164 — 剧本与配音由 AI 编剧生成 */}
+        <AiGeneratedBadge className="ml-2 align-middle" />
       </h2>
 
       {/* v1.4.2 — audio playback bar. Each user can toggle audio

@@ -43,6 +43,7 @@ import { WaveformBars } from '../components/ui/WaveformBars';
 import RoastBooth from '../components/character/RoastBooth';
 import TalkshowVideoButton from '../components/talkshow/TalkshowVideoButton';
 import { trackEvent } from '../utils/analytics';
+import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
 
 interface ScriptSummary {
   id: string;
@@ -1535,6 +1536,8 @@ function PlayerView({
 
       <h2 className="text-2xl md:text-3xl font-black text-white mb-6 leading-tight">
         {script.title}
+        {/* v6.164 — 段子文本、配音与立绘均为 AI 生成 */}
+        <AiGeneratedBadge className="ml-2 align-middle" />
       </h2>
 
       {/* v0.9.2.1 — Avatar treatment redesigned for premium player feel:

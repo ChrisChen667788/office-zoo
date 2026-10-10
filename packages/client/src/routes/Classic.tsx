@@ -53,6 +53,7 @@ const SERVER_URL = '';
 // Local re-export kept as alias to minimize blast radius on call sites.
 import { PERSONALITY_LABELS } from '../constants/personalityLabels';
 import { trackEvent } from '../utils/analytics';
+import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
 
 /** Same gender heuristic as Immersive.tsx — kept as a separate function so
  *  Classic can be edited independently. The role->gender map is small and
@@ -1160,6 +1161,7 @@ export default function Classic() {
               }}>
                 <span style={{ width: 3, height: 11, borderRadius: 2, background: mihoyo.element.void.core, boxShadow: `0 0 8px ${mihoyo.element.void.glow}` }} />
                 SPEECHES
+                <AiGeneratedBadge />
               </div>
               {/* v6.8 P3 — show the currently-thinking AI's personality-aware
                    idle beat when LLM hasn't yet emitted a speech event. */}

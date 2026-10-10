@@ -6,6 +6,8 @@ import { SCENARIOS as SHARED_SCENARIOS } from '@furball/shared';
 import { uid as genId } from '../utils/uid';
 import { getUserId } from '../utils/userId';
 import { trackEvent } from '../utils/analytics';
+import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
+import { useT } from '../utils/i18n';
 
 const PERSONALITY_LABELS: Record<string, string> = {
   rookie: '菜鸟HR',
@@ -1157,6 +1159,7 @@ interface MessageBubbleProps {
 }
 
 function MessageBubble({ message, onRetry, isLoading }: MessageBubbleProps) {
+  const { t } = useT();
   const isUser = message.role === 'user';
   const isHR = message.role === 'hr';
   const isLawyer = message.role === 'lawyer';
@@ -1219,9 +1222,16 @@ function MessageBubble({ message, onRetry, isLoading }: MessageBubbleProps) {
             }}
           >
             {label}
+            {(isHR || isLawyer) && <AiGeneratedBadge className="ml-1.5" />}
           </div>
         )}
         <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>
+        {/* v6.164 — AI 输出下方的法律免责(防止截图被当成法律意见)。 */}
+        {(isHR || isLawyer) && (
+          <p className="mt-1.5 text-[10px] not-italic leading-snug" style={{ color: 'rgba(255,255,255,0.38)' }} data-ai-label="legal">
+            {t('ai.legalDisclaimer')}
+          </p>
+        )}
 
         {/* Key moment badge */}
         {message.keyMoment && (

@@ -87,6 +87,7 @@ const PHASE_LABELS = GAME_PHASES;
 // v6.16 P2 — see Classic.tsx; promoted to shared constants module.
 import { PERSONALITY_LABELS } from '../constants/personalityLabels';
 import { trackEvent } from '../utils/analytics';
+import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
 
 function getTeamForRole(role: string): string {
   if (role.endsWith('_cat')) return 'cat';
@@ -783,6 +784,8 @@ export default function Immersive() {
                   }}>
                   {ROLE_VISUALS[currentSpeech.role || '']?.label || currentSpeech.role}
                 </span>
+                {/* v6.164 — AI 生成标识(发言文本与语音) */}
+                <AiGeneratedBadge />
                 {/* Personality badge in speech panel */}
                 {(() => {
                   const sp = players.find((p) => p.id === currentSpeech.playerId);

@@ -217,6 +217,7 @@ function outcomeZh(o: 'win' | 'partial' | 'lose'): string {
 import type { PlayMemory } from '../services/memoryStore';
 import { ARCHETYPE_WEAK_SPOTS, findArchetype } from '@furball/shared';
 import { clientIp } from '../utils/clientIp';
+import { HR_ROLEPLAY_GUARDRAIL, LEGAL_ADVISOR_GUARDRAIL } from '../services/legalGuardrail';
 
 /** v1.3.2 — archetype context the HR prompt builder consumes when the
  *  user has taken the personality quiz. `null` for guests / pre-quiz
@@ -295,7 +296,9 @@ ${archetype.ammo.map((s, i) => `  ${i + 1}. ${s}`).join('\n')}
 - 如果员工提出合理的法律依据，你可以适当让步，但要尽量减少公司赔偿
 - 对话要自然真实，像真实的裁员谈判一样
 - 用中文回复，控制在2-4句话以内
-- 你的常用话术: ${personality.commonTactics.join('、')}`;
+- 你的常用话术: ${personality.commonTactics.join('、')}
+
+${HR_ROLEPLAY_GUARDRAIL}`;
 }
 
 /**
@@ -423,6 +426,9 @@ firedRouter.post('/chat', async (c) => {
     let scoringRaw = '';
     if (!isInit) {
       const scoringPrompt = `你是一位劳动法专家和谈判教练。请评估以下裁员谈判中员工的表现。
+
+${LEGAL_ADVISOR_GUARDRAIL}
+(护栏同样适用于 lawyerTip 与 outcome.summary 两个字段的文字。)
 
 场景: ${scenario.title}
 法律背景: ${scenario.legalSituation}
@@ -652,7 +658,9 @@ firedRouter.post('/suggest', async (c) => {
   { "text": "<引用法律条文风格的回复>", "style": "legal" }
 ]
 
-每个回复控制在1-2句话，要具体且实用。`,
+每个回复控制在1-2句话，要具体且实用。
+
+${LEGAL_ADVISOR_GUARDRAIL}`,
       prompt: `对话记录:\n${conversation}\n\n请为员工生成3个回复建议。`,
       maxTokens: 400,
       temperature: 0.8,
