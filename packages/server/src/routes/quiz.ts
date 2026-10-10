@@ -30,15 +30,13 @@ import {
 import { findProfile, saveProfile, type UserProfile } from '../services/profileStore';
 import { getEvolutionPayload } from '../services/archetypeEvolution';
 import { logger } from '../utils/logger';
+import { clientIp } from '../utils/clientIp';
 
 const log = logger.child({ component: 'quiz' });
 const limiter = createRateLimiter({ windowMs: 600_000, max: 6 }); // 6 quiz scores per 10 min
 
-function ipFromHono(c: { req: { header: (k: string) => string | undefined } }): string {
-  const fwd = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip');
-  if (fwd) return fwd.split(',')[0].trim();
-  return c.req.header('host') ?? 'unknown';
-}
+// v6.162 — 统一走 utils/clientIp(旧实现信任 XFF 第一项,可被伪造绕过限流)。
+const ipFromHono = clientIp;
 
 export const quizRoutes = new Hono();
 

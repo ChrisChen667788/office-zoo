@@ -5,6 +5,14 @@
  */
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+// v6.162 — 测试的服务端数据写进一次性临时目录,不再改写/删除开发者本机 packages/server/data/
+// 里的真实数据(此前 grudgeVote 测试每跑一次就删一次 relations.json)。globalSetup 负责收尾删除。
+const testDataDir = mkdtempSync(path.join(tmpdir(), 'furball-test-data-'));
+process.env.FURBALL_TEST_DATA_DIR = testDataDir;
 
 export default defineConfig({
   test: {
@@ -15,6 +23,8 @@ export default defineConfig({
     // skeleton. Tests that need DOM can opt into 'jsdom' per-file.
     environment: 'node',
     globals: false,
+    env: { FURBALL_DATA_DIR: testDataDir },
+    globalSetup: ['./scripts/vitest-global-setup.ts'],
   },
   resolve: {
     alias: {

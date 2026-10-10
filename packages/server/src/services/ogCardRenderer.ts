@@ -28,10 +28,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findCharacter, type CharacterCard } from '@furball/shared';
 import { getCharacterStats } from './characterStatsStore';
+import { DATA_DIR } from '../utils/dataDir';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
-const CACHE_DIR  = path.resolve(__dirname, '..', '..', 'data', 'og-cards');
+const CACHE_DIR  = path.join(DATA_DIR, 'og-cards');
 
 const OG_WIDTH = 1200;
 const OG_HEIGHT = 630;

@@ -25,6 +25,7 @@ import { callLLMWithTimeout } from '../utils/llm';
 import { validateBody } from '../utils/validate';
 import { createRateLimiter } from '../utils/rateLimit';
 import { logger } from '../utils/logger';
+import { clientIp } from '../utils/clientIp';
 import {
   recordLike, getCounts, getEvents, dominantStyle, clearPreferences,
   type WeeklyStyle as PrefStyle,
@@ -122,8 +123,7 @@ const GenerateSchema = z.object({
 export const weeklyRoutes = new Hono();
 
 weeklyRoutes.post('/generate', async (c) => {
-  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? c.req.header('host') ?? 'unknown';
+  const ip = clientIp(c);
   const rate = generateLimiter.check(ip);
   if (!rate.ok) {
     return c.json({ error: '生成太快, 1 小时最多 5 份周报' }, 429);
@@ -225,8 +225,7 @@ weeklyRoutes.post('/like', async (c) => {
   if (!userId || userId.length < 8) {
     return c.json({ error: '需要 X-User-Id header (≥ 8 char)' }, 400);
   }
-  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? c.req.header('host') ?? 'unknown';
+  const ip = clientIp(c);
   if (!likeLimiter.check(`${ip}::${userId}`).ok) {
     return c.json({ error: '点赞太快了' }, 429);
   }
@@ -309,8 +308,7 @@ weeklyRoutes.post('/compare', async (c) => {
   if (!userId || userId.length < 8) {
     return c.json({ error: '需要 X-User-Id header (登录后才能 A/B 对比)' }, 400);
   }
-  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? c.req.header('host') ?? 'unknown';
+  const ip = clientIp(c);
   if (!generateLimiter.check(ip).ok) {
     return c.json({ error: '生成太快, 1 小时最多 5 份周报' }, 429);
   }

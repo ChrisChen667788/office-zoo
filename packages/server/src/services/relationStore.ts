@@ -12,10 +12,10 @@ import {
   type RelationGraph, type RelationEvent, type RelationEdge,
   emptyGraph, applyEvents, topEdges, allEdges,
 } from '@furball/shared';
+import { DATA_DIR } from '../utils/dataDir';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'relations.json');
 
 let cache: RelationGraph | null = null;

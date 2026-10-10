@@ -16,7 +16,6 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { Server as SocketServer } from 'socket.io';
 import { createServer } from 'http';
-import { cors } from 'hono/cors';
 import { setupSocketHandler, getServerStats } from './socket/socketHandler';
 import { setupFiredRoomHandler } from './socket/firedRoomHandler';
 import { setupSquadHandler } from './socket/squadHandler';
@@ -51,11 +50,15 @@ import { relationRoutes } from './routes/relations';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
+import { originGuardMiddleware, corsForAllowedOrigins, socketOriginOptions } from './utils/originGuard';
 
 const PROCESS_START_MS = Date.now();
 
 const app = new Hono();
-app.use('*', cors());
+// v6.162 — 取代 cors() 全开。不放行的跨站 Origin 直接 403(CORS 头只挡读响应,挡不住
+// text/plain POST 的执行);放行的跨域来源(ALLOWED_ORIGINS / 本机开发端口)才回 CORS 头。
+app.use('*', originGuardMiddleware);
+app.use('*', corsForAllowedOrigins());
 app.use('*', requestIdMiddleware);
 
 // API routes
@@ -232,7 +235,8 @@ setInterval(() => {
 // WebSocket server on separate port
 const httpServer = createServer();
 const io = new SocketServer(httpServer, {
-  cors: { origin: '*' },
+  // v6.162 — 握手按与 HTTP 相同的 Origin 规则放行(见 utils/originGuard)。
+  ...socketOriginOptions(),
   maxHttpBufferSize: 10e6,
   pingInterval: 30000,
   pingTimeout: 120000, // 2 min timeout - AI speech generation can take 30-60s

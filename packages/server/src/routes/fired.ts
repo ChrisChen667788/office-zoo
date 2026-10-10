@@ -60,11 +60,8 @@ const packLikedByIp = new Set<string>();
 // more here.
 const scenarioGenLimiter = createRateLimiter({ windowMs: 3600_000, max: 5 });
 
-function ipFromHono(c: { req: { header: (k: string) => string | undefined } }): string {
-  const fwd = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip');
-  if (fwd) return fwd.split(',')[0].trim();
-  return c.req.header('host') ?? 'unknown';
-}
+// v6.162 — 统一走 utils/clientIp(旧实现信任 XFF 第一项,可被伪造绕过限流)。
+const ipFromHono = clientIp;
 
 /** v0.8.1 — pull the per-IP-like dedup key for a scenario. Mirrors talkshow's
  *  approach (in-memory Set, resets on restart, fine at our scale). Seed
@@ -219,6 +216,7 @@ function outcomeZh(o: 'win' | 'partial' | 'lose'): string {
  */
 import type { PlayMemory } from '../services/memoryStore';
 import { ARCHETYPE_WEAK_SPOTS, findArchetype } from '@furball/shared';
+import { clientIp } from '../utils/clientIp';
 
 /** v1.3.2 — archetype context the HR prompt builder consumes when the
  *  user has taken the personality quiz. `null` for guests / pre-quiz

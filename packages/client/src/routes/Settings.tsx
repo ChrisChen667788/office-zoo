@@ -92,11 +92,13 @@ export default function Settings() {
     try {
       const body: Record<string, string> = { targetUserId: myId };
       if (archetype) body.archetype = archetype;
+      // v6.162 — 服务端以 X-User-Id 认人(请求体里的 targetUserId 只对管理员生效)。
       const resp = await fetch('/api/memory/forget', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': myId },
         body: JSON.stringify(body),
       });
+      if (!resp.ok) throw new Error(`forget ${resp.status}`);
       const json = await resp.json() as { deleted?: number };
       const n = json.deleted ?? 0;
       setMsg(`✓ 已清空 ${n} 条记忆${archetype ? ` (${archetypeLabel(archetype)})` : ''}`);

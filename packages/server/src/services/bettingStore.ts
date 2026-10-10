@@ -12,10 +12,11 @@ import {
   type BetRun, type BetRunSubmit, type BetSortBy,
   upsertBestBetRun, rankBetRuns,
 } from '@furball/shared';
+import { DATA_DIR } from '../utils/dataDir';
+import { writeJsonAtomic } from '../utils/atomicJson';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'betting_runs.json');
 
 const MAX_RUNS_KEPT = 2000;
@@ -45,10 +46,7 @@ async function ensureLoaded(): Promise<StoreShape> {
   return loadPromise;
 }
 async function persist(s: StoreShape): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = DATA_FILE + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(s, null, 2), 'utf8');
-  await fs.rename(tmp, DATA_FILE);
+  await writeJsonAtomic(DATA_FILE, s);
 }
 
 /** Cap distinct users — drop oldest by ts when over MAX_RUNS_KEPT. */

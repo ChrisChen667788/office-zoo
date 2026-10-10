@@ -10,14 +10,12 @@ import { createRateLimiter } from '../utils/rateLimit';
 import { generateHRLine, type NegotiationOutcomeKind } from '../services/negotiationFlavor';
 import { cardById, STANCE_POOL, BOSS_TIERS, type HRStanceId, type NegRunSubmit } from '@furball/shared';
 import { submitRun, topRuns, totalRuns } from '../services/negRunStore';
+import { clientIp } from '../utils/clientIp';
 
 export const negotiationRoutes = new Hono();
 
-function ipFrom(c: { req: { header: (k: string) => string | undefined } }): string {
-  const fwd = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip');
-  if (fwd) return fwd.split(',')[0].trim();
-  return c.req.header('host') ?? 'unknown';
-}
+// v6.162 — 统一走 utils/clientIp(旧实现信任 XFF 第一项,可被伪造绕过限流)。
+const ipFrom = clientIp;
 
 // 一局牌局约 10-20 次出牌 → 120/小时 够玩好几局,又拦得住脚本刷。
 const hrLineLimiter = createRateLimiter({ windowMs: 3600_000, max: 120 });

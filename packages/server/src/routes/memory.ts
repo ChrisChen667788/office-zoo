@@ -14,16 +14,18 @@
  *   GET   /api/memory/stats     — count by archetype; for the upcoming
  *                                  settings UI to show "you have N memories"
  *
- * Auth: NONE in v5.8.1. This is acceptable because:
- *  - dev: localhost docker compose, no other clients
- *  - prod: Neon DB is in our VPC, not internet-facing
- *  - any future public surface gates this behind admin auth (TODO v6.0)
+ * Auth(v6.162 起;此前完全无鉴权,任何人一个请求就能清空所有角色的跨局记忆):
+ *  - 自助删除:只能删请求头 X-User-Id 对应的那个人的记忆(请求体里的 targetUserId 被忽略),
+ *    可再按 archetype / gameId / kind 收窄。Settings 页的「忘掉我」走这条。
+ *  - 批量删除(不限定用户、按角色或整库清空):必须带 X-Admin-Token == MEMORY_ADMIN_TOKEN;
+ *    没配置 MEMORY_ADMIN_TOKEN 时批量删除一律 403。
  */
 
 import { Hono } from 'hono';
 import { getPool, ensureSchema } from '../services/pgvectorClient';
 import { clearEmbeddingCache } from '../services/memoryEmbedder';
 import { logger } from '../utils/logger';
+import { timingSafeEqual } from 'node:crypto';
 
 const memLog = logger.child({ route: 'memory' });
 
@@ -36,7 +38,8 @@ interface ForgetBody {
   gameId?: string;
   /** Limit deletion to a specific kind (event/belief/relationship). */
   kind?: string;
-  /** v5.8.2 hook — limit to memories about a specific human userId. */
+  /** v5.8.2 hook — limit to memories about a specific human userId.
+   *  v6.162: only honoured for admin requests; self-service uses X-User-Id. */
   targetUserId?: string;
   /** When true, also clears the in-process embedding LRU cache.
    *  Mostly for testing — production deletes don't need it (cache
@@ -44,14 +47,33 @@ interface ForgetBody {
   clearCache?: boolean;
 }
 
+/** 常量时间比较,避免按响应时间逐字符猜 token。 */
+export function adminTokenMatches(given: string | undefined, expected: string | undefined): boolean {
+  if (!given || !expected) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+const USER_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
 memoryRoutes.post('/forget', async (c) => {
-  await ensureSchema();
   let body: ForgetBody;
   try {
     body = await c.req.json() as ForgetBody;
   } catch {
     body = {};
   }
+
+  const isAdmin = adminTokenMatches(c.req.header('x-admin-token'), process.env.MEMORY_ADMIN_TOKEN);
+  if (!isAdmin) {
+    const selfId = c.req.header('x-user-id')?.trim() ?? '';
+    if (!USER_ID_RE.test(selfId)) {
+      return c.json({ error: 'forbidden', detail: 'bulk forget requires X-Admin-Token; self-service requires X-User-Id' }, 403);
+    }
+    body = { ...body, targetUserId: selfId };
+  }
+  await ensureSchema();
 
   const filters: string[] = [];
   const params: unknown[] = [];
@@ -78,6 +100,7 @@ memoryRoutes.post('/forget', async (c) => {
     if (body.clearCache) clearEmbeddingCache();
     memLog.info({
       ...body,
+      admin: isAdmin,
       deleted: rowCount,
       scope: filters.length ? 'scoped' : 'GLOBAL_WIPE',
     }, 'memory forget');
