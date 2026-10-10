@@ -32,6 +32,7 @@ import {
 } from '../utils/entitlement';
 import { startRealCheckout, syncEntitlementFromServer } from '../utils/billing';
 import { useT, type DictKey } from '../utils/i18n';
+import { trackEvent } from '../utils/analytics';
 
 // v1.2.1 — feature card data carries dict keys, not raw zh-CN strings.
 // Resolved at render time inside the component (after useT() runs).
@@ -89,6 +90,7 @@ export default function Premium() {
   // v6.51 P3 — checkout: try real Stripe first; fall back to the demo
   // modal when Stripe isn't configured (or the call fails).
   const handleCheckout = async () => {
+    trackEvent('premium_cta_clicked', { plan });
     const redirected = await startRealCheckout(plan);
     if (!redirected) setCheckoutOpen(true);
   };

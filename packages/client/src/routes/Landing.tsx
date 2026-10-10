@@ -44,6 +44,7 @@ interface DailyDrama {
   archetypeName?: string;
 }
 import { modeIcons, navIcons, Icon } from '../constants/icons';
+import { trackEvent } from '../utils/analytics';
 
 // v6.28 P4 — 9 added once ROLE_PRESETS[9] (v6.27 P1) landed. The
 // 6→8→9→10 ladder gives users a "1-step-up from default" option;
@@ -322,6 +323,8 @@ export default function Landing() {
         if (a?.industry && a.industry !== 'generic') localStorage.setItem('office-arena.lastIndustry', a.industry);
       } catch { /* tagging is best-effort */ }
     })();
+    // v6.163 — 埋点:开局(模式 + 语言)。
+    trackEvent('game_start', { mode: target, locale: gameLocaleFromUiLocale(getLocale()) });
     socket.emit('game:create', {
       // v6.86 — 双公司锁 4+4=8(server 也会强制),其余模式用用户选的人数。
       playerCount: target === 'dual' ? 8 : playerCount,

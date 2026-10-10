@@ -5,6 +5,7 @@ import { useFiredStore, type FiredMessage, type FiredScores } from '../stores/fi
 import { SCENARIOS as SHARED_SCENARIOS } from '@furball/shared';
 import { uid as genId } from '../utils/uid';
 import { getUserId } from '../utils/userId';
+import { trackEvent } from '../utils/analytics';
 
 const PERSONALITY_LABELS: Record<string, string> = {
   rookie: '菜鸟HR',
@@ -189,6 +190,7 @@ export default function FiredChat() {
   useEffect(() => {
     if (scenarioId && messages.length === 0 && !greetingSent.current) {
       greetingSent.current = true;
+      trackEvent('game_start', { mode: 'fired', scenario: scenarioId });
       handleInitialGreeting();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -305,6 +307,7 @@ export default function FiredChat() {
         }
 
         if (data.isOver) {
+          trackEvent('fired_chapter_complete', { scenario: scenarioId, outcome: data.outcome ?? 'unknown', turns: messages.length + 1 });
           setIsOver(true);
           if (data.outcome) setOutcome(data.outcome);
           setTimeout(() => navigate('/fired/result'), 2000);

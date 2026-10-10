@@ -29,6 +29,7 @@
  *   await copyDailyShareCardToClipboard(data);
  *   await downloadDailyShareCard(data, 'today.png');
  */
+import { trackEvent } from './analytics';
 
 export type DramaKind = 'fired' | 'talkshow' | 'pack' | 'pvp';
 
@@ -530,6 +531,7 @@ export async function generateDailyShareCard(data: DailyShareCardData): Promise<
 }
 
 export async function copyDailyShareCardToClipboard(data: DailyShareCardData): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'daily', action: 'copy' });
   try {
     const blob = await generateDailyShareCard(data);
     if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
@@ -543,6 +545,7 @@ export async function copyDailyShareCardToClipboard(data: DailyShareCardData): P
 export async function downloadDailyShareCard(
   data: DailyShareCardData, filename = 'office-zoo-daily.png',
 ): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'daily', action: 'download' });
   const blob = await generateDailyShareCard(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

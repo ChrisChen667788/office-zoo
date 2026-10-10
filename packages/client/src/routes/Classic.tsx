@@ -52,6 +52,7 @@ const SERVER_URL = '';
 // v6.16 P2 — promoted to shared constants/personalityLabels.ts.
 // Local re-export kept as alias to minimize blast radius on call sites.
 import { PERSONALITY_LABELS } from '../constants/personalityLabels';
+import { trackEvent } from '../utils/analytics';
 
 /** Same gender heuristic as Immersive.tsx — kept as a separate function so
  *  Classic can be edited independently. The role->gender map is small and
@@ -117,6 +118,9 @@ export default function Classic() {
   // 被拒就退筹码 + 给真实原因。tick 防同一回执重复处理。
   const [interveneAck, setInterveneAck] = useState<{ itemId: string; accepted: boolean; reason?: string; tick: number } | null>(null);
   const ackTickRef = useRef(0);
+  // v6.163 — 埋点计时
+  const mountedAtRef = useRef(Date.now());
+  const firstSpeechRef = useRef(false);
   // v6.110(审计玩法 F6)— 「内部邮件」背景调查浮卡(4.5s 自动收),花 200 筹码的结果
   // 不再只躺 event log 小字。id 单调自增驱动 AnimatePresence 重触发。
   const [clueCard, setClueCard] = useState<{ targetName: string; label: string; id: number } | null>(null);
@@ -458,6 +462,11 @@ export default function Classic() {
         refToTextSnippet: string; kind: 'mention' | 'at_tag' | 'fuzzy';
       }>;
     }) => {
+      // v6.163 — 首条 AI 发言耗时(从进入对局页到第一条发言)。
+      if (!firstSpeechRef.current) {
+        firstSpeechRef.current = true;
+        trackEvent('game_first_llm_response', { mode: 'classic', time_to_first_speech_ms: Date.now() - mountedAtRef.current });
+      }
       addSpeech(data);
       pushEvent('speech', `${data.playerName}: ${data.text}`);
       // Schedule a browser-TTS fallback in case the server can't generate
@@ -688,6 +697,7 @@ export default function Classic() {
       else if (data.winner === 'company_b_win') setCompanyWinner('b');
       // v6.31 P2 — bump classic_finished progress for the achievement.
       void import('../utils/achievements').then((m) => m.bumpProgress('classic_finished', 1));
+      trackEvent('game_complete', { mode: 'classic', winner: data.winner, rounds: round, duration_ms: Date.now() - mountedAtRef.current });
       // v6.143 — 双公司局看完另计一枚(⚔️ dual_first_watch)。
       if (data.winner === 'company_a_win' || data.winner === 'company_b_win') {
         void import('../utils/achievements').then((m) => m.bumpProgress('dual_finished', 1));

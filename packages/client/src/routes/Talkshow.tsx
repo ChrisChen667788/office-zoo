@@ -42,6 +42,7 @@ import { EmptyState }   from '../components/ui/EmptyState';
 import { WaveformBars } from '../components/ui/WaveformBars';
 import RoastBooth from '../components/character/RoastBooth';
 import TalkshowVideoButton from '../components/talkshow/TalkshowVideoButton';
+import { trackEvent } from '../utils/analytics';
 
 interface ScriptSummary {
   id: string;
@@ -1297,6 +1298,7 @@ function PlayerView({
         if (ok) {
           setAudioState('playing');
           armEndTimer(script.durationSec);
+          trackEvent('game_start', { mode: 'talkshow', tag: script.tag });
           // v6.31 P2 — bump talkshow_played for the achievement
           // (5-play threshold unlocks talkshow_5).
           void import('../utils/achievements').then((m) => m.bumpProgress('talkshow_played', 1));

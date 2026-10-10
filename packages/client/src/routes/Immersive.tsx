@@ -86,6 +86,7 @@ const PHASE_LABELS = GAME_PHASES;
 
 // v6.16 P2 — see Classic.tsx; promoted to shared constants module.
 import { PERSONALITY_LABELS } from '../constants/personalityLabels';
+import { trackEvent } from '../utils/analytics';
 
 function getTeamForRole(role: string): string {
   if (role.endsWith('_cat')) return 'cat';
@@ -138,6 +139,9 @@ export default function Immersive() {
   const [activeDanmaku, setActiveDanmaku] = useState<GhostCommentItem[]>([]);
   const [audioBlocked, setAudioBlocked] = useState(false);   // shows "tap to enable voice" when play() is rejected
   const createdRef = useRef(false);
+  // v6.163 — 埋点计时
+  const mountedAtRef = useRef(Date.now());
+  const firstSpeechRef = useRef(false);
   // Pending browser-TTS state — captured on `game:speech`, consumed/cancelled
   // on `game:speech_audio`. See the speech handler for the full race logic.
   const pendingSpeechRef = useRef<{ text: string; gender?: 'male' | 'female' } | null>(null);
@@ -229,6 +233,11 @@ export default function Immersive() {
         refToTextSnippet: string; kind: 'mention' | 'at_tag' | 'fuzzy';
       }>;
     }) => {
+      // v6.163 — 首条 AI 发言耗时(从开局到第一条发言)。
+      if (!firstSpeechRef.current) {
+        firstSpeechRef.current = true;
+        trackEvent('game_first_llm_response', { mode: 'immersive', time_to_first_speech_ms: Date.now() - mountedAtRef.current });
+      }
       addSpeech(data);
       setSpeechText(data.text);
       // Schedule a browser-TTS fallback. If `game:speech_audio` arrives within
@@ -358,6 +367,7 @@ export default function Immersive() {
 
     'game:over': (data: any) => {
       if (data.winner) updateState({ ...data, phase: 'game_over' });
+      trackEvent('game_complete', { mode: 'immersive', winner: String(data.winner ?? ''), duration_ms: Date.now() - mountedAtRef.current });
       // v6.87 — 双公司终局赢家落 state,触发下注盘公司盘口结算。
       if (data.winner === 'company_a_win') setCompanyWinner('a');
       else if (data.winner === 'company_b_win') setCompanyWinner('b');
@@ -389,6 +399,8 @@ export default function Immersive() {
     reset();
     // v5.8.2 — userId enables per-spectator chunky-style AI memory.
     // v6.156 — 透传 UI locale 到服务端
+    trackEvent('game_start', { mode: 'immersive', locale: gameLocaleFromUiLocale(getLocale()) });
+    mountedAtRef.current = Date.now();
     socket.emit('game:create', { playerCount: 8, mode: 'immersive', userId: getUserId(), locale: gameLocaleFromUiLocale(getLocale()) });
   }, [connected, socket, reset]);
 

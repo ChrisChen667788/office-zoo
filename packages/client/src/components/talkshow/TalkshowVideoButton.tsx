@@ -16,6 +16,7 @@ import {
   type TalkshowVideoInput,
 } from '../../utils/talkshowVideoExport';
 import { AI_LABEL } from '../../utils/aiLabel';
+import { trackEvent } from '../../utils/analytics';
 
 type Status = 'idle' | 'working' | 'done' | 'error';
 
@@ -49,6 +50,7 @@ export default function TalkshowVideoButton({
 
   const handleExport = () => {
     if (status === 'working') return;
+    trackEvent('video_export_clicked', { mode: 'talkshow', aspect, recordable, has_audio: !!getAudioBlob() });
     setStatus('working');
     setProgress(0);
     setNote(null);

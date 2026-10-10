@@ -23,6 +23,38 @@
  */
 
 import { generateText } from 'ai';
+import { logger } from './logger';
+import { recordLlmCall } from './llmStats';
+import { safeErrorText } from './redact';
+
+const llmLog = logger.child({ component: 'llm' });
+
+function modelIdOf(options: Parameters<typeof generateText>[0]): string {
+  const m = options.model as unknown as { modelId?: string } | string | undefined;
+  return typeof m === 'string' ? m : m?.modelId ?? 'unknown';
+}
+
+/**
+ * v6.163 — 失败一律打一条结构化日志并计数(/api/health 可见)。只记 kind / model / 耗时 /
+ * 原因类别与打码后的错误摘要;不记提示词正文,不记任何 key。
+ */
+function reportFailure(
+  kind: LLMTimeoutKind,
+  options: Parameters<typeof generateText>[0],
+  startedAt: number,
+  result: LLMCallResult,
+): LLMCallResult {
+  const reason = result.reason ?? 'error';
+  recordLlmCall(kind, { ok: false, reason });
+  llmLog.warn({
+    kind,
+    model: modelIdOf(options),
+    durationMs: Date.now() - startedAt,
+    reason,
+    error: result.errorMessage ? safeErrorText(result.errorMessage) : undefined,
+  }, 'llm call failed');
+  return result;
+}
 
 export const LLM_TIMEOUTS = {
   SPEECH: 15_000,
@@ -67,6 +99,7 @@ export async function callLLMWithTimeout(
   const timeoutMs = LLM_TIMEOUTS[kind];
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
 
   try {
     const { text } = await generateText({
@@ -78,8 +111,11 @@ export async function callLLMWithTimeout(
     const trimmed = text?.trim() ?? '';
     if (!trimmed) {
       // Empty response from primary — try Minimax fallback before giving up.
-      return await tryMinimaxFallback(kind, options) ?? { ok: false, text: '', reason: 'empty' };
+      const fb = await tryMinimaxFallback(kind, options);
+      if (fb) { recordLlmCall(kind, { ok: true, viaFallback: true }); return fb; }
+      return reportFailure(kind, options, startedAt, { ok: false, text: '', reason: 'empty' });
     }
+    recordLlmCall(kind, { ok: true });
     return { ok: true, text: trimmed };
   } catch (err) {
     clearTimeout(timer);
@@ -92,22 +128,22 @@ export async function callLLMWithTimeout(
     // currently the only chat model their plan supports, so without this
     // fallback every LLM call falls through to the canned `fallbackSpeech`.
     const minimaxResult = await tryMinimaxFallback(kind, options);
-    if (minimaxResult) return minimaxResult;
+    if (minimaxResult) { recordLlmCall(kind, { ok: true, viaFallback: true }); return minimaxResult; }
 
     if (isTimeout) {
-      return {
+      return reportFailure(kind, options, startedAt, {
         ok: false,
         text: '',
         reason: 'timeout',
         errorMessage: `LLM call exceeded ${timeoutMs}ms budget (kind=${kind})`,
-      };
+      });
     }
-    return {
+    return reportFailure(kind, options, startedAt, {
       ok: false,
       text: '',
       reason: 'error',
-      errorMessage: (err as Error)?.message ?? String(err),
-    };
+      errorMessage: safeErrorText(err, 500),
+    });
   }
 }
 

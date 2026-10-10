@@ -47,6 +47,8 @@ import { negotiationRoutes } from './routes/negotiation';
 import { reactionRoutes } from './routes/reaction';
 import { bettingRoutes } from './routes/betting';
 import { relationRoutes } from './routes/relations';
+import { configRoutes } from './routes/config';
+import { llmStatsSnapshot } from './utils/llmStats';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -62,6 +64,8 @@ app.use('*', corsForAllowedOrigins());
 app.use('*', requestIdMiddleware);
 
 // API routes
+// v6.163 — 前端运行时公开配置(统计开关、部署形态;不含任何密钥)。
+app.route('/api/config', configRoutes);
 app.route('/api/tts', ttsRoutes);
 app.route('/api/media', mediaRoutes);
 app.route('/api/fired', firedRouter);
@@ -210,6 +214,8 @@ app.get('/api/health', (c) => {
       heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
     },
     env: envFlags,
+    // v6.163 — 进程内模型调用计数(只有次数与原因类别)。
+    llm: llmStatsSnapshot(),
   });
 });
 

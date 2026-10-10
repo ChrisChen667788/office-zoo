@@ -35,6 +35,7 @@ import {
   useSpeechHistory,
   useWinner,
 } from '../../stores/gameStore';
+import { trackEvent } from '../../utils/analytics';
 
 /** v6.73 — 带话题的分享文案,按胜负出钩子,末尾挂 # 便于抖音/小红书聚合。 */
 function buildShareText(winner?: string): string {
@@ -94,6 +95,7 @@ export default function ShareVideoButton() {
 
   const handleExport = useCallback(async () => {
     if (status === 'captions' || status === 'rendering') return;
+    trackEvent('video_export_clicked', { mode: 'classic', aspect });
     setStatus('captions');
     setProgress(0);
     setErrMsg(null);

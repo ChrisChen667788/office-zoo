@@ -39,6 +39,7 @@ import {
   playTtsFromUrl,
   stopTts,
 } from '../utils/audioUnlock';
+import { trackEvent } from '../utils/analytics';
 
 export default function Squad() {
   const navigate = useNavigate();
@@ -182,7 +183,7 @@ export default function Squad() {
             <Lobby key="lobby"
               room={room}
               amHost={amHost}
-              onStart={() => socket?.emit('squad:start', { roomId: room.id })}
+              onStart={() => { trackEvent('game_start', { mode: 'squad' }); socket?.emit('squad:start', { roomId: room.id }); }}
               onShare={shareLink}
             />
           )}
