@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import { BLANK_SECRETS } from '../../vitest.config';
+import { BLANK_SECRETS, TEST_PGVECTOR_URL } from '../../vitest.config';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 const SERVER_SRC = path.join(ROOT, 'packages/server/src');
@@ -64,6 +64,11 @@ describe('测试进程里没有真实密钥', () => {
     const secrets = [...new Set(names.filter((n) => /(KEY|TOKEN|SECRET)$/.test(n) || n === 'MINIMAX_GROUP_ID'))];
     expect(secrets.length).toBeGreaterThan(5);
     expect(secrets.filter((n) => !(n in BLANK_SECRETS))).toEqual([]);
+  });
+
+  it('记忆库指向不可达地址,测试不会写进本机真实的 pgvector', () => {
+    expect(process.env.PGVECTOR_URL).toBe(TEST_PGVECTOR_URL);
+    expect(new URL(TEST_PGVECTOR_URL).port).toBe('1');
   });
 
   it('对外 fetch 被拦截,本机回环照常放行判定', async () => {

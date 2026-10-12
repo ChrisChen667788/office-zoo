@@ -20,7 +20,6 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { createOpenAI } from '@ai-sdk/openai';
 import { callLLMWithTimeout } from '../utils/llm';
 import { validateBody } from '../utils/validate';
 import { createRateLimiter } from '../utils/rateLimit';
@@ -30,21 +29,12 @@ import {
   recordLike, getCounts, getEvents, dominantStyle, clearPreferences,
   type WeeklyStyle as PrefStyle,
 } from '../services/weeklyPreferenceStore';
+import { chatModel } from '../utils/aiClient';
 
 const weeklyLog = logger.child({ route: 'weekly' });
 const generateLimiter = createRateLimiter({ windowMs: 3600_000, max: 5 });
 
-// Lazy provider — same ESM hoisting fix we did in BaseAgent / reflectionLoop
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function openai() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
+// v6.167 — 客户端由 utils/aiClient 按调用时的凭据上下文现建(BYOK);这里只保留本机 .env 模式下的模型选择。
 const model = () => process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 
 export type WeeklyStyle = 'alibaba' | 'pua' | 'posh' | 'direct';
@@ -155,7 +145,7 @@ weeklyRoutes.post('/generate', async (c) => {
         : spec.systemPrompt;
       const temp = isDominant ? 1.0 : 0.85;
       const res = await callLLMWithTimeout('SPEECH', {
-        model: openai()(model()),
+        model: chatModel('main', model()),
         system: sys,
         prompt: `本周关键事件: ${event}\n\n请按你的风格写出周报段落.`,
         maxTokens: 480,
@@ -329,13 +319,13 @@ weeklyRoutes.post('/compare', async (c) => {
 
   const [boostedRes, plainRes] = await Promise.allSettled([
     callLLMWithTimeout('SPEECH', {
-      model: openai()(model()),
+      model: chatModel('main', model()),
       system: boostedSys,
       prompt: `本周关键事件: ${event}\n\n请按你的风格写出周报段落.`,
       maxTokens: 480, temperature: 1.0,
     }),
     callLLMWithTimeout('SPEECH', {
-      model: openai()(model()),
+      model: chatModel('main', model()),
       system: spec.systemPrompt, // 中性, 没有偏好强化
       prompt: `本周关键事件: ${event}\n\n请按你的风格写出周报段落.`,
       maxTokens: 480, temperature: 0.85,

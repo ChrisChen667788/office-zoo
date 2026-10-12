@@ -22,10 +22,23 @@
  *                       teaser screen and tolerance is high)
  */
 
-import { generateText } from 'ai';
+import { APICallError, generateText } from 'ai';
 import { logger } from './logger';
 import { recordLlmCall } from './llmStats';
 import { safeErrorText } from './redact';
+import { NeedKeyError, clampTemperature, envFallbackAllowed, reportAiFailure, type AiFailReason } from './aiClient';
+
+/** 上游 HTTP 状态 → 失败原因(只细分访客能自己处理的几类)。 */
+export function classifyLlmError(err: unknown): LLMCallResult['reason'] {
+  if (err instanceof NeedKeyError) return 'need_key';
+  const status = APICallError.isInstance(err) ? err.statusCode : undefined;
+  if (status === 401 || status === 403) return 'key_rejected';
+  if (status === 402) return 'quota';
+  if (status === 429) return 'rate_limited';
+  return 'error';
+}
+
+const USER_FIXABLE: ReadonlySet<string> = new Set(['need_key', 'key_rejected', 'quota', 'rate_limited']);
 
 const llmLog = logger.child({ component: 'llm' });
 
@@ -46,7 +59,8 @@ function reportFailure(
 ): LLMCallResult {
   const reason = result.reason ?? 'error';
   recordLlmCall(kind, { ok: false, reason });
-  llmLog.warn({
+  // 托管版访客没配 key 是预期内的(每日剧情等后台功能会自动降级),不刷告警
+  llmLog[reason === 'need_key' ? 'debug' : 'warn']({
     kind,
     model: modelIdOf(options),
     durationMs: Date.now() - startedAt,
@@ -68,6 +82,8 @@ export const LLM_TIMEOUTS = {
   NEGOTIATION_HR_LINE: 15_000,
   // v6.69 — 主对局裁员瞬间的"群众吐槽"弹幕(≤30 字一句,要快;慢了就走静态池兜底).
   REACTION_LINE: 9_000,
+  // v6.167 — 模型设置面板「测试连接」(访客的模型商可能较慢,给足时间)
+  CHECK: 20_000,
 } as const;
 
 export type LLMTimeoutKind = keyof typeof LLM_TIMEOUTS;
@@ -75,8 +91,10 @@ export type LLMTimeoutKind = keyof typeof LLM_TIMEOUTS;
 export interface LLMCallResult {
   ok: boolean;
   text: string;
-  /** Present when ok=false — "timeout" | "error" | "empty" */
-  reason?: 'timeout' | 'error' | 'empty';
+  /** Present when ok=false.
+   *  v6.167 BYOK 细分:need_key = 没有可用凭据(托管版访客没配 key);key_rejected = 上游 401/403;
+   *  quota = 上游 402(欠费);rate_limited = 上游 429。这四类不走 .env 兜底,调用方据此提示用户。 */
+  reason?: 'timeout' | 'error' | 'empty' | 'need_key' | 'key_rejected' | 'quota' | 'rate_limited';
   errorMessage?: string;
 }
 
@@ -100,10 +118,13 @@ export async function callLLMWithTimeout(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
+  // v6.167 — 访客选的模型商若只接受 temperature ≤ 1,这里统一截断(不然整条调用 400)。
+  const temperature = clampTemperature((options as { temperature?: number }).temperature);
 
   try {
     const { text } = await generateText({
       ...options,
+      ...(temperature !== undefined ? { temperature } : {}),
       abortSignal: controller.signal,
     });
     clearTimeout(timer);
@@ -111,7 +132,8 @@ export async function callLLMWithTimeout(
     const trimmed = text?.trim() ?? '';
     if (!trimmed) {
       // Empty response from primary — try Minimax fallback before giving up.
-      const fb = await tryMinimaxFallback(kind, options);
+      // v6.167:.env 的 MiniMax 兜底只给本机自部署用,访客自带 key 时绝不动运营方的 key。
+      const fb = envFallbackAllowed() ? await tryMinimaxFallback(kind, options) : null;
       if (fb) { recordLlmCall(kind, { ok: true, viaFallback: true }); return fb; }
       return reportFailure(kind, options, startedAt, { ok: false, text: '', reason: 'empty' });
     }
@@ -123,11 +145,23 @@ export async function callLLMWithTimeout(
     const isTimeout =
       (err as Error)?.name === 'AbortError' || controller.signal.aborted;
 
+    // v6.167 — 访客能自己处理的失败(没配 key / key 被拒 / 欠费 / 限流):不兜底,原样告诉调用方。
+    const classified = isTimeout ? 'timeout' : classifyLlmError(err);
+    if (classified && USER_FIXABLE.has(classified)) {
+      reportAiFailure(classified as AiFailReason);
+      return reportFailure(kind, options, startedAt, {
+        ok: false,
+        text: '',
+        reason: classified,
+        errorMessage: classified === 'need_key' ? 'need_key' : safeErrorText(err, 500),
+      });
+    }
+
     // Both timeout AND HTTP error paths get a Minimax retry — the user's
     // QingYun proxy is rate-limited / quota-exhausted, but Minimax M2 is
     // currently the only chat model their plan supports, so without this
     // fallback every LLM call falls through to the canned `fallbackSpeech`.
-    const minimaxResult = await tryMinimaxFallback(kind, options);
+    const minimaxResult = envFallbackAllowed() ? await tryMinimaxFallback(kind, options) : null;
     if (minimaxResult) { recordLlmCall(kind, { ok: true, viaFallback: true }); return minimaxResult; }
 
     if (isTimeout) {

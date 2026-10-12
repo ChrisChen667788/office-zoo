@@ -44,12 +44,14 @@ import { reactionRoutes } from './routes/reaction';
 import { bettingRoutes } from './routes/betting';
 import { relationRoutes } from './routes/relations';
 import { configRoutes } from './routes/config';
+import { llmRoutes } from './routes/llm';
 import { llmStatsSnapshot } from './utils/llmStats';
 import { ASSET_FAMILIES, runtimeAssetDir } from './utils/assetDirs';
 import { serveAssetFile } from './utils/staticAssets';
 import { clientDistDir, serveClient } from './utils/clientStatic';
 import { isHosted } from './utils/deployProfile';
 import { hostedFeatureGate } from './utils/hostedFeatures';
+import { attachSocketByok, byokMiddleware } from './utils/byokTransport';
 import type { Server as HttpServer } from 'http';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
@@ -65,11 +67,15 @@ app.use('*', originGuardMiddleware);
 app.use('*', corsForAllowedOrigins());
 // v6.168 — 托管版关闭收款 / B2B / 邮箱订阅接口(owner 决策,见 utils/hostedFeatures)。
 app.use('*', hostedFeatureGate);
+// v6.167 BYOK — 解析 X-Byok 请求头,把访客的模型凭据绑到这次请求的整条异步调用链上。
+app.use('/api/*', byokMiddleware);
 app.use('*', requestIdMiddleware);
 
 // API routes
 // v6.163 — 前端运行时公开配置(统计开关、部署形态;不含任何密钥)。
 app.route('/api/config', configRoutes);
+// v6.167 — BYOK 模型设置面板「测试连接」
+app.route('/api/llm', llmRoutes);
 app.route('/api/tts', ttsRoutes);
 app.route('/api/media', mediaRoutes);
 app.route('/api/fired', firedRouter);
@@ -222,6 +228,8 @@ const io = new SocketServer(httpServer, {
   pingTimeout: 120000, // 2 min timeout - AI speech generation can take 30-60s
 });
 
+// v6.167 BYOK — 握手 auth.byok → socket.data.byok(所有 socket 模块共用)。
+attachSocketByok(io);
 setupSocketHandler(io);
 // v0.9.3 — PvP room (worker vs human-HR) layered onto the same io
 // instance. Uses `room:*` event namespace to stay clearly separate

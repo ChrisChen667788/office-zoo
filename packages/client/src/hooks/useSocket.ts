@@ -23,6 +23,7 @@
  */
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { currentByokHeader, subscribeByok } from '../utils/byok';
 
 /* --------------------------------------------------------------------- */
 /* Config                                                                */
@@ -122,7 +123,17 @@ function initSocket(): Socket {
     reconnectionDelayMax: 5000,  // cap at 5s
     randomizationFactor: 0.3,    // ±30% jitter — prevents thundering herd on server restart
     timeout: 10_000,             // initial connect timeout
-    auth: { userId },
+    // v6.167 BYOK — auth 写成函数:每次(重)连都现取访客最新的模型凭据;改配置后
+    // 下面的订阅会主动重连一次,服务端在握手时重新解析。
+    auth: (cb) => {
+      const byok = currentByokHeader();
+      cb(byok ? { userId, byok } : { userId });
+    },
+  });
+
+  // v6.167 — 模型配置变了(保存 / 清除)→ 重连,让新凭据随握手生效。
+  subscribeByok(() => {
+    if (socket.connected) { socket.disconnect(); socket.connect(); }
   });
 
   socket.on('connect', () => {

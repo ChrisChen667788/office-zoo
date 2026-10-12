@@ -30,24 +30,14 @@ import { Hono } from 'hono';
 import { writeMemory } from '../services/memoryWrite';
 import { recallMemories } from '../services/memoryRecall';
 import { callLLMWithTimeout } from '../utils/llm';
-import { createOpenAI } from '@ai-sdk/openai';
 import { logger } from '../utils/logger';
 import { createCluster, joinCluster, getCluster } from '../services/barClusterStore';
 import { renderClusterPng, invalidateClusterRender } from '../services/barClusterRenderer';
+import { chatModel } from '../utils/aiClient';
 
 const barLog = logger.child({ route: 'bar' });
 
-// Lazy provider — same gotcha as BaseAgent (ESM hoist vs dotenv).
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function openai() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
+// v6.167 — 客户端由 utils/aiClient 按调用时的凭据上下文现建(BYOK);这里只保留本机 .env 模式下的模型选择。
 function model() {
   return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 }
@@ -164,7 +154,7 @@ barRoutes.post('/reply', async (c) => {
 
   try {
     const res = await callLLMWithTimeout('SPEECH', {
-      model: openai()(model()),
+      model: chatModel('main', model()),
       system: systemPrompt,
       messages: [
         ...promptHistory,

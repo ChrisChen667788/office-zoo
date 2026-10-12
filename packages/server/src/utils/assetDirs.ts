@@ -74,7 +74,9 @@ export function listAssetNames(family: AssetFamily, ext = '.png'): string[] {
   return listIn(searchDirs(family), ext);
 }
 
-/** 能不能现场调用生图 / 生视频接口。托管模式一律不能。 */
+/** 能不能现场调用生图 / 生视频接口。托管模式一律不能;BYOK 模式也不能(访客的 key 不拿来生成共享图)。 */
 export function imageGenerationAllowed(): boolean {
-  return !isHosted();
+  if (isHosted()) return false;
+  const mode = process.env.LLM_KEY_MODE?.trim().toLowerCase();
+  return mode !== 'byok';
 }

@@ -17,12 +17,12 @@
  *  - On LLM failure → return null so the route returns 502 cleanly
  */
 
-import { createOpenAI } from '@ai-sdk/openai';
 import { callLLMWithTimeout } from '../utils/llm';
 import type {
   TalkshowScript, TalkshowPersona, TalkshowTag,
 } from '@furball/shared';
 import { mintUserScriptId } from './scriptStore';
+import { chatModel } from '../utils/aiClient';
 
 const PERSONA_HINTS: Record<TalkshowPersona, string> = {
   shaonv:    '20 多岁刚入职的女生,语气可爱但带点无奈,偶尔吐槽老板',
@@ -69,16 +69,6 @@ const TITLE_SYSTEM_PROMPT = `你是短视频文案手,给一段脱口秀写一�
 - 直接输出标题正文,不要书名号、引号、emoji 前缀、"标题:"等任何前缀
 - 一行,一行就够`;
 
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? process.env.QINGYUN_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? process.env.QINGYUN_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
 
 export interface GenerateInput {
   topic: string;
@@ -91,8 +81,7 @@ export interface GenerateInput {
 export async function generateTalkshowScript(
   input: GenerateInput,
 ): Promise<TalkshowScript | null> {
-  const openai = getOpenAI();
-  const model = openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
+  const model = chatModel('main', process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
   const personaHint = PERSONA_HINTS[input.persona] ?? '中性叙述者';
   const tagHint     = TAG_HINTS[input.tag] ?? '职场观察';
 

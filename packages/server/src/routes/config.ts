@@ -8,6 +8,7 @@
 import { Hono } from 'hono';
 import { deployProfile } from '../utils/deployProfile';
 import { featureFlags } from '../utils/hostedFeatures';
+import { customBaseUrlAllowed, keyMode } from '../utils/aiClient';
 
 export interface PublicAnalyticsConfig {
   umami: { scriptUrl: string; websiteId: string } | null;
@@ -39,5 +40,8 @@ configRoutes.get('/', (c) => {
     analytics: analyticsConfig(),
     // v6.168 — 托管版功能收口(收款 / B2B / 邮箱订阅),前端据此隐藏入口
     features: featureFlags(),
+    // v6.167 — byok:服务器不提供模型 API,访客必须配置自己的 key;server:本机自部署用 .env
+    // (访客也可以在设置里配自己的 key,优先使用)。
+    llm: { keyMode: keyMode(), customBaseUrl: customBaseUrlAllowed() },
   });
 });

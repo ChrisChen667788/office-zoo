@@ -44,6 +44,7 @@ import RoastBooth from '../components/character/RoastBooth';
 import TalkshowVideoButton from '../components/talkshow/TalkshowVideoButton';
 import { trackEvent } from '../utils/analytics';
 import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
+import { requireModel } from '../utils/modelSetup';
 
 interface ScriptSummary {
   id: string;
@@ -979,6 +980,7 @@ function CreateBitModal({
     setSubmitting(true);
     setErrMsg(null);
     try {
+      if (!requireModel('talkshow:generate')) { setSubmitting(false); return; }
       const resp = await fetch('/api/talkshow/generate', {
         method: 'POST',
         headers: {

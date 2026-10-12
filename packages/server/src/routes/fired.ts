@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod';
 import {
   SCENARIOS as FIRED_SCENARIOS,
@@ -102,18 +101,8 @@ const SuggestRequestSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// OpenAI setup — lazy init so env vars are loaded by dotenv first
+// Model selection (v6.167: 客户端由 utils/aiClient 按凭据上下文现建,这里只管本机 .env 模式选哪个模型)
 // ---------------------------------------------------------------------------
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.vectorengine.ai/v1',
-    });
-  }
-  return _openai;
-}
 function getModel() {
   return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 }
@@ -218,6 +207,8 @@ import type { PlayMemory } from '../services/memoryStore';
 import { ARCHETYPE_WEAK_SPOTS, findArchetype } from '@furball/shared';
 import { clientIp } from '../utils/clientIp';
 import { HR_ROLEPLAY_GUARDRAIL, LEGAL_ADVISOR_GUARDRAIL } from '../services/legalGuardrail';
+import { chatModel, ttsTarget } from '../utils/aiClient';
+import { generateTTSAudio } from '../services/tts';
 
 /** v1.3.2 — archetype context the HR prompt builder consumes when the
  *  user has taken the personality quiz. `null` for guests / pre-quiz
@@ -398,7 +389,7 @@ firedRouter.post('/chat', async (c) => {
     // claude-opus-4-7). All other fired-mode LLM calls stay on
     // getModel() which is the cheap default.
     const hrRes = await callLLMWithTimeout('CHAT_REPLY', {
-      model: getOpenAI()(getHRModel()),
+      model: chatModel('premium', getHRModel()),
       system: systemPrompt,
       prompt: hrPrompt,
       maxTokens: 400,
@@ -453,7 +444,7 @@ HR最新回复: ${hrResponse}
 }`;
 
       const scoringRes = await callLLMWithTimeout('SCORING', {
-        model: getOpenAI()(getModel()),
+        model: chatModel('main', getModel()),
         system: '你是一个严格输出JSON的评分系统。只输出合法的JSON，不要输出任何其他内容。',
         prompt: scoringPrompt,
         maxTokens: 500,
@@ -567,11 +558,22 @@ HR最新回复: ${hrResponse}
 // ---------------------------------------------------------------------------
 // POST /tts  (mounted at /api/fired/tts)
 // ---------------------------------------------------------------------------
+/** v6.167 — BYOK 语音沿用对局角色的音色表:菜鸟 → 少女音、老油条 → 冷面 HR、魔鬼 → 洗脑大师。 */
+const HR_TTS_ROLE: Record<string, string> = { rookie: 'spy_dog', veteran: 'ninja_dog', demon: 'hypnotist_dog' };
+
 firedRouter.post('/tts', async (c) => {
   try {
     const v = await validateBody(c, TTSRequestSchema);
     if (!v.ok) return v.response;
     const { text, personalityId } = v.data;
+
+    // v6.167 BYOK — 访客自带语音 key(或托管版没配)时走统一语音入口:没有可用语音就 404,
+    // 前端用浏览器朗读;只有本机 .env 模式才用下面运营方的青云 key。
+    if (ttsTarget().kind !== 'env') {
+      const buf = await generateTTSAudio(text, HR_TTS_ROLE[personalityId]);
+      if (!buf) return c.json({ error: 'tts_unavailable' }, 404);
+      return c.json({ audio: `data:audio/mpeg;base64,${buf.toString('base64')}` });
+    }
 
     const apiKey = process.env.QINGYUN_API_KEY || '';
     const baseUrl = process.env.QINGYUN_BASE_URL || 'https://api.qingyuntop.top/v1';
@@ -646,7 +648,7 @@ firedRouter.post('/suggest', async (c) => {
     const conversation = formatConversation(messages);
 
     const suggestRes = await callLLMWithTimeout('SUGGESTIONS', {
-      model: getOpenAI()(getModel()),
+      model: chatModel('main', getModel()),
       system: `你是一位劳动法专家，正在帮助一位即将被裁员的员工准备回应。
 场景: ${scenario.title}
 法律背景: ${scenario.legalSituation}

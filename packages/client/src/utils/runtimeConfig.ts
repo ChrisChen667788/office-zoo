@@ -13,10 +13,18 @@ export interface FeatureFlags {
   wrappedEmail: boolean;
 }
 
+export interface LlmRuntime {
+  /** byok:服务器不提供模型 API,必须配置自己的 key;server:本机 .env(配了自己的 key 时优先用)。 */
+  keyMode: 'server' | 'byok';
+  /** 设置面板里是否允许「其他 OpenAI 兼容接口」(自填 base URL)。 */
+  customBaseUrl: boolean;
+}
+
 export interface RuntimeConfig {
   profile: 'local' | 'hosted';
   analytics: { umami: { scriptUrl: string; websiteId: string } | null };
   features: FeatureFlags;
+  llm: LlmRuntime;
 }
 
 const FEATURES_OFF: FeatureFlags = { payments: false, b2b: false, wrappedEmail: false };
@@ -27,6 +35,7 @@ export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   profile: 'local',
   analytics: { umami: null },
   features: FEATURES_LEGACY,
+  llm: { keyMode: 'server', customBaseUrl: true },
 };
 
 let pending: Promise<RuntimeConfig> | null = null;
@@ -48,10 +57,16 @@ export function getRuntimeConfig(): Promise<RuntimeConfig> {
         ...(j ?? {}),
         analytics: { ...DEFAULT_RUNTIME_CONFIG.analytics, ...(j?.analytics ?? {}) },
         features: { ...FEATURES_LEGACY, ...(j?.features ?? {}) },
+        llm: { ...DEFAULT_RUNTIME_CONFIG.llm, ...(j?.llm ?? {}) },
       }))
       .catch(() => publish(DEFAULT_RUNTIME_CONFIG));
   }
   return pending;
+}
+
+/** 同步读取(还没拿到配置时为 null)。 */
+export function peekRuntimeConfig(): RuntimeConfig | null {
+  return current;
 }
 
 /** React:配置到达前返回 null。 */

@@ -4,7 +4,7 @@
  */
 import type { LLMTimeoutKind } from './llm';
 
-export type LlmFailReason = 'timeout' | 'error' | 'empty' | 'need_key' | 'key_rejected';
+export type LlmFailReason = 'timeout' | 'error' | 'empty' | 'need_key' | 'key_rejected' | 'quota' | 'rate_limited';
 
 interface Counters {
   calls: number;
@@ -18,7 +18,7 @@ interface Counters {
 function fresh(): Counters {
   return {
     calls: 0, ok: 0, fallbackOk: 0,
-    failed: { timeout: 0, error: 0, empty: 0, need_key: 0, key_rejected: 0 },
+    failed: { timeout: 0, error: 0, empty: 0, need_key: 0, key_rejected: 0, quota: 0, rate_limited: 0 },
     byKind: {},
     since: Date.now(),
   };

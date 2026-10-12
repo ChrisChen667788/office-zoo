@@ -41,6 +41,7 @@ import {
 } from '../utils/audioUnlock';
 import { trackEvent } from '../utils/analytics';
 import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
+import { requireModel } from '../utils/modelSetup';
 
 export default function Squad() {
   const navigate = useNavigate();
@@ -184,7 +185,7 @@ export default function Squad() {
             <Lobby key="lobby"
               room={room}
               amHost={amHost}
-              onStart={() => { trackEvent('game_start', { mode: 'squad' }); socket?.emit('squad:start', { roomId: room.id }); }}
+              onStart={() => { if (!requireModel('squad')) return; trackEvent('game_start', { mode: 'squad' }); socket?.emit('squad:start', { roomId: room.id }); }}
               onShare={shareLink}
             />
           )}

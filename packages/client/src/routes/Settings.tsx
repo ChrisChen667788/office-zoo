@@ -1,7 +1,7 @@
 /**
  * Settings — v5.8.2 minimum-viable settings surface.
  *
- * Currently only one section: AI memory controls. Will accumulate
+ * Sections: v6.167 模型设置(BYOK)+ AI memory controls. Will accumulate
  * other preferences (locale, sfx, etc.) as they come along.
  *
  * Why a separate page (vs settings drawer):
@@ -28,6 +28,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getUserId } from '../utils/userId';
 import EventPill from '../components/EventPill';
+import ModelSettingsPanel from '../components/byok/ModelSettingsPanel';
 
 interface MemoryStats {
   total: number;
@@ -125,6 +126,17 @@ export default function Settings() {
       </header>
 
       <main className="max-w-md mx-auto px-4 md:px-6 pb-16">
+        {/* v6.167 — BYOK:配置你自己的模型 key */}
+        <section className="mt-4 mb-8" id="model">
+          <h2 className="text-base font-black text-white/95 mb-1">🔑 模型设置</h2>
+          <p className="text-[11px] text-white/55 leading-relaxed mb-4">
+            AI 鼠人的台词、HR 对话、编剧都由你配置的模型生成,费用记在你自己的模型商账户。
+          </p>
+          <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)' }}>
+            <ModelSettingsPanel />
+          </div>
+        </section>
+
         <section className="mt-4">
           <h2 className="text-base font-black text-white/95 mb-1">🧠 AI 同事记忆</h2>
           <p className="text-[11px] text-white/55 leading-relaxed mb-4">

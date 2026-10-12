@@ -88,6 +88,8 @@ const PHASE_LABELS = GAME_PHASES;
 import { PERSONALITY_LABELS } from '../constants/personalityLabels';
 import { trackEvent } from '../utils/analytics';
 import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
+import { requireModel } from '../utils/modelSetup';
+import { useByok } from '../utils/byok';
 
 function getTeamForRole(role: string): string {
   if (role.endsWith('_cat')) return 'cat';
@@ -394,8 +396,17 @@ export default function Immersive() {
 
   // Kick off the game once (guarded by `createdRef`) — wait for connection first
   // so the create event doesn't land in the reconnect buffer.
+  const byokCfg = useByok();
+  // 服务端以 need_key 拒绝建局(配置还没加载完时可能绕过前端拦截):允许配置好后重新开局。
+  useEffect(() => {
+    const onErr = (d: { code?: string }) => { if (d?.code === 'need_key') createdRef.current = false; };
+    socket.on('game:error', onErr);
+    return () => { socket.off('game:error', onErr); };
+  }, [socket]);
   useEffect(() => {
     if (!connected || createdRef.current) return;
+    // v6.167 — 托管版没配 key 先弹设置;保存后(byokCfg 变化)这里会重新跑并开局。
+    if (!requireModel('immersive')) return;
     createdRef.current = true;
     reset();
     // v5.8.2 — userId enables per-spectator chunky-style AI memory.
@@ -403,7 +414,7 @@ export default function Immersive() {
     trackEvent('game_start', { mode: 'immersive', locale: gameLocaleFromUiLocale(getLocale()) });
     mountedAtRef.current = Date.now();
     socket.emit('game:create', { playerCount: 8, mode: 'immersive', userId: getUserId(), locale: gameLocaleFromUiLocale(getLocale()) });
-  }, [connected, socket, reset]);
+  }, [connected, socket, reset, byokCfg]);
 
   // Pause any playing TTS audio when leaving the route.
   useEffect(() => stopTts, []);

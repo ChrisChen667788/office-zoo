@@ -19,6 +19,8 @@ import {
 import { generateAvatar, getAllCachedAvatars } from '../services/imageGen';
 import { logger, gameLogger } from '../utils/logger';
 import { validateEvent } from '../utils/validate';
+import { keyMode, runWithAi, type AiContext, type AiFailReason } from '../utils/aiClient';
+import { socketByok } from '../utils/byokTransport';
 
 const socketLog = logger.child({ component: 'socket' });
 
@@ -133,6 +135,17 @@ export function publicStateSnapshot(engine: GameEngine) {
 }
 
 /** 测试钩子:拿到房间对应的 engine(只给 socket 集成测试用)。 */
+/**
+ * v6.167 BYOK — 每局的模型凭据上下文(建局者的 key)。放在 WeakMap 里:不进 engine.state,不会被
+ * 序列化下发给任何客户端,引擎销毁即被回收。开局与所有对局事件都在这份上下文里执行,
+ * 引擎由此发起的模型 / 语音调用(含后台的 fire-and-forget)都用它。
+ */
+const gameAi = new WeakMap<GameEngine, AiContext>();
+
+export function gameAiContext(engine: GameEngine): AiContext {
+  return gameAi.get(engine) ?? { byok: null };
+}
+
 export function _getGameForTest(gameId: string): GameEngine | undefined {
   return games.get(gameId);
 }
@@ -169,6 +182,13 @@ export function setupSocketHandler(io: SocketServer) {
   io.on('connection', (socket: Socket) => {
     socketLog.debug({ sid: socket.id }, 'client connected');
     let currentGameId: string | null = null;
+    // v6.167 — 对局事件统一在「这局的凭据上下文」里执行;还没进局时用这条连接自己的凭据。
+    const onGame = (event: string, handler: (...args: unknown[]) => unknown) => {
+      socket.on(event, (...args: unknown[]) => {
+        const eng = currentGameId ? games.get(currentGameId) : undefined;
+        return runWithAi(eng ? gameAiContext(eng) : { byok: socketByok(socket) }, () => handler(...args));
+      });
+    };
     // v6.29 P5 — PSYWAR per-socket abuse guard. Rolling 60s window cap +
     // per-session hard cap. Without this a malicious or buggy client can
     // spam game:psy_war_leak and pollute every game's leakedHints FIFO.
@@ -178,7 +198,7 @@ export function setupSocketHandler(io: SocketServer) {
     const interveneTimes: number[] = [];
     let interveneTotal = 0;
 
-    socket.on('game:create', async (rawConfig: unknown) => {
+    onGame('game:create', async (rawConfig: unknown) => {
       const v = validateEvent(GameCreateSchema, rawConfig);
       if (!v.ok) {
         socketLog.warn({ sid: socket.id, err: v.message }, 'game:create rejected');
@@ -186,6 +206,13 @@ export function setupSocketHandler(io: SocketServer) {
         return;
       }
       const config = v.data;
+
+      // v6.167 BYOK — 托管版不提供模型 API:没配自己的 key 就不建局(前端据此弹出模型设置)。
+      const byok = socketByok(socket);
+      if (!byok && keyMode() === 'byok') {
+        socket.emit('game:error', { code: 'need_key', message: '需要先配置你自己的模型 key' });
+        return;
+      }
 
       // v5.8.2 — userId optional in payload; engine stores it for
       // per-spectator chunky-style memory (RFC §3.2 target_user_id key).
@@ -206,6 +233,16 @@ export function setupSocketHandler(io: SocketServer) {
       const gameId = engine.state.id;
       games.set(gameId, engine);
       currentGameId = gameId;
+      // 访客的 key 被拒 / 欠费:每种原因只通知房间一次,前端弹提示(发言仍走兜底台词,对局不中断)。
+      const notified = new Set<AiFailReason>();
+      gameAi.set(engine, {
+        byok,
+        onFailure: (reason) => {
+          if (notified.has(reason)) return;
+          notified.add(reason);
+          io.to(gameId).emit('game:llm_error', { reason });
+        },
+      });
 
       socket.join(gameId);
       socket.emit('game:created', { gameId });
@@ -235,7 +272,7 @@ export function setupSocketHandler(io: SocketServer) {
       );
     });
 
-    socket.on('game:start', async (rawGameId: unknown) => {
+    onGame('game:start', async (rawGameId: unknown) => {
       const v = validateEvent(GameIdSchema, rawGameId);
       if (!v.ok) {
         socketLog.warn({ sid: socket.id, err: v.message }, 'game:start rejected');
@@ -250,7 +287,15 @@ export function setupSocketHandler(io: SocketServer) {
         return;
       }
       const glog = gameLogger(gameId);
+      const aiCtx = gameAiContext(engine);
+      if (!aiCtx.byok && keyMode() === 'byok') {
+        socket.emit('game:error', { code: 'need_key', message: '需要先配置你自己的模型 key' });
+        return;
+      }
 
+      // v6.167 — 引擎主循环在这局的凭据上下文里启动:之后循环里所有模型 / 语音调用都用建局者的 key,
+      // 与是谁点的「开始」无关。
+      runWithAi(aiCtx, () => {
       // Start avatar generation in background
       const roles = [...new Set(engine.state.players.map(p => p.role))];
       generateAllAvatarsInBackground(io, gameId, roles);
@@ -266,9 +311,10 @@ export function setupSocketHandler(io: SocketServer) {
         // wedge future joins; small delay lets the error toast reach clients.
         setTimeout(() => destroyGame(gameId, 'startGame rejected'), 5_000).unref();
       });
+      });
     });
 
-    socket.on('game:join', (rawGameId: unknown) => {
+    onGame('game:join', (rawGameId: unknown) => {
       const v = validateEvent(GameIdSchema, rawGameId);
       if (!v.ok) {
         socketLog.warn({ sid: socket.id, err: v.message }, 'game:join rejected');
@@ -306,7 +352,7 @@ export function setupSocketHandler(io: SocketServer) {
     // v6.114(审计 UX F-16)— 客户端明确离开对局(赛后「再来一局」)。从房间摘掉
     // 这个 socket,server 不再往它推上一局的残留事件(否则 lazy 路由切换慢一帧时,
     // 旧 game:over 还会把 HighlightReel 再弹一次)。
-    socket.on('game:leave', () => {
+    onGame('game:leave', () => {
       if (!currentGameId) return;
       // v6.126 — 离场连带释放真人角色
       const claims = humanClaims.get(currentGameId);
@@ -333,7 +379,7 @@ export function setupSocketHandler(io: SocketServer) {
 
     // ── v6.126 · Phase C 真人场边角色 ────────────────────────────────────
     // 认领:一角一人、一人一角(shared 纯引擎校验);结果私发,占用位图全房广播。
-    socket.on('game:claim_role', (raw: unknown) => {
+    onGame('game:claim_role', (raw: unknown) => {
       if (!currentGameId || !games.has(currentGameId)) return;
       const roleId = (raw as { roleId?: string })?.roleId ?? '';
       if (!humanRoleById(roleId)) {
@@ -357,7 +403,7 @@ export function setupSocketHandler(io: SocketServer) {
     });
 
     // 退下嘉宾席(保留旁观)。
-    socket.on('game:release_role', () => {
+    onGame('game:release_role', () => {
       if (!currentGameId) return;
       const claims = humanClaims.get(currentGameId);
       if (!claims) return;
@@ -369,7 +415,7 @@ export function setupSocketHandler(io: SocketServer) {
 
     // 场边发言:须已认领角色;限流(6 条/分钟/连接);engine 每轮每角色再兜一道 cap。
     const humanSpeechTimes: number[] = [];
-    socket.on('game:human_speech', (raw: unknown) => {
+    onGame('game:human_speech', (raw: unknown) => {
       if (!currentGameId) return;
       const engine = games.get(currentGameId);
       if (!engine) return;
@@ -396,7 +442,7 @@ export function setupSocketHandler(io: SocketServer) {
     // 席位发言限流:6 条/分钟/连接(复用嘉宾发言同一套思路)
     const seatSpeechTimes: number[] = [];
 
-    socket.on('game:claim_seat', (raw: unknown) => {
+    onGame('game:claim_seat', (raw: unknown) => {
       if (!currentGameId || !games.has(currentGameId)) return;
       const engine = games.get(currentGameId)!;
       const playerId = (raw as { playerId?: string })?.playerId ?? '';
@@ -452,7 +498,7 @@ export function setupSocketHandler(io: SocketServer) {
       socketLog.debug({ sid: socket.id, gameId: currentGameId, playerId, ok: r.ok }, 'claim seat');
     });
 
-    socket.on('game:release_seat', () => {
+    onGame('game:release_seat', () => {
       if (!currentGameId) return;
       const engine = games.get(currentGameId);
       const claims = seatClaims.get(currentGameId);
@@ -464,7 +510,7 @@ export function setupSocketHandler(io: SocketServer) {
       broadcastSeatClaims(io, currentGameId);
     });
 
-    socket.on('game:seat_speech', (raw: unknown) => {
+    onGame('game:seat_speech', (raw: unknown) => {
       if (!currentGameId) return;
       const engine = games.get(currentGameId);
       if (!engine) return;
@@ -488,7 +534,7 @@ export function setupSocketHandler(io: SocketServer) {
       socket.emit('game:seat_speech_result', { ok: r.accepted, reason: r.reason });
     });
 
-    socket.on('game:seat_vote', (raw: unknown) => {
+    onGame('game:seat_vote', (raw: unknown) => {
       if (!currentGameId) return;
       const engine = games.get(currentGameId);
       if (!engine) return;
@@ -509,7 +555,7 @@ export function setupSocketHandler(io: SocketServer) {
     // FIFO leakedHints buffer (cap 5). pushLeakedHint emits 'leak_acked'
     // which we relay as `game:psy_war_acked` so the chat panel can
     // mark the message "AI 听到了".
-    socket.on('game:psy_war_leak', (raw: unknown) => {
+    onGame('game:psy_war_leak', (raw: unknown) => {
       if (!currentGameId) return;
       const engine = games.get(currentGameId);
       if (!engine) return;
@@ -553,7 +599,7 @@ export function setupSocketHandler(io: SocketServer) {
     // (3/分钟, 8/会话)+ itemId 白名单 + 转引擎生效点,ack 回
     // `game:intervene_acked` 让商店面板更新状态。信任模型同 v6.74:
     // 筹码可被改,但只坑自己;真正护栏是这道限流。
-    socket.on('game:intervene', (raw: unknown) => {
+    onGame('game:intervene', (raw: unknown) => {
       if (!currentGameId) return;
       const engine = games.get(currentGameId);
       if (!engine) return;

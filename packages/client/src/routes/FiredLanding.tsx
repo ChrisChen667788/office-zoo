@@ -30,6 +30,7 @@ import { navIcons, Icon } from '../constants/icons';
 import { filterFiredScenarios } from '../utils/firedScenarioFilters';
 import type { UserProfile } from '../utils/profileTypes';
 import { useFeatures } from '../utils/runtimeConfig';
+import { requireModel } from '../utils/modelSetup';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
  *  same fields plus a `source` flag distinguishing seed catalogue from
@@ -253,6 +254,7 @@ export default function FiredLanding() {
 
   const handleStart = () => {
     if (!selectedScenario) return;
+    if (!requireModel('fired:custom')) return;
     reset();
     setScenario(selectedScenario);
     setPersonality(selectedPersonality);
@@ -266,6 +268,7 @@ export default function FiredLanding() {
     const level = FIRED_LEVELS.find((l) => l.level === levelNum);
     if (!level) return;
     if (!unlockedLevels.includes(levelNum)) return;
+    if (!requireModel('fired:level')) return;
     reset();
     setScenario(level.scenarioId);
     setPersonality(level.personalityId);
@@ -1201,6 +1204,7 @@ function CreateScenarioModal({
     setSubmitting(true);
     setErrMsg(null);
     try {
+      if (!requireModel('fired:generate')) { setSubmitting(false); return; }
       const resp = await fetch('/api/fired/generate-scenario', {
         method: 'POST',
         headers: {

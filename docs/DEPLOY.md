@@ -31,10 +31,20 @@ docker run --rm -p 8080:8080 -v office-zoo-data:/data office-zoo
 | `MEMORY_ADMIN_TOKEN` | 空 | 批量清空 AI 记忆的管理口令(≥16 位随机串);不设则批量清空一律拒绝,不影响用户删除自己的记忆 |
 | `UMAMI_SCRIPT_URL` / `UMAMI_WEBSITE_ID` | 空 | 访问统计(可选,自部署 Umami)。两个都配好才会在页面加载统计脚本 |
 | `TTS_RATE_LIMIT_PER_HOUR` | `120` | `/api/tts/generate` 每 IP 每小时上限 |
+| `LLM_KEY_MODE` | hosted 为 `byok` | `byok`:访客必须在页面里配置自己的模型 key;`server`:用环境变量里的 key(本机自部署) |
+| `BYOK_ALLOW_CUSTOM_BASE_URL` | hosted 为 `0` | 是否允许访客填自定义 OpenAI 兼容接口地址;打开后只允许 https、且解析结果必须全是公网地址(DNS 重绑定仍是残余风险) |
 | `SINGLE_PORT` | hosted 为 `1` | 强制单 / 双端口(一般不用动) |
 | `SERVE_CLIENT_DIR` | 镜像内为前端构建目录 | 由服务器托管的前端产物目录 |
 
 **不要**在托管环境里设置 `OPENAI_API_KEY` / `QINGYUN_API_KEY` / `MINIMAX_API_KEY` 等模型 key:产品不提供模型 API(owner 决策),hosted 形态下即使设置了也不会被使用。
+
+## 模型 key(BYOK)
+
+- 访客在首页「🔑 模型」或设置页配置自己的模型商与 key(DeepSeek、硅基流动、Kimi、智谱、通义、豆包、OpenRouter、OpenAI、MiniMax 预设),「测试连接」会用这个 key 拉一次模型列表并实际调用一次。
+- key 默认只存在访客浏览器的当前标签页,勾选「在本机记住」才写进浏览器本地存储;每次请求随请求头 / Socket 握手发给本站服务器,服务器只在内存里转发给模型商,不保存、不写日志。
+- 没配 key 的访客:点开局会弹出设置;每日剧情等后台功能自动降级为预置内容;示例对局(`npm run sample:promote` 产生)可直接观看。
+- 语音默认用浏览器自带朗读(免费);访客可选同一家的语音接口(硅基流动、OpenAI)或另填 MiniMax 语音 key。
+- 运营者在技术上能看到经过服务器的请求,这一点在设置面板里如实告知了访客。
 
 ## 3. 选一个平台
 
@@ -92,7 +102,7 @@ zoo.example.com {
 - [ ] `/api/health` 正常;重启容器后 `/data` 里的数据还在
 - [ ] 页面、图片、对局 WebSocket 都走同一个域名,浏览器控制台没有 CORS / WebSocket 报错
 - [ ] 每个页面有 AI 生成声明,裁了么对话有「不构成法律意见」
-- [ ] 未配置模型 key 时,需要模型的入口提示「先配置模型」,示例对局可直接观看
+- [ ] 未配置模型 key 时,点开局弹出模型设置;配一个真实 key 后「测试连接」通过,能完整打完一局;示例对局可直接观看
 - [ ] 生成式 AI 服务备案问题已咨询过法律顾问(见 `docs/PRODUCT_REVIEW_2026-10.md` §9.5)
 
 ## 5. 本地开发不受影响

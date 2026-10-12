@@ -46,7 +46,10 @@ interface DailyDrama {
 import { modeIcons, navIcons, Icon } from '../constants/icons';
 import { trackEvent } from '../utils/analytics';
 import { FIRED_AUTOSTART_PATH } from '../utils/firedAutostart';
-import { useFeatures } from '../utils/runtimeConfig';
+import { useFeatures, useRuntimeConfig } from '../utils/runtimeConfig';
+import { openModelSetup, requireModel } from '../utils/modelSetup';
+import { useByok } from '../utils/byok';
+import { findProvider } from '@furball/shared';
 
 // v6.28 P4 — 9 added once ROLE_PRESETS[9] (v6.27 P1) landed. The
 // 6→8→9→10 ladder gives users a "1-step-up from default" option;
@@ -144,6 +147,17 @@ export default function Landing() {
   // v1.2.0 — i18n. `t()` for translations, `locale` re-renders on toggle.
   const { t, locale } = useT();
   const features = useFeatures();
+  // v6.167/168 — BYOK 状态 + 示例对局
+  const byokCfg = useByok();
+  const runtimeCfg = useRuntimeConfig();
+  const needsKey = runtimeCfg?.llm.keyMode === 'byok' && !byokCfg;
+  const [sampleId, setSampleId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!needsKey || sampleId) return;
+    fetch('/api/replay/samples').then((r) => (r.ok ? r.json() : null))
+      .then((j: { samples?: Array<{ gameId: string }> } | null) => setSampleId(j?.samples?.[0]?.gameId ?? null))
+      .catch(() => {});
+  }, [needsKey, sampleId]);
 
   // v1.4.0 — daily drama. Server returns personalized "today's drama"
   // when the user has a quiz profile; null otherwise (we keep the legacy
@@ -270,6 +284,12 @@ export default function Landing() {
     }
   }, []);
 
+  // v6.167 — 建局被拒(例如托管版没配 key 回 need_key):解除「创建中」,否则按钮一直转圈。
+  useSocketEvent<{ code?: string }>('game:error', () => {
+    setIsCreating(false);
+    pendingModeRef.current = null;
+  });
+
   useSocketEvent<{ gameId: string }>('game:created', ({ gameId }) => {
     setIsCreating(false);
     // Landing creates classic + dual games here (immersive/fired/talkshow
@@ -293,6 +313,8 @@ export default function Landing() {
   const handleStart = useCallback((nextMode?: GameMode) => {
     if (isCreating) return;
     const target = nextMode ?? mode;
+    // v6.167 — 托管版没配自己的模型 key:先弹设置(班味单口播放预置段子不需要模型,放行)。
+    if (target !== 'talkshow' && !requireModel(`landing:${target}`)) return;
     if (target !== mode) setMode(target);
     pendingModeRef.current = target;
     primeAudio();            // unlock <audio> playback now, while we have a gesture
@@ -429,6 +451,21 @@ export default function Landing() {
             title="2-4 个朋友各有 archetype, AI 编 5 幕剧"
           >
             🎭 攒局
+          </button>
+          {/* v6.167 — BYOK 模型设置入口:随时可改;已配置时显示模型商 */}
+          <button
+            type="button"
+            onClick={() => openModelSetup('manual', 'landing-header')}
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
+            style={{
+              color: byokCfg ? '#a7f3d0' : 'rgba(255,255,255,0.8)',
+              background: byokCfg ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${byokCfg ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.14)'}`,
+            }}
+            title="配置你自己的模型 key"
+            data-testid="model-setup-open"
+          >
+            🔑 {byokCfg ? (findProvider(byokCfg.provider)?.name.split(' ')[0] ?? '模型') : '模型'}
           </button>
           {/* v1.1.0 — B 端 SaaS 入口 (律所/HR培训采购)。v6.168:托管版冻结,不显示 */}
           {features.b2b && <button
@@ -571,7 +608,7 @@ export default function Landing() {
             <div className="mb-5 flex flex-col items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => { primeAudio(); navigate(FIRED_AUTOSTART_PATH); }}
+                onClick={() => { primeAudio(); if (requireModel('quickstart')) navigate(FIRED_AUTOSTART_PATH); }}
                 className="px-6 py-3 rounded-2xl text-sm md:text-base font-black tracking-wide text-white transition hover:scale-[1.03]"
                 style={{
                   background: 'linear-gradient(135deg, #ff4757 0%, #ff8a3d 100%)',
@@ -582,6 +619,17 @@ export default function Landing() {
                 {t('landing.quickstart')}
               </button>
               <span className="text-[11px] text-white/50">{t('landing.quickstartSub')}</span>
+              {/* v6.168 — 托管版没配 key 的访客:先看一局真实模型跑出的示例对局(不调模型、不用 key) */}
+              {needsKey && sampleId && (
+                <button
+                  type="button"
+                  onClick={() => { trackEvent('sample_replay_view', { from: 'landing' }); navigate(`/result/${sampleId}`); }}
+                  className="mt-1 text-[12px] font-bold text-amber-200 underline underline-offset-4 hover:text-amber-100"
+                  data-testid="landing-sample-replay"
+                >
+                  🎬 还没有模型 key?先看一局示例对局 →
+                </button>
+              )}
             </div>
 
             {/* v6.14 P1 — daily featured rat spotlight. Same character
