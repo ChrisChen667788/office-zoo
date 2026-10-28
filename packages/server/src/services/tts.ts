@@ -14,6 +14,7 @@
  */
 
 import { ttsTarget } from '../utils/aiClient';
+import { safeErrorText } from '../utils/redact';
 
 interface VoiceConfig {
   voice: string;       // OpenAI TTS voice name
@@ -241,7 +242,7 @@ async function tryMinimaxV2(
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[TTS/Minimax-v2] HTTP ${response.status}: ${errText.slice(0, 200)}`);
+      console.error(`[TTS/Minimax-v2] HTTP ${response.status}: ${safeErrorText(errText)}`);
       if (response.status === 401 && env.sticky) minimaxV2Dead = true;
       return null;
     }
@@ -252,7 +253,7 @@ async function tryMinimaxV2(
     };
 
     if (data.base_resp && data.base_resp.status_code !== 0) {
-      console.error(`[TTS/Minimax-v2] API error ${data.base_resp.status_code}: ${data.base_resp.status_msg}`);
+      console.error(`[TTS/Minimax-v2] API error ${data.base_resp.status_code}: ${safeErrorText(data.base_resp.status_msg ?? '')}`);
       // 2061 = "current token plan not support model" → permanent for this run
       // 1008 = "insufficient balance"                  → permanent for this run
       // 2013 = "invalid params"                        → model/endpoint mismatch
@@ -270,7 +271,7 @@ async function tryMinimaxV2(
     console.log(`[TTS/Minimax-v2] Generated ${(buffer.length / 1024).toFixed(1)} KB`);
     return buffer;
   } catch (err) {
-    console.error('[TTS/Minimax-v2] Error:', err);
+    console.error('[TTS/Minimax-v2] Error:', safeErrorText(err));
     return null;
   }
 }
@@ -322,7 +323,7 @@ async function tryMinimaxPro(
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error(`[TTS/Minimax-pro ${model}] HTTP ${response.status}: ${errText.slice(0, 200)}`);
+        console.error(`[TTS/Minimax-pro ${model}] HTTP ${response.status}: ${safeErrorText(errText)}`);
         if (response.status === 401) { if (env.sticky) minimaxProDead = true; return null; }
         continue;
       }
@@ -335,7 +336,7 @@ async function tryMinimaxPro(
       if (data.base_resp && data.base_resp.status_code !== 0) {
         const code = data.base_resp.status_code ?? 0;
         const msg = data.base_resp.status_msg ?? '';
-        console.error(`[TTS/Minimax-pro ${model}] ${code}: ${msg}`);
+        console.error(`[TTS/Minimax-pro ${model}] ${code}: ${safeErrorText(msg)}`);
         // 2013 "not have model" → try next model in loop, don't kill provider
         if (code === 2013 && /not have model/i.test(msg)) continue;
         // Insufficient balance / token plan unsupported / usage limit hit
@@ -362,7 +363,7 @@ async function tryMinimaxPro(
       console.log(`[TTS/Minimax-pro ${model}] Generated ${(buffer.length / 1024).toFixed(1)} KB`);
       return buffer;
     } catch (err) {
-      console.error(`[TTS/Minimax-pro ${model}] Error:`, err);
+      console.error(`[TTS/Minimax-pro ${model}] Error:`, safeErrorText(err));
       continue;
     }
   }
@@ -405,7 +406,7 @@ async function tryQingyunTTS(
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[TTS/Qingyun ${model}] HTTP ${response.status}: ${errText.slice(0, 200)}`);
+      console.error(`[TTS/Qingyun ${model}] HTTP ${response.status}: ${safeErrorText(errText)}`);
       // Quota exhausted / token revoked → no point retrying on next speech.
       if (response.status === 401 || response.status === 429
           || /额度已用尽|quota|insufficient/i.test(errText)) {
@@ -417,7 +418,7 @@ async function tryQingyunTTS(
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('json')) {
       const errData = await response.json();
-      console.error(`[TTS/Qingyun ${model}] JSON error:`, JSON.stringify(errData).slice(0, 200));
+      console.error(`[TTS/Qingyun ${model}] JSON error:`, safeErrorText(JSON.stringify(errData)));
       return null;
     }
 
@@ -430,7 +431,7 @@ async function tryQingyunTTS(
     console.log(`[TTS/Qingyun ${model}] Generated ${(buffer.length / 1024).toFixed(1)} KB`);
     return buffer;
   } catch (err) {
-    console.error(`[TTS/Qingyun ${model}] Error:`, err);
+    console.error(`[TTS/Qingyun ${model}] Error:`, safeErrorText(err));
     return null;
   }
 }

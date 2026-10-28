@@ -170,12 +170,8 @@ export async function exportShareVideo(opts: ExportOptions): Promise<ExportResul
     setTimeout(resolve, VIDEO_DURATION_SEC * 1000 + 100);
   });
   stopTicker();
-  recorder.stop();
-
   // Drain the final ondataavailable + onstop.
-  await new Promise<void>((resolve) => {
-    recorder.onstop = () => resolve();
-  });
+  await stopRecorder(recorder);
 
   const blob = new Blob(chunks, { type: mimeType });
   const ext = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
@@ -189,6 +185,23 @@ export async function exportShareVideo(opts: ExportOptions): Promise<ExportResul
 }
 
 /** Helper: trigger a save-as dialog for the rendered video. */
+/**
+ * v6.169 — 停止录制并等收尾(最后一段 ondataavailable + onstop)。
+ * 先挂 onstop 再 stop()(原来是 stop() 之后才挂);录制器已经自己停了(出错等)就不再等 ——
+ * 那种情况 stop() 不会再发 onstop,原写法会永远挂着;最多等 timeoutMs 兜底。
+ */
+export function stopRecorder(
+  recorder: Pick<MediaRecorder, 'state' | 'stop' | 'onstop'>,
+  timeoutMs = 5000,
+): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (recorder.state === 'inactive') { resolve(); return; }
+    const timer = setTimeout(resolve, timeoutMs);
+    recorder.onstop = () => { clearTimeout(timer); resolve(); };
+    recorder.stop();
+  });
+}
+
 export function triggerDownload(result: ExportResult): void {
   const url = URL.createObjectURL(result.blob);
   const a = document.createElement('a');

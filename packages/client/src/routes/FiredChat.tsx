@@ -9,6 +9,7 @@ import { trackEvent } from '../utils/analytics';
 import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
 import { useT } from '../utils/i18n';
 import { autostartLevel, isAutostart } from '../utils/firedAutostart';
+import { firedChatErrorFrom, firedChatErrorText } from '../utils/firedChatError';
 
 const PERSONALITY_LABELS: Record<string, string> = {
   rookie: '菜鸟HR',
@@ -94,7 +95,7 @@ async function sendChat(
     },
     signal,
   );
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw await firedChatErrorFrom(res);
   return res.json();
 }
 
@@ -265,7 +266,7 @@ export default function FiredChat() {
           role: 'system',
           content: isTimeout
             ? '请求超时(30秒),可能网络不佳或服务器繁忙。'
-            : '连接服务器失败,请检查后端是否运行。',
+            : firedChatErrorText(err, '连接服务器失败,请检查后端是否运行。'),
           timestamp: Date.now(),
           retryAction: 'init',
         });
@@ -368,7 +369,7 @@ export default function FiredChat() {
           addMessage({
             id: genId(),
             role: 'system',
-            content: isTimeout ? '请求超时(30秒),请点击重试。' : '发送失败,请点击重试。',
+            content: isTimeout ? '请求超时(30秒),请点击重试。' : firedChatErrorText(err, '发送失败,请点击重试。'),
             timestamp: Date.now(),
             retryAction: { type: 'send', text: msg },
           });

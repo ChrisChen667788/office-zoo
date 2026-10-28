@@ -155,6 +155,17 @@ describe('失败处理', () => {
     expect(JSON.stringify(logs)).not.toContain(USER_A);
   });
 
+  it('上游原样回显 UUID 式 key(火山方舟格式,正则认不出)→ 错误信息与日志里照样打码', async () => {
+    const uuidKey = '3f2b9c1e-7a4d-4e8b-9c0f-5d6e7f8a9b0c';
+    mockFetch(() => new Response(JSON.stringify({ error: { message: `The API key ${uuidKey} is invalid` } }), { status: 500, headers: { 'Content-Type': 'application/json' } }));
+    const r = await runWithAi({ byok: cfg(uuidKey, { provider: 'volcengine', model: 'doubao-seed-1-6-flash-250828' }) }, () =>
+      callLLMWithTimeout('SPEECH', { model: chatModel('main', 'x'), prompt: 'hi', maxRetries: 0 }));
+    expect(r.ok).toBe(false);
+    expect(r.errorMessage).toContain('3f2…[redacted]');
+    expect(r.errorMessage).not.toContain(uuidKey);
+    expect(JSON.stringify(logs)).not.toContain(uuidKey);
+  });
+
   it('访客的模型商 500 / 空回复(非访客可处理的失败)→ 同样不动用 .env 的 MiniMax key', async () => {
     process.env.MINIMAX_API_KEY = ENV_KEY;
     for (const resp of [
@@ -260,6 +271,22 @@ describe('自定义 base URL(SSRF)', () => {
     for (const ip of ['1.1.1.1', '8.8.8.8', '2606:4700::1111']) expect(isPrivateAddress(ip), ip).toBe(false);
   });
 
+  it('IPv6 写法绕过:十六进制的 IPv4 映射、站点本地 fec0::/10、内嵌 IPv4 的过渡前缀(6to4 / NAT64 / Teredo)', () => {
+    for (const ip of [
+      '::ffff:a9fe:a9fe',   // = 169.254.169.254,DNS 原样返回时就是这种写法
+      '::ffff:7f00:1',      // = 127.0.0.1
+      '::a9fe:a9fe',        // IPv4 兼容地址
+      'fec0::1', 'feff::1', // 站点本地
+      '2002:a9fe:a9fe::1',  // 6to4 内嵌 169.254.169.254
+      '64:ff9b::a9fe:a9fe', // NAT64
+      '2001:0:4136:e378::1', // Teredo
+      'ff02::1', '2001:db8::1',
+    ]) {
+      expect(isPrivateAddress(ip), ip).toBe(true);
+    }
+    for (const ip of ['::ffff:808:808', '2a00:1450:4001::1']) expect(isPrivateAddress(ip), ip).toBe(false);
+  });
+
   it('托管默认关闭;打开后:必须 https、不能是 IP / localhost、解析到内网拒绝', async () => {
     process.env.DEPLOY_PROFILE = 'hosted';
     expect(await checkCustomBaseUrl('https://llm.example.com/v1', fakeLookup('1.1.1.1'))).toEqual({ ok: false, reason: 'custom_base_url_disabled' });
@@ -289,6 +316,32 @@ describe('语音', () => {
     process.env.DEPLOY_PROFILE = 'hosted';
     expect(await runWithAi({ byok: null }, () => generateTTSAudio('你好', 'villager_cat'))).toBeNull();
     expect(calls).toHaveLength(0);
+  });
+
+  it('语音接口的每种失败(HTTP 报错 / 200 里的业务错误 / 网络异常)都不把访客的 key 写进日志', async () => {
+    // UUID 式 key:正则认不出,只能靠逐字抹掉本次请求里访客的 key 原文
+    const uuidKey = '7c1e2d3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f';
+    const printed: string[] = [];
+    for (const m of ['log', 'warn', 'error'] as const) {
+      vi.spyOn(console, m).mockImplementation((...a: unknown[]) => { printed.push(a.map(String).join(' ')); });
+    }
+    const echo = `invalid key ${uuidKey}`;
+    for (const respond of [
+      () => new Response(JSON.stringify({ message: echo }), { status: 401 }),
+      () => new Response(JSON.stringify({ base_resp: { status_code: 1008, status_msg: echo } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+      () => { throw new Error(echo); },
+    ]) {
+      mockFetch(respond);
+      const viaMinimax = cfg(USER_A, { tts: { mode: 'minimax', minimaxKey: uuidKey } });
+      const viaProvider = cfg(uuidKey, { provider: 'siliconflow', model: 'Qwen/Qwen3-8B', tts: { mode: 'provider' } });
+      for (const byok of [viaMinimax, viaProvider]) {
+        await runWithAi({ byok }, () => generateTTSAudio('你好', 'villager_cat'));
+      }
+      vi.mocked(globalThis.fetch).mockRestore();
+    }
+    expect(printed.length).toBeGreaterThan(0); // 失败确实被记录了(不是什么都没打印)
+    expect(printed.join('\n')).not.toContain(uuidKey);
+    expect(JSON.stringify(logs)).not.toContain(uuidKey);
   });
 
   it('访客选模型商语音 → 用访客的 key 打访客的模型商;失败不触发全局判死', async () => {

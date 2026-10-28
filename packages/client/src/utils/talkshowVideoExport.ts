@@ -13,7 +13,7 @@
  * 一张带全文字幕与标识的竖版海报 PNG,配音另存为 mp3。
  */
 import { AI_CONTENT_NOTICE, AI_LABEL, AI_VIDEO_END_LABEL, drawAiWatermark } from './aiLabel';
-import { ASPECT_DIMS, VIDEO_FPS, type ExportResult, type VideoAspect } from './videoExport';
+import { ASPECT_DIMS, VIDEO_FPS, stopRecorder, type ExportResult, type VideoAspect } from './videoExport';
 import { startFrameTicker } from './frameTicker';
 
 export const TALKSHOW_INTRO_SEC = 1.2;
@@ -402,7 +402,11 @@ export async function exportTalkshowVideo(input: TalkshowVideoInput): Promise<Ex
   const audioCtx = input.audioBlob && AC ? new AC() : null;
   void audioCtx?.resume().catch(() => {});
 
-  if (!canRecordVideo()) throw new Error('MediaRecorder / captureStream unavailable');
+  if (!canRecordVideo()) {
+    // AudioContext 必须在点击手势里同步创建(Safari),所以早于能力检查;录不了就关掉,别泄漏
+    void audioCtx?.close().catch(() => {});
+    throw new Error('MediaRecorder / captureStream unavailable');
+  }
 
   let audioBuf: AudioBuffer | null = null;
   if (audioCtx && input.audioBlob) {
@@ -449,7 +453,6 @@ export async function exportTalkshowVideo(input: TalkshowVideoInput): Promise<Ex
   });
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-  const stopped = new Promise<void>((resolve) => { recorder.onstop = () => resolve(); });
 
   drawTalkshowFrame(ctx, 0, input, assets, tl, dims);
   const start = performance.now();
@@ -472,8 +475,7 @@ export async function exportTalkshowVideo(input: TalkshowVideoInput): Promise<Ex
     setTimeout(finish, (tl.totalSec + 3) * 1000);
   });
   drawTalkshowFrame(ctx, tl.totalSec, input, assets, tl, dims);
-  recorder.stop();
-  await stopped;
+  await stopRecorder(recorder);
   try { source?.stop(); } catch { /* 已经播完 */ }
   void audioCtx?.close().catch(() => {});
 

@@ -12,8 +12,20 @@ const PATTERNS: RegExp[] = [
   /\b[A-Za-z0-9_\-]{40,}\b/g,                                       // 其他超长无空格串
 ];
 
+/**
+ * v6.167 — 当前请求里访客的 key 原文(由 aiClient 注册)。正则只认常见格式,
+ * 像火山方舟那种 36 位 UUID 式 key 一条都匹配不上;拿原文逐字替换才稳。
+ */
+let secretSource: () => Array<string | undefined> = () => [];
+export function setSecretSource(fn: () => Array<string | undefined>): void {
+  secretSource = fn;
+}
+
 export function redactSecrets(input: string): string {
   let out = input;
+  for (const secret of secretSource()) {
+    if (secret && secret.length >= 8) out = out.split(secret).join(`${secret.slice(0, 3)}…[redacted]`);
+  }
   for (const re of PATTERNS) out = out.replace(re, (m) => `${m.slice(0, 3)}…[redacted]`);
   return out;
 }

@@ -27,6 +27,7 @@ import {
   type ByokConfig,
 } from '@furball/shared';
 import { isHosted } from './deployProfile';
+import { setSecretSource } from './redact';
 
 export type KeyMode = 'server' | 'byok';
 export type ModelTier = 'fast' | 'main' | 'premium';
@@ -63,6 +64,12 @@ export function currentAi(): AiContext | undefined {
 export function currentByok(): ByokConfig | null {
   return als.getStore()?.byok ?? null;
 }
+
+// 日志 / 错误信息打码时,顺带逐字抹掉本次请求里访客的 key(见 redact.ts)
+setSecretSource(() => {
+  const b = currentByok();
+  return b ? [b.apiKey, b.tts?.minimaxKey] : [];
+});
 
 export function reportAiFailure(reason: AiFailReason): void {
   const ctx = als.getStore();
@@ -197,33 +204,35 @@ export function customBaseUrlAllowed(): boolean {
   return !isHosted();
 }
 
-function ipv4ToInt(ip: string): number {
-  return ip.split('.').reduce((n, p) => (n << 8) + Number(p), 0) >>> 0;
-}
-
-function inV4(ip: string, cidr: string): boolean {
-  const [base, bits] = cidr.split('/');
-  const mask = Number(bits) === 0 ? 0 : (~0 << (32 - Number(bits))) >>> 0;
-  return (ipv4ToInt(ip) & mask) === (ipv4ToInt(base) & mask);
-}
-
-const BLOCKED_V4 = [
-  '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16', '172.16.0.0/12',
-  '192.0.0.0/24', '192.0.2.0/24', '192.168.0.0/16', '198.18.0.0/15', '198.51.100.0/24',
-  '203.0.113.0/24', '224.0.0.0/4', '240.0.0.0/4', '255.255.255.255/32',
+const BLOCKED_V4: Array<[string, number]> = [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12],
+  ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24],
+  ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
 ];
+const BLOCKED_V6: Array<[string, number]> = [
+  ['::', 128], ['::1', 128],
+  ['::', 96],            // IPv4 兼容地址(已废弃,::a.b.c.d)
+  ['64:ff9b::', 96], ['64:ff9b:1::', 48], // NAT64:内嵌 IPv4
+  ['100::', 64],         // 丢弃前缀
+  ['2001::', 32],        // Teredo:内嵌(混淆的)IPv4
+  ['2001:db8::', 32],    // 文档保留
+  ['2002::', 16],        // 6to4:内嵌 IPv4
+  ['fc00::', 7],         // ULA
+  ['fe80::', 10],        // 链路本地
+  ['fec0::', 10],        // 站点本地(已废弃,但部分系统仍会路由)
+  ['ff00::', 8],         // 组播
+];
+// net.BlockList 会把 IPv4 映射地址(::ffff:a.b.c.d 以及 DNS 原样返回的十六进制写法 ::ffff:a9fe:a9fe)
+// 按 IPv4 规则判定 —— 手写前缀匹配漏过这种写法,也漏过 fec0::/10。
+const blocked = new net.BlockList();
+for (const [a, p] of BLOCKED_V4) blocked.addSubnet(a, p, 'ipv4');
+for (const [a, p] of BLOCKED_V6) blocked.addSubnet(a, p, 'ipv6');
 
-/** 内网、回环、链路本地(含云元数据 169.254.169.254)、组播、保留地址一律视为不安全。 */
+/** 内网、回环、链路本地(含云元数据 169.254.169.254)、组播、保留、内嵌 IPv4 的过渡地址一律视为不安全。 */
 export function isPrivateAddress(ip: string): boolean {
   const v = net.isIP(ip);
-  if (v === 4) return BLOCKED_V4.some((c) => inV4(ip, c));
-  if (v === 6) {
-    const s = ip.toLowerCase();
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(s);
-    if (mapped) return isPrivateAddress(mapped[1]);
-    return s === '::' || s === '::1' || s.startsWith('fc') || s.startsWith('fd') || s.startsWith('fe8')
-      || s.startsWith('fe9') || s.startsWith('fea') || s.startsWith('feb') || s.startsWith('ff') || s.startsWith('64:ff9b');
-  }
+  if (v === 4) return blocked.check(ip, 'ipv4');
+  if (v === 6) return blocked.check(ip, 'ipv6');
   return true;
 }
 

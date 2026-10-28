@@ -40,6 +40,19 @@ export function classifyLlmError(err: unknown): LLMCallResult['reason'] {
 
 const USER_FIXABLE: ReadonlySet<string> = new Set(['need_key', 'key_rejected', 'quota', 'rate_limited']);
 
+/** 访客自己能处理的失败(没配 key / key 被拒 / 欠费 / 限流):不是运营方的故障,日志用 warn。 */
+export function isUserFixable(reason: string | undefined): boolean {
+  return !!reason && USER_FIXABLE.has(reason);
+}
+
+/** 给访客看的原因说明(只有类别,不含任何上游原文)。 */
+export const USER_FIXABLE_MESSAGE: Record<string, string> = {
+  need_key: '需要先配置你自己的模型 key',
+  key_rejected: '你的模型 key 被模型商拒绝了(填错或已失效),请检查模型设置',
+  quota: '你的模型商账户余额不足',
+  rate_limited: '模型商限流了,请稍后再试',
+};
+
 const llmLog = logger.child({ component: 'llm' });
 
 function modelIdOf(options: Parameters<typeof generateText>[0]): string {

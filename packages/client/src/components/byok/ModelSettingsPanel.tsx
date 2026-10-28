@@ -124,6 +124,12 @@ export default function ModelSettingsPanel({ onSaved, compact = false }: { onSav
   const save = () => {
     const cfg = validate();
     if (!cfg) return;
+    // 托管站点只接受 https 的自定义地址(服务端同一规则);没点「测试连接」直接保存时也要先拦下,
+    // 否则存下来之后每个请求都被拒,访客只看到笼统的「配置无效」。
+    if (cfg.baseURL && runtime?.profile === 'hosted' && !/^https:\/\//i.test(cfg.baseURL)) {
+      setMsg(REASON_ZH.https_required);
+      return;
+    }
     const err = saveByok(cfg, remember);
     if (err) { setMsg(ERR_ZH[err] ?? err); return; }
     trackEvent('byok_saved', { provider, remember, tts: cfg.tts?.mode ?? 'browser', tested: !!check?.ok });

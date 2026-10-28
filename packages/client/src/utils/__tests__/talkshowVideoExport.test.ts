@@ -7,18 +7,19 @@
  *   - 录制格式:有声音时必须选带音频编码的 mime
  * 用一个只记录 fillText 的假 2D ctx 逐帧断言。
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   captionAt,
   captionProgress,
   drawTalkshowFrame,
+  exportTalkshowVideo,
   pickRecorderMime,
   splitSentences,
   talkshowTimeline,
   TALKSHOW_MAX_BODY_SEC,
   wrapLines,
 } from '../talkshowVideoExport';
-import { drawShareVideoFrame } from '../videoExport';
+import { drawShareVideoFrame, stopRecorder } from '../videoExport';
 import { AI_LABEL, AI_VIDEO_END_LABEL } from '../aiLabel';
 
 /** 假 CanvasRenderingContext2D:记录 fillText,measureText 按字数估宽,其余方法 no-op。 */
@@ -159,5 +160,41 @@ describe('pickRecorderMime', () => {
     expect(pickRecorderMime(false, (m) => m === 'video/webm;codecs=vp8')).toBe('video/webm;codecs=vp8');
     expect(pickRecorderMime(true, () => false)).toBeNull();
     expect(pickRecorderMime(true, () => { throw new Error('boom'); })).toBeNull();
+  });
+});
+
+describe('录制收尾不挂死、不泄漏', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+
+  it('录不了视频的浏览器:点击时为配音建的 AudioContext 会被关掉', async () => {
+    const closed: number[] = [];
+    class FakeAC { resume() { return Promise.resolve(); } close() { closed.push(1); return Promise.resolve(); } }
+    vi.stubGlobal('window', { AudioContext: FakeAC }); // 没有 MediaRecorder → canRecordVideo() 为 false
+    await expect(exportTalkshowVideo({ ...INPUT, text: TEXT, audioBlob: new Blob(['x']) } as Parameters<typeof exportTalkshowVideo>[0]))
+      .rejects.toThrow(/unavailable/);
+    expect(closed).toHaveLength(1);
+  });
+
+  it('stopRecorder:onstop 在 stop() 里同步触发也能收到(先挂回调再 stop)', async () => {
+    const rec = { state: 'recording' as RecordingState, onstop: null as MediaRecorder['onstop'],
+      stop() { this.state = 'inactive'; this.onstop?.call(this as unknown as MediaRecorder, new Event('stop')); } };
+    vi.useFakeTimers(); // 时限兜底不推进:必须是 onstop 本身让它返回
+    let done = false;
+    void stopRecorder(rec, 5000).then(() => { done = true; });
+    await Promise.resolve();
+    expect(done).toBe(true);
+  });
+
+  it('stopRecorder:录制器已经自己停了 → 不调 stop()、立即返回', async () => {
+    const stop = vi.fn();
+    await stopRecorder({ state: 'inactive', onstop: null, stop }, 10_000);
+    expect(stop).not.toHaveBeenCalled();
+  });
+
+  it('stopRecorder:onstop 一直不来 → 到时限也返回,导出不会永远挂着', async () => {
+    vi.useFakeTimers();
+    const p = stopRecorder({ state: 'recording', onstop: null, stop() {} }, 5000);
+    vi.advanceTimersByTime(5000);
+    await expect(p).resolves.toBeUndefined();
   });
 });

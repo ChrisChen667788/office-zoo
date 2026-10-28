@@ -52,6 +52,7 @@ import { clientDistDir, serveClient } from './utils/clientStatic';
 import { isHosted } from './utils/deployProfile';
 import { hostedFeatureGate } from './utils/hostedFeatures';
 import { attachSocketByok, byokMiddleware } from './utils/byokTransport';
+import { applyBodyLimits } from './utils/bodyLimits';
 import type { Server as HttpServer } from 'http';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
@@ -67,6 +68,8 @@ app.use('*', originGuardMiddleware);
 app.use('*', corsForAllowedOrigins());
 // v6.168 — 托管版关闭收款 / B2B / 邮箱订阅接口(owner 决策,见 utils/hostedFeatures)。
 app.use('*', hostedFeatureGate);
+// v6.169 — 请求体大小上限(API 1MB,转码 50MB;见 utils/bodyLimits)。
+applyBodyLimits(app);
 // v6.167 BYOK — 解析 X-Byok 请求头,把访客的模型凭据绑到这次请求的整条异步调用链上。
 app.use('/api/*', byokMiddleware);
 app.use('*', requestIdMiddleware);

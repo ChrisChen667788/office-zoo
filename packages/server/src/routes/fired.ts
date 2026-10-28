@@ -6,7 +6,7 @@ import {
   type FiredScenario,
   type HRPersonality,
 } from '@furball/shared';
-import { callLLMWithTimeout } from '../utils/llm';
+import { USER_FIXABLE_MESSAGE, callLLMWithTimeout, isUserFixable } from '../utils/llm';
 import { logger } from '../utils/logger';
 import { validateBody } from '../utils/validate';
 import {
@@ -396,16 +396,20 @@ firedRouter.post('/chat', async (c) => {
       temperature: 0.9,
     });
     if (!hrRes.ok) {
-      routeLog.error(
+      // v6.169 — 访客的 key 没配 / 被拒 / 欠费 / 限流是访客侧的事:warn 而不是 error,提示也说清原因
+      const fixable = isUserFixable(hrRes.reason);
+      routeLog[fixable ? 'warn' : 'error'](
         { route: 'chat', reason: hrRes.reason, errorMessage: hrRes.errorMessage },
         'HR response LLM failed',
       );
       return c.json(
         {
           error:
-            hrRes.reason === 'timeout'
+            fixable ? USER_FIXABLE_MESSAGE[hrRes.reason!]
+            : hrRes.reason === 'timeout'
               ? 'HR 响应超时，请稍后重试'
               : 'HR 服务暂时不可用，请稍后重试',
+          reason: hrRes.reason,
         },
         503,
       );

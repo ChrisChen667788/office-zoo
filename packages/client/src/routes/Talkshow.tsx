@@ -45,6 +45,7 @@ import TalkshowVideoButton from '../components/talkshow/TalkshowVideoButton';
 import { trackEvent } from '../utils/analytics';
 import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
 import { requireModel } from '../utils/modelSetup';
+import { talkshowUrlAction } from '../utils/talkshowDeeplink';
 
 interface ScriptSummary {
   id: string;
@@ -256,16 +257,13 @@ export default function Talkshow() {
 
   // Mirror player navigation back to the URL so the back/forward button
   // and a fresh refresh both land on the same bit.
+  // v6.169 — 只有播放器开过又关上才清 ?id=;首屏深链还在加载时清掉会让分享链接打不开(见 talkshowDeeplink)。
+  const playerWasOpenRef = useRef(false);
   useEffect(() => {
-    if (active) {
-      if (searchParams.get('id') !== active.id) {
-        setSearchParams({ id: active.id }, { replace: true });
-      }
-    } else {
-      if (searchParams.get('id')) {
-        setSearchParams({}, { replace: true });
-      }
-    }
+    const action = talkshowUrlAction(active?.id ?? null, searchParams.get('id'), playerWasOpenRef.current);
+    playerWasOpenRef.current = !!active;
+    if (action?.kind === 'set') setSearchParams({ id: action.id }, { replace: true });
+    else if (action?.kind === 'clear') setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
