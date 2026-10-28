@@ -67,6 +67,26 @@
 
 ---
 
+## 🌟 v6.161 → v6.169 · Playable in the browser: bring your own model key + the baseline for going public
+
+> The product itself does not provide a model API. In the hosted version every AI line is generated with **your own model key**,
+> billed to your own provider account; the server only relays it in memory and never stores or logs it. No key? You can still watch a sample game.
+
+- 🔑 **Bring your own key (BYOK)** (v6.167) — click "🔑 Model" on the home page, pick a provider, paste a key, test the connection, play.
+  Presets for DeepSeek / SiliconFlow / Kimi / Zhipu / Qwen / Doubao / OpenRouter / OpenAI / MiniMax with sign-up links and a per-game cost
+  estimate (a classic game is roughly 20–35k tokens). The key stays in the current tab by default; voices use the browser's speech engine unless you opt in to a provider TTS.
+- 🐳 **One container** (v6.165→v6.166) — `docker build` gives you an image that serves the page, the API and real-time games on a single port.
+  Icons and portraits ship with the repo, so the server needs no keys at all. Deployment guide: [`docs/DEPLOY.md`](./docs/DEPLOY.md) (Chinese).
+- 🛡 **Public-internet baseline** (v6.162) — cross-site origin allowlist, auth on memory deletion, TTS rate limit, real client IP for rate limiting, SSRF guard for custom model endpoints.
+- 🏷 **AI-generated content labels** (v6.164) — site-wide notice, badges on AI content, per-frame watermark plus end card on exported videos; the "Fired" chats state they are not legal advice.
+- 🎬 **Export stand-up bits as short videos** (v6.169) — portrait + line-by-line subtitles + voice, vertical or landscape, share straight to apps.
+- ⚡ **"Fired" first + 5-minute speedrun** (v6.169) — the labor-law mode is now the first card, and a hero button drops you into level 1.
+- 📊 **Measurable** (v6.161, v6.163) — GitHub Actions CI; optional Umami analytics (no third-party script unless configured); model-call failures counted by cause.
+
+| 🔑 Bring your own key | 🎬 Short-video export |
+|:---:|:---:|
+| ![Model settings](./assets/screenshots/12-byok-setup.png) | ![Talkshow export](./assets/screenshots/13-talkshow-export.png) |
+
 ## 🌟 v6.132 → v6.160 · Take a seat as a rat + AIs that speak English / Japanese / Korean
 
 > From "watching the AIs play" to "playing alongside them": claim a rat's seat and speak, vote and get laid off yourself — or start an all-English big-tech-jargon game.
@@ -149,7 +169,19 @@ Then open `http://localhost:5173` and pick a mode.
 | **QingYun** (or OpenAI) | Chat LLM — drives every HR/employee dialogue + scoring | qingyuntop.top or platform.openai.com |
 | **Minimax** | Real-voice TTS (the killer feature) | minimaxi.com |
 
-Both have free trials. The product degrades gracefully:
+Both have free trials. You can also skip `.env` and paste your own key in the page ("🔑 Model"); it takes precedence for your requests.
+
+**Self-host the public version** (no model keys on the server; visitors bring their own):
+
+```bash
+docker build -t office-zoo .
+```
+
+```bash
+docker run --rm -p 8080:8080 -v office-zoo-data:/data office-zoo
+```
+
+The product degrades gracefully:
 - LLM down? Falls back from QingYun → Minimax-M2 → canned responses.
 - TTS down? Falls back from Minimax → Qingyun → browser Web Speech API.
 
@@ -199,7 +231,10 @@ Image: flux-schnell → doubao-seedream → qwen-image → gpt-image-1 → minim
 ✅ v6.151-6.155 🪑 Phase C deep end — humans take rat seats (private ID card, countdown speech & vote, AI stand-in on timeout) + 🎙 voice input
 ✅ v6.156-6.157 🌐 Phase G — AIs speak the game's language: English big-tech prompt set + Japanese / Korean flavor packs
 ✅ v6.158-6.160 Labor-law batch 3 + seasonal scenarios / integration-review fixes + public release sync
-🔜 next       Hosted playable demo first — safety, AI-content labeling and analytics before any new mode (plan: docs/PRODUCT_REVIEW_2026-10.md, Chinese)
+✅ v6.161-6.164 Stage 0 — CI / origin allowlist + memory-deletion auth + TTS rate limit / optional analytics / AI-content labels
+✅ v6.165-6.168 Stage 1 — bundled assets / single-port Docker image + deploy guide / 🔑 BYOK (no model API provided) / sample-game plumbing
+✅ v6.169       Line B — stand-up short-video export with per-frame AI watermark + "Fired" first with a 5-minute speedrun
+🔜 next       Deploy the hosted version and watch real usage; then stage 2 "AI actors" (streaming, structured output, prompt caching, evals) — plan: docs/PRODUCT_REVIEW_2026-10.md (Chinese)
 ```
 
 ## 🙏 Acknowledgements
