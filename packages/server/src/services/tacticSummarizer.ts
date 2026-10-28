@@ -19,19 +19,9 @@
  * than dropping the memory record entirely on transient LLM failure.
  */
 
-import { createOpenAI } from '@ai-sdk/openai';
 import { callLLMWithTimeout } from '../utils/llm';
+import { chatModel } from '../utils/aiClient';
 
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey:  process.env.OPENAI_API_KEY  ?? process.env.QINGYUN_API_KEY  ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? process.env.QINGYUN_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
 
 const SYSTEM_PROMPT = `你是裁员谈判复盘助手,从一段员工 vs HR 的谈判记录里,提炼出员工使用的核心策略。
 
@@ -49,8 +39,7 @@ export async function summarizeTactic(opts: {
   outcome: 'win' | 'partial' | 'lose';
   messages: Array<{ role: 'user' | 'hr'; content: string }>;
 }): Promise<string> {
-  const openai = getOpenAI();
-  const model = openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
+  const model = chatModel('main', process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
 
   // Convert chat to a compact transcript. Cap the body at ~2 KB to stay
   // within reasonable prompt budget — long rounds get truncated to the

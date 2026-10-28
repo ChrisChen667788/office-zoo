@@ -17,8 +17,8 @@ import { Hono } from 'hono';
 import { promises as fs } from 'node:fs';
 import * as crypto from 'node:crypto';
 import * as path from 'node:path';
+import { DATA_DIR } from '../utils/dataDir';
 
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'companyPacks.json');
 
 /** Validation knobs — picked to match GameEngine.MIN/MAX_PLAYERS

@@ -13,6 +13,7 @@
  *   • WoW row (上周 → 本周 delta arrow)
  *   • 底部 invite tag
  */
+import { trackEvent } from './analytics';
 export interface BanweiCardData {
   weekKey: string;
   score: number;
@@ -214,6 +215,7 @@ export async function generateBanweiShareCard(data: BanweiCardData): Promise<Blo
 
 /** Trigger a browser download of the generated PNG. */
 export async function downloadBanweiShareCard(data: BanweiCardData, filename = 'banwei-index.png'): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'banwei', action: 'download' });
   const blob = await generateBanweiShareCard(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

@@ -1,4 +1,5 @@
-import dotenv from 'dotenv';
+// v6.165 — 必须是第一个 import:在任何业务模块求值前加载 .env(见 env.ts)。
+import './env';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -7,16 +8,10 @@ import { fileURLToPath } from 'url';
 const __filename2 = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url);
 const __dirname2 = path.dirname(__filename2);
 
-// Load .env from monorepo root (../../.. from src/index.ts = monorepo root)
-dotenv.config({ path: path.resolve(__dirname2, '../../../.env') });
-// Also try CWD/.env as fallback (won't override existing)
-dotenv.config();
-
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { Server as SocketServer } from 'socket.io';
 import { createServer } from 'http';
-import { cors } from 'hono/cors';
 import { setupSocketHandler, getServerStats } from './socket/socketHandler';
 import { setupFiredRoomHandler } from './socket/firedRoomHandler';
 import { setupSquadHandler } from './socket/squadHandler';
@@ -48,17 +43,42 @@ import { negotiationRoutes } from './routes/negotiation';
 import { reactionRoutes } from './routes/reaction';
 import { bettingRoutes } from './routes/betting';
 import { relationRoutes } from './routes/relations';
+import { configRoutes } from './routes/config';
+import { llmRoutes } from './routes/llm';
+import { llmStatsSnapshot } from './utils/llmStats';
+import { ASSET_FAMILIES, runtimeAssetDir } from './utils/assetDirs';
+import { serveAssetFile } from './utils/staticAssets';
+import { clientDistDir, serveClient } from './utils/clientStatic';
+import { isHosted } from './utils/deployProfile';
+import { hostedFeatureGate } from './utils/hostedFeatures';
+import { attachSocketByok, byokMiddleware } from './utils/byokTransport';
+import { applyBodyLimits } from './utils/bodyLimits';
+import type { Server as HttpServer } from 'http';
 import { sweepOgCache } from './services/ogCardRenderer';
 import { logger } from './utils/logger';
 import { requestIdMiddleware } from './middleware/requestId';
+import { originGuardMiddleware, corsForAllowedOrigins, socketOriginOptions } from './utils/originGuard';
 
 const PROCESS_START_MS = Date.now();
 
 const app = new Hono();
-app.use('*', cors());
+// v6.162 — 取代 cors() 全开。不放行的跨站 Origin 直接 403(CORS 头只挡读响应,挡不住
+// text/plain POST 的执行);放行的跨域来源(ALLOWED_ORIGINS / 本机开发端口)才回 CORS 头。
+app.use('*', originGuardMiddleware);
+app.use('*', corsForAllowedOrigins());
+// v6.168 — 托管版关闭收款 / B2B / 邮箱订阅接口(owner 决策,见 utils/hostedFeatures)。
+app.use('*', hostedFeatureGate);
+// v6.169 — 请求体大小上限(API 1MB,转码 50MB;见 utils/bodyLimits)。
+applyBodyLimits(app);
+// v6.167 BYOK — 解析 X-Byok 请求头,把访客的模型凭据绑到这次请求的整条异步调用链上。
+app.use('/api/*', byokMiddleware);
 app.use('*', requestIdMiddleware);
 
 // API routes
+// v6.163 — 前端运行时公开配置(统计开关、部署形态;不含任何密钥)。
+app.route('/api/config', configRoutes);
+// v6.167 — BYOK 模型设置面板「测试连接」
+app.route('/api/llm', llmRoutes);
 app.route('/api/tts', ttsRoutes);
 app.route('/api/media', mediaRoutes);
 app.route('/api/fired', firedRouter);
@@ -121,56 +141,15 @@ app.route('/api/company-pack', companyPackRoutes);
 // mode AI prompts (see routes/bar.ts header comment).
 app.route('/api/bar', barRoutes);
 
-// Serve generated avatars + icons as static PNGs.
-// Two near-identical routes share a helper — not worth abstracting further
-// because both directories are otherwise independent (avatars are churned
-// per-game via TTL; icons are a build-time asset set).
-const avatarDir = path.resolve(__dirname2, '../public/avatars');
-const iconDir = path.resolve(__dirname2, '../public/icons');
-// v5.1.0 — talkshow persona portraits served as a parallel static dir.
-const talkshowPersonaDir = path.resolve(__dirname2, '../public/talkshow-personas');
-// v5.2.0 — 24 archetype portraits, lazy-generated on first request.
-const archetypePortraitDir = path.resolve(__dirname2, '../public/archetype-portraits');
-if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
-if (!fs.existsSync(iconDir))   fs.mkdirSync(iconDir,   { recursive: true });
-if (!fs.existsSync(talkshowPersonaDir))    fs.mkdirSync(talkshowPersonaDir, { recursive: true });
-if (!fs.existsSync(archetypePortraitDir))  fs.mkdirSync(archetypePortraitDir, { recursive: true });
-
-// Detect actual image format from magic bytes — Minimax `image_generation`
-// returns JPEG even when we asked for PNG, so trusting the file extension
-// gave Safari the wrong Content-Type and the avatar silently failed to render
-// (Chrome is more forgiving). This sniffs the first few bytes of the file.
-function sniffImageType(buf: Buffer): string {
-  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
-  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png';
-  if (buf.length >= 6 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif';
-  if (buf.length >= 12 && buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46
-      && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return 'image/webp';
-  return 'application/octet-stream';
+// Serve AI-generated static assets (avatars / icons / portraits / persona videos).
+// v6.165 — 每个文件先找本机生成的原图(packages/server/public/<family>),找不到再用随仓库发布的
+// 压缩资产包(packages/server/assets-pack/<family>);托管模式服务器不生图,全靠资产包。
+// 之前 /fired-hr-portraits 与 /talkshow-personas-video 根本没挂路由(HR 立绘自 v6.99 起一直 404)。
+for (const family of ASSET_FAMILIES) {
+  const dir = runtimeAssetDir(family);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  app.get(`/${family}/:filename`, (c) => serveAssetFile(family, c.req.param('filename'), c.req.header('range')));
 }
-
-function servePng(dir: string) {
-  return async (c: { req: { param: (name: string) => string }; json: (obj: unknown, code: number) => Response }) => {
-    const filename = c.req.param('filename');
-    // Prevent path traversal — filenames must stay within the served dir.
-    if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
-      return c.json({ error: 'invalid filename' }, 400);
-    }
-    const filePath = path.join(dir, filename);
-    if (fs.existsSync(filePath)) {
-      const data = fs.readFileSync(filePath);
-      return new Response(data, {
-        headers: { 'Content-Type': sniffImageType(data), 'Cache-Control': 'public, max-age=3600' },
-      });
-    }
-    return c.json({ error: 'not found' }, 404);
-  };
-}
-
-app.get('/avatars/:filename', servePng(avatarDir));
-app.get('/icons/:filename',   servePng(iconDir));
-app.get('/talkshow-personas/:filename', servePng(talkshowPersonaDir));
-app.get('/archetype-portraits/:filename', servePng(archetypePortraitDir));
 
 // ---------------------------------------------------------------------------
 // Health check — honest one. Returns:
@@ -207,15 +186,28 @@ app.get('/api/health', (c) => {
       heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
     },
     env: envFlags,
+    // v6.163 — 进程内模型调用计数(只有次数与原因类别)。
+    llm: llmStatsSnapshot(),
   });
 });
 
+// v6.166 — 生产 / 托管:服务器直接托管前端构建产物(同源同端口,见 utils/clientStatic)。
+// 必须注册在所有 API 路由之后:只接住前面都没匹配上的 GET。
+const clientDist = clientDistDir();
+if (clientDist) {
+  app.get('*', (c) => serveClient(clientDist, c.req.path) ?? c.json({ error: 'not found' }, 404));
+  logger.info({ clientDist }, 'serving built client');
+}
+
 const port = parseInt(process.env.PORT || '3100');
 const wsPort = parseInt(process.env.WS_PORT || '3101');
+// v6.166 — 单端口模式:Socket.IO 挂在同一个 HTTP 服务上(托管平台通常只给一个端口)。
+// hosted 默认开启;本机开发保持 3100 + 3101 双端口(vite 分别代理)。SINGLE_PORT=1/0 可强制。
+const singlePort = process.env.SINGLE_PORT ? process.env.SINGLE_PORT === '1' : isHosted();
 
 // HTTP server
-serve({ fetch: app.fetch, port }, () => {
-  logger.info({ port }, 'HTTP server listening');
+const mainServer = serve({ fetch: app.fetch, port }, () => {
+  logger.info({ port, singlePort }, 'HTTP server listening');
 });
 
 // v6.33 P5 — load persisted spectator counters + arm 60s flush timer.
@@ -229,15 +221,18 @@ setInterval(() => {
   sweepOgCache(7).then((r) => logger.info(r, 'og cache hourly sweep'));
 }, 60 * 60 * 1000);
 
-// WebSocket server on separate port
-const httpServer = createServer();
+// WebSocket server — separate port in local dev, same server in single-port mode.
+const httpServer: HttpServer = singlePort ? (mainServer as HttpServer) : createServer();
 const io = new SocketServer(httpServer, {
-  cors: { origin: '*' },
+  // v6.162 — 握手按与 HTTP 相同的 Origin 规则放行(见 utils/originGuard)。
+  ...socketOriginOptions(),
   maxHttpBufferSize: 10e6,
   pingInterval: 30000,
   pingTimeout: 120000, // 2 min timeout - AI speech generation can take 30-60s
 });
 
+// v6.167 BYOK — 握手 auth.byok → socket.data.byok(所有 socket 模块共用)。
+attachSocketByok(io);
 setupSocketHandler(io);
 // v0.9.3 — PvP room (worker vs human-HR) layered onto the same io
 // instance. Uses `room:*` event namespace to stay clearly separate
@@ -246,9 +241,11 @@ setupFiredRoomHandler(io);
 // v1.4.1 — squad mode (2-4 friends, LLM director writes 5-act sitcom)
 setupSquadHandler(io);
 
-httpServer.listen(wsPort, () => {
-  logger.info({ wsPort }, 'WebSocket server listening');
-});
+if (!singlePort) {
+  httpServer.listen(wsPort, () => {
+    logger.info({ wsPort }, 'WebSocket server listening');
+  });
+}
 
 // Unhandled rejections / uncaught exceptions — log and don't silently die.
 process.on('unhandledRejection', (reason) => {

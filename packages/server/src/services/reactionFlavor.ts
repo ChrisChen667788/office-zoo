@@ -8,9 +8,9 @@
  * buildReactionPrompt / sanitizeReactionLine / fallbackReactionLine 都是纯函数,可单测;
  * generateReactionLine 是 LLM 包装。
  */
-import { createOpenAI } from '@ai-sdk/openai';
 import { callLLMWithTimeout } from '../utils/llm';
 import { pickReaction, type ReactionKind } from '@furball/shared';
+import { chatModel } from '../utils/aiClient';
 
 export interface ReactionLineContext {
   kind: ReactionKind;          // kill(夜间优化)/ vote(投票开除)/ leak / survive
@@ -66,16 +66,6 @@ export function fallbackReactionLine(ctx: ReactionLineContext): string {
 }
 
 // LLM 链路(复用 fired-mode 的 HR 模型;env 同源)。
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.vectorengine.ai/v1',
-    });
-  }
-  return _openai;
-}
 function getModel(): string {
   return process.env.FIRED_HR_MODEL ?? process.env.OPENAI_MODEL ?? 'claude-opus-4-7';
 }
@@ -86,7 +76,7 @@ export async function generateReactionLine(ctx: ReactionLineContext): Promise<st
   if (!built) return fallbackReactionLine(ctx);
   try {
     const res = await callLLMWithTimeout('REACTION_LINE', {
-      model: getOpenAI()(getModel()),
+      model: chatModel('fast', getModel()),
       system: built.system,
       prompt: built.prompt,
       maxTokens: 60,

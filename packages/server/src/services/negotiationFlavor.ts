@@ -9,9 +9,9 @@
  * buildHRLinePrompt / relationOf / fallbackHRLine / sanitizeHRLine 都是纯函数,
  * 可单测;generateHRLine 是 LLM 包装。
  */
-import { createOpenAI } from '@ai-sdk/openai';
 import { callLLMWithTimeout } from '../utils/llm';
 import { cardById, stanceById, type HRStanceId } from '@furball/shared';
+import { chatModel } from '../utils/aiClient';
 
 export type CardRelation = 'resist' | 'weak' | 'normal';
 export type NegotiationOutcomeKind = 'ongoing' | 'settled' | 'caved' | 'flipped';
@@ -93,16 +93,6 @@ export function fallbackHRLine(ctx: HRLineContext): string {
 }
 
 // LLM 链路(复用 fired-mode 的 HR 模型;env 同源)。
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.vectorengine.ai/v1',
-    });
-  }
-  return _openai;
-}
 function getHRModel(): string {
   return process.env.FIRED_HR_MODEL ?? process.env.OPENAI_MODEL ?? 'claude-opus-4-7';
 }
@@ -113,7 +103,7 @@ export async function generateHRLine(ctx: HRLineContext): Promise<string> {
   if (!built) return fallbackHRLine(ctx);
   try {
     const res = await callLLMWithTimeout('NEGOTIATION_HR_LINE', {
-      model: getOpenAI()(getHRModel()),
+      model: chatModel('fast', getHRModel()),
       system: built.system,
       prompt: built.prompt,
       maxTokens: 80,

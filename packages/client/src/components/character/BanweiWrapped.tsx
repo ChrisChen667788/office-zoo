@@ -19,6 +19,7 @@ import { getUserId } from '../../utils/userId';
 import { getLeakStats } from '../../utils/leakStats';
 import { getUnlocked, ACHIEVEMENTS } from '../../utils/achievements';
 import { downloadBanweiWrappedCard } from '../../utils/banweiWrappedCard';
+import { useFeatures } from '../../utils/runtimeConfig';
 
 interface Snapshot { weekKey: string; score: number; }
 interface BanweiGetResponse { history: Snapshot[]; }
@@ -46,6 +47,7 @@ function yearPersona(peak: number): { label: string; emoji: string; accent: stri
 }
 
 export default function BanweiWrapped() {
+  const features = useFeatures();
   const [open, setOpen] = useState(false);
   const [stats, setStats] = useState<WrappedStats | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -221,8 +223,8 @@ export default function BanweiWrapped() {
             }}
           >📤 下载年终回顾海报 (1080×1350)</button>
 
-          {/* v6.51 P4 — 年终 Wrapped 邮件订阅 */}
-          {subState === 'ok' ? (
+          {/* v6.51 P4 — 年终 Wrapped 邮件订阅。v6.168:托管版没有隐私政策前不收集邮箱,不显示 */}
+          {!features.wrappedEmail ? null : subState === 'ok' ? (
             <div style={{
               marginTop: 12, padding: '10px 14px', borderRadius: 10,
               background: 'rgba(110,231,183,0.10)', border: '1px solid rgba(110,231,183,0.32)',
@@ -257,7 +259,7 @@ export default function BanweiWrapped() {
               >{subState === 'sending' ? '...' : '📧 订阅'}</button>
             </div>
           )}
-          {subState === 'err' && (
+          {features.wrappedEmail && subState === 'err' && (
             <div style={{ marginTop: 6, fontSize: 11, color: '#ef4444', textAlign: 'center' }}>
               邮箱格式不对或网络问题,再试一下
             </div>

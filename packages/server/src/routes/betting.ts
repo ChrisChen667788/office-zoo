@@ -9,14 +9,12 @@ import { Hono } from 'hono';
 import { createRateLimiter } from '../utils/rateLimit';
 import { type BetRunSubmit, type BetSortBy } from '@furball/shared';
 import { submitBetRun, topBetRuns, totalBetRuns } from '../services/bettingStore';
+import { clientIp } from '../utils/clientIp';
 
 export const bettingRoutes = new Hono();
 
-function ipFrom(c: { req: { header: (k: string) => string | undefined } }): string {
-  const fwd = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip');
-  if (fwd) return fwd.split(',')[0].trim();
-  return c.req.header('host') ?? 'unknown';
-}
+// v6.162 — 统一走 utils/clientIp(旧实现信任 XFF 第一项,可被伪造绕过限流)。
+const ipFrom = clientIp;
 
 const LB_MAX = 50;
 // 结算后才上报,但一局好几回合都可能上报 → 240/小时 够连打,也拦得住脚本灌榜。

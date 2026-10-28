@@ -24,6 +24,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getUserId } from '../utils/userId';
 import { mihoyo, stigmaChipStyle } from '../constants/design';
 import BarClusterShareModal from '../components/BarClusterShareModal';
+import { requireModel } from '../utils/modelSetup';
 
 interface Profile {
   archetype: string;
@@ -113,6 +114,7 @@ export default function Bar() {
   const send = async () => {
     const text = input.trim();
     if (!text || sending) return;
+    if (!requireModel('bar')) return;
     setInput('');
     const userMsg: BarMessage = { role: 'user', content: text, id: 'u-' + Date.now() };
     const nextHistory = [...messages, userMsg];

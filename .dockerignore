@@ -1,0 +1,23 @@
+# v6.166 — 镜像里只要源码与随仓库的资产包;本机生成的原图、数据、截图、文档一律不进镜像。
+**/node_modules
+**/dist
+.git
+.github
+.claude
+.env
+.env.*
+!.env.example
+assets
+docs
+*.md
+packages/miniprogram
+packages/server/data
+packages/server/public/avatars
+packages/server/public/icons
+packages/server/public/archetype-portraits
+packages/server/public/fired-hr-portraits
+packages/server/public/talkshow-personas-video
+**/__tests__
+**/*.test.ts
+scripts
+**/.DS_Store

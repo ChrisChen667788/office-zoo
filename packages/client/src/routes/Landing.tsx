@@ -44,6 +44,12 @@ interface DailyDrama {
   archetypeName?: string;
 }
 import { modeIcons, navIcons, Icon } from '../constants/icons';
+import { trackEvent } from '../utils/analytics';
+import { FIRED_AUTOSTART_PATH } from '../utils/firedAutostart';
+import { useFeatures, useRuntimeConfig } from '../utils/runtimeConfig';
+import { openModelSetup, requireModel } from '../utils/modelSetup';
+import { useByok } from '../utils/byok';
+import { findProvider } from '@furball/shared';
 
 // v6.28 P4 — 9 added once ROLE_PRESETS[9] (v6.27 P1) landed. The
 // 6→8→9→10 ladder gives users a "1-step-up from default" option;
@@ -73,11 +79,23 @@ interface ModeSpec {
 }
 
 const MODES: ModeSpec[] = [
+  // v6.169 — 裁了么置顶:参与感最强、一局 5 分钟、天然适合首访;其余顺延。
+  {
+    key: 'fired',
+    icon: modeIcons.fired,
+    iconFallback: '⚖️',
+    badge: '01',
+    titleKey:   'mode.fired.title',
+    taglineKey: 'mode.fired.body',
+    features: ['mode.fired.f1', 'mode.fired.f2', 'mode.fired.f3', 'mode.fired.f4'],
+    accent: colors.semantic.danger,
+    accent2: colors.semantic.warn,
+  },
   {
     key: 'classic',
     icon: modeIcons.classic,
     iconFallback: '🏢',
-    badge: '01',
+    badge: '02',
     titleKey:   'mode.classic.title',
     taglineKey: 'mode.classic.body',
     // v6.109/v6.122 时长第 4 条;v6.134 全部走 dict(四语言)
@@ -90,23 +108,12 @@ const MODES: ModeSpec[] = [
     key: 'immersive',
     icon: modeIcons.immersive,
     iconFallback: '🎤',
-    badge: '02',
+    badge: '03',
     titleKey:   'mode.immersive.title',
     taglineKey: 'mode.immersive.body',
     features: ['mode.immersive.f1', 'mode.immersive.f2', 'mode.immersive.f3', 'mode.immersive.f4'],
     accent: '#a855f7',
     accent2: colors.brand.neon,
-  },
-  {
-    key: 'fired',
-    icon: modeIcons.fired,
-    iconFallback: '⚖️',
-    badge: '03',
-    titleKey:   'mode.fired.title',
-    taglineKey: 'mode.fired.body',
-    features: ['mode.fired.f1', 'mode.fired.f2', 'mode.fired.f3', 'mode.fired.f4'],
-    accent: colors.semantic.danger,
-    accent2: colors.semantic.warn,
   },
   {
     key: 'talkshow',
@@ -139,6 +146,18 @@ export default function Landing() {
   const navigate = useNavigate();
   // v1.2.0 — i18n. `t()` for translations, `locale` re-renders on toggle.
   const { t, locale } = useT();
+  const features = useFeatures();
+  // v6.167/168 — BYOK 状态 + 示例对局
+  const byokCfg = useByok();
+  const runtimeCfg = useRuntimeConfig();
+  const needsKey = runtimeCfg?.llm.keyMode === 'byok' && !byokCfg;
+  const [sampleId, setSampleId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!needsKey || sampleId) return;
+    fetch('/api/replay/samples').then((r) => (r.ok ? r.json() : null))
+      .then((j: { samples?: Array<{ gameId: string }> } | null) => setSampleId(j?.samples?.[0]?.gameId ?? null))
+      .catch(() => {});
+  }, [needsKey, sampleId]);
 
   // v1.4.0 — daily drama. Server returns personalized "today's drama"
   // when the user has a quiz profile; null otherwise (we keep the legacy
@@ -210,7 +229,8 @@ export default function Landing() {
     });
     setShareOpen(true);
   }, []);
-  const [mode, setMode] = useState<GameMode>('classic');
+  // v6.169 — 默认选中裁了么(与第一张卡一致)
+  const [mode, setMode] = useState<GameMode>('fired');
   const [playerCount, setPlayerCount] = useState<number>(8);
   const [isCreating, setIsCreating] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -264,6 +284,12 @@ export default function Landing() {
     }
   }, []);
 
+  // v6.167 — 建局被拒(例如托管版没配 key 回 need_key):解除「创建中」,否则按钮一直转圈。
+  useSocketEvent<{ code?: string }>('game:error', () => {
+    setIsCreating(false);
+    pendingModeRef.current = null;
+  });
+
   useSocketEvent<{ gameId: string }>('game:created', ({ gameId }) => {
     setIsCreating(false);
     // Landing creates classic + dual games here (immersive/fired/talkshow
@@ -287,6 +313,8 @@ export default function Landing() {
   const handleStart = useCallback((nextMode?: GameMode) => {
     if (isCreating) return;
     const target = nextMode ?? mode;
+    // v6.167 — 托管版没配自己的模型 key:先弹设置(班味单口播放预置段子不需要模型,放行)。
+    if (target !== 'talkshow' && !requireModel(`landing:${target}`)) return;
     if (target !== mode) setMode(target);
     pendingModeRef.current = target;
     primeAudio();            // unlock <audio> playback now, while we have a gesture
@@ -322,6 +350,8 @@ export default function Landing() {
         if (a?.industry && a.industry !== 'generic') localStorage.setItem('office-arena.lastIndustry', a.industry);
       } catch { /* tagging is best-effort */ }
     })();
+    // v6.163 — 埋点:开局(模式 + 语言)。
+    trackEvent('game_start', { mode: target, locale: gameLocaleFromUiLocale(getLocale()) });
     socket.emit('game:create', {
       // v6.86 — 双公司锁 4+4=8(server 也会强制),其余模式用用户选的人数。
       playerCount: target === 'dual' ? 8 : playerCount,
@@ -422,8 +452,23 @@ export default function Landing() {
           >
             🎭 攒局
           </button>
-          {/* v1.1.0 — B 端 SaaS 入口 (律所/HR培训采购) */}
+          {/* v6.167 — BYOK 模型设置入口:随时可改;已配置时显示模型商 */}
           <button
+            type="button"
+            onClick={() => openModelSetup('manual', 'landing-header')}
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
+            style={{
+              color: byokCfg ? '#a7f3d0' : 'rgba(255,255,255,0.8)',
+              background: byokCfg ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${byokCfg ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.14)'}`,
+            }}
+            title="配置你自己的模型 key"
+            data-testid="model-setup-open"
+          >
+            🔑 {byokCfg ? (findProvider(byokCfg.provider)?.name.split(' ')[0] ?? '模型') : '模型'}
+          </button>
+          {/* v1.1.0 — B 端 SaaS 入口 (律所/HR培训采购)。v6.168:托管版冻结,不显示 */}
+          {features.b2b && <button
             onClick={() => navigate('/b2b')}
             className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
             style={{
@@ -434,10 +479,11 @@ export default function Landing() {
             title="Law firm white-label / HR training sandbox"
           >
             {t('header.b2b')}
-          </button>
+          </button>}
           {/* v1.0.0 — Premium chip in header. Tasteful amber gradient
-              that doesn't shout. Routes to /premium paywall page. */}
-          <button
+              that doesn't shout. Routes to /premium paywall page.
+              v6.168:托管版不做收款(owner 决策),不显示 */}
+          {features.payments && <button
             onClick={() => navigate('/premium')}
             className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide px-3 py-1.5 rounded-full transition relative overflow-hidden hover-sheen"
             style={{
@@ -449,7 +495,7 @@ export default function Landing() {
             title="解锁 海外大厂剧本 + 律师入口 + voice clone + 无限回放"
           >
             👑 Premium
-          </button>
+          </button>}
           <button
             onClick={() => setRulesOpen(true)}
             className="text-xs tracking-wider text-white/55 hover:text-white/90 transition px-3 py-2"
@@ -557,6 +603,34 @@ export default function Landing() {
               一家被裁掉的公司,9 名 AI 鼠人 24h 互卷。
               你不是玩家,是那只盯着 KPI 屏的 HR —— 选个模式,看戏。
             </p>
+
+            {/* v6.169 — 「5 分钟速通」:跳过模式选择与选关,直达裁了么第一关(?autostart=true)。 */}
+            <div className="mb-5 flex flex-col items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => { primeAudio(); if (requireModel('quickstart')) navigate(FIRED_AUTOSTART_PATH); }}
+                className="px-6 py-3 rounded-2xl text-sm md:text-base font-black tracking-wide text-white transition hover:scale-[1.03]"
+                style={{
+                  background: 'linear-gradient(135deg, #ff4757 0%, #ff8a3d 100%)',
+                  boxShadow: '0 10px 28px rgba(255,71,87,0.38), inset 0 1px 0 rgba(255,255,255,0.25)',
+                }}
+                data-testid="quickstart-fired"
+              >
+                {t('landing.quickstart')}
+              </button>
+              <span className="text-[11px] text-white/50">{t('landing.quickstartSub')}</span>
+              {/* v6.168 — 托管版没配 key 的访客:先看一局真实模型跑出的示例对局(不调模型、不用 key) */}
+              {needsKey && sampleId && (
+                <button
+                  type="button"
+                  onClick={() => { trackEvent('sample_replay_view', { from: 'landing' }); navigate(`/result/${sampleId}`); }}
+                  className="mt-1 text-[12px] font-bold text-amber-200 underline underline-offset-4 hover:text-amber-100"
+                  data-testid="landing-sample-replay"
+                >
+                  🎬 还没有模型 key?先看一局示例对局 →
+                </button>
+              )}
+            </div>
 
             {/* v6.14 P1 — daily featured rat spotlight. Same character
                 surfaces for ALL users on a given day = shared
@@ -1044,6 +1118,7 @@ function ModeBento({ spec, active, busy, disabled, onSelect, onEnter, delay, tal
           onEnter();
         }}
         disabled={disabled || busy}
+        data-mode-enter={spec.key}
         whileHover={{ x: 2 }}
         whileTap={{ scale: 0.97 }}
         className={`relative z-20 inline-flex items-center gap-1.5 rounded-xl font-bold tracking-wide disabled:opacity-50 disabled:cursor-not-allowed ${

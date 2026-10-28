@@ -20,13 +20,14 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { TalkshowScript } from '@furball/shared';
+import { DATA_DIR } from '../utils/dataDir';
+import { writeJsonAtomic } from '../utils/atomicJson';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
 // data/user_scripts.json sits NEXT to the package root, NOT inside src/,
 // so a `tsx --watch` rebuild doesn't trip on our own writes.
-const DATA_DIR  = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'user_scripts.json');
 
 /** v0.7.5 — like-tracking state attached to a script. We extend the on-disk
@@ -97,10 +98,7 @@ async function ensureLoaded(): Promise<StoreShape> {
 }
 
 async function persist(state: StoreShape): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = DATA_FILE + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(state, null, 2), 'utf8');
-  await fs.rename(tmp, DATA_FILE);
+  await writeJsonAtomic(DATA_FILE, state);
 }
 
 /** All user-generated scripts. Returns the cached array — DO NOT mutate.

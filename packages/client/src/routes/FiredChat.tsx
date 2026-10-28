@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFiredStore, type FiredMessage, type FiredScores } from '../stores/firedStore';
 import { SCENARIOS as SHARED_SCENARIOS } from '@furball/shared';
 import { uid as genId } from '../utils/uid';
 import { getUserId } from '../utils/userId';
+import { trackEvent } from '../utils/analytics';
+import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
+import { useT } from '../utils/i18n';
+import { autostartLevel, isAutostart } from '../utils/firedAutostart';
+import { firedChatErrorFrom, firedChatErrorText } from '../utils/firedChatError';
 
 const PERSONALITY_LABELS: Record<string, string> = {
   rookie: '菜鸟HR',
@@ -90,7 +95,7 @@ async function sendChat(
     },
     signal,
   );
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw await firedChatErrorFrom(res);
   return res.json();
 }
 
@@ -143,7 +148,11 @@ export default function FiredChat() {
     updateScores,
     setOutcome,
     setIsOver,
+    setScenario,
+    setPersonality,
+    reset: resetFired,
   } = useFiredStore();
+  const location = useLocation();
 
   const [inputText, setInputText] = useState('');
   const [keyMomentFlash, setKeyMomentFlash] = useState<string | null>(null);
@@ -166,12 +175,26 @@ export default function FiredChat() {
     [messages],
   );
 
+  // v6.169 — 首页「5 分钟速通」:?autostart=true 直接装上第一关并开聊(跳过选关)。
+  // 必须排在下面的「没选场景就回列表」之前,且那条判断要放过 autostart。
+  const autostart = isAutostart(location.search);
+  useEffect(() => {
+    if (!autostart) return;
+    const level = autostartLevel();
+    resetFired();
+    setScenario(level.scenarioId);
+    setPersonality(level.personalityId);
+    try { sessionStorage.setItem('office-zoo.active-level', String(level.level)); } catch { /* noop */ }
+    // 去掉查询参数:刷新页面不会再次重置进行中的对话。
+    navigate('/fired/chat', { replace: true });
+  }, [autostart, navigate, resetFired, setScenario, setPersonality]);
+
   // Redirect if no scenario selected
   useEffect(() => {
-    if (!scenarioId) {
+    if (!scenarioId && !autostart) {
       navigate('/fired');
     }
-  }, [scenarioId, navigate]);
+  }, [scenarioId, autostart, navigate]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -186,13 +209,17 @@ export default function FiredChat() {
   }, []);
 
   // Initial HR greeting (guard against StrictMode double-fire)
+  // v6.169 — autostart 那一帧先不发(场景马上会被换成第一关);依赖里加上 messages.length,
+  // 这样 autostart 清掉旧对话后、场景 id 没变的情况下也会补发开场白。
   useEffect(() => {
+    if (autostart) return;
     if (scenarioId && messages.length === 0 && !greetingSent.current) {
       greetingSent.current = true;
+      trackEvent('game_start', { mode: 'fired', scenario: scenarioId });
       handleInitialGreeting();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenarioId]);
+  }, [scenarioId, messages.length, autostart]);
 
   const handleInitialGreeting = async () => {
     setLoading(true);
@@ -239,7 +266,7 @@ export default function FiredChat() {
           role: 'system',
           content: isTimeout
             ? '请求超时(30秒),可能网络不佳或服务器繁忙。'
-            : '连接服务器失败,请检查后端是否运行。',
+            : firedChatErrorText(err, '连接服务器失败,请检查后端是否运行。'),
           timestamp: Date.now(),
           retryAction: 'init',
         });
@@ -305,6 +332,7 @@ export default function FiredChat() {
         }
 
         if (data.isOver) {
+          trackEvent('fired_chapter_complete', { scenario: scenarioId, outcome: data.outcome ?? 'unknown', turns: messages.length + 1 });
           setIsOver(true);
           if (data.outcome) setOutcome(data.outcome);
           setTimeout(() => navigate('/fired/result'), 2000);
@@ -341,7 +369,7 @@ export default function FiredChat() {
           addMessage({
             id: genId(),
             role: 'system',
-            content: isTimeout ? '请求超时(30秒),请点击重试。' : '发送失败,请点击重试。',
+            content: isTimeout ? '请求超时(30秒),请点击重试。' : firedChatErrorText(err, '发送失败,请点击重试。'),
             timestamp: Date.now(),
             retryAction: { type: 'send', text: msg },
           });
@@ -1154,6 +1182,7 @@ interface MessageBubbleProps {
 }
 
 function MessageBubble({ message, onRetry, isLoading }: MessageBubbleProps) {
+  const { t } = useT();
   const isUser = message.role === 'user';
   const isHR = message.role === 'hr';
   const isLawyer = message.role === 'lawyer';
@@ -1216,9 +1245,16 @@ function MessageBubble({ message, onRetry, isLoading }: MessageBubbleProps) {
             }}
           >
             {label}
+            {(isHR || isLawyer) && <AiGeneratedBadge className="ml-1.5" />}
           </div>
         )}
         <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>
+        {/* v6.164 — AI 输出下方的法律免责(防止截图被当成法律意见)。 */}
+        {(isHR || isLawyer) && (
+          <p className="mt-1.5 text-[10px] not-italic leading-snug" style={{ color: 'rgba(255,255,255,0.38)' }} data-ai-label="legal">
+            {t('ai.legalDisclaimer')}
+          </p>
+        )}
 
         {/* Key moment badge */}
         {message.keyMoment && (

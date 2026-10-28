@@ -7,7 +7,7 @@
  * → 断言「世仇候选时基础票被真的改投」+ 时间线落了旧账;另证普通记仇(未到世仇)不强改票。
  *
  * relationStore 是单例缓存,test 的 ingest 和引擎 runVoting 里的 dynamic import 命中同一份模块缓存,
- * 所以种进去的图引擎能读到。每个 case 前清缓存+删盘文件做隔离,跑完删文件不留痕(data/ 本就 gitignore)。
+ * 所以种进去的图引擎能读到。每个 case 前清缓存+删盘文件做隔离;数据根是测试临时目录(v6.162)。
  */
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { promises as fs } from 'node:fs';
@@ -16,8 +16,10 @@ import { fileURLToPath } from 'node:url';
 import { GameEngine } from '../GameEngine';
 import { ingestRelationEvents, __resetRelationCacheForTest } from '../../services/relationStore';
 import type { RelationEvent } from '@furball/shared';
+import { DATA_DIR } from '../../utils/dataDir';
 
-const DATA_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../data/relations.json');
+// v6.162 — 与 relationStore 同一个数据根(测试时是 vitest 建的临时目录,不碰本机真实数据)。
+const DATA_FILE = path.join(DATA_DIR, 'relations.json');
 
 async function cleanStore(): Promise<void> {
   __resetRelationCacheForTest();

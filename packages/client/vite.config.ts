@@ -35,6 +35,9 @@ export default defineConfig({
       '/talkshow-personas': API,
       // v5.2.0 — archetype portraits, lazy-generated server-side.
       '/archetype-portraits': API,
+      // v6.165 — 裁了么 HR 立绘与单口人设循环视频:之前漏了代理,开发环境里一直落到 SPA 兜底页。
+      '/fired-hr-portraits': API,
+      '/talkshow-personas-video': API,
       '/socket.io': {
         target: WS,
         ws: true

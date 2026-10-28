@@ -7,6 +7,7 @@
  * pipeline — owns its own <Audio>, calls /api/talkshow/roast + /api/talkshow/tts.
  */
 import { useRef, useState } from 'react';
+import { requireModel } from '../../utils/modelSetup';
 
 const QUICK_TOPICS = ['老板天天画饼', '又通知周末加班', '背锅侠的一天', 'PUA 式管理', '调休陷阱'];
 
@@ -21,6 +22,7 @@ export default function RoastBooth() {
   const generate = async (t?: string) => {
     const q = (t ?? topic).trim();
     if (q.length < 2) return;
+    if (!requireModel('roast')) return;
     if (t) setTopic(t);
     setStatus('loading');
     setLines([]);

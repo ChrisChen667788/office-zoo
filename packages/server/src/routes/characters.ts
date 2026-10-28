@@ -48,7 +48,7 @@ import {
   getUserViews,
   getUserTrend,
 } from '../services/userCharacterViewsStore';
-import { getCharacterOgCard } from '../services/ogCardRenderer';
+import { getCharacterOgCard, OG_UNAVAILABLE } from '../services/ogCardRenderer';
 import {
   createDuel,
   joinDuel,
@@ -131,6 +131,8 @@ characterRoutes.get('/:name/og-card.png', async (c) => {
   const name = c.req.param('name');
   const buf = await getCharacterOgCard(name);
   if (!buf) return c.json({ error: 'unknown character' }, 404);
+  // v6.166 — 渲染器不可用(生产镜像不带浏览器内核):回退到静态品牌图,社交平台照样能展开卡片。
+  if (buf === OG_UNAVAILABLE) return c.redirect('/icon-512.png', 302);
   c.header('Content-Type', 'image/png');
   c.header('Cache-Control', 'public, max-age=3600');
   // v6.25 P4 — Buffer is a Uint8Array subclass; Hono's c.body overload

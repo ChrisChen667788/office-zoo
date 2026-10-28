@@ -25,6 +25,35 @@ export interface ReplayPlayer {
   companyId?: CompanyId;
 }
 
+/** v6.168 — 回放里的一条发言。byHuman = 真人占座玩家打的字(用户内容,不得进公开示例)。 */
+export interface ReplaySpeech {
+  round: number;
+  playerId: string;
+  playerName: string;
+  text: string;
+  role?: string;
+  team?: string;
+  byHuman?: boolean;
+}
+
+/** 回放最多保留多少条发言(防止长局把 replays.json 撑大)。 */
+export const REPLAY_MAX_SPEECHES = 240;
+/** 单条发言最多保留多少字。 */
+export const REPLAY_MAX_SPEECH_CHARS = 400;
+
+/** 截断 / 限量,只留需要的字段。纯函数。 */
+export function compactReplaySpeeches(list: ReadonlyArray<ReplaySpeech>): ReplaySpeech[] {
+  return list.slice(-REPLAY_MAX_SPEECHES).map((s) => ({
+    round: s.round,
+    playerId: s.playerId,
+    playerName: s.playerName,
+    text: [...s.text].slice(0, REPLAY_MAX_SPEECH_CHARS).join(''),
+    ...(s.role ? { role: s.role } : {}),
+    ...(s.team ? { team: s.team } : {}),
+    ...(s.byHuman ? { byHuman: true } : {}),
+  }));
+}
+
 export interface ReplayRecord {
   gameId: string;
   /** Unix ms the game ended. */
@@ -40,6 +69,10 @@ export interface ReplayRecord {
   market?: MarketState;
   /** 终局缘由(垄断/团灭/双鬼皆裁/回合上限)。 */
   dualReason?: DualEndReason;
+  /** v6.168 — 讨论阶段的发言(老回放没有)。 */
+  speeches?: ReplaySpeech[];
+  /** v6.168 — 随仓库发布的示例对局(不调模型、不需要 key 就能看)。 */
+  sample?: boolean;
 }
 
 export interface ReplayDigest {
@@ -82,4 +115,20 @@ export function groupTimelineByRound(timeline: GameEvent[]): Array<{ round: numb
   return [...byRound.keys()]
     .sort((a, b) => a - b)
     .map((round) => ({ round, events: byRound.get(round)! }));
+}
+
+/** v6.168 — 按回合合并事件与发言(只有发言、没有事件的回合也保留)。纯函数。 */
+export function groupReplayByRound(
+  timeline: GameEvent[],
+  speeches: ReadonlyArray<ReplaySpeech> = [],
+): Array<{ round: number; events: GameEvent[]; speeches: ReplaySpeech[] }> {
+  const rounds = new Map<number, { events: GameEvent[]; speeches: ReplaySpeech[] }>();
+  const slot = (r: number) => {
+    let g = rounds.get(r);
+    if (!g) { g = { events: [], speeches: [] }; rounds.set(r, g); }
+    return g;
+  };
+  for (const e of timeline) slot(e.round).events.push(e);
+  for (const s of speeches) slot(s.round).speeches.push(s);
+  return [...rounds.keys()].sort((a, b) => a - b).map((round) => ({ round, ...rounds.get(round)! }));
 }

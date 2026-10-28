@@ -25,8 +25,9 @@ import { Hono } from 'hono';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { isoWeekKey } from './banwei';
+import { DATA_DIR } from '../utils/dataDir';
+import { writeJsonAtomic } from '../utils/atomicJson';
 
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'hot_quotes.json');
 const TOTAL_CAP = 200;
 const PER_USER_PER_WEEK_CAP = 5;
@@ -57,10 +58,7 @@ async function load(): Promise<Store> {
 }
 
 async function save(s: Store): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = DATA_FILE + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(s, null, 2), 'utf8');
-  await fs.rename(tmp, DATA_FILE);
+  await writeJsonAtomic(DATA_FILE, s);
 }
 
 /** Exported for GameEngine.createPlayers — feeds the cross-spectator

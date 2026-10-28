@@ -145,8 +145,9 @@ describe('stats — disk persistence', () => {
     const { loadCountersFromDisk } = await import('../stats');
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
-    // Write a synthetic snapshot. Path matches module's DATA_FILE.
-    const DATA_DIR = path.resolve(__dirname, '..', '..', '..', 'data');
+    // Write a synthetic snapshot. Path matches module's DATA_FILE (v6.162: shared DATA_DIR,
+    // a vitest temp dir during tests — never the developer's real data).
+    const { DATA_DIR } = await import('../../utils/dataDir');
     const DATA_FILE = path.join(DATA_DIR, 'stats.json');
     await fs.mkdir(DATA_DIR, { recursive: true });
     const original = await fs.readFile(DATA_FILE, 'utf8').catch(() => null);

@@ -37,27 +37,13 @@ import { getPool, ensureSchema } from './pgvectorClient';
 import { writeMemory } from './memoryWrite';
 import { embedOne } from './memoryEmbedder';
 import { callLLMWithTimeout } from '../utils/llm';
-import { createOpenAI } from '@ai-sdk/openai';
 import pgvector from 'pgvector/pg';
 import { logger } from '../utils/logger';
+import { chatModel } from '../utils/aiClient';
 
 const refLog = logger.child({ component: 'reflection' });
 
-// Lazy provider construction — ESM module imports are hoisted ABOVE
-// dotenv.config() in script entrypoints, so reading process.env at
-// module-init time gives empty strings + the bogus 'gpt-5.4-mini'
-// default. We saw this fail loudly with "Invalid token" from Qingyun
-// during v5.9.0 probe (2026-05-22). Build on first call instead.
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function openai() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
+// v6.167 — 客户端由 utils/aiClient 按调用时的凭据上下文现建(BYOK);这里只保留本机 .env 模式下的模型选择。
 function model() {
   return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 }
@@ -148,7 +134,7 @@ async function llmReflect(events: Array<{ content: string }>, archetypeHint: str
   const prompt = `角色人格类型: ${archetypeHint}\n\n以下是你最近目睹 / 参与的事件:\n${eventBlock}\n\n请输出 3-5 条 high-level belief, 严格按上述格式.`;
 
   const res = await callLLMWithTimeout('SPEECH', {
-    model: openai()(model()),
+    model: chatModel('main', model()),
     system,
     prompt,
     maxTokens: 300,

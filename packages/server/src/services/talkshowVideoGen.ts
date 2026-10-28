@@ -25,6 +25,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { imageGenerationAllowed } from '../utils/assetDirs';
 
 const __filename2 = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url);
 const __dirname2 = path.dirname(__filename2);
@@ -188,6 +189,7 @@ export async function generatePersonaVideo(
 ): Promise<VideoGenResult> {
   const pollIntervalMs = opts.pollIntervalMs ?? 8000;
   const timeoutMs = opts.timeoutMs ?? 360_000; // 6 分钟/段
+  if (!imageGenerationAllowed()) return { ok: false, persona: personaId, reason: '托管模式不现场生成视频(DEPLOY_PROFILE=hosted)' };
   if (!key()) return { ok: false, persona: personaId, reason: 'MINIMAX_VIDEO_API_KEY / MINIMAX_API_KEY 未配置' };
 
   const pngPath = path.join(PNG_DIR, `${personaId}.png`);

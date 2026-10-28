@@ -42,6 +42,26 @@ export const LOCALE_OPTIONS: Array<{ code: Locale; label: string }> = [
 // users) is NEVER routed through this.
 // ─────────────────────────────────────────────────────────────────────
 const DICT = {
+  // v6.164 — AI 生成内容显式标识(《人工智能生成合成内容标识办法》)
+  'ai.label':            { 'zh-CN': 'AI 生成',            'en-US': 'AI-generated',        'ja-JP': 'AI生成',               'ko-KR': 'AI 생성' },
+  'ai.noticeShort':      { 'zh-CN': 'AI 生成内容 · 仅供娱乐', 'en-US': 'AI-generated · for fun', 'ja-JP': 'AI生成コンテンツ・娯楽用', 'ko-KR': 'AI 생성 콘텐츠 · 오락용' },
+  'ai.notice': {
+    'zh-CN': '本站角色的发言、语音与形象由 AI 生成,仅供娱乐,不代表真实人物与事件',
+    'en-US': 'Character dialogue, voices and images on this site are AI-generated, for entertainment only, and do not depict real people or events',
+    'ja-JP': '本サイトのキャラクターの発言・音声・画像はAIが生成したもので、娯楽目的であり実在の人物・事件とは無関係です',
+    'ko-KR': '이 사이트의 캐릭터 대사·음성·이미지는 AI가 생성한 것으로 오락용이며 실제 인물·사건과 무관합니다',
+  },
+  'ai.legalDisclaimer': {
+    'zh-CN': 'AI 对话仅供演练,不构成法律意见;具体问题请咨询律师或当地劳动争议仲裁机构',
+    'en-US': 'AI role-play for practice only — not legal advice. Consult a lawyer or your local labor arbitration body',
+    'ja-JP': 'AIとの対話は練習用で、法的助言ではありません。具体的な問題は弁護士や労働委員会にご相談ください',
+    'ko-KR': 'AI 대화는 연습용이며 법률 자문이 아닙니다. 구체적인 문제는 변호사나 노동위원회에 문의하세요',
+  },
+
+  // v6.169 — 首页「5 分钟速通」直达裁了么第一关
+  'landing.quickstart':    { 'zh-CN': '⚡ 5 分钟速通 · 裁了么第一关', 'en-US': '⚡ 5-min quick start · You\'re Fired Lv.1', 'ja-JP': '⚡ 5分で速攻 · 解雇通告 第1ステージ', 'ko-KR': '⚡ 5분 속공 · 해고당함 1단계' },
+  'landing.quickstartSub': { 'zh-CN': '和 AI HR 谈赔偿,边玩边学劳动法', 'en-US': 'Negotiate severance with an AI HR — learn labor law as you play', 'ja-JP': 'AI人事と退職金を交渉、遊びながら労働法を学ぶ', 'ko-KR': 'AI 인사담당자와 퇴직금 협상, 놀면서 노동법 배우기' },
+
   // Brand + header
   'brand.wordmark':      { 'zh-CN': 'OFFICE ZOO',         'en-US': 'OFFICE ZOO',          'ja-JP': 'OFFICE ZOO',          'ko-KR': 'OFFICE ZOO' },
   'brand.tagline':       { 'zh-CN': 'AI 鼠人 24h 营业',   'en-US': 'AI rats clocking in 24/7', 'ja-JP': 'AIネズミ社員 24時間営業', 'ko-KR': 'AI 직원 24시간 영업' },

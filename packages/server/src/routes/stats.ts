@@ -24,11 +24,12 @@
 import { Hono } from 'hono';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
+import { DATA_DIR } from '../utils/dataDir';
+import { writeJsonAtomic } from '../utils/atomicJson';
 
 // v6.33 P5 — disk snapshot. Counters are still hot-path (every bump
 // mutates Maps in-memory), but we periodically + on-shutdown persist
 // to stats.json so server restart doesn't reset spectator metrics.
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'stats.json');
 const FLUSH_INTERVAL_MS = 60_000;
 let dirtySinceLastFlush = false;
@@ -105,10 +106,7 @@ async function flushToDisk(): Promise<void> {
     perUserLeakQuotes: [...counters.perUserLeakQuotes.entries()],
   };
   try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    const tmp = DATA_FILE + '.tmp';
-    await fs.writeFile(tmp, JSON.stringify(payload, null, 2), 'utf8');
-    await fs.rename(tmp, DATA_FILE);
+    await writeJsonAtomic(DATA_FILE, payload);
     dirtySinceLastFlush = false;
   } catch { /* disk write failed — counters still in memory */ }
 }

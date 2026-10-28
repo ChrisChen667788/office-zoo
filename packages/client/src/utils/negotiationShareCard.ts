@@ -6,6 +6,7 @@
  * 这里只负责画。绘制风格对齐 fortuneShareCard。
  */
 import { type SettlementCardInput, buildSettlementCard } from '@furball/shared';
+import { trackEvent } from './analytics';
 
 const W = 1080;
 const H = 1350;
@@ -122,6 +123,7 @@ export async function generateNegotiationShareCard(input: SettlementCardInput): 
 }
 
 export async function downloadNegotiationShareCard(input: SettlementCardInput): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'negotiation', action: 'download' });
   const blob = await generateNegotiationShareCard(input);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -141,6 +143,7 @@ function canSystemShareImage(): boolean {
 
 /** 系统分享(移动端);不支持/失败返回 false,调用方回退到下载。 */
 export async function shareNegotiationCard(input: SettlementCardInput): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'negotiation', action: 'share' });
   if (!canSystemShareImage()) return false;
   try {
     const blob = await generateNegotiationShareCard(input);
