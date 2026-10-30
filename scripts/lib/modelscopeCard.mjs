@@ -72,6 +72,22 @@ export function tokenProblem(raw) {
   return null;
 }
 
+/**
+ * 隐藏输入的按键处理:把终端送来的一块输入并进已攒的 buf。剥掉 bracketed paste 的 ESC[200~ / ESC[201~,
+ * 回车结束、Ctrl-C 放弃、退格删一位。终端粘贴常一次送来整段,所以按「块」处理而不是按键。
+ */
+export function applyTokenKeystrokes(buf, chunk) {
+  let b = buf;
+  // 终端若开着 bracketed paste,粘贴内容会被 ESC[200~ … ESC[201~ 包住
+  for (const ch of String(chunk).replace(/\x1b\[20[01]~/g, '')) {
+    if (ch === '\r' || ch === '\n') return { buf: b, done: true, abort: false };
+    if (ch === '\u0003') return { buf: '', done: false, abort: true };          // Ctrl-C
+    if (ch === '\u007f' || ch === '\b') { b = b.slice(0, -1); continue; }
+    b += ch;
+  }
+  return { buf: b, done: false, abort: false };
+}
+
 /** 日志掩码:失败输出里可能带 oauth2:<令牌>@ 形式的远端地址。 */
 export const redact = (s) => String(s)
   .replace(/ms-[0-9a-f-]{8,}/gi, 'ms-***')
