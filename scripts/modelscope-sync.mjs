@@ -21,7 +21,9 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { MS_REPO, MS_RESOLVE, cardLooksClobbered, redact, tokenProblem } from './lib/modelscopeCard.mjs';
+import {
+  MS_REPO, MS_RESOLVE, applyTokenKeystrokes, cardLooksClobbered, redact, tokenProblem,
+} from './lib/modelscopeCard.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const CARD_SRC = path.join(ROOT, 'docs/modelscope-intro.md');
@@ -91,13 +93,10 @@ function promptHiddenToken() {
     let buf = '';
     const cleanup = () => { stdin.off('data', onData); stdin.setRawMode(false); stdin.pause(); stdout.write('\n'); };
     function onData(chunk) {
-      // 终端若开着 bracketed paste,粘贴内容会被 ESC[200~ … ESC[201~ 包住
-      for (const ch of chunk.replace(/\x1b\[20[01]~/g, '')) {
-        if (ch === '\r' || ch === '\n') { cleanup(); resolve(buf); return; }
-        if (ch === '\u0003') { cleanup(); process.exit(130); }        // Ctrl-C
-        if (ch === '\u007f' || ch === '\b') { buf = buf.slice(0, -1); continue; }
-        buf += ch;
-      }
+      const r = applyTokenKeystrokes(buf, chunk);
+      buf = r.buf;
+      if (r.abort) { cleanup(); process.exit(130); }
+      if (r.done) { cleanup(); resolve(buf); }
     }
     stdin.on('data', onData);
   });
