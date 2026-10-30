@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  absolutize, toModelScopeCard, cardLooksClobbered, tokenProblem, redact, MS_RESOLVE, GH_BASE,
+  absolutize, toModelScopeCard, cardLooksClobbered, tokenProblem, redact, applyTokenKeystrokes, MS_RESOLVE, GH_BASE,
 } from '../lib/modelscopeCard.mjs';
 
 describe('absolutize', () => {
@@ -67,5 +67,58 @@ describe('tokenProblem / redact', () => {
   });
   it('日志掩码', () => {
     expect(redact('https://oauth2:ms-1234567890ab@x/y fail ms-1234567890ab')).toBe('https://oauth2:***@x/y fail ms-***');
+  });
+});
+
+/**
+ * 粘贴标记被拆在两块里送来,令牌就进不去(同款脚本在 wind-comic 10-28 实测):
+ * Claude 桌面版的终端面板里粘贴令牌,报「第 1 个字符不是可打印 ASCII(共 45 个字符)」。
+ * 令牌 39 个字符,多出的 6 个正是开头标记 `ESC[200~` —— ESC 单独一块、`[200~令牌…` 是下一块,
+ * 只在单块里剥标记,两块各自凑不成完整标记,于是原样拼进了令牌。令牌本身没错。
+ */
+describe('applyTokenKeystrokes · 粘贴标记跨块', () => {
+  // 39 个字符、形如真令牌的占位串(全 0,不是真令牌)
+  const DUMMY = `ms-${'0'.repeat(8)}-0000-0000-0000-${'0'.repeat(12)}`;
+  const S = '\x1b[200~';
+  const E = '\x1b[201~';
+
+  /** 按块喂给按键处理,返回回车 / 放弃那一刻的结果;都没发生就返回 null */
+  function feed(chunks: string[]) {
+    let buf = '';
+    for (const c of chunks) {
+      const r = applyTokenKeystrokes(buf, c);
+      if (r.abort) return { abort: true, buf: r.buf };
+      buf = r.buf;
+      if (r.done) return { abort: false, buf };
+    }
+    return null;
+  }
+
+  it.each([
+    ['ESC 单独一块(实测形态)', ['\x1b', `[200~${DUMMY}${E}`, '\r']],
+    ['逐字节送达', [...`${S}${DUMMY}${E}\r`]],
+    ['开头标记拆成三段', ['\x1b[', '20', `0~${DUMMY}${E}\r`]],
+    ['结束标记被拆开', [`${S}${DUMMY}\x1b`, '[201~', '\r']],
+    ['粘贴内容自带回车,结束标记还没到', ['\x1b', `[200~${DUMMY}\r${E}`]],
+  ])('%s → 得到原令牌并通过预检', (_name, chunks) => {
+    const r = feed(chunks as string[]);
+    expect(r).toMatchObject({ abort: false, buf: DUMMY });
+    expect(tokenProblem(r!.buf)).toBeNull();
+  });
+
+  it('正常侧不变:整块粘贴、手敲、退格、Ctrl-C / Ctrl-D 放弃', () => {
+    expect(feed([`${S}${DUMMY}${E}\r`])).toMatchObject({ abort: false, buf: DUMMY });
+    expect(feed([DUMMY, '\r'])).toMatchObject({ abort: false, buf: DUMMY });
+    expect(feed(['ms-ab', 'x\u007fc\n'])).toMatchObject({ abort: false, buf: 'ms-abc' });
+    expect(feed(['ms-a', '\u0003'])).toMatchObject({ abort: true });
+    // raw 模式下 Ctrl-D 不是 EOF,而是一个 0x04 字节 —— 不当放弃处理就会被悄悄拼进令牌
+    expect(feed(['ms-a', '\u0004'])).toMatchObject({ abort: true });
+  });
+
+  it('漏网的 ESC 给出能照做的提示,而且不回显令牌', () => {
+    const msg = tokenProblem(`${S}${DUMMY}`) ?? '';
+    expect(msg).toMatch(/第 1 个字符不是可打印 ASCII\(共 45 个字符\)/);
+    expect(msg).toMatch(/控制符.*令牌本身没错.*重新粘贴/);
+    expect(msg).not.toContain(DUMMY);
   });
 });
