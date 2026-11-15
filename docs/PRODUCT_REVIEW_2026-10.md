@@ -25,7 +25,7 @@
 
 **「下个大版本」的边界：** v6.161–v6.169（阶段 0 + 阶段 1 + 线 B），完成后打 tag `v6.169`，再统一同步 GitHub 门面（README / 截图 / CHANGELOG）与 ModelScope，然后推送并开 PR 合进 main。
 
-> **📌 进度（2026-10-12）：** v6.161–v6.169 代码全部完成（详见 [`CHANGELOG.md`](./CHANGELOG.md)）。与本文原计划的出入：
+> **📌 进度（2026-11-15）：** v6.161–v6.169 代码全部完成（详见 [`CHANGELOG.md`](./CHANGELOG.md)）。与本文原计划的出入：
 > v6.162 顺带修了取 IP 可伪造、23 个 JSON 存储并发写与测试读写本机数据目录；`replayStore` 写队列已随 v6.162 的 `atomicJson` 一并解决；
 > v6.167 的凭据头改为单个 `X-Byok`（base64url JSON），Socket 凭据走握手 `auth.byok` 而非建局消息；
 > v6.168 的示例对局只做了基础设施——现有回放没有发言记录，示例对局要 owner 在本机玩一局后用 `npm run sample:promote` 生成（不用 owner 的 key 现跑、不手写假台词）。
