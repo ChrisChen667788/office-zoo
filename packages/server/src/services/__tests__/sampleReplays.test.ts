@@ -163,7 +163,7 @@ describe('对局发言真的写进回放(真实 Socket.IO + 引擎事件)', () =
     engine.createPlayers();
     const [ai, human] = engine.state.players;
     human.controller = 'human';
-    expect(engine.pushHumanSpeech('hr', '场边嘉宾打的字 13800001111').accepted).toBe(true);
+    expect(engine.pushHumanSpeech('hr', '场边嘉宾打的字 PHONE-TEST-0000').accepted).toBe(true);
     engine.emit('discussion_speeches', [
       { playerId: ai.id, playerName: ai.name, text: 'AI 说的话' },
       { playerId: human.id, playerName: human.name, text: '占座真人打的字' },
@@ -192,14 +192,14 @@ describe('对局发言真的写进回放(真实 Socket.IO + 引擎事件)', () =
       expect(r.timeline.some((e) => e.type === 'human_speech')).toBe(false);
       const dump = JSON.stringify(r);
       expect(dump).not.toContain('占座真人打的字');
-      expect(dump).not.toContain('13800001111');
+      expect(dump).not.toContain('PHONE-TEST-0000');
     });
 
     it('本机自部署:行为不变,自己的回放里保留自己说的话', async () => {
       delete process.env.DEPLOY_PROFILE;
       const r = await playAndSave('localreplay01');
       expect(r.speeches![1]).toEqual(expect.objectContaining({ text: '占座真人打的字', byHuman: true }));
-      expect(r.timeline.some((e) => e.type === 'human_speech' && e.description.includes('13800001111'))).toBe(true);
+      expect(r.timeline.some((e) => e.type === 'human_speech' && e.description.includes('PHONE-TEST-0000'))).toBe(true);
     });
 
     it('读取接口:托管版不列出最近对局,按 id 读到的也不带真人原文(即使库里存着);本机照旧', async () => {
@@ -215,7 +215,7 @@ describe('对局发言真的写进回放(真实 Socket.IO + 引擎事件)', () =
       const body = await (await replayRoutes.request(`/${stored.gameId}`)).text();
       expect(body).toContain('AI 说的话');
       expect(body).not.toContain('占座真人打的字');
-      expect(body).not.toContain('13800001111');
+      expect(body).not.toContain('PHONE-TEST-0000');
     });
   });
 });
