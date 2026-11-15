@@ -83,6 +83,22 @@ export function useFeatures(): FeatureFlags {
   return useRuntimeConfig()?.features ?? FEATURES_OFF;
 }
 
+/**
+ * v6.169 — Premium 场景点下去怎么办。
+ *   open    可以选(不是 Premium 场景 / 已是会员 / 这个站点不收款,没有付费墙)
+ *   locked  有付费墙,去升级页
+ *   pending 配置还没到,不知道有没有付费墙:先不响应点击
+ * 入口按钮在配置到达前按「关」处理没问题(晚几十毫秒出现);但「锁」不能按关处理 ——
+ * 那样本机部署在配置到达前的一瞬间,Premium 场景是能选中并开始的。
+ */
+export type PremiumGate = 'open' | 'locked' | 'pending';
+
+export function premiumGate(isPremiumScenario: boolean | undefined, hasPremium: boolean, cfg: RuntimeConfig | null): PremiumGate {
+  if (!isPremiumScenario || hasPremium) return 'open';
+  if (cfg === null) return 'pending';
+  return cfg.features.payments ? 'locked' : 'open';
+}
+
 /** 测试用:清掉缓存。 */
 export function __resetRuntimeConfigForTest(): void {
   pending = null;

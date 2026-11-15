@@ -4,13 +4,13 @@
  * 示例对局随仓库公开发布,所以脱敏是硬要求:真人打的字(占座发言、场边真人发言)一律去掉;
  * 玩家名不在内置 AI 名单里(自定义公司主题包,名字是用户填的)直接拒绝。
  */
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Server } from 'socket.io';
 import { io as ioc } from 'socket.io-client';
 import type { ReplayRecord, GameEvent } from '@furball/shared';
-import { compactReplaySpeeches, groupReplayByRound, REPLAY_MAX_SPEECHES, REPLAY_MAX_SPEECH_CHARS } from '@furball/shared';
+import { compactReplaySpeeches, groupReplayByRound, stripHumanTextFromReplay, REPLAY_MAX_SPEECHES, REPLAY_MAX_SPEECH_CHARS } from '@furball/shared';
 import { AI_NAMES } from '../../engine/aiNames';
 import { sanitizeForSample, SAMPLE_PREFIX } from '../sampleReplays';
 
@@ -18,6 +18,8 @@ const saved: ReplayRecord[] = [];
 vi.mock('../replayStore', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../replayStore')>()),
   saveReplay: vi.fn(async (r: ReplayRecord) => { saved.push(r); }),
+  getReplay: vi.fn(async (id: string) => saved.find((r) => r.gameId === id) ?? null),
+  listRecentReplays: vi.fn(async () => [...saved]),
 }));
 vi.mock('../tts', () => ({ generateTTSAudio: vi.fn(async () => null) }));
 
@@ -82,6 +84,27 @@ describe('回放发言工具', () => {
   });
 });
 
+describe('stripHumanTextFromReplay(托管版回放不带真人打的字)', () => {
+  it('真人占座发言留占位、原文清空;场边嘉宾发言事件去掉;AI 的内容原样;不改入参', () => {
+    const input = rec();
+    const before = JSON.stringify(input);
+    const out = stripHumanTextFromReplay(input);
+    expect(out.speeches).toEqual([
+      { round: 1, playerId: 'p0', playerName: 'Tony', text: 'AI 的发言' },
+      { round: 1, playerId: 'p1', playerName: '小王', text: '', byHuman: true },
+    ]);
+    expect(out.timeline.map((e) => e.type)).toEqual(['kill', 'vote_out']);
+    expect(JSON.stringify(out)).not.toContain('真人打的字');
+    expect(JSON.stringify(out)).not.toContain('138xxxx');
+    expect(JSON.stringify(input)).toBe(before);
+  });
+
+  it('老回放没有 speeches 字段:不凭空加出来', () => {
+    const { speeches: _drop, ...old } = rec();
+    expect('speeches' in stripHumanTextFromReplay(old)).toBe(false);
+  });
+});
+
 describe('对局发言真的写进回放(真实 Socket.IO + 引擎事件)', () => {
   let http: HttpServer;
   let ioServer: Server;
@@ -123,5 +146,76 @@ describe('对局发言真的写进回放(真实 Socket.IO + 引擎事件)', () =
       expect.objectContaining({ playerId: human.id, text: '真人打的字', byHuman: true }),
     ]);
     expect(r.speeches![0].byHuman).toBeUndefined();
+  });
+
+  /** 建一局、塞一条 AI 发言 + 一条真人占座发言 + 一条场边嘉宾发言,然后终局;返回落盘的那条记录。 */
+  async function playAndSave(userId: string): Promise<ReplayRecord> {
+    const { _getGameForTest } = await import('../../socket/socketHandler');
+    const c = ioc(url, { transports: ['websocket'], forceNew: true, reconnection: false });
+    await new Promise<void>((r, j) => { c.once('connect', () => r()); c.once('connect_error', j); });
+    const { gameId } = await new Promise<{ gameId: string }>((r) => {
+      c.once('game:created', r);
+      c.emit('game:create', { playerCount: 6, mode: 'classic', userId, locale: 'zh' });
+    });
+    c.disconnect();
+    await new Promise((r) => setTimeout(r, 50));
+    const engine = _getGameForTest(gameId)!;
+    engine.createPlayers();
+    const [ai, human] = engine.state.players;
+    human.controller = 'human';
+    expect(engine.pushHumanSpeech('hr', '场边嘉宾打的字 13800001111').accepted).toBe(true);
+    engine.emit('discussion_speeches', [
+      { playerId: ai.id, playerName: ai.name, text: 'AI 说的话' },
+      { playerId: human.id, playerName: human.name, text: '占座真人打的字' },
+    ]);
+    engine.emit('game_over', { winner: 'cat_win' });
+    await new Promise((r) => setTimeout(r, 50));
+    return saved.find((x) => x.gameId === gameId)!;
+  }
+
+  describe('托管版 vs 本机', () => {
+    const env = { profile: process.env.DEPLOY_PROFILE, mode: process.env.LLM_KEY_MODE };
+    afterEach(() => {
+      for (const [k, v] of [['DEPLOY_PROFILE', env.profile], ['LLM_KEY_MODE', env.mode]] as const) {
+        if (v === undefined) delete process.env[k]; else process.env[k] = v;
+      }
+    });
+
+    it('托管版:真人打的字不落盘 —— 占座发言只留空占位,场边嘉宾发言事件不入库;AI 发言照常', async () => {
+      process.env.DEPLOY_PROFILE = 'hosted';
+      process.env.LLM_KEY_MODE = 'server'; // 这里只测回放,不走 BYOK 建局拦截
+      const r = await playAndSave('hostedreplay1');
+      expect(r.speeches).toEqual([
+        expect.objectContaining({ text: 'AI 说的话' }),
+        expect.objectContaining({ text: '', byHuman: true }),
+      ]);
+      expect(r.timeline.some((e) => e.type === 'human_speech')).toBe(false);
+      const dump = JSON.stringify(r);
+      expect(dump).not.toContain('占座真人打的字');
+      expect(dump).not.toContain('13800001111');
+    });
+
+    it('本机自部署:行为不变,自己的回放里保留自己说的话', async () => {
+      delete process.env.DEPLOY_PROFILE;
+      const r = await playAndSave('localreplay01');
+      expect(r.speeches![1]).toEqual(expect.objectContaining({ text: '占座真人打的字', byHuman: true }));
+      expect(r.timeline.some((e) => e.type === 'human_speech' && e.description.includes('13800001111'))).toBe(true);
+    });
+
+    it('读取接口:托管版不列出最近对局,按 id 读到的也不带真人原文(即使库里存着);本机照旧', async () => {
+      const { replayRoutes } = await import('../../routes/replay');
+      delete process.env.DEPLOY_PROFILE;
+      const stored = await playAndSave('routereplay01'); // 本机形态下存的:带真人原文
+      const localList = await (await replayRoutes.request('/')).json() as { replays: Array<{ gameId: string }> };
+      expect(localList.replays.some((x) => x.gameId === stored.gameId)).toBe(true);
+      expect(await (await replayRoutes.request(`/${stored.gameId}`)).text()).toContain('占座真人打的字');
+
+      process.env.DEPLOY_PROFILE = 'hosted';
+      expect(await (await replayRoutes.request('/')).json()).toEqual({ replays: [] });
+      const body = await (await replayRoutes.request(`/${stored.gameId}`)).text();
+      expect(body).toContain('AI 说的话');
+      expect(body).not.toContain('占座真人打的字');
+      expect(body).not.toContain('13800001111');
+    });
   });
 });

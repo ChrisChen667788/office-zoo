@@ -358,8 +358,11 @@ export default function Result() {
                       style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.18)' }}
                       data-replay-speech
                     >
-                      <span className="flex-shrink-0 font-bold text-white/85">{sp.playerName}</span>
-                      <span className="flex-1 text-white/75 leading-relaxed">{sp.text}</span>
+                      <span className="flex-shrink-0 font-bold text-white/85">{sp.byHuman ? '👤 ' : ''}{sp.playerName}</span>
+                      {/* v6.169 — 真人占座的发言:托管版不保存原文,只留一条占位 */}
+                      <span className={`flex-1 leading-relaxed ${sp.byHuman && !sp.text ? 'text-white/40 italic' : 'text-white/75'}`}>
+                        {sp.byHuman && !sp.text ? '真人发言(原文不保存)' : sp.text}
+                      </span>
                     </div>
                   ))}
                 </div>

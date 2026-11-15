@@ -7,7 +7,7 @@ import {
 import { generateTTSAudio } from '../services/tts';
 import { extractEvidenceRefs } from '../services/evidenceParser';
 import { saveReplay } from '../services/replayStore';
-import { GamePhase, compactReplaySpeeches, REPLAY_MAX_SPEECHES, type DualEndReason, type ReplaySpeech } from '@furball/shared';
+import { GamePhase, compactReplaySpeeches, REPLAY_MAX_SPEECHES, stripHumanTextFromReplay, type DualEndReason, type ReplayRecord, type ReplaySpeech } from '@furball/shared';
 // v6.126 — Phase C 真人场边角色:认领纯引擎 + 类型
 import {
   claimRole, releaseUserRoles, roleOfUser, humanRoleById,
@@ -21,6 +21,7 @@ import { logger, gameLogger } from '../utils/logger';
 import { validateEvent } from '../utils/validate';
 import { keyMode, runWithAi, type AiContext, type AiFailReason } from '../utils/aiClient';
 import { socketByok } from '../utils/byokTransport';
+import { isHosted } from '../utils/deployProfile';
 
 const socketLog = logger.child({ component: 'socket' });
 
@@ -1048,7 +1049,7 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
     bumpGameOver();
     // v6.54 — persist the finished game for 🎬 replay BEFORE teardown.
     // Fire-and-forget; a replay-save hiccup must never block game_over.
-    void saveReplay({
+    const replayRecord: ReplayRecord = {
       gameId,
       endedAt: Date.now(),
       winner: finalState.winner,
@@ -1069,7 +1070,11 @@ function setupEngineListeners(io: SocketServer, gameId: string, engine: GameEngi
             dualReason: (data as { dualReason?: DualEndReason }).dualReason,
           }
         : {}),
-    }).catch((err) => console.error('[replay] save failed:', err));
+    };
+    // v6.169 — 托管版:真人打的字(占座发言、场边嘉宾发言)不落盘。回放按 id 就能读,
+    // 那是别的访客的输入;本机自部署照旧保留(自己的回放、自己说的话)。
+    void saveReplay(isHosted() ? stripHumanTextFromReplay(replayRecord) : replayRecord)
+      .catch((err) => console.error('[replay] save failed:', err));
     // Clean up after 60 s (clients have time to receive final state).
     // Use destroyGame to ensure listeners + agents are released, not just
     // the Map entry — otherwise EventEmitter listeners + agent references

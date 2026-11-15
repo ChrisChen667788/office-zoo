@@ -29,7 +29,7 @@ import EventPill from '../components/EventPill';
 import { navIcons, Icon } from '../constants/icons';
 import { filterFiredScenarios } from '../utils/firedScenarioFilters';
 import type { UserProfile } from '../utils/profileTypes';
-import { useFeatures } from '../utils/runtimeConfig';
+import { premiumGate, useFeatures, useRuntimeConfig } from '../utils/runtimeConfig';
 import { requireModel } from '../utils/modelSetup';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
@@ -90,6 +90,7 @@ export default function FiredLanding() {
   const navigate = useNavigate();
   const { setScenario, setPersonality, reset } = useFiredStore();
   const features = useFeatures();
+  const runtimeCfg = useRuntimeConfig();
   const { unlockedLevels, stars, lastClearedLevel } = useFiredProgress();
 
   const [entryMode, setEntryMode] = useState<EntryMode>('chapters');
@@ -624,11 +625,13 @@ export default function FiredLanding() {
                     : null;
                   // v1.0.0 — Premium-locked card. Click routes to paywall
                   // instead of selecting the scenario.
-                  const isLocked = scenario.premium && !premium && features.payments; // v6.168:不收款就没有付费墙
+                  const gate = premiumGate(scenario.premium, premium, runtimeCfg); // v6.168:不收款就没有付费墙
+                  const isLocked = gate === 'locked';
                   return (
                     <motion.button
                       key={scenario.id}
                       onClick={() => {
+                        if (gate === 'pending') return; // 配置还没到:先不响应(见 premiumGate)
                         if (isLocked) {
                           navigate('/premium');
                           return;
@@ -880,11 +883,13 @@ export default function FiredLanding() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                       {offSeasonScenarios.map((scenario) => {
                         const active = selectedScenario === scenario.id;
-                        const isLocked = scenario.premium && !premium && features.payments; // v6.168:不收款就没有付费墙
+                        const gate = premiumGate(scenario.premium, premium, runtimeCfg); // v6.168:不收款就没有付费墙
+                        const isLocked = gate === 'locked';
                         return (
                           <motion.button
                             key={scenario.id}
                             onClick={() => {
+                              if (gate === 'pending') return;
                               if (isLocked) { navigate('/premium'); return; }
                               setSelectedScenario(scenario.id);
                             }}

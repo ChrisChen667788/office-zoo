@@ -54,6 +54,24 @@ export function compactReplaySpeeches(list: ReadonlyArray<ReplaySpeech>): Replay
   }));
 }
 
+/** 时间线里带「真人打的字」的事件类型(场边嘉宾发言)。其余事件的文案都是模板或 AI 生成的。 */
+export const REPLAY_USER_TEXT_EVENT_TYPES: ReadonlySet<string> = new Set(['human_speech']);
+
+/**
+ * v6.169 — 去掉回放里真人打的字。纯函数,不改入参。
+ *   - 真人占座的发言:保留这一条(回放里能看出这一轮有真人说过话),原文清空;
+ *   - 场边嘉宾发言事件:整条去掉(原文嵌在事件文案里)。
+ * 回放按 id 就能读、不需要登录:托管版里这是「别的访客打的字」,不能随回放公开;
+ * 示例对局(随仓库发布)同样用这条规则。
+ */
+export function stripHumanTextFromReplay<T extends { timeline: ReadonlyArray<{ type: string }>; speeches?: ReadonlyArray<ReplaySpeech> }>(rec: T): T {
+  return {
+    ...rec,
+    timeline: rec.timeline.filter((e) => !REPLAY_USER_TEXT_EVENT_TYPES.has(e.type)),
+    ...(rec.speeches ? { speeches: rec.speeches.map((s) => (s.byHuman ? { ...s, text: '' } : s)) } : {}),
+  };
+}
+
 export interface ReplayRecord {
   gameId: string;
   /** Unix ms the game ended. */

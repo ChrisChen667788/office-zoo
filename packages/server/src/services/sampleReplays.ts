@@ -13,11 +13,10 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ReplayRecord } from '@furball/shared';
+import { REPLAY_USER_TEXT_EVENT_TYPES, type ReplayRecord } from '@furball/shared';
 import { packAssetDir } from '../utils/assetDirs';
 
 export const SAMPLE_PREFIX = 'sample-';
-const USER_TEXT_EVENT_TYPES = new Set(['human_speech']);
 
 export function sampleReplayDir(): string {
   return path.join(path.dirname(packAssetDir('icons')), 'sample-replays');
@@ -38,7 +37,7 @@ export function sanitizeForSample(rec: ReplayRecord, allowedNames: readonly stri
   const speeches = (rec.speeches ?? []).filter((s) => !s.byHuman);
   const humanSpeeches = (rec.speeches?.length ?? 0) - speeches.length;
   if (speeches.length === 0) problems.push('没有 AI 发言(v6.168 之前的回放不记录发言,请用新对局)');
-  const timeline = rec.timeline.filter((e) => !USER_TEXT_EVENT_TYPES.has(e.type));
+  const timeline = rec.timeline.filter((e) => !REPLAY_USER_TEXT_EVENT_TYPES.has(e.type));
   const dropped = { humanSpeeches, userTextEvents: rec.timeline.length - timeline.length };
   if (problems.length) return { ok: false, problems, dropped };
   const digits = rec.gameId.replace(/\D/g, '').slice(-13) || '0';
