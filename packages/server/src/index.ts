@@ -49,7 +49,7 @@ import { llmStatsSnapshot } from './utils/llmStats';
 import { ASSET_FAMILIES, runtimeAssetDir } from './utils/assetDirs';
 import { serveAssetFile } from './utils/staticAssets';
 import { clientDistDir, serveClient } from './utils/clientStatic';
-import { isHosted } from './utils/deployProfile';
+import { isHosted, resolveSinglePort } from './utils/deployProfile';
 import { hostedFeatureGate } from './utils/hostedFeatures';
 import { attachSocketByok, byokMiddleware } from './utils/byokTransport';
 import { applyBodyLimits } from './utils/bodyLimits';
@@ -202,8 +202,12 @@ if (clientDist) {
 const port = parseInt(process.env.PORT || '3100');
 const wsPort = parseInt(process.env.WS_PORT || '3101');
 // v6.166 — 单端口模式:Socket.IO 挂在同一个 HTTP 服务上(托管平台通常只给一个端口)。
-// hosted 默认开启;本机开发保持 3100 + 3101 双端口(vite 分别代理)。SINGLE_PORT=1/0 可强制。
-const singlePort = process.env.SINGLE_PORT ? process.env.SINGLE_PORT === '1' : isHosted();
+// hosted 或由本服务器托管前端构建产物时默认开启;本机开发保持 3100 + 3101 双端口(vite 分别代理)。
+// SINGLE_PORT=1/0 可强制(见 resolveSinglePort)。
+const singlePort = resolveSinglePort(process.env.SINGLE_PORT, isHosted(), !!clientDist);
+if (clientDist && !singlePort) {
+  logger.warn({ port, wsPort }, 'SINGLE_PORT=0 但前端由本服务器托管:生产构建的前端连页面所在端口,对局会连不上 Socket.IO');
+}
 
 // HTTP server
 const mainServer = serve({ fetch: app.fetch, port }, () => {

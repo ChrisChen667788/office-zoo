@@ -40,6 +40,7 @@ const REASON_ZH: Record<string, string> = {
   host_not_allowed: '这个接口地址不允许使用',
   resolves_to_private_address: '接口地址指向内网,不允许使用',
   dns_failed: '接口地址解析失败',
+  dns_busy: '接口地址校验太频繁,请一分钟后再试',
 };
 
 const ERR_ZH: Record<string, string> = {

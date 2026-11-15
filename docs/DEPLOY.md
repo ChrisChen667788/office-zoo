@@ -32,8 +32,8 @@ docker run --rm -p 8080:8080 -v office-zoo-data:/data office-zoo
 | `UMAMI_SCRIPT_URL` / `UMAMI_WEBSITE_ID` | 空 | 访问统计(可选,自部署 Umami)。两个都配好才会在页面加载统计脚本 |
 | `TTS_RATE_LIMIT_PER_HOUR` | `120` | `/api/tts/generate` 每 IP 每小时上限 |
 | `LLM_KEY_MODE` | hosted 为 `byok` | `byok`:访客必须在页面里配置自己的模型 key;`server`:用环境变量里的 key(本机自部署) |
-| `BYOK_ALLOW_CUSTOM_BASE_URL` | hosted 为 `0` | 是否允许访客填自定义 OpenAI 兼容接口地址;打开后只允许 https、且解析结果必须全是公网地址(DNS 重绑定仍是残余风险) |
-| `SINGLE_PORT` | hosted 为 `1` | 强制单 / 双端口(一般不用动) |
+| `BYOK_ALLOW_CUSTOM_BASE_URL` | hosted 为 `0` | 是否允许访客填自定义 OpenAI 兼容接口地址;打开后只允许 https、解析结果必须全是公网地址、请求不跟随跳转、每分钟最多校验 60 个新主机名(DNS 重绑定仍是残余风险,没有需要就别开) |
+| `SINGLE_PORT` | hosted 为 `1`;由服务器托管前端构建产物时也为 `1` | 强制单 / 双端口(一般不用动)。生产构建的前端连页面所在的端口,所以页面由本服务器提供时不要设成 `0` |
 | `SERVE_CLIENT_DIR` | 镜像内为前端构建目录 | 由服务器托管的前端产物目录 |
 
 **不要**在托管环境里设置 `OPENAI_API_KEY` / `QINGYUN_API_KEY` / `MINIMAX_API_KEY` 等模型 key:产品不提供模型 API(owner 决策),hosted 形态下即使设置了也不会被使用。

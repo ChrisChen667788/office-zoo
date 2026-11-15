@@ -114,10 +114,17 @@ function envChatProvider() {
   });
 }
 
+/**
+ * 带访客凭据的出站请求一律不跟随跳转。自定义地址的 SSRF 校验只看了第一跳的解析结果:接口若回
+ * 30x 指向内网(云元数据等),默认的 fetch 会跟过去。正常的模型 API 不会跳转,遇到跳转直接当失败。
+ */
+export const noRedirectFetch: typeof fetch = (input, init) => fetch(input, { ...init, redirect: 'error' });
+
 function byokChatProvider(cfg: ByokConfig) {
   return createOpenAI({
     apiKey: cfg.apiKey,
     baseURL: resolveBaseURL(cfg),
+    fetch: noRedirectFetch,
     // 第三方 OpenAI 兼容接口:不发 OpenAI 专有参数(stream_options 等)
     compatibility: cfg.provider === 'openai' ? 'strict' : 'compatible',
     name: `byok.${cfg.provider}`,
@@ -240,6 +247,27 @@ export type BaseUrlCheck = { ok: true } | { ok: false; reason: string };
 
 const verdictCache = new Map<string, { at: number; verdict: BaseUrlCheck }>();
 const VERDICT_TTL_MS = 10 * 60_000;
+/** 缓存条数上限:满了先清过期的,再按写入顺序丢最早的(Map 保持插入序)。 */
+export const VERDICT_CACHE_MAX = 500;
+/** 每分钟最多为多少个「没见过的主机名」发起 DNS 解析(全进程)。每个 /api/* 请求都会解析访客带来的
+ *  自定义地址,不设上限的话,换着主机名刷就能让服务器无限发 DNS 查询、缓存无限长大。 */
+export const DNS_CHECKS_PER_MIN = 60;
+let dnsWindowStart = 0;
+let dnsChecksInWindow = 0;
+
+function rememberVerdict(host: string, verdict: BaseUrlCheck): void {
+  const now = Date.now();
+  if (verdictCache.size >= VERDICT_CACHE_MAX) {
+    for (const [h, v] of verdictCache) if (now - v.at >= VERDICT_TTL_MS) verdictCache.delete(h);
+    while (verdictCache.size >= VERDICT_CACHE_MAX) {
+      const oldest = verdictCache.keys().next().value;
+      if (oldest === undefined) break;
+      verdictCache.delete(oldest);
+    }
+  }
+  verdictCache.delete(host); // 重新写入排到最后
+  verdictCache.set(host, { at: now, verdict });
+}
 
 /**
  * 校验自定义 base URL:托管下必须 https、不能是 IP 字面量 / localhost,且 DNS 解析出的每个
@@ -258,7 +286,10 @@ export async function checkCustomBaseUrl(raw: string, lookupFn: typeof lookup = 
   }
   if (!hosted) return { ok: true }; // 本机自部署:自己的机器、自己的网络,不拦内网地址(本地模型服务很常见)
   const cached = verdictCache.get(host);
-  if (cached && Date.now() - cached.at < VERDICT_TTL_MS) return cached.verdict;
+  const now = Date.now();
+  if (cached && now - cached.at < VERDICT_TTL_MS) return cached.verdict;
+  if (now - dnsWindowStart >= 60_000) { dnsWindowStart = now; dnsChecksInWindow = 0; }
+  if (++dnsChecksInWindow > DNS_CHECKS_PER_MIN) return { ok: false, reason: 'dns_busy' }; // 不进缓存:下一分钟可重试
   let verdict: BaseUrlCheck;
   try {
     const addrs = await lookupFn(host, { all: true, verbatim: true });
@@ -268,10 +299,16 @@ export async function checkCustomBaseUrl(raw: string, lookupFn: typeof lookup = 
   } catch {
     verdict = { ok: false, reason: 'dns_failed' };
   }
-  verdictCache.set(host, { at: Date.now(), verdict });
+  rememberVerdict(host, verdict);
   return verdict;
 }
 
 export function __clearBaseUrlCacheForTest(): void {
   verdictCache.clear();
+  dnsWindowStart = 0;
+  dnsChecksInWindow = 0;
+}
+
+export function __baseUrlCacheSizeForTest(): number {
+  return verdictCache.size;
 }

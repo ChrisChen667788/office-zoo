@@ -28,6 +28,7 @@ export async function listProviderModels(baseURL: string, apiKey: string, timeou
     const r = await fetch(`${baseURL.replace(/\/+$/, '')}/models`, {
       headers: { Authorization: `Bearer ${apiKey}` },
       signal: ctl.signal,
+      redirect: 'error', // 不跟随跳转:见 aiClient.noRedirectFetch
     });
     if (!r.ok) return null;
     const j = await r.json() as { data?: Array<{ id?: unknown }> };

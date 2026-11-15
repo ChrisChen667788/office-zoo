@@ -306,6 +306,56 @@ describe('自定义 base URL(SSRF)', () => {
     const empty = (async () => []) as never;
     expect(await checkCustomBaseUrl('https://empty.example.com/v1', empty)).toEqual({ ok: false, reason: 'resolves_to_private_address' });
   });
+
+  it('换着主机名刷:每分钟只为有限个新主机名发 DNS 查询,超出的直接拒绝且不进缓存;下一分钟恢复', async () => {
+    process.env.DEPLOY_PROFILE = 'hosted';
+    process.env.BYOK_ALLOW_CUSTOM_BASE_URL = '1';
+    vi.useFakeTimers();
+    try {
+      const lookups: string[] = [];
+      const pub = (async (h: string) => { lookups.push(h); return [{ address: '1.1.1.1', family: 4 }]; }) as never;
+      const limit = aiClient.DNS_CHECKS_PER_MIN;
+      for (let i = 0; i < limit; i++) expect((await checkCustomBaseUrl(`https://a${i}.example.com/v1`, pub)).ok).toBe(true);
+      expect(await checkCustomBaseUrl('https://over.example.com/v1', pub)).toEqual({ ok: false, reason: 'dns_busy' });
+      expect(lookups).toHaveLength(limit);
+      // 已经校验过的主机名走缓存,不受限流影响
+      expect((await checkCustomBaseUrl('https://a0.example.com/v1', pub)).ok).toBe(true);
+      expect(lookups).toHaveLength(limit);
+      // 被限流的那个没进缓存:下一分钟重试会真的去解析并通过
+      vi.advanceTimersByTime(61_000);
+      expect((await checkCustomBaseUrl('https://over.example.com/v1', pub)).ok).toBe(true);
+      expect(lookups).toHaveLength(limit + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('校验缓存有上限:写满后丢最早的,最近的还在', async () => {
+    process.env.DEPLOY_PROFILE = 'hosted';
+    process.env.BYOK_ALLOW_CUSTOM_BASE_URL = '1';
+    vi.useFakeTimers();
+    try {
+      const lookups: string[] = [];
+      const pub = (async (h: string) => { lookups.push(h); return [{ address: '1.1.1.1', family: 4 }]; }) as never;
+      const max = aiClient.VERDICT_CACHE_MAX;
+      const perMin = aiClient.DNS_CHECKS_PER_MIN;
+      const total = max + 40; // 9 分钟内写入,都没过期(缓存 10 分钟)
+      for (let i = 0; i < total; i++) {
+        if (i > 0 && i % perMin === 0) vi.advanceTimersByTime(61_000);
+        expect((await checkCustomBaseUrl(`https://h${i}.example.com/v1`, pub)).ok).toBe(true);
+      }
+      expect(aiClient.__baseUrlCacheSizeForTest()).toBe(max);
+      vi.advanceTimersByTime(61_000);
+      const before = lookups.length;
+      await checkCustomBaseUrl(`https://h${total - 1}.example.com/v1`, pub); // 最近写入的:命中缓存
+      expect(lookups).toHaveLength(before);
+      await checkCustomBaseUrl('https://h0.example.com/v1', pub);            // 最早写入的:已被丢弃,重新解析
+      expect(lookups).toHaveLength(before + 1);
+      expect(aiClient.__baseUrlCacheSizeForTest()).toBe(max);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('语音', () => {
