@@ -32,6 +32,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { hasAsset, imageGenerationAllowed } from '../utils/assetDirs';
 
 const __filename2 = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url);
 const __dirname2 = path.dirname(__filename2);
@@ -270,7 +271,9 @@ export async function generateArchetypePortrait(archetypeId: string): Promise<st
   }
 
   const filePath = path.join(PORTRAIT_DIR, `${archetypeId}.png`);
-  if (fs.existsSync(filePath)) return `/archetype-portraits/${archetypeId}.png`;
+  if (hasAsset('archetype-portraits', `${archetypeId}.png`)) return `/archetype-portraits/${archetypeId}.png`;
+  // v6.165 — 托管模式不现场生图。
+  if (!imageGenerationAllowed()) return null;
 
   const prompt = buildPrompt(details);
   console.log(`[ArchetypeAvatar] Generating ${archetypeId}…`);
@@ -347,7 +350,7 @@ export async function generateArchetypePortrait(archetypeId: string): Promise<st
  *  GET /api/quiz/archetype-portrait/:id to decide between "served
  *  inline" and "kicked-off-generation"). */
 export function hasCachedArchetypePortrait(archetypeId: string): boolean {
-  return fs.existsSync(path.join(PORTRAIT_DIR, `${archetypeId}.png`));
+  return hasAsset('archetype-portraits', `${archetypeId}.png`);
 }
 
 export const ARCHETYPE_IDS_WITH_ART = Object.keys(ARCHETYPE_ART);

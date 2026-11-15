@@ -35,6 +35,7 @@ import {
 import { validateBody } from '../utils/validate';
 import { createRateLimiter } from '../utils/rateLimit';
 import { recordEvolutionEvent, talkshowCreateDelta } from '../services/archetypeEvolution';
+import { clientIp } from '../utils/clientIp';
 import {
   submitTalkshow,
   getMonthlyHighlights,
@@ -61,13 +62,8 @@ export const talkshowRoutes = new Hono();
 // the scale we're at, and crucially it's free + zero-deps. Migrate to redis
 // at v0.8.x if we ever care about cross-instance dedup.
 const likedByIp = new Set<string>();
-function ipFrom(c: { req: { header: (k: string) => string | undefined } }): string {
-  // Vite dev / production proxy both set x-forwarded-for. Localhost test
-  // requests fall through to the connection-remote-addr fallback.
-  const fwd = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip');
-  if (fwd) return fwd.split(',')[0].trim();
-  return c.req.header('host') ?? 'unknown';
-}
+// v6.162 — 统一走 utils/clientIp(旧实现信任 XFF 第一项,可被伪造绕过限流)。
+const ipFrom = clientIp;
 
 // Seed-script like counters live in memory only — they reset on restart.
 // Acceptable trade-off: seeds are curated content, the long-tail engagement

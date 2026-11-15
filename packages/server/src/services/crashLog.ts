@@ -13,10 +13,10 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DATA_DIR } from '../utils/dataDir';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
 const FILE = path.join(DATA_DIR, 'engine-crashes.log');
 
 export async function logEngineCrash(ctx: {

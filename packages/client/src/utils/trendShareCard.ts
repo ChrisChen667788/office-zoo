@@ -8,6 +8,7 @@
  * 数据形状: 跟 /api/weekly/preferences 响应 1:1, 含 events / counts /
  * dominantStyle / recent 30d。
  */
+import { trackEvent } from './analytics';
 
 export type Style = 'alibaba' | 'pua' | 'posh' | 'direct';
 
@@ -335,6 +336,7 @@ export async function generateTrendShareCard(data: TrendShareCardData): Promise<
   });
 }
 export async function copyTrendShareCardToClipboard(data: TrendShareCardData): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'trend', action: 'copy' });
   try {
     const blob = await generateTrendShareCard(data);
     if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
@@ -343,6 +345,7 @@ export async function copyTrendShareCardToClipboard(data: TrendShareCardData): P
   } catch { return false; }
 }
 export async function downloadTrendShareCard(data: TrendShareCardData, filename = 'office-zoo-trend.png'): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'trend', action: 'download' });
   const blob = await generateTrendShareCard(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

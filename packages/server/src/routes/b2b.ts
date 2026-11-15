@@ -22,15 +22,13 @@ import {
 } from '../services/b2bStore';
 import { logger } from '../utils/logger';
 import type { B2bConfig } from '@furball/shared';
+import { clientIp } from '../utils/clientIp';
 
 const log = logger.child({ component: 'b2b' });
 const limiter = createRateLimiter({ windowMs: 3600_000, max: 5 });
 
-function ipFromHono(c: { req: { header: (k: string) => string | undefined } }): string {
-  const fwd = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip');
-  if (fwd) return fwd.split(',')[0].trim();
-  return c.req.header('host') ?? 'unknown';
-}
+// v6.162 — 统一走 utils/clientIp(旧实现信任 XFF 第一项,可被伪造绕过限流)。
+const ipFromHono = clientIp;
 
 export const b2bRoutes = new Hono();
 

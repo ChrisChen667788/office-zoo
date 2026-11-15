@@ -18,7 +18,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import 'dotenv/config';
+import { hasAsset, imageGenerationAllowed, listAssetNames } from '../utils/assetDirs';
 
 const __filename2 = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url);
 const __dirname2 = path.dirname(__filename2);
@@ -284,9 +284,10 @@ export async function generateIcon(key: string, force = false): Promise<string |
   }
 
   const filePath = path.join(ICON_DIR, `${key}.png`);
-  if (!force && fs.existsSync(filePath)) {
+  if (!force && hasAsset('icons', `${key}.png`)) {
     return `/icons/${key}.png`;
   }
+  if (!imageGenerationAllowed()) return null; // v6.165 — 托管模式不现场生图
 
   const prompt = buildIconPrompt(spec);
   console.log(`[IconGen] Generating ${key}...`);
@@ -420,11 +421,6 @@ export function clearIconCache(only?: readonly string[]): void {
 
 export function getAllCachedIcons(): Record<string, string> {
   const out: Record<string, string> = {};
-  if (!fs.existsSync(ICON_DIR)) return out;
-  for (const f of fs.readdirSync(ICON_DIR)) {
-    if (f.endsWith('.png')) {
-      out[f.replace('.png', '')] = `/icons/${f}`;
-    }
-  }
+  for (const f of listAssetNames('icons')) out[f.replace('.png', '')] = `/icons/${f}`;
   return out;
 }

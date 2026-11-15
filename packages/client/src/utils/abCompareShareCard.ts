@@ -4,6 +4,7 @@
  * 1080×1350 IG-portrait, 双栏 layout (PLAIN vs BOOSTED) 拼成对比图。
  * Sibling of weeklyShareCard / trendShareCard。
  */
+import { trackEvent } from './analytics';
 
 export type Style = 'alibaba' | 'pua' | 'posh' | 'direct';
 
@@ -210,6 +211,7 @@ export async function generateABCompareShareCard(data: ABCompareShareCardData): 
   });
 }
 export async function copyABCompareShareCardToClipboard(data: ABCompareShareCardData): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'ab_compare', action: 'copy' });
   try {
     const blob = await generateABCompareShareCard(data);
     if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
@@ -218,6 +220,7 @@ export async function copyABCompareShareCardToClipboard(data: ABCompareShareCard
   } catch { return false; }
 }
 export async function downloadABCompareShareCard(data: ABCompareShareCardData, filename = 'office-zoo-ab.png'): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'ab_compare', action: 'download' });
   const blob = await generateABCompareShareCard(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

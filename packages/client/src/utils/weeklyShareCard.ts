@@ -8,6 +8,7 @@
  * 布局: 顶部 EVENT pill + 关键事件 + 4 卡 2×2 grid + 底部 footer。
  * 每个 style 用自己的 element color (青/玫红/金/橙)。
  */
+import { trackEvent } from './analytics';
 
 export type WeeklyStyle = 'alibaba' | 'pua' | 'posh' | 'direct';
 
@@ -270,6 +271,7 @@ export async function generateWeeklyShareCard(data: WeeklyShareCardData): Promis
 }
 
 export async function copyWeeklyShareCardToClipboard(data: WeeklyShareCardData): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'weekly', action: 'copy' });
   try {
     const blob = await generateWeeklyShareCard(data);
     if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
@@ -279,6 +281,7 @@ export async function copyWeeklyShareCardToClipboard(data: WeeklyShareCardData):
 }
 
 export async function downloadWeeklyShareCard(data: WeeklyShareCardData, filename = 'office-zoo-weekly.png'): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'weekly', action: 'download' });
   const blob = await generateWeeklyShareCard(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -309,6 +312,7 @@ export function canSystemShareImage(): boolean {
 }
 
 export async function systemShareWeeklyCard(data: WeeklyShareCardData): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'weekly', action: 'share' });
   if (!canSystemShareImage()) return false;
   try {
     const blob = await generateWeeklyShareCard(data);

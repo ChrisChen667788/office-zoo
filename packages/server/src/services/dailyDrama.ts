@@ -19,7 +19,6 @@
  * burn). Cache cleared by date rollover.
  */
 
-import { createOpenAI } from '@ai-sdk/openai';
 import { callLLMWithTimeout } from '../utils/llm';
 import {
   ARCHETYPES,
@@ -30,6 +29,7 @@ import {
 } from '@furball/shared';
 import { findProfile } from './profileStore';
 import { listPacks } from './packStore';
+import { chatModel } from '../utils/aiClient';
 
 export type DramaKind = 'fired' | 'talkshow' | 'pack' | 'pvp';
 
@@ -51,16 +51,6 @@ export interface DailyDrama {
   archetypeName?: string;
 }
 
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey:  process.env.OPENAI_API_KEY  ?? process.env.QINGYUN_API_KEY  ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? process.env.QINGYUN_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
 
 // In-mem cache: userId → DailyDrama. We also key by date to bust on rollover.
 const cache = new Map<string, DailyDrama>();
@@ -109,8 +99,7 @@ async function generateTeaser(opts: {
   : opts.kind === 'pack'     ? `今天朋友丢给你一个挑战:5 关闯关包《${opts.title}》`
   :                            `今天有人邀请你当 PvP 房间的工人 — 朋友扮 HR 跟你硬碰硬`;
 
-  const openai = getOpenAI();
-  const model = openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
+  const model = chatModel('main', process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
 
   const archetypePart = opts.archetype
     ? `用户性格:${opts.archetype.emoji}${opts.archetype.name}(${opts.archetype.tagline})`

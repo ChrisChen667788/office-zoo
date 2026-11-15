@@ -19,21 +19,11 @@
  * surface as 502 in the route.
  */
 
-import { createOpenAI } from '@ai-sdk/openai';
 import { callLLMWithTimeout } from '../utils/llm';
 import type { FiredScenario } from '@furball/shared';
 import { mintUserScenarioId } from './scenarioStore';
+import { chatModel } from '../utils/aiClient';
 
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey:  process.env.OPENAI_API_KEY  ?? process.env.QINGYUN_API_KEY  ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? process.env.QINGYUN_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
 
 export interface GenerateScenarioInput {
   /** Free-form user description of the layoff scenario. 8-300 字. */
@@ -71,8 +61,7 @@ const SYSTEM_PROMPT = `你是中国劳动法实务咨询师 + 职场剧本作者
 export async function generateFiredScenario(
   input: GenerateScenarioInput,
 ): Promise<FiredScenario | null> {
-  const openai = getOpenAI();
-  const model = openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
+  const model = chatModel('main', process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
   const difficultyHint =
     input.difficulty === 1 ? '简单 — HR 直接、套路浅、员工只要懂基本法条就能赢'
   : input.difficulty === 2 ? '中等 — HR 会画饼、打感情牌、员工要识破软话术'

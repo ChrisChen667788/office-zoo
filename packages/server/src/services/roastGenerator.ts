@@ -8,19 +8,9 @@
  * buildRoastPrompt + parseRoastLines are pure → unit-tested; generateRoast
  * wraps the LLM call (reuses the same QingYun→fallback chain as everything else).
  */
-import { createOpenAI } from '@ai-sdk/openai';
 import { callLLMWithTimeout } from '../utils/llm';
+import { chatModel } from '../utils/aiClient';
 
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function openai() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? process.env.QINGYUN_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
 function modelName(): string {
   return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 }
@@ -68,7 +58,7 @@ export function parseRoastLines(raw: string): string[] {
  *  so the route can 502 cleanly. */
 export async function generateRoast(topic: string): Promise<string[]> {
   const res = await callLLMWithTimeout('SPEECH', {
-    model: openai()(modelName()),
+    model: chatModel('main', modelName()),
     system: ROAST_SYSTEM,
     prompt: buildRoastPrompt(topic),
     maxTokens: 360,

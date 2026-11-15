@@ -1,0 +1,31 @@
+# v6.161 — 每次推送 main / 每个 PR 跑一遍:类型检查 → 全量测试 → 前端构建。
+# 仓库是 npm workspaces + package-lock.json(不是 pnpm)。测试不需要任何模型 key:
+# 涉及模型调用的路径在测试里都有替身,真实调用的脚本不在 vitest 范围内。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

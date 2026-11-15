@@ -26,7 +26,6 @@ import { Hono } from 'hono';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'banwei.json');
 
 interface Snapshot {
@@ -102,6 +101,7 @@ export const banweiRoutes = new Hono();
 // Hook into v6.31 P5 server stats to read leaks/leakQuotes per user
 // without importing the module cyclically.
 import { getPerUserLeaks, getPerUserLeakQuotes } from './stats';
+import { DATA_DIR } from '../utils/dataDir';
 
 banweiRoutes.post('/', async (c) => {
   const userId = (c.req.header('x-user-id') ?? '').slice(0, 64);

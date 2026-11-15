@@ -11,7 +11,6 @@
  * the room.
  */
 
-import { createOpenAI } from '@ai-sdk/openai';
 import { callLLMWithTimeout } from '../utils/llm';
 import {
   SQUAD_DIRECTOR_SYSTEM_PROMPT,
@@ -26,17 +25,8 @@ import {
   type RegionId,
   type IndustryId,
 } from '@furball/shared';
+import { chatModel } from '../utils/aiClient';
 
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey:  process.env.OPENAI_API_KEY  ?? process.env.QINGYUN_API_KEY  ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? process.env.QINGYUN_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
 
 interface DirectorResult {
   acts: SquadAct[];
@@ -103,7 +93,6 @@ export async function directSquadStory(opts: {
     briefBlock +
     `\n\n请按格式输出严格 JSON,${SQUAD_ACT_COUNT} 幕 + recap。所有 speakerUserId 必须从上面 id= 那一栏抄一致 (除非用 "narrator")。realLifePrompt.targetUserId 同理。`;
 
-  const openai = getOpenAI();
   // v3.5.0 — dedicated SQUAD_DIRECTOR_MODEL env var, default to the
   // strongest reasonable model on the QingYun聚合 proxy ('claude-opus-4-7').
   // Squad direction is the highest-value LLM call in the product (once
@@ -126,7 +115,8 @@ export async function directSquadStory(opts: {
     ?? process.env.SQUAD_DIRECTOR_MODEL
     ?? process.env.OPENAI_MODEL
     ?? 'claude-opus-4-7';
-  const model = openai(directorModelName);
+  // v6.167 — 访客自带 key 时用访客选的模型(premium 档);本机 .env 模式沿用上面的选择链。
+  const model = chatModel('premium', directorModelName);
 
   const res = await callLLMWithTimeout('DIRECTOR', {
     model,

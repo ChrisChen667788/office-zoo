@@ -24,6 +24,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { embeddingsAllowed } from '../utils/aiClient';
 
 const MODEL = 'text-embedding-3-small';
 const DIM = 1536;
@@ -67,6 +68,9 @@ interface OpenAIEmbeddingResponse {
 }
 
 async function callEmbeddingsApi(inputs: string[]): Promise<number[][] | null> {
+  // v6.167 — 向量只用运营方 .env 的 key(本机自部署);访客自带 key 或托管版一律跳过,
+  // 记忆召回 / 写入照常降级为「没有记忆」。
+  if (!embeddingsAllowed()) return null;
   const base = (process.env.OPENAI_BASE_URL ?? '').replace(/\/+$/, '');
   const key = process.env.OPENAI_API_KEY ?? '';
   if (!base || !key) {

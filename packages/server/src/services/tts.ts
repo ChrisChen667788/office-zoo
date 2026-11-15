@@ -13,6 +13,9 @@
  * Minimax voices: male-qn-qingse, female-shaonv, male-yujie-miaomiao, ... (see docs)
  */
 
+import { ttsTarget } from '../utils/aiClient';
+import { safeErrorText } from '../utils/redact';
+
 interface VoiceConfig {
   voice: string;       // OpenAI TTS voice name
   speed: number;       // 0.25 - 4.0
@@ -93,8 +96,14 @@ function getEnv() {
     minimaxBase: process.env.MINIMAX_BASE_URL ?? 'https://api.minimaxi.com/v1',
     qingyunKey: process.env.QINGYUN_API_KEY ?? '',
     qingyunBase: process.env.QINGYUN_BASE_URL ?? 'https://api.qingyuntop.top/v1',
+    /** v6.167 — 只有运营方 .env 的 key 才会触发「全进程判死」;访客的 key 失败只影响这一次。 */
+    sticky: true,
   };
 }
+
+type TtsEnv = ReturnType<typeof getEnv>;
+
+const FEMALE_OPENAI_VOICES = new Set(['nova', 'shimmer', 'coral', 'sage', 'verse']);
 
 /**
  * Generate TTS audio via best-available provider.
@@ -118,6 +127,29 @@ function getEnv() {
  */
 export async function generateTTSAudio(text: string, role?: string): Promise<Buffer | null> {
   const voice = getVoiceConfig(role);
+
+  // v6.167 BYOK — 语音用谁的 key 由 aiClient.ttsTarget() 决定:
+  //   none   → 访客没配语音(默认「浏览器朗读」)或托管版没配 key:直接返回 null,前端用 Web Speech
+  //   minimax / openai → 用访客自己的 key,失败不触发全进程判死
+  //   env    → 本机 .env 原链路(下面)
+  const target = ttsTarget();
+  if (target.kind === 'none') return null;
+  if (target.kind === 'minimax') {
+    const byokEnv: TtsEnv = {
+      minimaxKey: target.key, minimaxGroupId: target.groupId ?? '', minimaxBase: target.base,
+      qingyunKey: '', qingyunBase: '', sticky: false,
+    };
+    return tryMinimaxV2(text, voice, byokEnv);
+  }
+  if (target.kind === 'openai') {
+    const byokEnv: TtsEnv = {
+      minimaxKey: '', minimaxGroupId: '', minimaxBase: '',
+      qingyunKey: target.apiKey, qingyunBase: target.baseURL, sticky: false,
+    };
+    const providerVoice = FEMALE_OPENAI_VOICES.has(voice.voice) ? target.voices.female : target.voices.male;
+    return tryQingyunTTS(text, { ...voice, voice: providerVoice }, byokEnv, target.model);
+  }
+
   const env = getEnv();
 
   // Diagnostic — surfaces why a provider was skipped (regression hunt
@@ -168,7 +200,7 @@ let qingyunDead = false;
 async function tryMinimaxV2(
   text: string,
   voice: VoiceConfig,
-  env: ReturnType<typeof getEnv>,
+  env: TtsEnv,
 ): Promise<Buffer | null> {
   // The model the user's plan exposes. Prefer this over the older 02-* family
   // because the 2.8 line ships natural-sounding multi-emotion + dialect blend.
@@ -210,8 +242,8 @@ async function tryMinimaxV2(
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[TTS/Minimax-v2] HTTP ${response.status}: ${errText.slice(0, 200)}`);
-      if (response.status === 401) minimaxV2Dead = true;
+      console.error(`[TTS/Minimax-v2] HTTP ${response.status}: ${safeErrorText(errText)}`);
+      if (response.status === 401 && env.sticky) minimaxV2Dead = true;
       return null;
     }
 
@@ -221,14 +253,14 @@ async function tryMinimaxV2(
     };
 
     if (data.base_resp && data.base_resp.status_code !== 0) {
-      console.error(`[TTS/Minimax-v2] API error ${data.base_resp.status_code}: ${data.base_resp.status_msg}`);
+      console.error(`[TTS/Minimax-v2] API error ${data.base_resp.status_code}: ${safeErrorText(data.base_resp.status_msg ?? '')}`);
       // 2061 = "current token plan not support model" → permanent for this run
       // 1008 = "insufficient balance"                  → permanent for this run
       // 2013 = "invalid params"                        → model/endpoint mismatch
       // 2056 = "usage limit exceeded"                  → daily/monthly quota hit
       // All four are NON-recoverable for the rest of the process — mark dead
       // so we don't burn 25s per call timing out repeatedly.
-      if ([2061, 1008, 2013, 2056].includes(data.base_resp.status_code ?? 0)) minimaxV2Dead = true;
+      if (env.sticky && [2061, 1008, 2013, 2056].includes(data.base_resp.status_code ?? 0)) minimaxV2Dead = true;
       return null;
     }
 
@@ -239,7 +271,7 @@ async function tryMinimaxV2(
     console.log(`[TTS/Minimax-v2] Generated ${(buffer.length / 1024).toFixed(1)} KB`);
     return buffer;
   } catch (err) {
-    console.error('[TTS/Minimax-v2] Error:', err);
+    console.error('[TTS/Minimax-v2] Error:', safeErrorText(err));
     return null;
   }
 }
@@ -255,7 +287,7 @@ async function tryMinimaxV2(
 async function tryMinimaxPro(
   text: string,
   voice: VoiceConfig,
-  env: ReturnType<typeof getEnv>,
+  env: TtsEnv,
 ): Promise<Buffer | null> {
   // speech-02-turbo first (better prosody), speech-01 as fallback. Both are
   // supported on t2a_pro per probing — older models error out 2013.
@@ -291,8 +323,8 @@ async function tryMinimaxPro(
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error(`[TTS/Minimax-pro ${model}] HTTP ${response.status}: ${errText.slice(0, 200)}`);
-        if (response.status === 401) { minimaxProDead = true; return null; }
+        console.error(`[TTS/Minimax-pro ${model}] HTTP ${response.status}: ${safeErrorText(errText)}`);
+        if (response.status === 401) { if (env.sticky) minimaxProDead = true; return null; }
         continue;
       }
 
@@ -304,13 +336,13 @@ async function tryMinimaxPro(
       if (data.base_resp && data.base_resp.status_code !== 0) {
         const code = data.base_resp.status_code ?? 0;
         const msg = data.base_resp.status_msg ?? '';
-        console.error(`[TTS/Minimax-pro ${model}] ${code}: ${msg}`);
+        console.error(`[TTS/Minimax-pro ${model}] ${code}: ${safeErrorText(msg)}`);
         // 2013 "not have model" → try next model in loop, don't kill provider
         if (code === 2013 && /not have model/i.test(msg)) continue;
         // Insufficient balance / token plan unsupported / usage limit hit
         // → permanent for the rest of the process. Marking dead avoids 25s
         //   timeout per request when the wallet is empty.
-        if ([1008, 2061, 2056].includes(code)) { minimaxProDead = true; return null; }
+        if ([1008, 2061, 2056].includes(code)) { if (env.sticky) minimaxProDead = true; return null; }
         return null;
       }
 
@@ -331,7 +363,7 @@ async function tryMinimaxPro(
       console.log(`[TTS/Minimax-pro ${model}] Generated ${(buffer.length / 1024).toFixed(1)} KB`);
       return buffer;
     } catch (err) {
-      console.error(`[TTS/Minimax-pro ${model}] Error:`, err);
+      console.error(`[TTS/Minimax-pro ${model}] Error:`, safeErrorText(err));
       continue;
     }
   }
@@ -344,7 +376,7 @@ async function tryMinimaxPro(
 async function tryQingyunTTS(
   text: string,
   voice: VoiceConfig,
-  env: ReturnType<typeof getEnv>,
+  env: TtsEnv,
   model: string,
 ): Promise<Buffer | null> {
   try {
@@ -374,11 +406,11 @@ async function tryQingyunTTS(
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[TTS/Qingyun ${model}] HTTP ${response.status}: ${errText.slice(0, 200)}`);
+      console.error(`[TTS/Qingyun ${model}] HTTP ${response.status}: ${safeErrorText(errText)}`);
       // Quota exhausted / token revoked → no point retrying on next speech.
       if (response.status === 401 || response.status === 429
           || /额度已用尽|quota|insufficient/i.test(errText)) {
-        qingyunDead = true;
+        if (env.sticky) qingyunDead = true;
       }
       return null;
     }
@@ -386,7 +418,7 @@ async function tryQingyunTTS(
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('json')) {
       const errData = await response.json();
-      console.error(`[TTS/Qingyun ${model}] JSON error:`, JSON.stringify(errData).slice(0, 200));
+      console.error(`[TTS/Qingyun ${model}] JSON error:`, safeErrorText(JSON.stringify(errData)));
       return null;
     }
 
@@ -399,7 +431,7 @@ async function tryQingyunTTS(
     console.log(`[TTS/Qingyun ${model}] Generated ${(buffer.length / 1024).toFixed(1)} KB`);
     return buffer;
   } catch (err) {
-    console.error(`[TTS/Qingyun ${model}] Error:`, err);
+    console.error(`[TTS/Qingyun ${model}] Error:`, safeErrorText(err));
     return null;
   }
 }

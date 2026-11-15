@@ -20,7 +20,7 @@
  */
 
 import { callLLMWithTimeout } from '../utils/llm';
-import { createOpenAI } from '@ai-sdk/openai';
+import { chatModel } from '../utils/aiClient';
 
 // Caption length cap — measured in JS characters (good enough for CJK
 // since 1 char ≈ 1 visual width unit on the share-card font).
@@ -36,16 +36,6 @@ export interface CaptionInput {
   round?: number;
 }
 
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? process.env.QINGYUN_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? process.env.QINGYUN_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
 
 export async function generateCaptions(items: CaptionInput[]): Promise<string[]> {
   const out = await Promise.all(items.map(captionOne));
@@ -56,8 +46,7 @@ async function captionOne(item: CaptionInput): Promise<string> {
   const fallback = sanitize(item.headline);
   const prompt = buildPrompt(item);
   try {
-    const openai = getOpenAI();
-    const model = openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
+    const model = chatModel('fast', process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
     const res = await callLLMWithTimeout('SUGGESTIONS', {
       model,
       system: SYSTEM_PROMPT,

@@ -29,6 +29,8 @@ import EventPill from '../components/EventPill';
 import { navIcons, Icon } from '../constants/icons';
 import { filterFiredScenarios } from '../utils/firedScenarioFilters';
 import type { UserProfile } from '../utils/profileTypes';
+import { premiumGate, useFeatures, useRuntimeConfig } from '../utils/runtimeConfig';
+import { requireModel } from '../utils/modelSetup';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
  *  same fields plus a `source` flag distinguishing seed catalogue from
@@ -87,6 +89,8 @@ const PERSONALITIES: Personality[] = [
 export default function FiredLanding() {
   const navigate = useNavigate();
   const { setScenario, setPersonality, reset } = useFiredStore();
+  const features = useFeatures();
+  const runtimeCfg = useRuntimeConfig();
   const { unlockedLevels, stars, lastClearedLevel } = useFiredProgress();
 
   const [entryMode, setEntryMode] = useState<EntryMode>('chapters');
@@ -251,6 +255,7 @@ export default function FiredLanding() {
 
   const handleStart = () => {
     if (!selectedScenario) return;
+    if (!requireModel('fired:custom')) return;
     reset();
     setScenario(selectedScenario);
     setPersonality(selectedPersonality);
@@ -264,6 +269,7 @@ export default function FiredLanding() {
     const level = FIRED_LEVELS.find((l) => l.level === levelNum);
     if (!level) return;
     if (!unlockedLevels.includes(levelNum)) return;
+    if (!requireModel('fired:level')) return;
     reset();
     setScenario(level.scenarioId);
     setPersonality(level.personalityId);
@@ -619,11 +625,13 @@ export default function FiredLanding() {
                     : null;
                   // v1.0.0 — Premium-locked card. Click routes to paywall
                   // instead of selecting the scenario.
-                  const isLocked = scenario.premium && !premium;
+                  const gate = premiumGate(scenario.premium, premium, runtimeCfg); // v6.168:不收款就没有付费墙
+                  const isLocked = gate === 'locked';
                   return (
                     <motion.button
                       key={scenario.id}
                       onClick={() => {
+                        if (gate === 'pending') return; // 配置还没到:先不响应(见 premiumGate)
                         if (isLocked) {
                           navigate('/premium');
                           return;
@@ -661,7 +669,7 @@ export default function FiredLanding() {
                       )}
                       {/* v1.0.0 Premium 标签 — locked 状态下大且清晰; 已订阅时
                           只在卡角放一个小 👑 表明这是 Premium 内容。 */}
-                      {scenario.premium && (
+                      {scenario.premium && features.payments && (
                         <div
                           className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide"
                           style={{
@@ -875,11 +883,13 @@ export default function FiredLanding() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                       {offSeasonScenarios.map((scenario) => {
                         const active = selectedScenario === scenario.id;
-                        const isLocked = scenario.premium && !premium;
+                        const gate = premiumGate(scenario.premium, premium, runtimeCfg); // v6.168:不收款就没有付费墙
+                        const isLocked = gate === 'locked';
                         return (
                           <motion.button
                             key={scenario.id}
                             onClick={() => {
+                              if (gate === 'pending') return;
                               if (isLocked) { navigate('/premium'); return; }
                               setSelectedScenario(scenario.id);
                             }}
@@ -1199,6 +1209,7 @@ function CreateScenarioModal({
     setSubmitting(true);
     setErrMsg(null);
     try {
+      if (!requireModel('fired:generate')) { setSubmitting(false); return; }
       const resp = await fetch('/api/fired/generate-scenario', {
         method: 'POST',
         headers: {
