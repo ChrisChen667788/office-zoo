@@ -42,6 +42,8 @@ import { findProfile } from '../services/profileStore';
 import { analyzeSquadChemistry, directSquadStory, renderHintZh } from '../services/squadDirector';
 import { recordSquadEnd } from '../services/squadHistoryStore';
 import { squadEndDelta, recordEvolutionEvent } from '../services/archetypeEvolution';
+import { keyMode, runWithAi } from '../utils/aiClient';
+import { socketByok } from '../utils/byokTransport';
 
 const log = logger.child({ component: 'squad' });
 
@@ -115,6 +117,11 @@ export function setupSquadHandler(io: SocketServer) {
     /** Track which room this socket sits in so disconnect cleans up the
      *  right seat without scanning all rooms. */
     let mySeat: { roomId: string; userId: string } | null = null;
+    // v6.167 BYOK — 攒局编剧用开演 / 重开那位 host 自己的 key;所有 squad 事件在这条连接的凭据上下文里执行。
+    const onSquad = (event: string, handler: (...args: unknown[]) => unknown) => {
+      socket.on(event, (...args: unknown[]) => runWithAi({ byok: socketByok(socket) }, () => handler(...args)));
+    };
+    const needKey = () => !socketByok(socket) && keyMode() === 'byok';
 
     const userIdOf = (): string => {
       // X-User-Id arrives via auth in handshake — fallback to socket.id
@@ -127,7 +134,7 @@ export function setupSquadHandler(io: SocketServer) {
     };
 
     // ── squad:create ─────────────────────────────────────────────────
-    socket.on('squad:create', async (raw: unknown) => {
+    onSquad('squad:create', async (raw: unknown) => {
       const v = validateEvent(CreateSchema, raw);
       if (!v.ok) return socket.emit('squad:error', { message: v.message });
 
@@ -153,7 +160,7 @@ export function setupSquadHandler(io: SocketServer) {
     });
 
     // ── squad:join ───────────────────────────────────────────────────
-    socket.on('squad:join', async (raw: unknown) => {
+    onSquad('squad:join', async (raw: unknown) => {
       const v = validateEvent(JoinSchema, raw);
       if (!v.ok) return socket.emit('squad:error', { message: v.message });
       const room = rooms.get(v.data.roomId);
@@ -189,7 +196,7 @@ export function setupSquadHandler(io: SocketServer) {
     });
 
     // ── squad:start ──────────────────────────────────────────────────
-    socket.on('squad:start', async (raw: unknown) => {
+    onSquad('squad:start', async (raw: unknown) => {
       const v = validateEvent(RoomIdSchema, raw);
       if (!v.ok) return socket.emit('squad:error', { message: v.message });
       const room = rooms.get(v.data.roomId);
@@ -202,6 +209,9 @@ export function setupSquadHandler(io: SocketServer) {
       if (room.status !== 'lobby') return socket.emit('squad:error', { message: '不在 lobby 状态' });
       if (room.members.length < 2) {
         return socket.emit('squad:error', { message: '至少需要 2 个人才能开演' });
+      }
+      if (needKey()) {
+        return socket.emit('squad:error', { code: 'need_key', message: '开演需要 host 先配置自己的模型 key' });
       }
 
       // v3.1.0 — pre-compute chemistry BEFORE switching to directing so
@@ -251,7 +261,7 @@ export function setupSquadHandler(io: SocketServer) {
     });
 
     // ── squad:advance ────────────────────────────────────────────────
-    socket.on('squad:advance', (raw: unknown) => {
+    onSquad('squad:advance', (raw: unknown) => {
       const v = validateEvent(RoomIdSchema, raw);
       if (!v.ok) return socket.emit('squad:error', { message: v.message });
       const room = rooms.get(v.data.roomId);
@@ -303,7 +313,7 @@ export function setupSquadHandler(io: SocketServer) {
     });
 
     // ── squad:rerun ──────────────────────────────────────────────────
-    socket.on('squad:rerun', async (raw: unknown) => {
+    onSquad('squad:rerun', async (raw: unknown) => {
       const v = validateEvent(RoomIdSchema, raw);
       if (!v.ok) return socket.emit('squad:error', { message: v.message });
       const room = rooms.get(v.data.roomId);
@@ -312,6 +322,7 @@ export function setupSquadHandler(io: SocketServer) {
       const me = room.members.find((m) => m.userId === mySeat!.userId);
       if (!me?.isHost) return socket.emit('squad:error', { message: '只有 host 能重开' });
       if (room.status !== 'ended') return;
+      if (needKey()) return socket.emit('squad:error', { code: 'need_key', message: '重开需要 host 先配置自己的模型 key' });
 
       room.status = 'directing';
       room.acts = [];

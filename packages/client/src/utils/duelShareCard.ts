@@ -18,6 +18,7 @@
  */
 import { PERSONALITY_LABELS_LITE } from '../constants/personalityLabels';
 import { CHARACTERS } from '@furball/shared';
+import { trackEvent } from './analytics';
 
 export interface DuelShareCardData {
   duelId: string;
@@ -285,6 +286,7 @@ export async function generateDuelShareCard(data: DuelShareCardData): Promise<Bl
 }
 
 export async function downloadDuelShareCard(data: DuelShareCardData, filename = `office-zoo-duel-${data.duelId}.png`): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'duel', action: 'download' });
   const blob = await generateDuelShareCard(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -296,6 +298,7 @@ export async function downloadDuelShareCard(data: DuelShareCardData, filename = 
 }
 
 export async function copyDuelShareCard(data: DuelShareCardData): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'duel', action: 'copy' });
   if (!navigator.clipboard?.write) throw new Error('clipboard write not supported');
   const blob = await generateDuelShareCard(data);
   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);

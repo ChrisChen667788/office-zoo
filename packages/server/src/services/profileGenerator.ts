@@ -12,20 +12,10 @@
  * still gets a card on LLM downtime — never blocks the quiz finish.
  */
 
-import { createOpenAI } from '@ai-sdk/openai';
 import { callLLMWithTimeout } from '../utils/llm';
 import type { Archetype, TraitVector } from '@furball/shared';
+import { chatModel } from '../utils/aiClient';
 
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey:  process.env.OPENAI_API_KEY  ?? process.env.QINGYUN_API_KEY  ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? process.env.QINGYUN_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
 
 const SYSTEM_PROMPT = `你是中文职场段子手 + 性格洞察师。
 任务:基于用户的"打工人 archetype" + 性格维度数据,生成 3 句"招牌话术" + 1 句"个性 tagline"。
@@ -63,8 +53,7 @@ export async function generatePersonalizedProfile(
     .slice(0, 3)
     .map(([k]) => k);
 
-  const openai = getOpenAI();
-  const model = openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
+  const model = chatModel('main', process.env.OPENAI_MODEL ?? 'gpt-4o-mini');
 
   const prompt =
     `Archetype:${archetype.name} ${archetype.emoji}\n` +

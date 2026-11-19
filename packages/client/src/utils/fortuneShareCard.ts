@@ -33,6 +33,7 @@
  *   await copyFortuneShareCardToClipboard(data);
  *   await downloadFortuneShareCard(data, 'fortune.png');
  */
+import { trackEvent } from './analytics';
 
 export interface FortuneShareCardData {
   /** YYYY-MM-DD — rendered top-right + bottom footer. */
@@ -384,6 +385,7 @@ export async function generateFortuneShareCard(data: FortuneShareCardData): Prom
 }
 
 export async function copyFortuneShareCardToClipboard(data: FortuneShareCardData): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'fortune', action: 'copy' });
   try {
     const blob = await generateFortuneShareCard(data);
     if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
@@ -397,6 +399,7 @@ export async function copyFortuneShareCardToClipboard(data: FortuneShareCardData
 export async function downloadFortuneShareCard(
   data: FortuneShareCardData, filename = 'office-zoo-fortune.png',
 ): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'fortune', action: 'download' });
   const blob = await generateFortuneShareCard(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -446,6 +449,7 @@ export async function systemShareFortuneCard(
   data: FortuneShareCardData,
   opts: { title?: string; text?: string; url?: string } = {},
 ): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'fortune', action: 'share' });
   if (!canSystemShareImage()) return false;
   try {
     const blob = await generateFortuneShareCard(data);

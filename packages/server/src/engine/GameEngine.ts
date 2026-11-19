@@ -74,19 +74,8 @@ import { assignRoomActivity, commuteCaption, pickAnchor, pickCarriedItem } from 
 // against the original import block obvious. PlayerState is already imported
 // above as a type, so we don't repeat it here.
 import type { PlayerTickInfo } from '@furball/shared';
-
-const AI_NAMES = [
-  'Tony', 'Lisa', 'Kevin', 'Amy', 'David', 'Frank',
-  'Grace', 'Helen', 'Jack', 'Mike', 'Ruby', 'Oscar',
-  '张总', '李总', '小王', '小陈', '阿强', '老赵',
-  '陈姐', '实习生小明',
-];
-
-// v6.156 — 英文局只取 ASCII 英文名(公司主题包 NPC 名字保持原样)
-const AI_NAMES_EN = [
-  'Tony', 'Lisa', 'Kevin', 'Amy', 'David', 'Frank',
-  'Grace', 'Helen', 'Jack', 'Mike', 'Ruby', 'Oscar',
-];
+// v6.168 — 名单移到 aiNames.ts(示例对局脱敏脚本也要用,不必拖入整个引擎)
+import { AI_NAMES, AI_NAMES_EN } from './aiNames';
 
 const ROOMS = [
   '开放工区', '茶水间', '会议室', 'HR办公室', '服务器机房',

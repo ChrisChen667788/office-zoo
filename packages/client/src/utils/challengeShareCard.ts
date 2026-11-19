@@ -26,6 +26,7 @@
  *   await copyChallengeShareCardToClipboard(data);
  *   await downloadChallengeShareCard(data, 'vs.png');
  */
+import { trackEvent } from './analytics';
 
 export interface ChallengeSide {
   /** Display name, falls back to "员工". */
@@ -392,6 +393,7 @@ export async function generateChallengeShareCard(data: ChallengeShareCardData): 
 }
 
 export async function copyChallengeShareCardToClipboard(data: ChallengeShareCardData): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'challenge', action: 'copy' });
   try {
     const blob = await generateChallengeShareCard(data);
     if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) return false;
@@ -405,6 +407,7 @@ export async function copyChallengeShareCardToClipboard(data: ChallengeShareCard
 export async function downloadChallengeShareCard(
   data: ChallengeShareCardData, filename = 'office-zoo-challenge.png',
 ): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'challenge', action: 'download' });
   const blob = await generateChallengeShareCard(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

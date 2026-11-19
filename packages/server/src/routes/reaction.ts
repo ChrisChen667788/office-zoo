@@ -8,14 +8,12 @@ import { Hono } from 'hono';
 import { createRateLimiter } from '../utils/rateLimit';
 import { generateReactionLine } from '../services/reactionFlavor';
 import type { ReactionKind } from '@furball/shared';
+import { clientIp } from '../utils/clientIp';
 
 export const reactionRoutes = new Hono();
 
-function ipFrom(c: { req: { header: (k: string) => string | undefined } }): string {
-  const fwd = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip');
-  if (fwd) return fwd.split(',')[0].trim();
-  return c.req.header('host') ?? 'unknown';
-}
+// v6.162 — 统一走 utils/clientIp(旧实现信任 XFF 第一项,可被伪造绕过限流)。
+const ipFrom = clientIp;
 
 // 一局裁员事件不多(每轮 1-2 次)→ 200/小时 够看好几局,也拦得住脚本刷。
 const lineLimiter = createRateLimiter({ windowMs: 3600_000, max: 200 });

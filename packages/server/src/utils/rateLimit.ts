@@ -42,15 +42,32 @@ export interface RateLimiter {
   check(key: string): RateLimiterCheck;
   /** For tests + admin endpoints — wipe all state. */
   reset(): void;
+  /** v6.162 — number of tracked keys (tests assert the sweep bounds it). */
+  size(): number;
 }
+
+// v6.162 — 公网上每个新 IP 都会在 Map 里留一个键,只增不减就是慢性内存泄漏。
+// 每检查这么多次,顺手扫掉窗口内已无命中的键。
+const SWEEP_EVERY = 1000;
 
 export function createRateLimiter(opts: RateLimiterOptions): RateLimiter {
   const { windowMs, max } = opts;
   const hits = new Map<string, number[]>();
+  let checksSinceSweep = 0;
+
+  function sweep(cutoff: number) {
+    for (const [k, arr] of hits) {
+      if (arr.length === 0 || arr[arr.length - 1] <= cutoff) hits.delete(k);
+    }
+  }
 
   function check(key: string): RateLimiterCheck {
     const now = Date.now();
     const cutoff = now - windowMs;
+    if (++checksSinceSweep >= SWEEP_EVERY) {
+      checksSinceSweep = 0;
+      sweep(cutoff);
+    }
     const arr = hits.get(key) ?? [];
     // Evict aged-out hits in place. Most IPs only have a few entries so
     // a forward filter is cheaper than a binary-search splice.
@@ -71,7 +88,8 @@ export function createRateLimiter(opts: RateLimiterOptions): RateLimiter {
 
   function reset() {
     hits.clear();
+    checksSinceSweep = 0;
   }
 
-  return { check, reset };
+  return { check, reset, size: () => hits.size };
 }

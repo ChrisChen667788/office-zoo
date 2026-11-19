@@ -25,6 +25,53 @@ export interface ReplayPlayer {
   companyId?: CompanyId;
 }
 
+/** v6.168 — 回放里的一条发言。byHuman = 真人占座玩家打的字(用户内容,不得进公开示例)。 */
+export interface ReplaySpeech {
+  round: number;
+  playerId: string;
+  playerName: string;
+  text: string;
+  role?: string;
+  team?: string;
+  byHuman?: boolean;
+}
+
+/** 回放最多保留多少条发言(防止长局把 replays.json 撑大)。 */
+export const REPLAY_MAX_SPEECHES = 240;
+/** 单条发言最多保留多少字。 */
+export const REPLAY_MAX_SPEECH_CHARS = 400;
+
+/** 截断 / 限量,只留需要的字段。纯函数。 */
+export function compactReplaySpeeches(list: ReadonlyArray<ReplaySpeech>): ReplaySpeech[] {
+  return list.slice(-REPLAY_MAX_SPEECHES).map((s) => ({
+    round: s.round,
+    playerId: s.playerId,
+    playerName: s.playerName,
+    text: [...s.text].slice(0, REPLAY_MAX_SPEECH_CHARS).join(''),
+    ...(s.role ? { role: s.role } : {}),
+    ...(s.team ? { team: s.team } : {}),
+    ...(s.byHuman ? { byHuman: true } : {}),
+  }));
+}
+
+/** 时间线里带「真人打的字」的事件类型(场边嘉宾发言)。其余事件的文案都是模板或 AI 生成的。 */
+export const REPLAY_USER_TEXT_EVENT_TYPES: ReadonlySet<string> = new Set(['human_speech']);
+
+/**
+ * v6.169 — 去掉回放里真人打的字。纯函数,不改入参。
+ *   - 真人占座的发言:保留这一条(回放里能看出这一轮有真人说过话),原文清空;
+ *   - 场边嘉宾发言事件:整条去掉(原文嵌在事件文案里)。
+ * 回放按 id 就能读、不需要登录:托管版里这是「别的访客打的字」,不能随回放公开;
+ * 示例对局(随仓库发布)同样用这条规则。
+ */
+export function stripHumanTextFromReplay<T extends { timeline: ReadonlyArray<{ type: string }>; speeches?: ReadonlyArray<ReplaySpeech> }>(rec: T): T {
+  return {
+    ...rec,
+    timeline: rec.timeline.filter((e) => !REPLAY_USER_TEXT_EVENT_TYPES.has(e.type)),
+    ...(rec.speeches ? { speeches: rec.speeches.map((s) => (s.byHuman ? { ...s, text: '' } : s)) } : {}),
+  };
+}
+
 export interface ReplayRecord {
   gameId: string;
   /** Unix ms the game ended. */
@@ -40,6 +87,10 @@ export interface ReplayRecord {
   market?: MarketState;
   /** 终局缘由(垄断/团灭/双鬼皆裁/回合上限)。 */
   dualReason?: DualEndReason;
+  /** v6.168 — 讨论阶段的发言(老回放没有)。 */
+  speeches?: ReplaySpeech[];
+  /** v6.168 — 随仓库发布的示例对局(不调模型、不需要 key 就能看)。 */
+  sample?: boolean;
 }
 
 export interface ReplayDigest {
@@ -82,4 +133,20 @@ export function groupTimelineByRound(timeline: GameEvent[]): Array<{ round: numb
   return [...byRound.keys()]
     .sort((a, b) => a - b)
     .map((round) => ({ round, events: byRound.get(round)! }));
+}
+
+/** v6.168 — 按回合合并事件与发言(只有发言、没有事件的回合也保留)。纯函数。 */
+export function groupReplayByRound(
+  timeline: GameEvent[],
+  speeches: ReadonlyArray<ReplaySpeech> = [],
+): Array<{ round: number; events: GameEvent[]; speeches: ReplaySpeech[] }> {
+  const rounds = new Map<number, { events: GameEvent[]; speeches: ReplaySpeech[] }>();
+  const slot = (r: number) => {
+    let g = rounds.get(r);
+    if (!g) { g = { events: [], speeches: [] }; rounds.set(r, g); }
+    return g;
+  };
+  for (const e of timeline) slot(e.round).events.push(e);
+  for (const s of speeches) slot(s.round).speeches.push(s);
+  return [...rounds.keys()].sort((a, b) => a - b).map((round) => ({ round, ...rounds.get(round)! }));
 }

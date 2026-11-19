@@ -31,6 +31,7 @@
  * **尽力而为**:带超时预加载,加载失败/超时就回退 emoji,导出永不卡死、永不被污染。
  */
 import { expressionIcon } from '../constants/icons';
+import { trackEvent } from './analytics';
 
 /** 尽力预加载一张图(跨域匿名,带超时);失败/超时返回 null,调用方回退 emoji。 */
 function loadImageSafe(url: string, timeoutMs = 2500): Promise<HTMLImageElement | null> {
@@ -591,6 +592,7 @@ export async function generateShareCard(data: ShareCardData): Promise<Blob> {
 export async function copyShareCardToClipboard(
   data: ShareCardData,
 ): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'game_result', action: 'copy' });
   try {
     const blob = await generateShareCard(data);
     if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
@@ -608,6 +610,7 @@ export async function downloadShareCard(
   data: ShareCardData,
   filename = 'office-zoo.png',
 ): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'game_result', action: 'download' });
   const blob = await generateShareCard(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

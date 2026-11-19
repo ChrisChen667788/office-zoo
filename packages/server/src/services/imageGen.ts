@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import 'dotenv/config';
+import { hasAsset, imageGenerationAllowed, listAssetNames } from '../utils/assetDirs';
 
 const __filename2 = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url);
 const __dirname2 = path.dirname(__filename2);
@@ -131,11 +131,13 @@ export async function generateAvatar(role: string): Promise<string | null> {
 
   const filePath = path.join(AVATAR_DIR, `${role}.png`);
 
-  // Return cached if exists
-  if (fs.existsSync(filePath)) {
+  // Return cached if exists (v6.165: 本机原图或随仓库的资产包)
+  if (hasAsset('avatars', `${role}.png`)) {
     console.log(`[ImageGen] Using cached avatar for ${role}`);
     return `/avatars/${role}.png`;
   }
+  // v6.165 — 托管模式不现场生图(服务器没有 key;也不能用访客的 key 生成共享图)。
+  if (!imageGenerationAllowed()) return null;
 
   const prompt = buildPrompt(details);
 
@@ -233,19 +235,15 @@ export async function generateAvatar(role: string): Promise<string | null> {
 }
 
 export function getCachedAvatar(role: string): string | null {
-  const filePath = path.join(AVATAR_DIR, `${role}.png`);
-  return fs.existsSync(filePath) ? `/avatars/${role}.png` : null;
+  return hasAsset('avatars', `${role}.png`) ? `/avatars/${role}.png` : null;
 }
 
+/** v6.165 — 本机原图与资产包的并集。 */
 export function getAllCachedAvatars(): Record<string, string> {
   const result: Record<string, string> = {};
-  if (!fs.existsSync(AVATAR_DIR)) return result;
-
-  for (const file of fs.readdirSync(AVATAR_DIR)) {
-    if (file.endsWith('.png')) {
-      const role = file.replace('.png', '');
-      result[role] = `/avatars/${role}.png`;
-    }
+  for (const file of listAssetNames('avatars')) {
+    const role = file.replace('.png', '');
+    result[role] = `/avatars/${role}.png`;
   }
   return result;
 }

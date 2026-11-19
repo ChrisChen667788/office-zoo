@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod';
 import {
   SCENARIOS as FIRED_SCENARIOS,
@@ -7,7 +6,7 @@ import {
   type FiredScenario,
   type HRPersonality,
 } from '@furball/shared';
-import { callLLMWithTimeout } from '../utils/llm';
+import { USER_FIXABLE_MESSAGE, callLLMWithTimeout, isUserFixable } from '../utils/llm';
 import { logger } from '../utils/logger';
 import { validateBody } from '../utils/validate';
 import {
@@ -60,11 +59,8 @@ const packLikedByIp = new Set<string>();
 // more here.
 const scenarioGenLimiter = createRateLimiter({ windowMs: 3600_000, max: 5 });
 
-function ipFromHono(c: { req: { header: (k: string) => string | undefined } }): string {
-  const fwd = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip');
-  if (fwd) return fwd.split(',')[0].trim();
-  return c.req.header('host') ?? 'unknown';
-}
+// v6.162 — 统一走 utils/clientIp(旧实现信任 XFF 第一项,可被伪造绕过限流)。
+const ipFromHono = clientIp;
 
 /** v0.8.1 — pull the per-IP-like dedup key for a scenario. Mirrors talkshow's
  *  approach (in-memory Set, resets on restart, fine at our scale). Seed
@@ -105,18 +101,8 @@ const SuggestRequestSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// OpenAI setup — lazy init so env vars are loaded by dotenv first
+// Model selection (v6.167: 客户端由 utils/aiClient 按凭据上下文现建,这里只管本机 .env 模式选哪个模型)
 // ---------------------------------------------------------------------------
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function getOpenAI() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.vectorengine.ai/v1',
-    });
-  }
-  return _openai;
-}
 function getModel() {
   return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 }
@@ -219,6 +205,10 @@ function outcomeZh(o: 'win' | 'partial' | 'lose'): string {
  */
 import type { PlayMemory } from '../services/memoryStore';
 import { ARCHETYPE_WEAK_SPOTS, findArchetype } from '@furball/shared';
+import { clientIp } from '../utils/clientIp';
+import { HR_ROLEPLAY_GUARDRAIL, LEGAL_ADVISOR_GUARDRAIL } from '../services/legalGuardrail';
+import { chatModel, ttsTarget } from '../utils/aiClient';
+import { generateTTSAudio } from '../services/tts';
 
 /** v1.3.2 — archetype context the HR prompt builder consumes when the
  *  user has taken the personality quiz. `null` for guests / pre-quiz
@@ -297,7 +287,9 @@ ${archetype.ammo.map((s, i) => `  ${i + 1}. ${s}`).join('\n')}
 - 如果员工提出合理的法律依据，你可以适当让步，但要尽量减少公司赔偿
 - 对话要自然真实，像真实的裁员谈判一样
 - 用中文回复，控制在2-4句话以内
-- 你的常用话术: ${personality.commonTactics.join('、')}`;
+- 你的常用话术: ${personality.commonTactics.join('、')}
+
+${HR_ROLEPLAY_GUARDRAIL}`;
 }
 
 /**
@@ -397,23 +389,27 @@ firedRouter.post('/chat', async (c) => {
     // claude-opus-4-7). All other fired-mode LLM calls stay on
     // getModel() which is the cheap default.
     const hrRes = await callLLMWithTimeout('CHAT_REPLY', {
-      model: getOpenAI()(getHRModel()),
+      model: chatModel('premium', getHRModel()),
       system: systemPrompt,
       prompt: hrPrompt,
       maxTokens: 400,
       temperature: 0.9,
     });
     if (!hrRes.ok) {
-      routeLog.error(
+      // v6.169 — 访客的 key 没配 / 被拒 / 欠费 / 限流是访客侧的事:warn 而不是 error,提示也说清原因
+      const fixable = isUserFixable(hrRes.reason);
+      routeLog[fixable ? 'warn' : 'error'](
         { route: 'chat', reason: hrRes.reason, errorMessage: hrRes.errorMessage },
         'HR response LLM failed',
       );
       return c.json(
         {
           error:
-            hrRes.reason === 'timeout'
+            fixable ? USER_FIXABLE_MESSAGE[hrRes.reason!]
+            : hrRes.reason === 'timeout'
               ? 'HR 响应超时，请稍后重试'
               : 'HR 服务暂时不可用，请稍后重试',
+          reason: hrRes.reason,
         },
         503,
       );
@@ -425,6 +421,9 @@ firedRouter.post('/chat', async (c) => {
     let scoringRaw = '';
     if (!isInit) {
       const scoringPrompt = `你是一位劳动法专家和谈判教练。请评估以下裁员谈判中员工的表现。
+
+${LEGAL_ADVISOR_GUARDRAIL}
+(护栏同样适用于 lawyerTip 与 outcome.summary 两个字段的文字。)
 
 场景: ${scenario.title}
 法律背景: ${scenario.legalSituation}
@@ -449,7 +448,7 @@ HR最新回复: ${hrResponse}
 }`;
 
       const scoringRes = await callLLMWithTimeout('SCORING', {
-        model: getOpenAI()(getModel()),
+        model: chatModel('main', getModel()),
         system: '你是一个严格输出JSON的评分系统。只输出合法的JSON，不要输出任何其他内容。',
         prompt: scoringPrompt,
         maxTokens: 500,
@@ -563,11 +562,22 @@ HR最新回复: ${hrResponse}
 // ---------------------------------------------------------------------------
 // POST /tts  (mounted at /api/fired/tts)
 // ---------------------------------------------------------------------------
+/** v6.167 — BYOK 语音沿用对局角色的音色表:菜鸟 → 少女音、老油条 → 冷面 HR、魔鬼 → 洗脑大师。 */
+const HR_TTS_ROLE: Record<string, string> = { rookie: 'spy_dog', veteran: 'ninja_dog', demon: 'hypnotist_dog' };
+
 firedRouter.post('/tts', async (c) => {
   try {
     const v = await validateBody(c, TTSRequestSchema);
     if (!v.ok) return v.response;
     const { text, personalityId } = v.data;
+
+    // v6.167 BYOK — 访客自带语音 key(或托管版没配)时走统一语音入口:没有可用语音就 404,
+    // 前端用浏览器朗读;只有本机 .env 模式才用下面运营方的青云 key。
+    if (ttsTarget().kind !== 'env') {
+      const buf = await generateTTSAudio(text, HR_TTS_ROLE[personalityId]);
+      if (!buf) return c.json({ error: 'tts_unavailable' }, 404);
+      return c.json({ audio: `data:audio/mpeg;base64,${buf.toString('base64')}` });
+    }
 
     const apiKey = process.env.QINGYUN_API_KEY || '';
     const baseUrl = process.env.QINGYUN_BASE_URL || 'https://api.qingyuntop.top/v1';
@@ -642,7 +652,7 @@ firedRouter.post('/suggest', async (c) => {
     const conversation = formatConversation(messages);
 
     const suggestRes = await callLLMWithTimeout('SUGGESTIONS', {
-      model: getOpenAI()(getModel()),
+      model: chatModel('main', getModel()),
       system: `你是一位劳动法专家，正在帮助一位即将被裁员的员工准备回应。
 场景: ${scenario.title}
 法律背景: ${scenario.legalSituation}
@@ -654,7 +664,9 @@ firedRouter.post('/suggest', async (c) => {
   { "text": "<引用法律条文风格的回复>", "style": "legal" }
 ]
 
-每个回复控制在1-2句话，要具体且实用。`,
+每个回复控制在1-2句话，要具体且实用。
+
+${LEGAL_ADVISOR_GUARDRAIL}`,
       prompt: `对话记录:\n${conversation}\n\n请为员工生成3个回复建议。`,
       maxTokens: 400,
       temperature: 0.8,

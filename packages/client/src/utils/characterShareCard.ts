@@ -21,6 +21,7 @@
  *   await copyCharacterShareCard(data);
  *   await downloadCharacterShareCard(data, 'office-zoo-Tony.png');
  */
+import { trackEvent } from './analytics';
 
 export interface CharacterShareCardData {
   /** Lookup key — display name (Tony / Lisa / ...). */
@@ -353,6 +354,7 @@ export async function downloadCharacterShareCard(
   data: CharacterShareCardData,
   filename = `office-zoo-${data.name}.png`,
 ): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'character', action: 'download' });
   const blob = await generateCharacterShareCard(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -370,6 +372,7 @@ export async function downloadCharacterShareCard(
  *  isn't available (HTTP / older Safari) — caller should fall back
  *  to download. */
 export async function copyCharacterShareCard(data: CharacterShareCardData): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'character', action: 'copy' });
   if (!navigator.clipboard?.write) {
     throw new Error('clipboard write not supported');
   }

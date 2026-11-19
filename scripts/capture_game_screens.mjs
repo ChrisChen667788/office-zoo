@@ -84,10 +84,10 @@ async function captureClassic(browser) {
   // connects (`disabled={m.key==='classic' && !connected}`). The earlier
   // probe clicked too early → disabled no-op → stayed on Landing, then a
   // fallback grabbed the immersive card. So: the 4 进入→ buttons are in
-  // MODES order (classic, immersive, fired, talkshow) → the FIRST one is
-  // classic. Use a Playwright locator (auto-waits for it to become
+  // v6.169: 裁了么置顶后第一个「进入」不再是经典局 —— 按 data-mode-enter 精确定位。
+  // Use a Playwright locator (auto-waits for it to become
   // enabled + actionable) instead of a raw DOM .click().
-  const classicEnter = page.locator('button', { hasText: '进入' }).first();
+  const classicEnter = page.locator('[data-mode-enter="classic"]');
   await classicEnter.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
   // Poll until it's enabled (socket connected), up to ~10s.
   for (let i = 0; i < 20; i++) {

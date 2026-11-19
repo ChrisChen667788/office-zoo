@@ -41,6 +41,11 @@ import { SkeletonCard } from '../components/ui/SkeletonCard';
 import { EmptyState }   from '../components/ui/EmptyState';
 import { WaveformBars } from '../components/ui/WaveformBars';
 import RoastBooth from '../components/character/RoastBooth';
+import TalkshowVideoButton from '../components/talkshow/TalkshowVideoButton';
+import { trackEvent } from '../utils/analytics';
+import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
+import { requireModel } from '../utils/modelSetup';
+import { talkshowUrlAction } from '../utils/talkshowDeeplink';
 
 interface ScriptSummary {
   id: string;
@@ -252,16 +257,13 @@ export default function Talkshow() {
 
   // Mirror player navigation back to the URL so the back/forward button
   // and a fresh refresh both land on the same bit.
+  // v6.169 — 只有播放器开过又关上才清 ?id=;首屏深链还在加载时清掉会让分享链接打不开(见 talkshowDeeplink)。
+  const playerWasOpenRef = useRef(false);
   useEffect(() => {
-    if (active) {
-      if (searchParams.get('id') !== active.id) {
-        setSearchParams({ id: active.id }, { replace: true });
-      }
-    } else {
-      if (searchParams.get('id')) {
-        setSearchParams({}, { replace: true });
-      }
-    }
+    const action = talkshowUrlAction(active?.id ?? null, searchParams.get('id'), playerWasOpenRef.current);
+    playerWasOpenRef.current = !!active;
+    if (action?.kind === 'set') setSearchParams({ id: action.id }, { replace: true });
+    else if (action?.kind === 'clear') setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
@@ -976,6 +978,7 @@ function CreateBitModal({
     setSubmitting(true);
     setErrMsg(null);
     try {
+      if (!requireModel('talkshow:generate')) { setSubmitting(false); return; }
       const resp = await fetch('/api/talkshow/generate', {
         method: 'POST',
         headers: {
@@ -1210,6 +1213,8 @@ function PlayerView({
   // invariant the cleanup can't flip.
   const fetchedRef = useRef<string | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  /** v6.169 — 服务器配音的原始 Blob,导出短视频时混进音轨;浏览器朗读兜底时保持 null。 */
+  const audioBlobRef = useRef<Blob | null>(null);
   /** End-of-audio timer for the server MP3 path — we don't have a direct
    *  'ended' hook on the shared element so we approximate using durationSec.
    *  Cleared on unmount / replay so we don't fire stale flips. */
@@ -1265,6 +1270,7 @@ function PlayerView({
     // earlier `cancelled` closure flag is gone; staleness check now
     // uses fetchedRef.current vs. script.id at each await boundary.
     setAudioState('fetching');
+    audioBlobRef.current = null;
     const myScriptId = script.id; // pin for staleness comparison below
     (async () => {
       try {
@@ -1285,6 +1291,7 @@ function PlayerView({
         if (fetchedRef.current !== myScriptId) return;
         const url = URL.createObjectURL(blob);
         blobUrlRef.current = url;
+        audioBlobRef.current = blob;
         // Try autoplay first (works when the shared audio element was
         // unlocked by primeAudio() during the earlier click).
         const ok = await playTtsFromUrl(url);
@@ -1292,6 +1299,7 @@ function PlayerView({
         if (ok) {
           setAudioState('playing');
           armEndTimer(script.durationSec);
+          trackEvent('game_start', { mode: 'talkshow', tag: script.tag });
           // v6.31 P2 — bump talkshow_played for the achievement
           // (5-play threshold unlocks talkshow_5).
           void import('../utils/achievements').then((m) => m.bumpProgress('talkshow_played', 1));
@@ -1528,6 +1536,8 @@ function PlayerView({
 
       <h2 className="text-2xl md:text-3xl font-black text-white mb-6 leading-tight">
         {script.title}
+        {/* v6.164 — 段子文本、配音与立绘均为 AI 生成 */}
+        <AiGeneratedBadge className="ml-2 align-middle" />
       </h2>
 
       {/* v0.9.2.1 — Avatar treatment redesigned for premium player feel:
@@ -1712,6 +1722,22 @@ function PlayerView({
         <div className="text-center text-amber-400 mb-4 text-sm">
           ⚠️ 音色和系统音都不可用 · 纯文字模式
         </div>
+      )}
+      {/* v6.169 — 线 B:播完(或只能纯文字)后可导出短视频,画面全程带 AI 生成标识。 */}
+      {(audioState === 'done' || audioState === 'failed') && (
+        <TalkshowVideoButton
+          input={{
+            title: script.title,
+            text: script.text,
+            tagLabel: tagCfg.label,
+            tagColor: tagCfg.color,
+            personaLabel: personaCfg.label,
+            personaEmoji: personaCfg.emoji,
+            personaImageUrl: 'imageUrl' in personaCfg ? personaCfg.imageUrl : undefined,
+            fallbackDurationSec: script.durationSec,
+          }}
+          getAudioBlob={() => audioBlobRef.current}
+        />
       )}
 
       {/* Subtitle bubble — reveal-as-you-listen during ANY active playback

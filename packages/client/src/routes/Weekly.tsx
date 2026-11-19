@@ -25,6 +25,7 @@ import {
   downloadABCompareShareCard,
   type ABCompareShareCardData,
 } from '../utils/abCompareShareCard';
+import { requireModel } from '../utils/modelSetup';
 
 // Server /styles returns {id} (a catalog); /generate returns {style} (a per-result).
 // 拆成两个接口对齐 actual server field names.
@@ -117,6 +118,7 @@ export default function Weekly() {
     setResults(null);
     setTuning(null);
     try {
+      if (!requireModel('weekly')) { setBusy(false); return; }
       const resp = await fetch('/api/weekly/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-User-Id': myId },

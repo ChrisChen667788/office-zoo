@@ -1,4 +1,3 @@
-import { createOpenAI } from '@ai-sdk/openai';
 import {
   Team, Role, ROLE_REGISTRY, Personality, PERSONALITY_REGISTRY, snippetsForArchetype, bondTier,
   sampleBigtechTerms, randomBigtechSentence,
@@ -9,25 +8,11 @@ import { callLLMWithTimeout } from '../utils/llm';
 import { logger } from '../utils/logger';
 import { recallMemories } from '../services/memoryRecall';
 import { getEdgesFor } from '../services/relationStore';
+import { chatModel } from '../utils/aiClient';
 
 const agentLog = logger.child({ component: 'agent' });
 
-// Lazy provider construction. ESM imports are hoisted ABOVE the
-// dotenv.config() call in entrypoints / scripts, so reading process.env
-// at module-init time captures empty strings + the bogus 'gpt-5.4-mini'
-// fallback. We caught this in v5.9.0 reflection probe — primary call
-// silently failed "Invalid token", traffic survived only because
-// callLLMWithTimeout's Minimax fallback caught it. Build at call time.
-let _openai: ReturnType<typeof createOpenAI> | null = null;
-function openai() {
-  if (!_openai) {
-    _openai = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY ?? '',
-      baseURL: process.env.OPENAI_BASE_URL ?? 'https://api.qingyuntop.top/v1',
-    });
-  }
-  return _openai;
-}
+// v6.167 — 客户端由 utils/aiClient 按调用时的凭据上下文现建(BYOK);这里只保留本机 .env 模式下的模型选择。
 function model() {
   return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 }
@@ -960,7 +945,7 @@ export class BaseAgent {
     });
 
     const res = await callLLMWithTimeout('SPEECH', {
-      model: openai()(model()),
+      model: chatModel('main', model()),
       system: this.systemPrompt,
       prompt: speechPrompt,
       // 720 tokens ≈ 900+ Chinese chars. Was 340 → 480 → 720 because some
@@ -1011,7 +996,7 @@ export class BaseAgent {
     );
 
     const res = await callLLMWithTimeout('VOTE', {
-      model: openai()(model()),
+      model: chatModel('fast', model()),
       system: this.systemPrompt,
       prompt: votePrompt,
       maxTokens: 20,
@@ -1062,7 +1047,7 @@ export class BaseAgent {
     });
 
     const res = await callLLMWithTimeout('GHOST', {
-      model: openai()(model()),
+      model: chatModel('fast', model()),
       system,
       prompt: ghostPrompt,
       // 100 tokens ≈ 130 Chinese chars — generous headroom for the 25-char
@@ -1101,7 +1086,7 @@ export class BaseAgent {
     });
 
     const res = await callLLMWithTimeout('VOTE', {
-      model: openai()(model()),
+      model: chatModel('fast', model()),
       system,
       prompt: ghostVotePrompt,
       maxTokens: 20,

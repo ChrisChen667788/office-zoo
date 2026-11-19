@@ -37,10 +37,11 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DATA_DIR } from '../utils/dataDir';
+import { writeJsonAtomic } from '../utils/atomicJson';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
-const DATA_DIR   = path.resolve(__dirname, '..', '..', 'data');
 const DATA_FILE  = path.join(DATA_DIR, 'character_votes.json');
 
 const MAX_WEEKS_KEPT = 8;
@@ -82,10 +83,7 @@ async function ensureLoaded(): Promise<StoreShape> {
 }
 
 async function persist(state: StoreShape): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = DATA_FILE + '.tmp';
-  await fs.writeFile(tmp, JSON.stringify(state, null, 2), 'utf8');
-  await fs.rename(tmp, DATA_FILE);
+  await writeJsonAtomic(DATA_FILE, state);
 }
 
 /**

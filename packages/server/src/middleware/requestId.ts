@@ -39,7 +39,8 @@ export const requestIdMiddleware: MiddlewareHandler = async (c, next) => {
     c.res.headers.set('x-request-id', reqId);
 
     // Downgrade noisy health/static hits to debug; keep real API at info.
-    const isNoisy = path === '/api/health' || path.startsWith('/avatars/');
+    // v6.166 — 托管后静态文件(前端产物、图片)也走这个服务器,只有 API 记 info。
+    const isNoisy = path === '/api/health' || !path.startsWith('/api/');
     const lvl =
       status >= 500 ? 'error' : status >= 400 ? 'warn' : isNoisy ? 'debug' : 'info';
     log[lvl]({ status, durationMs }, 'request end');

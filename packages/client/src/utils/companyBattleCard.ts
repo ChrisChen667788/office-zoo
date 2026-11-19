@@ -11,6 +11,7 @@
  *   const url = await previewCompanyBattleCard(input);
  */
 import { buildBattleCard, type BattleCardInput, type BattleCardSide } from '@furball/shared';
+import { trackEvent } from './analytics';
 
 const W = 1080;
 const H = 1350;
@@ -245,6 +246,7 @@ export async function generateCompanyBattleCard(input: BattleCardInput): Promise
 }
 
 export async function downloadCompanyBattleCard(input: BattleCardInput, filename = `office-zoo-battle-${input.date}.png`): Promise<void> {
+  trackEvent('share_card_generated', { card_type: 'company_battle', action: 'download' });
   const blob = await generateCompanyBattleCard(input);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -256,6 +258,7 @@ export async function downloadCompanyBattleCard(input: BattleCardInput, filename
 }
 
 export async function copyCompanyBattleCard(input: BattleCardInput): Promise<boolean> {
+  trackEvent('share_card_generated', { card_type: 'company_battle', action: 'copy' });
   if (!navigator.clipboard?.write) return false;
   const blob = await generateCompanyBattleCard(input);
   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);

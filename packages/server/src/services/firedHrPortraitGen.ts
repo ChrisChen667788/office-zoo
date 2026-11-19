@@ -15,6 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { hasAsset, imageGenerationAllowed } from '../utils/assetDirs';
 
 const __filename2 = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url);
 const __dirname2 = path.dirname(__filename2);
@@ -114,10 +115,11 @@ export async function generateFiredHrPortrait(hrId: string): Promise<string | nu
     return null;
   }
   const filePath = path.join(PORTRAIT_DIR, `${hrId}.png`);
-  if (fs.existsSync(filePath)) {
+  if (hasAsset('fired-hr-portraits', `${hrId}.png`)) {
     console.log(`[FiredHrPortrait] Using cached portrait for ${hrId}`);
     return `/fired-hr-portraits/${hrId}.png`;
   }
+  if (!imageGenerationAllowed()) return null; // v6.165 — 托管模式不现场生图
 
   const prompt = buildPrompt(details);
   console.log(`[FiredHrPortrait] Generating ${hrId}…`);
@@ -175,7 +177,7 @@ export async function generateFiredHrPortrait(hrId: string): Promise<string | nu
 }
 
 export function hasCachedFiredHrPortrait(hrId: string): boolean {
-  return fs.existsSync(path.join(PORTRAIT_DIR, `${hrId}.png`));
+  return hasAsset('fired-hr-portraits', `${hrId}.png`);
 }
 
 export const FIRED_HR_IDS = Object.keys(HR_ART);
