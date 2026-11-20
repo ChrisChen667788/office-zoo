@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  absolutize, toModelScopeCard, cardLooksClobbered, tokenProblem, redact, applyTokenKeystrokes, MS_RESOLVE, GH_BASE,
+  absolutize, toModelScopeCard, cardLooksClobbered, tokenProblem, redact, applyTokenKeystrokes, stripTerminalSequences, MS_RESOLVE, GH_BASE,
 } from '../lib/modelscopeCard.mjs';
 
 describe('absolutize', () => {
@@ -120,5 +120,58 @@ describe('applyTokenKeystrokes · 粘贴标记跨块', () => {
     expect(msg).toMatch(/第 1 个字符不是可打印 ASCII\(共 45 个字符\)/);
     expect(msg).toMatch(/控制符.*令牌本身没错.*重新粘贴/);
     expect(msg).not.toContain(DUMMY);
+  });
+});
+
+/**
+ * 2026-11-20 实测:合并上面的修复后,Claude 终端面板里仍出现「共 45 个字符、首字符 ESC」。
+ * 标准粘贴标记无论怎么拆块都已剥掉,多出的 6 个字符不是粘贴标记;切出去复制令牌再切回来,
+ * 终端可能送出焦点事件 ESC[O / ESC[I(合计正好 6 个字符)。改为按序列格式整类剥离后,
+ * 下面这些形态都应得到原令牌。
+ */
+describe('applyTokenKeystrokes · 粘贴标记以外的终端控制序列', () => {
+  const DUMMY = `ms-${'0'.repeat(8)}-0000-0000-0000-${'0'.repeat(12)}`;
+  const S = '\x1b[200~';
+  const E = '\x1b[201~';
+  function feed(chunks: string[]) {
+    let buf = '';
+    for (const c of chunks) {
+      const r = applyTokenKeystrokes(buf, c);
+      if (r.abort) return { abort: true, buf: r.buf };
+      buf = r.buf;
+      if (r.done) return { abort: false, buf };
+    }
+    return null;
+  }
+
+  it.each([
+    ['失焦再聚焦后粘贴(ESC[O ESC[I)', ['\x1b[O\x1b[I', `${S}${DUMMY}${E}`, '\r']],
+    ['焦点事件与粘贴同一块', [`\x1b[O\x1b[I${S}${DUMMY}${E}\r`]],
+    ['焦点事件被拆块:ESC 单独一块', ['\x1b', '[O', '\x1b', `[I${DUMMY}`, '\r']],
+    ['不开 bracketed paste,只有焦点事件', ['\x1b[I', DUMMY, '\r']],
+    ['手敲时误按方向键(CSI 与 SS3 两种形态)', ['ms-', '\x1b[D', '\x1bOC', DUMMY.slice(3), '\r']],
+    ['带参数的 CSI(Shift+方向键)', [`\x1b[1;2C${DUMMY}`, '\r']],
+    ['OSC 序列(BEL 与 ESC\\ 两种结尾)', [`\x1b]0;title\x07${DUMMY}\x1b]1;x\x1b\\`, '\r']],
+  ])('%s → 得到原令牌并通过预检', (_name, chunks) => {
+    const r = feed(chunks as string[]);
+    expect(r).toMatchObject({ abort: false, buf: DUMMY });
+    expect(tokenProblem(r!.buf)).toBeNull();
+  });
+
+  it('方向键之后按退格,删的是刚敲的字符,不是半截序列', () => {
+    // 逐块剥离必须在处理退格之前:否则退格会吃掉序列尾字节,留下半截 ESC[ 拼进令牌
+    expect(feed(['ms-abX', '\x1b[D', '\u007f', '\r'])).toMatchObject({ abort: false, buf: 'ms-ab' });
+    expect(feed(['ms-abX', '\x1bOD', '\u007f', '\r'])).toMatchObject({ abort: false, buf: 'ms-ab' });
+  });
+
+  it('只剥控制序列,不动令牌本身的字符', () => {
+    expect(stripTerminalSequences(DUMMY)).toBe(DUMMY);
+    expect(stripTerminalSequences(`${S}${DUMMY}${E}`)).toBe(DUMMY);
+    expect(stripTerminalSequences('ms-[abc]~O')).toBe('ms-[abc]~O');
+  });
+
+  it('不成形的孤立 ESC 不硬剥,留给预检报出来', () => {
+    const r = feed([`\x1b${DUMMY}`, '\r']);
+    expect(tokenProblem(r!.buf)).toMatch(/控制符/);
   });
 });
