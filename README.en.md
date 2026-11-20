@@ -234,7 +234,8 @@ Image: flux-schnell → doubao-seedream → qwen-image → gpt-image-1 → minim
 ✅ v6.161-6.164 Stage 0 — CI / origin allowlist + memory-deletion auth + TTS rate limit / optional analytics / AI-content labels
 ✅ v6.165-6.168 Stage 1 — bundled assets / single-port Docker image + deploy guide / 🔑 BYOK (no model API provided) / sample-game plumbing
 ✅ v6.169       Line B — stand-up short-video export with per-frame AI watermark + "Fired" first with a 5-minute speedrun
-🔜 next       Deploy the hosted version and watch real usage; then stage 2 "AI actors" (streaming, structured output, prompt caching, evals) — plan: docs/PRODUCT_REVIEW_2026-10.md (Chinese)
+🔜 next       Deploy the hosted version; then (Nov 2026 revision) a no-key sample level for "Fired", AI SDK upgrade + streaming,
+               visible HR resistance, private clues for AI players, reveal ceremony — plan: docs/PRODUCT_REVIEW_2026-10.md (Chinese)
 ```
 
 ## 🙏 Acknowledgements
