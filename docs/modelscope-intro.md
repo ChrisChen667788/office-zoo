@@ -392,7 +392,7 @@ npx tsx packages/server/src/scripts/regen-icons.ts mode_classic team_cat
 - ✅ **v6.169** 线 B:班味单口导出短视频(逐帧 AI 水印)+ 裁了么置顶与 5 分钟速通
 
 **下一步(开放讨论):**
-- 📋 **开发计划见 [`docs/PRODUCT_REVIEW_2026-10.md`](https://github.com/ChrisChen667788/office-zoo/blob/main/docs/PRODUCT_REVIEW_2026-10.md)**:托管版的代码已就绪(v6.169),下一步是部署上线、看真实数据;阶段 2(v6.170 起)做 AI 演员升级(流式输出、结构化输出、提示缓存、评测);收款与账号体系冻结;下面的余项按该计划的阶段门槛排期
+- 📋 **开发计划见 [`docs/PRODUCT_REVIEW_2026-10.md`](https://github.com/ChrisChen667788/office-zoo/blob/main/docs/PRODUCT_REVIEW_2026-10.md)**:托管版的代码已就绪(v6.169),下一步是部署上线;之后按 2026-11 修订推进:v6.169.5 让没配 key 的访客也能玩完一关裁了么 → v6.170 升级 AI SDK,做流式与结构化输出 → v6.171 / v6.172 让交互看得见(HR 防守值与可打断、AI 私有线索、揭晓仪式)→ 记忆、传播素材、成本与评测;收款与账号体系冻结;下面的余项按该计划排期
 - [x] ~~赔偿结算分享卡~~ —— v6.65 已上(战绩图 boss / 赔偿档 / 遗物 / 回合数,一键分享)
 - [x] ~~牌局打磨:抽牌/手牌上限 · 遗物多选 + 商店 · 赔偿阶梯结算分享卡~~ —— v6.63→v6.65 全部落地
 - [ ] Phase C 余项:沉浸局席位 UI、地图画布上的 👤 标记、真人席位接管夜间行动与鬼魂票
