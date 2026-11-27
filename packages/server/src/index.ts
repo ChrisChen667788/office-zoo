@@ -51,6 +51,8 @@ import { serveAssetFile } from './utils/staticAssets';
 import { clientDistDir, serveClient } from './utils/clientStatic';
 import { isHosted, resolveSinglePort } from './utils/deployProfile';
 import { hostedFeatureGate } from './utils/hostedFeatures';
+import { resolveListenHost, keyExposureWarning } from './utils/listenHost';
+import { keyMode, serverChatAvailable } from './utils/aiClient';
 import { attachSocketByok, byokMiddleware } from './utils/byokTransport';
 import { applyBodyLimits } from './utils/bodyLimits';
 import type { Server as HttpServer } from 'http';
@@ -209,9 +211,17 @@ if (clientDist && !singlePort) {
   logger.warn({ port, wsPort }, 'SINGLE_PORT=0 但前端由本服务器托管:生产构建的前端连页面所在端口,对局会连不上 Socket.IO');
 }
 
+// v6.169.5 — 监听地址:FURBALL_HOST 显式配置优先;托管模式监听全部网卡;本机模式只绑回环。
+// 注意:不读 HOST(zsh 会把机器名放进 HOST 变量里)。
+const listenHost = resolveListenHost(process.env, isHosted());
+
+// v6.169.5 — 监听在回环以外又用着 .env 的 key 时警告:本机是局域网能用,托管是公网都能用,建议各不相同。
+const exposure = keyExposureWarning({ listenHost, hosted: isHosted(), keyMode: keyMode(), serverChatAvailable: serverChatAvailable() });
+if (exposure) logger.warn({ listenHost }, exposure);
+
 // HTTP server
-const mainServer = serve({ fetch: app.fetch, port }, () => {
-  logger.info({ port, singlePort }, 'HTTP server listening');
+const mainServer = serve({ fetch: app.fetch, port, hostname: listenHost }, () => {
+  logger.info({ port, singlePort, listenHost }, 'HTTP server listening');
 });
 
 // v6.33 P5 — load persisted spectator counters + arm 60s flush timer.
@@ -246,9 +256,16 @@ setupFiredRoomHandler(io);
 setupSquadHandler(io);
 
 if (!singlePort) {
-  httpServer.listen(wsPort, () => {
-    logger.info({ wsPort }, 'WebSocket server listening');
-  });
+  // v6.169.5 — WebSocket 服务器与 HTTP 服务器绑定相同地址
+  if (listenHost) {
+    httpServer.listen(wsPort, listenHost, () => {
+      logger.info({ wsPort, listenHost }, 'WebSocket server listening');
+    });
+  } else {
+    httpServer.listen(wsPort, () => {
+      logger.info({ wsPort }, 'WebSocket server listening');
+    });
+  }
 }
 
 // Unhandled rejections / uncaught exceptions — log and don't silently die.

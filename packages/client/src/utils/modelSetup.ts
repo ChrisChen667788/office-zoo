@@ -41,9 +41,15 @@ export function useModelSetup(): ModelSetupState {
   );
 }
 
-/** 托管版且没配 key。配置还没到达时按「不需要」处理(服务端会兜底回 need_key)。 */
+/**
+ * 没有可用的模型:托管版没配 key,或者(v6.169.5)本机模式 .env 也没配 key、浏览器也没配。
+ * 配置还没到达、或老服务器不报 serverKeyConfigured 时按「不需要」处理(服务端会兜底回 need_key)。
+ */
 export function needsModelSetup(): boolean {
-  return peekRuntimeConfig()?.llm.keyMode === 'byok' && !getByok();
+  const llm = peekRuntimeConfig()?.llm;
+  if (!llm || getByok()) return false;
+  if (llm.keyMode === 'byok') return true;
+  return llm.serverKeyConfigured === false;
 }
 
 export function requireModel(source: string): boolean {

@@ -118,10 +118,22 @@ describe('requireModel', () => {
     expect(setup.requireModel('test')).toBe(true);
   });
 
-  it('本机 .env 模式(keyMode=server)不拦', async () => {
-    window.fetch = vi.fn(async () => new Response(JSON.stringify({ profile: 'local', llm: { keyMode: 'server', customBaseUrl: true } }))) as typeof fetch;
-    const { setup, runtime } = await fresh();
+  it('本机 .env 模式且 .env 配了 key 不拦;老服务器不报 serverKeyConfigured 也不拦', async () => {
+    for (const llm of [{ keyMode: 'server', customBaseUrl: true, serverKeyConfigured: true }, { keyMode: 'server', customBaseUrl: true }]) {
+      window.fetch = vi.fn(async () => new Response(JSON.stringify({ profile: 'local', llm }))) as typeof fetch;
+      const { setup, runtime } = await fresh();
+      await runtime.getRuntimeConfig();
+      expect(setup.requireModel('test'), JSON.stringify(llm)).toBe(true);
+    }
+  });
+
+  it('v6.169.5 — 本机 .env 也没配 key、浏览器也没配 → 和托管版一样先打开设置;配好后放行', async () => {
+    window.fetch = vi.fn(async () => new Response(JSON.stringify({ profile: 'local', llm: { keyMode: 'server', customBaseUrl: true, serverKeyConfigured: false } }))) as typeof fetch;
+    const { byok, setup, runtime } = await fresh();
     await runtime.getRuntimeConfig();
+    expect(setup.requireModel('test')).toBe(false);
+    byok.saveByok(cfg, false);
+    setup.closeModelSetup();
     expect(setup.requireModel('test')).toBe(true);
   });
 });

@@ -101,7 +101,8 @@ describe('访客凭据', () => {
     process.env.OPENAI_API_KEY = ENV_KEY; // 本机也有 .env:访客配了 key 时优先访客的
     const calls = mockFetch(() => chatOk('好的'));
     const r = await runWithAi({ byok: cfg(USER_A) }, () => callLLMWithTimeout('SPEECH', { model: chatModel('main', 'gpt-4o-mini'), prompt: 'hi' }));
-    expect(r).toEqual({ ok: true, text: '好的' });
+    // v6.169.5 起结果里多了 finishReason / completionTokens / reasoningChars(能力检测用)
+    expect(r).toMatchObject({ ok: true, text: '好的' });
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('https://api.deepseek.com/chat/completions');
     expect(calls[0].auth).toBe(`Bearer ${USER_A}`);

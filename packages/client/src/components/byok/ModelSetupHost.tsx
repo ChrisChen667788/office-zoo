@@ -14,6 +14,7 @@ import { closeModelSetup, openModelSetup, useModelSetup } from '../../utils/mode
 import { emitLlmIssue, getByok, onLlmIssue, type LlmIssue } from '../../utils/byok';
 import { getSocket } from '../../hooks/useSocket';
 import { trackEvent } from '../../utils/analytics';
+import { isModelBannerShowing } from '../../utils/modelStatus';
 
 const ISSUE_TEXT: Partial<Record<LlmIssue, string>> = {
   need_key_hint: 'AI 生成的内容需要先配置你自己的模型 key,现在显示的是预置内容',
@@ -35,6 +36,8 @@ export default function ModelSetupHost() {
     const now = Date.now();
     // 缺 key 的轻提示每次打开页面只出一次;其余同一原因 60 秒内只提示一次
     if (issue === 'need_key_hint' && lastShown.current.need_key_hint) return;
+    // 首屏横幅已经在说同一件事,不再叠一条提示条(v6.169.5)
+    if (issue === 'need_key_hint' && isModelBannerShowing()) return;
     if ((lastShown.current[issue] ?? 0) > now - 60_000) return;
     lastShown.current[issue] = now;
     setToast(issue);

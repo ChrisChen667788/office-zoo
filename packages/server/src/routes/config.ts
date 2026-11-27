@@ -8,7 +8,7 @@
 import { Hono } from 'hono';
 import { deployProfile } from '../utils/deployProfile';
 import { featureFlags } from '../utils/hostedFeatures';
-import { customBaseUrlAllowed, keyMode } from '../utils/aiClient';
+import { customBaseUrlAllowed, envDefaultModelId, keyMode, serverChatAvailable, serverKeyConfigured } from '../utils/aiClient';
 
 export interface PublicAnalyticsConfig {
   umami: { scriptUrl: string; websiteId: string } | null;
@@ -42,6 +42,14 @@ configRoutes.get('/', (c) => {
     features: featureFlags(),
     // v6.167 — byok:服务器不提供模型 API,访客必须配置自己的 key;server:本机自部署用 .env
     // (访客也可以在设置里配自己的 key,优先使用)。
-    llm: { keyMode: keyMode(), customBaseUrl: customBaseUrlAllowed() },
+    // v6.169.5 — serverKeyConfigured:服务器是否配置了 key(只返回布尔值,绝不回显 key 本身)。
+    llm: {
+      keyMode: keyMode(),
+      customBaseUrl: customBaseUrlAllowed(),
+      // 服务器能不能提供文本模型(主路 key,或只配了 MiniMax 备路);只是布尔值,不含 key。
+      serverKeyConfigured: serverChatAvailable(),
+      // 服务器模型名:前端用它对上「检测服务器模型」的缓存结果。只在本机 .env 模式且配了 key 时给,不含 key。
+      ...(keyMode() === 'server' && serverKeyConfigured() ? { serverModel: envDefaultModelId() } : {}),
+    },
   });
 });

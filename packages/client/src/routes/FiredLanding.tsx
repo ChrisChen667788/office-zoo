@@ -31,6 +31,7 @@ import { filterFiredScenarios } from '../utils/firedScenarioFilters';
 import type { UserProfile } from '../utils/profileTypes';
 import { premiumGate, useFeatures, useRuntimeConfig } from '../utils/runtimeConfig';
 import { requireModel } from '../utils/modelSetup';
+import ModelStatusBanner from '../components/ModelStatusBanner';
 
 /** v0.8.0 — superset of FiredScenario that the /scenarios endpoint returns:
  *  same fields plus a `source` flag distinguishing seed catalogue from
@@ -286,6 +287,8 @@ export default function FiredLanding() {
       className="relative min-h-screen overflow-hidden noise"
       style={{ background: mihoyo.mesh.heroDawn }}
     >
+      {/* v6.169.5 — 模型未配置横幅 */}
+      <ModelStatusBanner source="fired-landing" />
       {/* -- Aurora background — heat-tinted ------------------------------ */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         <div

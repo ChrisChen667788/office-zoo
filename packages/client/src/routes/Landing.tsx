@@ -50,6 +50,8 @@ import { useFeatures, useRuntimeConfig } from '../utils/runtimeConfig';
 import { openModelSetup, requireModel } from '../utils/modelSetup';
 import { useByok } from '../utils/byok';
 import { findProvider } from '@furball/shared';
+import { useModelStatus } from '../utils/modelStatus';
+import ModelStatusBanner from '../components/ModelStatusBanner';
 
 // v6.28 P4 — 9 added once ROLE_PRESETS[9] (v6.27 P1) landed. The
 // 6→8→9→10 ladder gives users a "1-step-up from default" option;
@@ -150,7 +152,10 @@ export default function Landing() {
   // v6.167/168 — BYOK 状态 + 示例对局
   const byokCfg = useByok();
   const runtimeCfg = useRuntimeConfig();
-  const needsKey = runtimeCfg?.llm.keyMode === 'byok' && !byokCfg;
+  // 没有可用的模型(托管版没配 key,或本机 .env 也没配):首页给一局示例对局先看(v6.169.5 起本机也算)
+  const needsKey = !byokCfg && (runtimeCfg?.llm.keyMode === 'byok' || runtimeCfg?.llm.serverKeyConfigured === false);
+  // v6.169.5 — 模型状态(用于顶栏按钮样式与横幅)
+  const modelStatus = useModelStatus();
   const [sampleId, setSampleId] = useState<string | null>(null);
   useEffect(() => {
     if (!needsKey || sampleId) return;
@@ -369,6 +374,8 @@ export default function Landing() {
       className="relative min-h-screen overflow-hidden noise"
       style={{ background: colors.bg.base }}
     >
+      {/* v6.169.5 — 模型未配置横幅:首屏顶部显示,状态由 useModelStatus 决定。 */}
+      <ModelStatusBanner source="landing" />
       {/* -- Background aurora layers. Two big blurred blobs + one faint red
             accent under Fired mode to hint at the palette without shouting. -- */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -452,20 +459,45 @@ export default function Landing() {
           >
             🎭 攒局
           </button>
-          {/* v6.167 — BYOK 模型设置入口:随时可改;已配置时显示模型商 */}
+          {/* v6.167 — BYOK 模型设置入口;v6.169.5 — 按 modelStatus 变色 */}
           <button
             type="button"
             onClick={() => openModelSetup('manual', 'landing-header')}
             className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide px-3 py-1.5 rounded-full transition"
-            style={{
-              color: byokCfg ? '#a7f3d0' : 'rgba(255,255,255,0.8)',
-              background: byokCfg ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${byokCfg ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.14)'}`,
-            }}
-            title="配置你自己的模型 key"
+            style={(() => {
+              // v6.169.5 — 颜色按模型状态变化
+              switch (modelStatus) {
+                case 'unconfigured':
+                case 'fail':
+                  return { color: '#fca5a5', background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.40)' };
+                case 'pass':
+                  return { color: '#a7f3d0', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.40)' };
+                case 'warn':
+                  return { color: '#fde68a', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.38)' };
+                case 'server':
+                  return { color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.14)' };
+                default: // unchecked
+                  return { color: byokCfg ? '#a7f3d0' : 'rgba(255,255,255,0.8)', background: byokCfg ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${byokCfg ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.14)'}` };
+              }
+            })()}
+            title={(() => {
+              switch (modelStatus) {
+                case 'unconfigured': return '还没有可用的 AI 模型';
+                case 'unchecked': return '已配置 key,还没跑检测';
+                case 'pass': return '模型检测全部达标';
+                case 'warn': return '模型检测通过,有推荐项未达标';
+                case 'fail': return '模型有必需项不达标';
+                case 'server': return '使用服务器配置的模型';
+              }
+            })()}
             data-testid="model-setup-open"
           >
-            🔑 {byokCfg ? (findProvider(byokCfg.provider)?.name.split(' ')[0] ?? '模型') : '模型'}
+            {modelStatus === 'unconfigured' ? '🔑 未配置' :
+             modelStatus === 'pass' ? `${byokCfg ? (findProvider(byokCfg.provider)?.name.split(' ')[0] ?? '模型') : '模型'} ✓` :
+             modelStatus === 'warn' ? `${byokCfg ? (findProvider(byokCfg.provider)?.name.split(' ')[0] ?? '模型') : '模型'} !` :
+             modelStatus === 'fail' ? `${byokCfg ? (findProvider(byokCfg.provider)?.name.split(' ')[0] ?? '模型') : '模型'} ✕` :
+             modelStatus === 'server' ? '服务器配置' :
+             `🔑 ${byokCfg ? (findProvider(byokCfg.provider)?.name.split(' ')[0] ?? '模型') : '模型'}`}
           </button>
           {/* v1.1.0 — B 端 SaaS 入口 (律所/HR培训采购)。v6.168:托管版冻结,不显示 */}
           {features.b2b && <button

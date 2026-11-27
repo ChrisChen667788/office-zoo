@@ -18,6 +18,13 @@ export interface LlmRuntime {
   keyMode: 'server' | 'byok';
   /** 设置面板里是否允许「其他 OpenAI 兼容接口」(自填 base URL)。 */
   customBaseUrl: boolean;
+  /**
+   * v6.169.5 — 服务器 .env 能不能提供文本模型(主路 OPENAI_API_KEY / QINGYUN_API_KEY,或只配了 MiniMax 备路)。
+   * 老服务器没有这个字段时为 undefined,按「不知道」处理(不显示未配置横幅)。
+   */
+  serverKeyConfigured?: boolean;
+  /** v6.169.5 — 本机 .env 模式下的模型名(配了 key 才有),用来读「检测服务器模型」的缓存。 */
+  serverModel?: string;
 }
 
 export interface RuntimeConfig {

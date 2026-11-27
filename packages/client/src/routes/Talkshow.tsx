@@ -46,6 +46,7 @@ import { trackEvent } from '../utils/analytics';
 import AiGeneratedBadge from '../components/ui/AiGeneratedBadge';
 import { requireModel } from '../utils/modelSetup';
 import { talkshowUrlAction } from '../utils/talkshowDeeplink';
+import ModelStatusBanner from '../components/ModelStatusBanner';
 
 interface ScriptSummary {
   id: string;
@@ -370,6 +371,8 @@ export default function Talkshow() {
       className="relative min-h-screen overflow-hidden"
       style={{ background: mihoyo.mesh.heroDawn }}
     >
+      {/* v6.169.5 — 模型未配置横幅 */}
+      <ModelStatusBanner source="talkshow" />
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-6 md:px-10 py-5">
         <button

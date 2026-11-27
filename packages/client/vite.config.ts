@@ -6,8 +6,10 @@ import path from 'path';
 // v6.160 — 代理目标可用环境变量改端口(默认不变):本机 3100/3101 被别的服务占用时,
 // FURBALL_API_PORT=3200 PORT=3200 WS_PORT=3201 npm run dev 即可整套挪开。
 // API 端口不读 PORT —— 预览类工具常给 vite 进程注入 PORT=5173,会把代理指回 vite 自己。
-const API = `http://localhost:${process.env.FURBALL_API_PORT ?? '3100'}`;
-const WS = `http://localhost:${process.env.WS_PORT ?? '3101'}`;
+// v6.169.5 — 目标改为 127.0.0.1(而非 localhost):macOS 上 localhost 会被 DNS 先解析成 ::1(IPv6),
+// 而服务器默认只绑 127.0.0.1(IPv4 回环),会导致代理连接失败。
+const API = `http://127.0.0.1:${process.env.FURBALL_API_PORT ?? '3100'}`;
+const WS = `http://127.0.0.1:${process.env.WS_PORT ?? '3101'}`;
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
