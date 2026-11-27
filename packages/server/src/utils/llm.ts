@@ -109,6 +109,35 @@ export interface LLMCallResult {
    *  quota = 上游 402(欠费);rate_limited = 上游 429。这四类不走 .env 兜底,调用方据此提示用户。 */
   reason?: 'timeout' | 'error' | 'empty' | 'need_key' | 'key_rejected' | 'quota' | 'rate_limited';
   errorMessage?: string;
+  // v6.169.5 — 能力检测需要的元数据:结束原因、完成 token 数、推理内容字符数。
+  /** generateText 返回的 finishReason(stop / length / …)。 */
+  finishReason?: string;
+  /** generateText 返回的 usage.completionTokens。 */
+  completionTokens?: number;
+  /** reasoning 字段的长度(推理型模型填充);0 表示没有推理内容。 */
+  reasoningChars?: number;
+}
+
+/**
+ * v6.169.5 — 这次回答里思考内容的长度(推理型模型识别用)。
+ * @ai-sdk/openai 1.x 的对话接口不解析思考内容(result.reasoning 恒为空),要从原始返回体里读:
+ *   DeepSeek / 硅基流动 / 百炼等:choices[0].message.reasoning_content
+ *   OpenRouter:choices[0].message.reasoning
+ *   OpenAI o 系列:正文里没有思考内容,只在 usage.completion_tokens_details.reasoning_tokens 里有计数
+ * 拿到思考 token 计数但没有正文时按 1 计,只表示「有思考」。
+ */
+export function reasoningCharsOf(result: { reasoning?: unknown; response?: { body?: unknown } }): number {
+  if (typeof result.reasoning === 'string' && result.reasoning.length > 0) return result.reasoning.length;
+  const body = result.response?.body as {
+    choices?: Array<{ message?: { reasoning_content?: unknown; reasoning?: unknown } }>;
+    usage?: { completion_tokens_details?: { reasoning_tokens?: unknown } };
+  } | undefined;
+  const msg = body?.choices?.[0]?.message;
+  for (const v of [msg?.reasoning_content, msg?.reasoning]) {
+    if (typeof v === 'string' && v.length > 0) return v.length;
+  }
+  const rt = Number(body?.usage?.completion_tokens_details?.reasoning_tokens);
+  return Number.isFinite(rt) && rt > 0 ? 1 : 0;
 }
 
 /**
@@ -135,23 +164,41 @@ export async function callLLMWithTimeout(
   const temperature = clampTemperature((options as { temperature?: number }).temperature);
 
   try {
-    const { text } = await generateText({
+    const result = await generateText({
       ...options,
       ...(temperature !== undefined ? { temperature } : {}),
       abortSignal: controller.signal,
     });
     clearTimeout(timer);
 
+    // v6.169.5 — 提取能力检测所需的元数据字段。
+    const { text, finishReason, usage } = result;
+    const reasoningChars = reasoningCharsOf(result);
+    // 模型商不回 usage 时 SDK 给 NaN:当作「不知道」,速度估算改按字数
+    const completionTokens = Number.isFinite(usage?.completionTokens) && usage.completionTokens >= 0 ? usage.completionTokens : undefined;
+
     const trimmed = text?.trim() ?? '';
     if (!trimmed) {
       // Empty response from primary — try Minimax fallback before giving up.
       // v6.167:.env 的 MiniMax 兜底只给本机自部署用,访客自带 key 时绝不动运营方的 key。
-      const fb = envFallbackAllowed() ? await tryMinimaxFallback(kind, options) : null;
+      // v6.169.5:kind 为 CHECK 时不走 MiniMax 兜底 — 检测要测配置的那个模型本身,兜底会让结果失真。
+      const fb = (envFallbackAllowed() && kind !== 'CHECK') ? await tryMinimaxFallback(kind, options) : null;
       if (fb) { recordLlmCall(kind, { ok: true, viaFallback: true }); return fb; }
-      return reportFailure(kind, options, startedAt, { ok: false, text: '', reason: 'empty' });
+      return reportFailure(kind, options, startedAt, {
+        ok: false, text: '', reason: 'empty',
+        finishReason: finishReason ?? undefined,
+        completionTokens,
+        reasoningChars,
+      });
     }
     recordLlmCall(kind, { ok: true });
-    return { ok: true, text: trimmed };
+    return {
+      ok: true,
+      text: trimmed,
+      finishReason: finishReason ?? undefined,
+      completionTokens,
+      reasoningChars,
+    };
   } catch (err) {
     clearTimeout(timer);
     // AbortError (timeout) vs other error
@@ -160,6 +207,11 @@ export async function callLLMWithTimeout(
 
     // v6.167 — 访客能自己处理的失败(没配 key / key 被拒 / 欠费 / 限流):不兜底,原样告诉调用方。
     const classified = isTimeout ? 'timeout' : classifyLlmError(err);
+    // v6.169.5 — 本机模式没配主路 key(只配了 MiniMax 备路):主路直接报 need_key、不发请求,但备路照旧可用。
+    if (classified === 'need_key' && envFallbackAllowed() && kind !== 'CHECK') {
+      const fb = await tryMinimaxFallback(kind, options);
+      if (fb) { recordLlmCall(kind, { ok: true, viaFallback: true }); return fb; }
+    }
     if (classified && USER_FIXABLE.has(classified)) {
       reportAiFailure(classified as AiFailReason);
       return reportFailure(kind, options, startedAt, {
@@ -174,7 +226,8 @@ export async function callLLMWithTimeout(
     // QingYun proxy is rate-limited / quota-exhausted, but Minimax M2 is
     // currently the only chat model their plan supports, so without this
     // fallback every LLM call falls through to the canned `fallbackSpeech`.
-    const minimaxResult = envFallbackAllowed() ? await tryMinimaxFallback(kind, options) : null;
+    // v6.169.5:kind 为 CHECK 时不走 MiniMax 兜底 — 检测要测配置的那个模型本身,兜底会让结果失真。
+    const minimaxResult = (envFallbackAllowed() && kind !== 'CHECK') ? await tryMinimaxFallback(kind, options) : null;
     if (minimaxResult) { recordLlmCall(kind, { ok: true, viaFallback: true }); return minimaxResult; }
 
     if (isTimeout) {

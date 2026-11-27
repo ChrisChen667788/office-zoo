@@ -11,7 +11,7 @@ import type { AddressInfo } from 'node:net';
 import type { ByokConfig } from '@furball/shared';
 import { callLLMWithTimeout } from '../llm';
 import { chatModel, noRedirectFetch, runWithAi } from '../aiClient';
-import { listProviderModels } from '../../routes/llm';
+import { fetchModelsAndContext } from '../capabilityProbe';
 
 let internal: http.Server;
 let redirector: http.Server;
@@ -61,8 +61,8 @@ describe('访客凭据的出站请求不跟随跳转', () => {
     expect(internalHits).toHaveLength(0);
   });
 
-  it('拉模型列表(/api/llm/check 用):不跟随,返回 null', async () => {
-    expect(await listProviderModels(base, KEY)).toBeNull();
+  it('拉模型列表和窗口大小(/api/llm/check 的能力检测用):不跟随,返回空结果', async () => {
+    expect(await fetchModelsAndContext(base, KEY, 'secret-internal-model')).toEqual({ ids: null, contextTokens: undefined });
     expect(redirectorHits).toBe(1);
     expect(internalHits).toHaveLength(0);
   });

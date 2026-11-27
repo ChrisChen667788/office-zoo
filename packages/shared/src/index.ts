@@ -39,3 +39,5 @@ export * from './human/seat';
 // v6.156 — locale utils
 export * from './utils/locale';
 export * from './byok';
+// v6.169.5 — 模型能力检测的共享契约
+export * from './capability';

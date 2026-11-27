@@ -155,6 +155,49 @@ export function findProvider(id: string): ByokProviderPreset | undefined {
   return BYOK_PROVIDERS.find((p) => p.id === id);
 }
 
+/**
+ * v6.169.5 — 已知模型的元数据,供能力检测的 C6(是否推理型)和 C7(上下文窗口)在模型商不提供时查表。
+ * 每条都要有官方出处(source),数字以官方页面原文为准;查不到就不写,检测会显示「未知」,不会判失败。
+ *   thinking:on = 不传额外参数时默认先思考;off = 支持思考但默认关闭;none = 不是推理型模型。
+ */
+export interface ModelFacts {
+  contextTokens?: number;
+  thinking?: 'on' | 'off' | 'none';
+  /** 官方页面地址(多个用空格分开)。 */
+  source: string;
+}
+
+export const MODEL_FACTS: Readonly<Partial<Record<ByokProviderId, Readonly<Record<string, ModelFacts>>>>> = {
+  // 2026-11-25 逐条回官方页面核过;页面写 1M / 256K 就按 1000000 / 256000 记
+  deepseek: {
+    // 定价页:Supports both non-thinking and thinking (default) modes;关闭思考要传 reasoning_effort: none
+    'deepseek-flash': { contextTokens: 1_000_000, thinking: 'on', source: 'https://api-docs.deepseek.com/quick_start/pricing https://api-docs.deepseek.com/guides/thinking_mode/' },
+    'deepseek-v4-pro': { contextTokens: 1_000_000, thinking: 'on', source: 'https://api-docs.deepseek.com/quick_start/pricing' },
+  },
+  siliconflow: {
+    // enable_thinking 默认 True(文档原文 Default is True);示例返回里带 reasoning_content
+    'deepseek-ai/DeepSeek-V4-Flash': { contextTokens: 1_024_000, thinking: 'on', source: 'https://www.siliconflow.cn/models https://api-docs.siliconflow.cn/api-reference/chat-completions/chat-completions' },
+    'Qwen/Qwen3-8B': { contextTokens: 131_000, thinking: 'on', source: 'https://www.siliconflow.com/models/llm https://docs.siliconflow.com/cn/api-reference/chat-completions/chat-completions' },
+  },
+  moonshot: {
+    // thinking 默认 {type: enabled},传 disabled 可关闭
+    'kimi-k2.6': { contextTokens: 256_000, thinking: 'on', source: 'https://platform.kimi.com/docs/api/models-overview https://platform.kimi.com/docs/api/chat' },
+  },
+  zhipu: {
+    // 窗口已核;flash 专页没写思考默认开还是关,不填
+    'glm-4.7-flash': { contextTokens: 200_000, source: 'https://docs.bigmodel.cn/cn/guide/models/free/glm-4.7-flash' },
+  },
+  dashscope: {
+    // 混合思考,默认不开:Hybrid thinking mode, thinking mode not enabled by default
+    'qwen-plus': { contextTokens: 1_000_000, thinking: 'off', source: 'https://www.alibabacloud.com/help/en/model-studio/qwen-plus https://www.alibabacloud.com/help/en/model-studio/deep-thinking' },
+  },
+};
+
+/** 查已知模型的元数据;没有返回 undefined。 */
+export function findModelFacts(provider: string, model: string): ModelFacts | undefined {
+  return MODEL_FACTS[provider as ByokProviderId]?.[model];
+}
+
 /** 语音来源:浏览器朗读(免费,默认)/ 用同一家模型商的语音接口 / 另填 MiniMax 语音 key。 */
 export type ByokTtsMode = 'browser' | 'provider' | 'minimax';
 
@@ -202,7 +245,7 @@ export function validateByok(input: unknown): ByokValidation {
     if ((u.protocol !== 'https:' && u.protocol !== 'http:') || u.username || u.password || u.hash) {
       return { ok: false, error: 'bad_base_url' };
     }
-    cfg.baseURL = u.toString().replace(/\/+$/, '');
+    cfg.baseURL = normalizeBaseURL(u.toString());
   }
   if (o.tts !== undefined) {
     const t = o.tts as Record<string, unknown> | null;
@@ -257,6 +300,15 @@ export function decodeByok(raw: unknown): ByokConfig | null {
 export function maskKey(key: string): string {
   if (key.length <= 8) return '•'.repeat(key.length);
   return `${key.slice(0, 3)}…${key.slice(-4)}`;
+}
+
+/**
+ * 自定义接口地址的规范写法(去掉首尾空白和末尾的 /)。保存时(validateByok)和前端算缓存指纹、判断「已保存」时
+ * 必须用同一个函数,不然 https://x/v1/ 和 https://x/v1 会被当成两份配置。解析不了就原样(去空白)返回。
+ */
+export function normalizeBaseURL(raw: string): string {
+  const t = raw.trim();
+  try { return new URL(t).toString().replace(/\/+$/, ''); } catch { return t; }
 }
 
 /** 解析出实际调用的 base URL。 */

@@ -65,10 +65,13 @@ export function currentByok(): ByokConfig | null {
   return als.getStore()?.byok ?? null;
 }
 
-// 日志 / 错误信息打码时,顺带逐字抹掉本次请求里访客的 key(见 redact.ts)
+// 日志 / 错误信息打码时,顺带逐字抹掉本次请求里访客的 key 和服务器 .env 里的模型 key(见 redact.ts)。
+// v6.169.5:.env 的 key 以前没登记,UUID 式等不带常见前缀的 key 被上游拒绝时会原样进日志;
+// 「检测服务器模型」上线后这条路径更容易走到,一并补上。每次现读环境变量,测试里改了也能生效。
+const ENV_SECRET_VARS = ['OPENAI_API_KEY', 'QINGYUN_API_KEY', 'MINIMAX_API_KEY', 'MINIMAX_VIDEO_API_KEY'] as const;
 setSecretSource(() => {
   const b = currentByok();
-  return b ? [b.apiKey, b.tts?.minimaxKey] : [];
+  return [...(b ? [b.apiKey, b.tts?.minimaxKey] : []), ...ENV_SECRET_VARS.map((k) => process.env[k])];
 });
 
 export function reportAiFailure(reason: AiFailReason): void {
@@ -79,7 +82,7 @@ export function reportAiFailure(reason: AiFailReason): void {
 
 /** 当前上下文能不能调用文本模型(用于在动手前就提示「先配置模型」)。 */
 export function hasChatAccess(): boolean {
-  return currentByok() !== null || keyMode() === 'server';
+  return currentByok() !== null || (keyMode() === 'server' && serverChatAvailable());
 }
 
 // ---------------------------------------------------------------------------
@@ -107,11 +110,37 @@ function needKeyModel(): LanguageModelV1 {
   };
 }
 
-function envChatProvider() {
-  return createOpenAI({
-    apiKey: process.env.OPENAI_API_KEY || process.env.QINGYUN_API_KEY || '',
+/**
+ * v6.169.5 — 本机 .env 的文本模型地址与 key。envChatProvider 和「检测模型」(server 模式拉 /models)共用这一份,
+ * 免得两处各写一遍、改了一处忘了另一处。只在服务端用,返回值绝不能进响应体或日志。
+ */
+export function envChatEndpoint(): { baseURL: string; apiKey: string } {
+  return {
     baseURL: process.env.OPENAI_BASE_URL || process.env.QINGYUN_BASE_URL || 'https://api.qingyuntop.top/v1',
-  });
+    apiKey: process.env.OPENAI_API_KEY || process.env.QINGYUN_API_KEY || '',
+  };
+}
+
+/**
+ * v6.169.5 — 本机 .env 模式下发言、编剧等多数调用点用的模型(和 BaseAgent 等处的写法一致)。
+ * 「检测模型」测的就是它;裁了么 HR 等单独用 FIRED_HR_MODEL 的调用点不在其内。
+ */
+export function envDefaultModelId(): string {
+  return process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
+}
+
+/** 服务器有没有配主路文本模型 key(OpenAI 兼容,OPENAI_API_KEY / QINGYUN_API_KEY)。「检测服务器模型」测的就是它。 */
+export function serverKeyConfigured(): boolean {
+  return envChatEndpoint().apiKey !== '';
+}
+
+/** 服务器能不能提供文本模型:主路 key,或只配了 MiniMax 备路(主路报 need_key 后走备路)。只给布尔值。 */
+export function serverChatAvailable(): boolean {
+  return serverKeyConfigured() || !!process.env.MINIMAX_API_KEY;
+}
+
+function envChatProvider() {
+  return createOpenAI(envChatEndpoint());
 }
 
 /**
@@ -144,7 +173,9 @@ export function chatModel(tier: ModelTier, serverModelId: string): LanguageModel
     const id = tier === 'fast' ? byok.fastModel ?? byok.model : byok.model;
     return byokChatProvider(byok)(id) as unknown as LanguageModelV1;
   }
-  if (keyMode() === 'byok') return needKeyModel();
+  // v6.169.5 — 本机模式但 .env 没配 key:和托管版没配 key 一样报 need_key。以前会拿空令牌去请求第三方,
+  // 被拒后给访客弹「你的 key 被拒绝了」,和「还没有可用的模型」横幅自相矛盾,还白白多一次外网请求。
+  if (keyMode() === 'byok' || !serverKeyConfigured()) return needKeyModel();
   return envChatProvider()(serverModelId) as unknown as LanguageModelV1;
 }
 
@@ -312,3 +343,4 @@ export function __clearBaseUrlCacheForTest(): void {
 export function __baseUrlCacheSizeForTest(): number {
   return verdictCache.size;
 }
+
